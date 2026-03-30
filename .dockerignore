@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+database.sqlite
+.env
+.env.*
+!.env.example
+private.pem
+public.pem
+Dockerfile
+docker-compose.yml
+.git
+.gitignore
+README.md
+legacy

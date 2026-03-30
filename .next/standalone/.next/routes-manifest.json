@@ -1,0 +1,145 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ],
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    }
+  ],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/auth/[...nextauth]",
+      "regex": "^/api/auth/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPnextauth": "nxtPnextauth"
+      },
+      "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/AdminDashboard",
+      "regex": "^/AdminDashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/AdminDashboard(?:/)?$"
+    },
+    {
+      "page": "/CorporateDemo",
+      "regex": "^/CorporateDemo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/CorporateDemo(?:/)?$"
+    },
+    {
+      "page": "/CreativeDemo",
+      "regex": "^/CreativeDemo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/CreativeDemo(?:/)?$"
+    },
+    {
+      "page": "/demo/corporate",
+      "regex": "^/demo/corporate(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/demo/corporate(?:/)?$"
+    },
+    {
+      "page": "/demo/creative",
+      "regex": "^/demo/creative(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/demo/creative(?:/)?$"
+    },
+    {
+      "page": "/demo/ecommerce",
+      "regex": "^/demo/ecommerce(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/demo/ecommerce(?:/)?$"
+    },
+    {
+      "page": "/demo/saas",
+      "regex": "^/demo/saas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/demo/saas(?:/)?$"
+    },
+    {
+      "page": "/EcommerceDemo",
+      "regex": "^/EcommerceDemo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/EcommerceDemo(?:/)?$"
+    },
+    {
+      "page": "/SaasDemo",
+      "regex": "^/SaasDemo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/SaasDemo(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

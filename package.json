@@ -1,0 +1,42 @@
+{
+  "name": "tk-saas-sales-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "NODE_ENV=production node server.js",
+    "lint": "next lint",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-verify.ps1"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "framer-motion": "^12.37.0",
+    "lucide-react": "^0.577.0",
+    "next": "^15.5.14",
+    "next-auth": "^5.0.0-beta.30",
+    "next-pwa": "^5.6.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.8.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "sqlite3": "^6.0.1",
+    "tailwind-merge": "^2.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "15.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16"
+  }
+}
