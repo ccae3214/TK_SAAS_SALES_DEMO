@@ -2,15 +2,18 @@
 import { SessionProvider } from "next-auth/react";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function Providers({ children }) {
   return (
-    <SessionProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-      </LanguageProvider>
-    </SessionProvider>
+    <ErrorBoundary>
+      <SessionProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </LanguageProvider>
+      </SessionProvider>
+    </ErrorBoundary>
   );
 }

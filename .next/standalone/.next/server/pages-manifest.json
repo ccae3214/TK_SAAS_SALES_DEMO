@@ -1,8 +1,8 @@
 {
   "/_app": "pages/_app.js",
+  "/CorporateDemo": "pages/CorporateDemo.html",
   "/_error": "pages/_error.js",
   "/AdminDashboard": "pages/AdminDashboard.html",
-  "/CorporateDemo": "pages/CorporateDemo.html",
   "/CreativeDemo": "pages/CreativeDemo.html",
   "/EcommerceDemo": "pages/EcommerceDemo.html",
   "/SaasDemo": "pages/SaasDemo.html",

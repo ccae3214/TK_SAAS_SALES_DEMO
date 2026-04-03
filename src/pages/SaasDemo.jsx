@@ -10,7 +10,7 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 function SaasDemo() {
   const { t, lang } = useLanguage(); 
-  const c = t.saas; // Correct mapping to the SaaS translation object
+  const c = t?.saas || { nav: {}, hero: {}, dashboard: {}, features: {}, pricing: {} };
   const [news, setNews] = useState([]);
 
   useEffect(() => {

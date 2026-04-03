@@ -44,6 +44,34 @@ export async function requireAdmin() {
   };
 }
 
+export async function requireUser() {
+  const session = await auth();
+  const email = session?.user?.email?.toLowerCase();
+
+  if (!email) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ error: 'Authentication required' }, { status: 401 }),
+    };
+  }
+
+  return {
+    authorized: true,
+    session,
+  };
+}
+
+export function requireCsrf(request) {
+  const headerToken = request.headers.get('x-csrf-token');
+  const cookieToken = request.cookies.get('csrf-token')?.value;
+
+  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+    return false;
+  }
+
+  return true;
+}
+
 export function validateProductPayload(payload) {
   const name = payload?.name?.trim();
   const category = payload?.category?.trim();

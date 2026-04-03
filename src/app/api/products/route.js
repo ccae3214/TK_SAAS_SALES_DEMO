@@ -20,6 +20,6 @@ export async function POST(request) {
   }
 
   const { name, price, category, tag, img } = validation.data;
-  const { id } = await run('INSERT INTO products (name, price, category, tag, img) VALUES (?, ?, ?, ?, ?)', [name, price, category, tag, img]);
-  return NextResponse.json({ id });
+  const result = await run('INSERT INTO products (name, price, category, tag, img) VALUES ($1, $2, $3, $4, $5) RETURNING id', [name, price, category, tag, img]);
+  return NextResponse.json({ id: result.id });
 }

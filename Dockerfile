@@ -28,6 +28,9 @@ RUN adduser --system --uid 1001 nextjs
 # Copy node_modules from builder for socket.io and other runtime dependencies
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
+# Copy crypto keys
+COPY --from=builder /app/public.pem ./public.pem
+COPY --from=builder /app/private.pem ./private.pem
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

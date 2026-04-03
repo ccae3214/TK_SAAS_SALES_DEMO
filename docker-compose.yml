@@ -1,4 +1,17 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=82988530
+      - POSTGRES_DB=saas_demo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+
   app:
     build:
       context: .
@@ -7,16 +20,17 @@ services:
       - "8080:3000"
     environment:
       - NODE_ENV=production
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:8080}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-default-secret-change-in-production-12345}
       - AUTH_TRUST_HOST=true
-      - ADMIN_EMAILS=${ADMIN_EMAILS}
-      - APP_ORIGIN=${APP_ORIGIN}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
-      - OIDC_ISSUER=${OIDC_ISSUER}
-    volumes:
-      - ./database.sqlite:/app/database.sqlite
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-admin@example.com}
+      - APP_ORIGIN=${APP_ORIGIN:-http://localhost:8080}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - DATABASE_URL=postgresql://postgres:82988530@postgres:5432/saas_demo
+    depends_on:
+      - postgres
     restart: always
 
   nginx:
@@ -28,3 +42,6 @@ services:
     depends_on:
       - app
     restart: always
+
+volumes:
+  postgres_data:

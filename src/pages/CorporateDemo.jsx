@@ -11,7 +11,19 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 function CorporateDemo() {
   const { t, lang } = useLanguage(); 
-  const c = t.themes[2]; // Shortcut for corporate translations
+  const c = t?.themes?.[2] || { 
+    title: 'Corporate Pro',
+    hero: { tag: '', title1: '', title2: '', subtitle: '', btn1: '', btn2: '' }, 
+    innovation: { tag: '', title: '', desc: '', stats: [] }, 
+    values: [], 
+    leadership: { title: '', subtitle: '', members: [] }, 
+    insights: { title: '', subtitle: '', posts: [] },
+    services: { title: '', subtitle: '', items: [] },
+    mission: { title: '', desc: '' },
+    faq: { title: '', items: [] }, 
+    partners: { title: '', subtitle: '' }, 
+    contact: { title: '', subtitle: '', btn: '', success: '', fields: [] } 
+  };
   const [activeFaq, setActiveFaq] = useState(null);
   const [formStatus, setFormStatus] = useState('idle');
   const [formData, setFormData] = useState({ name: '', email: '', company: '', message: '' });

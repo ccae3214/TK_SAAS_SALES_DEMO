@@ -125,10 +125,10 @@ const AdminDashboard = () => {
             <Motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
                 {[
-                  { label: 'Total Revenue', val: `$${stats.revenue?.toLocaleString() || 0}`, icon: <DollarSign size={24} />, color: '#22c55e', bg: '#f0fdf4' },
-                  { label: 'Orders', val: stats.ordersCount, icon: <ShoppingCart size={24} />, color: '#2563eb', bg: '#eff6ff' },
-                  { label: 'Users', val: stats.usersCount, icon: <Users size={24} />, color: '#a855f7', bg: '#f5f3ff' },
-                  { label: 'Subscribed', val: stats.newsletterCount, icon: <Mail size={24} />, color: '#f59e0b', bg: '#fffbeb' }
+                  { label: 'Total Revenue', val: `$${stats?.revenue?.toLocaleString() || 0}`, icon: <DollarSign size={24} />, color: '#22c55e', bg: '#f0fdf4' },
+                  { label: 'Orders', val: stats?.ordersCount || 0, icon: <ShoppingCart size={24} />, color: '#2563eb', bg: '#eff6ff' },
+                  { label: 'Users', val: stats?.usersCount || 0, icon: <Users size={24} />, color: '#a855f7', bg: '#f5f3ff' },
+                  { label: 'Subscribed', val: stats?.newsletterCount || 0, icon: <Mail size={24} />, color: '#f59e0b', bg: '#fffbeb' }
                 ].map((stat, i) => (
                   <div key={i} style={{ padding: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -141,8 +141,8 @@ const AdminDashboard = () => {
                 ))}
               </div>
               <RecentOrdersTable 
-                orders={stats.recentOrders.slice(0, 5)} 
-                items={stats.orderItems}
+                orders={(stats?.recentOrders || []).slice(0, 5)} 
+                items={stats?.orderItems || []}
                 expanded={expandedOrders}
                 onToggle={toggleOrder}
                 onStatusUpdate={updateOrderStatus} 
@@ -153,8 +153,8 @@ const AdminDashboard = () => {
 
           {activeTab === 'Orders' && (
              <RecentOrdersTable 
-                orders={stats.recentOrders} 
-                items={stats.orderItems}
+                orders={stats?.recentOrders || []} 
+                items={stats?.orderItems || []}
                 expanded={expandedOrders}
                 onToggle={toggleOrder}
                 onStatusUpdate={updateOrderStatus} 
@@ -288,8 +288,8 @@ const AdminDashboard = () => {
              </Motion.div>
           )}
 
-          {activeTab === 'Customers' && <CustomersTable users={stats.allUsers} />}
-          {activeTab === 'Inquiries' && <InquiriesList inquiries={stats.recentInquiries} />}
+          {activeTab === 'Customers' && <CustomersTable users={stats?.allUsers || []} />}
+          {activeTab === 'Inquiries' && <InquiriesList inquiries={stats?.recentInquiries || []} />}
 
           {activeTab === 'Analytics' && (
              <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '40px' }}>
@@ -297,7 +297,7 @@ const AdminDashboard = () => {
                 <p style={{ color: '#64748b', marginBottom: '40px' }}>Daily performance tracking for the last 14 days.</p>
                 <div style={{ height: 400 }}>
                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={stats.chartData}>
+                      <AreaChart data={stats?.chartData || []}>
                          <defs>
                            <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
                              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>

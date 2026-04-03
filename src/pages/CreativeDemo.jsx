@@ -6,7 +6,12 @@ import { Mail, ArrowUpRight, Instagram, Twitter, Linkedin, MapPin, ArrowRight } 
 
 function CreativeDemo() {
   const { t, lang } = useLanguage(); 
-  const c = t.themes[3]; // Creative translations
+  const c = t?.themes?.[3] || { 
+    title: 'Creative Canvas',
+    hero: { title1: '', title2: '', subtitle: '' }, 
+    agency: { tag: '', title1: '', title2: '', desc: '', btn: '' },
+    work: { title: '', items: [] } 
+  };
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);

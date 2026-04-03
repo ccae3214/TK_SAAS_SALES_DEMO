@@ -3,10 +3,12 @@
 import React, { useState, createContext, useContext } from 'react';
 import { translations } from '../data/translations.js';
 
+const defaultTranslation = translations?.['zh'] || {};
+
 const LanguageContext = createContext({
   lang: 'zh',
   setLang: () => {},
-  t: translations['zh']
+  t: defaultTranslation
 });
 
 export const LanguageProvider = ({ children }) => {
@@ -20,4 +22,7 @@ export const LanguageProvider = ({ children }) => {
   );
 };
 
-export const useLanguage = () => useContext(LanguageContext);
+export const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  return context || { lang: 'zh', setLang: () => {}, t: translations['zh'] };
+};

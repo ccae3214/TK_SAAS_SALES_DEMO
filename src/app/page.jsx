@@ -14,7 +14,6 @@ import ContactModal from '@/components/ContactModal';
 
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
-import { useSession } from "next-auth/react";
 
 const baseThemesData = [
   {
@@ -52,12 +51,37 @@ const categoryKeys = ["All", "Store", "Business", "Portfolio", "Software"];
 export default function Home() {
   const { lang, setLang, t } = useLanguage();
   const { userProfile } = useAuth();
-  const { data: session } = useSession();
   const [activeCategory, setActiveCategory] = useState("All");
   const [scrolled, setScrolled] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const router = useRouter();
+
+  // Fallback translations if needed
+  const safeT = t || { 
+    nav: { home: "Home", themes: "Our Themes", contact: "Get Started", login: "Login" },
+    hero: { 
+      tagline: "Premium Web Templates Studio",
+      titleTop: "Elevate Your Brand With",
+      titleBottom: "Next-Gen Web Design",
+      subtitle: "Browse our exclusive templates",
+      btnExplore: "Explore Themes",
+      btnWatch: "Watch Showreel"
+    },
+    gallery: {
+      cats: {
+        "All": "All",
+        "Store": "Store", 
+        "Business": "Business",
+        "Portfolio": "Portfolio",
+        "Software": "Software"
+      }
+    },
+    testimonials: { title: "Testimonials", subtitle: "What clients say", items: [] },
+    cta: { title: "Get Started", subtitle: "Start your project today", btnStart: "Start Now", btnSchedule: "Schedule Demo" },
+    process: { title: "Our Process", items: [] },
+    footer: { text: "© 2026 All rights reserved" }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -67,19 +91,22 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const themesData = baseThemesData.map(theme => ({
-    ...theme,
-    title: t.themes[theme.id].title,
-    categoryName: t.themes[theme.id].category,
-    description: t.themes[theme.id].desc,
-    features: t.themes[theme.id].features
-  }));
+  const themesData = baseThemesData.map(theme => {
+    const themeData = safeT?.themes?.[theme.id] || {};
+    return {
+      ...theme,
+      title: themeData.title || 'Theme',
+      categoryName: themeData.category || 'Unknown',
+      description: themeData.desc || '',
+      features: themeData.features || []
+    };
+  });
 
   const filteredThemes = activeCategory === "All" 
     ? themesData 
     : themesData.filter(t => t.catKey === activeCategory);
 
-  const activeUser = session?.user || userProfile;
+  const activeUser = userProfile;
 
   return (
     <div>
@@ -93,14 +120,14 @@ export default function Home() {
             克雷迅網頁設計
           </Link>
           <nav className="nav-links" style={{ alignItems: 'center' }}>
-            <a href="#home">{t.nav.home}</a>
-            <a href="#themes">{t.nav.themes}</a>
+            <a href="#home">{safeT.nav.home}</a>
+            <a href="#themes">{safeT.nav.themes}</a>
             <button 
               className="text-gradient" 
               style={{fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer'}}
               onClick={() => setIsContactOpen(true)}
             >
-              {t.nav.contact}
+              {safeT.nav.contact}
             </button>
             {activeUser ? (
               <div 
@@ -114,7 +141,7 @@ export default function Home() {
                 href="/demo/ecommerce" 
                 style={{fontWeight: 700, color: 'var(--text-secondary)', textDecoration: 'none'}}
               >
-                {t.nav.login || (lang === 'en' ? 'Login' : '登錄')}
+                {safeT.nav.login || (lang === 'en' ? 'Login' : '登錄')}
               </Link>
             )}
             <button 
@@ -145,23 +172,23 @@ export default function Home() {
             className="container"
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
           >
-            <div className="tagline">{t.hero.tagline}</div>
+            <div className="tagline">{safeT.hero.tagline}</div>
             <h1 className="hero-title">
-              {t.hero.titleTop} <br />
-              <span className="text-gradient">{t.hero.titleBottom}</span>
+              {safeT.hero.titleTop} <br />
+              <span className="text-gradient">{safeT.hero.titleBottom}</span>
             </h1>
             <p className="hero-subtitle">
-              {t.hero.subtitle}
+              {safeT.hero.subtitle}
             </p>
             <div className="hero-buttons">
               <a href="#themes" className="btn-primary" style={{ textDecoration: 'none' }}>
-                {t.hero.btnExplore} <ArrowRight size={18} />
+                {safeT.hero.btnExplore} <ArrowRight size={18} />
               </a>
               <button 
                 className="btn-secondary"
                 onClick={() => setIsVideoOpen(true)}
               >
-                <Play size={18} /> {t.hero.btnWatch}
+                <Play size={18} /> {safeT.hero.btnWatch}
               </button>
             </div>
           </Motion.div>
@@ -178,7 +205,7 @@ export default function Home() {
                   className={`filter-btn ${activeCategory === catKey ? 'active' : ''}`}
                   onClick={() => setActiveCategory(catKey)}
                 >
-                  {t.gallery.cats[catKey]}
+                  {safeT.gallery.cats[catKey]}
                 </button>
               ))}
             </div>
@@ -209,11 +236,11 @@ export default function Home() {
         <section id="testimonials" className="testimonials-section">
           <div className="container">
             <div className="section-header">
-              <h2 className="section-title">{t.testimonials.title}</h2>
-              <p className="section-subtitle">{t.testimonials.subtitle}</p>
+              <h2 className="section-title">{safeT.testimonials?.title || 'Testimonials'}</h2>
+              <p className="section-subtitle">{safeT.testimonials?.subtitle || ''}</p>
             </div>
             <Motion.div layout className="testimonials-grid">
-              {t.testimonials.items.map((item, idx) => (
+              {(safeT.testimonials?.items || []).map((item, idx) => (
                 <Motion.div 
                   key={idx}
                   initial={{ opacity: 0, y: 20 }}
@@ -241,8 +268,8 @@ export default function Home() {
         <section id="pricing" className="pricing-section">
           <div className="container">
             <div className="section-header">
-              <h2 className="section-title">{t.cta.title}</h2>
-              <p className="section-subtitle">{t.cta.subtitle}</p>
+              <h2 className="section-title">{safeT.cta?.title || 'Get Started'}</h2>
+              <p className="section-subtitle">{safeT.cta?.subtitle || ''}</p>
             </div>
             <div className="pricing-grid">
               {[
@@ -338,10 +365,10 @@ export default function Home() {
         <section id="process" className="process-section">
           <div className="container">
             <div className="section-header">
-              <h2 className="section-title">{t.process.title}</h2>
+              <h2 className="section-title">{safeT.process?.title || 'Our Process'}</h2>
             </div>
             <div className="process-timeline">
-              {t.process.items.map((item, idx) => (
+              {(safeT.process?.items || []).map((item, idx) => (
                 <Motion.div
                   key={idx}
                   initial={{ opacity: 0, x: -20 }}
@@ -362,10 +389,10 @@ export default function Home() {
         <section id="faq" className="faq-section">
           <div className="container">
             <div className="section-header">
-              <h2 className="section-title">{t.themes[2].faq.title}</h2>
+              <h2 className="section-title">{t?.themes?.[2]?.faq?.title || 'Frequently Asked Questions'}</h2>
             </div>
             <div className="faq-list">
-              {t.themes[2].faq.items.map((item, idx) => (
+              {(t?.themes?.[2]?.faq?.items || []).map((item, idx) => (
                 <Motion.div
                   key={idx}
                   className="faq-item glass-panel"
@@ -415,7 +442,7 @@ export default function Home() {
                   className="btn-secondary"
                   onClick={() => setIsContactOpen(true)}
                 >
-                  {t.cta.btnSchedule}
+                  {safeT.cta?.btnSchedule || 'Schedule Demo'}
                 </button>
               </div>
             </Motion.div>
@@ -427,7 +454,7 @@ export default function Home() {
       </div>
 
       <footer>
-        {t.footer.text}
+        {safeT.footer?.text || '© 2026 All rights reserved'}
       </footer>
     </div>
   );

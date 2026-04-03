@@ -49,6 +49,38 @@
         "nxtPnextauth": "nxtPnextauth"
       },
       "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$"
+    },
+    {
+      "page": "/api/cart/[email]",
+      "regex": "^/api/cart/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPemail": "nxtPemail"
+      },
+      "namedRegex": "^/api/cart/(?<nxtPemail>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/orders/user/[email]",
+      "regex": "^/api/orders/user/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPemail": "nxtPemail"
+      },
+      "namedRegex": "^/api/orders/user/(?<nxtPemail>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/reviews/[id]",
+      "regex": "^/api/reviews/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/reviews/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/wishlist/[email]",
+      "regex": "^/api/wishlist/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPemail": "nxtPemail"
+      },
+      "namedRegex": "^/api/wishlist/(?<nxtPemail>[^/]+?)(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -75,6 +107,12 @@
       "regex": "^/AdminDashboard(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/AdminDashboard(?:/)?$"
+    },
+    {
+      "page": "/checkout",
+      "regex": "^/checkout(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checkout(?:/)?$"
     },
     {
       "page": "/CorporateDemo",

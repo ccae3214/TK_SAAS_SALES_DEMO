@@ -1,36 +1,39 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import pkg from 'pg';
+const { Pool } = pkg;
 
-const dbPath = process.env.DATABASE_PATH
-  ? path.resolve(process.env.DATABASE_PATH)
-  : path.resolve(process.cwd(), 'database.sqlite');
-const db = new sqlite3.Database(dbPath);
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:82988530@localhost:5432/saas_demo';
 
-export const query = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+const pool = new Pool({
+  connectionString,
+  // Disable SSL for local Docker network
+  ssl: false,
+});
+
+export const query = async (sql, params = []) => {
+  try {
+    const result = await pool.query(sql, params);
+    return result.rows;
+  } catch (err) {
+    throw err;
+  }
 };
 
-export const get = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+export const get = async (sql, params = []) => {
+  try {
+    const result = await pool.query(sql, params);
+    return result.rows[0] || null;
+  } catch (err) {
+    throw err;
+  }
 };
 
-export const run = (sql, params = []) => {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
+export const run = async (sql, params = []) => {
+  try {
+    const result = await pool.query(sql, params);
+    return { changes: result.rowCount, id: result.rows[0]?.id };
+  } catch (err) {
+    throw err;
+  }
 };
 
-export default db;
+export default pool;

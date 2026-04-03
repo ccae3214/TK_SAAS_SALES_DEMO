@@ -1,1 +1,11 @@
-{}
+{
+  "/_app": "pages/_app.js",
+  "/CorporateDemo": "pages/CorporateDemo.html",
+  "/_error": "pages/_error.js",
+  "/AdminDashboard": "pages/AdminDashboard.html",
+  "/CreativeDemo": "pages/CreativeDemo.html",
+  "/EcommerceDemo": "pages/EcommerceDemo.html",
+  "/SaasDemo": "pages/SaasDemo.html",
+  "/_document": "pages/_document.js",
+  "/404": "pages/404.html"
+}

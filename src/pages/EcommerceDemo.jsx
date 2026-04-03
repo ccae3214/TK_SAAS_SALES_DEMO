@@ -2,9 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Search, User, Star, ArrowRight, ChevronRight, X, Plus, Minus, Trash2, CheckCircle, Package, Heart, Settings, LogOut, Shield, Lock, Ticket, Clock } from 'lucide-react';
 import { DemoOverlay } from '@/components/DemoOverlay';
+import { OrderSuccess } from '@/components/OrderSuccess';
+import { CheckoutPage } from '@/components/CheckoutPage';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
+import { useSession, signIn, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 // --- Premium Fake Product Data (fallback if API fails) ---
 const PRODUCTS = [
@@ -43,45 +47,112 @@ const getNextTier = (spending) => {
 
 function EcommerceDemo() {
   const { t, lang } = useLanguage(); 
+  const router = useRouter();
+  const { data: session, status } = useSession();
   
   // States
   const [activeCategory, setActiveCategory] = useState("All");
   const { userProfile, setUserProfile, logout } = useAuth();
   const [cart, setCart] = useState([]);
+  const [cartLoadedOnce, setCartLoadedOnce] = useState(false);
+  const [csrfToken, setCsrfToken] = useState('');
+  const isFirstCartRender = React.useRef(true);
+
+  // Fetch CSRF token at mount
+  useEffect(() => {
+    fetch('/api/csrf')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.csrfToken) setCsrfToken(data.csrfToken);
+      })
+      .catch(err => console.error('Failed to fetch CSRF token:', err));
+  }, []);
 
   // Load from local storage on mount (Client-only)
   useEffect(() => {
     const saved = localStorage.getItem('tk_cart');
-    if (saved) setCart(JSON.parse(saved));
+    if (saved) {
+      try {
+        setCart(JSON.parse(saved));
+      } catch (err) {
+        console.error('Failed to parse localStorage cart:', err);
+        setCart([]);
+      }
+    }
+    
+    // Listen for localStorage changes from other tabs/windows
+    const handleStorageChange = (e) => {
+      if (e.key === 'tk_cart') {
+        if (e.newValue) {
+          try {
+            setCart(JSON.parse(e.newValue));
+          } catch (err) {
+            console.error('Failed to parse cart from storage:', err);
+          }
+        } else {
+          // Cart was cleared in another tab (removeItem)
+          setCart([]);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const isFirstCartRender = React.useRef(true);
+  // Load cart from database ONCE when user profile changes (not every time)
+  useEffect(() => {
+    if (userProfile?.email && !cartLoadedOnce) {
+      fetch(`/api/cart?email=${encodeURIComponent(userProfile.email)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setCart(data);
+            localStorage.setItem('tk_cart', JSON.stringify(data));
+          }
+          setCartLoadedOnce(true);
+        })
+        .catch(err => {
+          console.error('Failed to load cart from DB:', err);
+          setCartLoadedOnce(true);
+        });
+    }
+  }, [userProfile?.email, cartLoadedOnce]);
+
   useEffect(() => {
     if (isFirstCartRender.current) {
         if (cart.length > 0) isFirstCartRender.current = false;
         return;
     }
+    // Always save to localStorage
     localStorage.setItem('tk_cart', JSON.stringify(cart));
+    
+    // Also sync to database if user is logged in
     if (userProfile?.email) {
-      fetch('/api/cart/sync', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      fetch('/api/cart', {
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
         body: JSON.stringify({ email: userProfile.email, cart })
-      }).catch(()=>{});
+      }).catch(err => console.error('Failed to sync cart to DB:', err));
     }
   }, [cart, userProfile?.email]);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [toastNotification, setToastNotification] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedSize, setSelectedSize] = useState("M");
   const [completedOrder, setCompletedOrder] = useState(null);
+
   const [isUserOpen, setIsUserOpen] = useState(false);
   const [products, setProducts] = useState(PRODUCTS);
   const [regForm, setRegForm] = useState({ name: '', email: '', password: '' });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [wishlist, setWishlist] = useState([]);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutForm, setCheckoutForm] = useState({ address: '', card: '' });
   const [authMode, setAuthMode] = useState('register');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -150,22 +221,73 @@ function EcommerceDemo() {
     }
   };
 
-  const fetchUserOrders = React.useCallback(async () => {
-    if (!userProfile?.email) return;
-    try {
-      const res = await fetch(`/api/orders/user/${userProfile.email}`);
-      const data = await res.json();
-      if (Array.isArray(data)) setUserOrders(data);
-    } catch (err) {
-      console.error("Failed to fetch orders:", err);
-    }
-  }, [userProfile]);
-
+  // Fetch orders whenever user email changes
   useEffect(() => {
-    if (userProfile?.email && isUserOpen) {
-      Promise.resolve().then(() => fetchUserOrders());
+    if (!userProfile?.email) {
+      console.log("[Orders] No user profile email, clearing orders");
+      setUserOrders([]);
+      return;
     }
-  }, [userProfile?.email, isUserOpen, fetchUserOrders]);
+
+    const fetchOrders = async () => {
+      try {
+        const email = userProfile.email;
+        const url = `/api/orders/user/${encodeURIComponent(email)}`;
+        console.log("[Orders] Fetching from URL:", url);
+        
+        const res = await fetch(url);
+        console.log("[Orders] Response status:", res.status, "statusText:", res.statusText);
+        
+        if (!res.ok) {
+          console.error("[Orders] HTTP error:", res.status, res.statusText);
+          const body = await res.text();
+          console.error("[Orders] Error body:", body.substring(0, 100));
+          setUserOrders([]);
+          return;
+        }
+        
+        const contentType = res.headers.get('content-type') || '';
+        console.log("[Orders] Content-Type:", contentType);
+        
+        if (!contentType.includes('application/json')) {
+          console.error("[Orders] Not JSON content-type");
+          setUserOrders([]);
+          return;
+        }
+        
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          console.error("[Orders] JSON parse failed:", parseErr.message);
+          setUserOrders([]);
+          return;
+        }
+        
+        console.log("[Orders] Received data:", JSON.stringify(data).substring(0, 200));
+        
+        if (!data) {
+          console.log("[Orders] Data is falsy, setting empty");
+          setUserOrders([]);
+          return;
+        }
+        
+        if (Array.isArray(data)) {
+          console.log("[Orders] Data is array, length:", data.length);
+          setUserOrders(data);
+          return;
+        }
+        
+        console.warn("[Orders] Data is not array, type:", typeof data);
+        setUserOrders([]);
+      } catch (err) {
+        console.error("[Orders] Fetch exception:", err.message);
+        setUserOrders([]);
+      }
+    };
+
+    fetchOrders();
+  }, [userProfile?.email]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -217,6 +339,14 @@ function EcommerceDemo() {
   };
 
   useEffect(() => {
+    if (status === 'authenticated' && session?.user?.email) {
+      setUserProfile({
+        name: session.user.name || '',
+        email: session.user.email || '',
+        image: session.user.image || '',
+      });
+    }
+
     if (userProfile?.email) {
       fetch(`/api/wishlist/${userProfile.email}`)
         .then(res => res.json())
@@ -234,7 +364,7 @@ function EcommerceDemo() {
         setWishlist(prev => prev.length > 0 ? [] : prev);
       });
     }
-  }, [userProfile?.email]);
+  }, [session, status, userProfile?.email]);
 
   const userTier = userProfile ? (TIERS.slice().reverse().find(t => (userProfile.spending || 0) >= t.min) || TIERS[0]) : TIERS[0];
   const nextTier = getNextTier(userProfile?.spending || 0);
@@ -255,8 +385,14 @@ function EcommerceDemo() {
       if (existing) return prev.map(item => item.id === productId ? { ...item, quantity: item.quantity + 1 } : item);
       return [...prev, { ...product, id: productId, originalId: product.id, size, quantity: 1 }];
     });
-    setToast(`${product.name} ${lang === 'zh' ? '已加入購物車' : 'added to cart'}`);
-    setTimeout(() => setToast(null), 3000);
+    // Show notification with product details
+    setToastNotification({
+      name: product.name,
+      size: size || 'Default',
+      image: product.img,
+      price: product.price
+    });
+    setTimeout(() => setToastNotification(null), 3000);
   };
 
   const updateQuantity = (id, delta) => {
@@ -283,26 +419,52 @@ function EcommerceDemo() {
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
+        },
         body: JSON.stringify({
           total: finalTotal,
-          userEmail: userProfile?.email,
+          email: userProfile?.email,
           items: cart.map(item => ({ 
             id: item.originalId || item.id, 
             name: item.name,
             size: item.size || 'M',
             quantity: item.quantity, 
             price: item.price 
-          }))
+          })),
+          address: checkoutForm.address,
+          couponCode: appliedCoupon?.code || null,
         })
       });
       const data = await res.json();
       if (data.success) {
-        setCompletedOrder({ items: [...cart], total: finalTotal, id: data.orderId, address: checkoutForm.address });
+        // Calculate total discounts for display
+        const totalDiscount = (cartTotal * userTier.discount) + couponDiscountAmount;
+        
+        setCompletedOrder({ 
+          items: cart.map(item => ({
+            ...item,
+            image: item.img || 'https://via.placeholder.com/60'
+          })), 
+          total: finalTotal,
+          subtotal: cartTotal,
+          discount_amount: totalDiscount,
+          id: data.orderId, 
+          address: checkoutForm.address,
+          created_at: new Date().toISOString()
+        });
         setCart([]);
-        setIsCheckoutOpen(false);
+        setShowCheckoutPage(false);
+        setIsCartOpen(false);
+        setSelectedProduct(null);
         setAppliedCoupon(null);
         setCouponCode('');
+        setCheckoutForm({ address: '', card: '' });
+        
+        // Show success notification
+        setToast(lang === 'zh' ? '✅ 訂單成功！感謝您的購買' : '✅ Order successful! Thank you for your purchase');
+        setTimeout(() => setToast(null), 3000);
         
         if (userProfile) {
            const earned = Math.floor(finalTotal / 10);
@@ -319,6 +481,8 @@ function EcommerceDemo() {
       }
     } catch (err) {
        console.error("Order error", err);
+       setToast(lang === 'zh' ? '訂單處理出錯' : 'Error processing order');
+       setTimeout(() => setToast(null), 4000);
        window.scrollTo({ top: 0, behavior: 'auto' });
     }
   };
@@ -357,6 +521,87 @@ function EcommerceDemo() {
             <CheckCircle size={18} /> {toast}
           </Motion.div>
         )}
+
+        {toastNotification && (
+          <Motion.div 
+            initial={{ opacity: 0, x: 400 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: 400 }}
+            style={{
+              position: 'fixed',
+              bottom: '30px',
+              right: '30px',
+              zIndex: 9998,
+              background: '#fff',
+              borderRadius: '16px',
+              boxShadow: '0 20px 50px rgba(15, 23, 42, 0.15)',
+              border: '1px solid #e2e8f0',
+              padding: '16px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+              maxWidth: '320px'
+            }}
+          >
+            {/* Product Image */}
+            <div style={{
+              flexShrink: 0,
+              width: '60px',
+              height: '60px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0'
+            }}>
+              <img 
+                src={toastNotification.image} 
+                alt={toastNotification.name}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '4px'
+              }}>
+                <CheckCircle size={16} color="#22c55e" />,
+                <span style={{
+                  fontSize: '13px',
+                  color: '#22c55e',
+                  fontWeight: '600'
+                }}>
+                  {lang === 'zh' ? '已加入購物車' : 'Added to cart'}
+                </span>
+              </div>
+              <p style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#0f172a',
+                margin: '0 0 4px 0',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {toastNotification.name}
+              </p>
+              <p style={{
+                fontSize: '12px',
+                color: '#64748b',
+                margin: '0'
+              }}>
+                {lang === 'zh' ? '尺寸' : 'Size'}: {toastNotification.size} • ${toastNotification.price}
+              </p>
+            </div>
+          </Motion.div>
+        )}
       </AnimatePresence>
 
       {/* Header */}
@@ -376,14 +621,13 @@ function EcommerceDemo() {
       </header>
 
       {/* Content */}
-      <main style={{ padding: '60px 48px' }}>
+      <main style={{ padding: '60px 48px', minHeight: 'calc(100vh - 100px)' }}>
         {completedOrder ? (
-          <div style={{ textAlign: 'center', padding: '80px' }}>
-            <CheckCircle size={80} color="#22c55e" style={{ marginBottom: '20px' }} />
-            <h1 style={{ fontWeight: 800 }}>{lang === 'zh' ? '訂購成功！' : 'Order Placed!'}</h1>
-            <p style={{ color: '#64748b' }}>{lang === 'zh' ? `訂單編號: #${completedOrder.id}` : `Order ID: #${completedOrder.id}`}</p>
-            <button onClick={() => setCompletedOrder(null)} style={{ marginTop: '30px', background: '#0f172a', color: '#fff', padding: '12px 40px', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer' }}>{lang === 'zh' ? '繼續逛逛' : 'Continue Shopping'}</button>
-          </div>
+          <OrderSuccess 
+            order={completedOrder} 
+            userProfile={userProfile}
+            onContinue={() => setCompletedOrder(null)}
+          />
         ) : (
           <Motion.div 
             layout
@@ -508,28 +752,46 @@ function EcommerceDemo() {
                   </div>
 
                   {authMode === 'login' ? (
-                    <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      <input
-                        type="email"
-                        placeholder="Email"
-                        value={loginForm.email}
-                        onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
-                        style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
-                      />
-                      <input
-                        type="password"
-                        placeholder="Password"
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                        style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
-                      />
+                    <>
                       <button
-                        type="submit"
-                        style={{ border: 'none', borderRadius: '14px', padding: '14px 16px', background: '#0f172a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                        type="button"
+                        onClick={() => signIn('google')}
+                        style={{
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '14px',
+                          padding: '14px 16px',
+                          background: '#fff',
+                          color: '#0f172a',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          marginBottom: '12px'
+                        }}
                       >
-                        Sign In
+                        Sign in with Google
                       </button>
-                    </form>
+                      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={loginForm.email}
+                          onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
+                          style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                        />
+                        <input
+                          type="password"
+                          placeholder="Password"
+                          value={loginForm.password}
+                          onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                          style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}
+                        />
+                        <button
+                          type="submit"
+                          style={{ border: 'none', borderRadius: '14px', padding: '14px 16px', background: '#0f172a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+                        >
+                          Sign In
+                        </button>
+                      </form>
+                    </>
                   ) : (
                     <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       <input
@@ -618,12 +880,12 @@ function EcommerceDemo() {
                               <div>
                                 <div style={{ fontWeight: 800 }}>Order #{order.id}</div>
                                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-                                  {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Recent order'}
+                                  {order.created_at ? new Date(order.created_at).toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US') : 'Recent order'}
                                 </div>
                               </div>
                               <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 900 }}>${order.total}</div>
-                                <div style={{ fontSize: '0.82rem', color: '#7c3aed', fontWeight: 700 }}>{order.status || 'PAID'}</div>
+                                <div style={{ fontWeight: 900 }}>${Number(order.total).toFixed(2)}</div>
+                                <div style={{ fontSize: '0.82rem', color: '#7c3aed', fontWeight: 700 }}>PAID</div>
                               </div>
                             </div>
                           </div>
@@ -640,6 +902,8 @@ function EcommerceDemo() {
                     onClick={() => {
                       logout();
                       setIsUserOpen(false);
+                      setToast(lang === 'zh' ? '👋 你已登出' : '👋 You have been logged out');
+                      setTimeout(() => setToast(null), 3000);
                     }}
                     style={{
                       marginTop: 'auto',
@@ -749,13 +1013,17 @@ function EcommerceDemo() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedProduct(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedProduct(null);
+              }}
               style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', zIndex: 112 }}
             />
             <Motion.div
               initial={{ opacity: 0, y: 24, x: '-50%' }}
               animate={{ opacity: 1, y: 0, x: '-50%' }}
               exit={{ opacity: 0, y: 24, x: '-50%' }}
+              onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'fixed',
                 top: '6vh',
@@ -819,7 +1087,6 @@ function EcommerceDemo() {
                     <button
                       onClick={() => {
                         addToCart(selectedProduct, selectedSize);
-                        setIsCartOpen(true);
                       }}
                       style={{ flex: 1, border: 'none', borderRadius: '16px', padding: '16px 18px', background: '#0f172a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                     >
@@ -899,13 +1166,17 @@ function EcommerceDemo() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsCartOpen(false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCartOpen(false);
+              }}
               style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 114 }}
             />
             <Motion.aside
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
+              onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'fixed',
                 top: 0,
@@ -982,7 +1253,14 @@ function EcommerceDemo() {
                       setTimeout(() => setToast(null), 2500);
                       return;
                     }
-                    setIsCheckoutOpen(true);
+                    // Close all overlays and navigate to checkout page
+                    setIsCartOpen(false);
+                    setSelectedProduct(null);
+                    setIsUserOpen(false);
+                    setIsSearchOpen(false);
+                    
+                    // Force immediate navigation
+                    router.push('/checkout');
                   }}
                   style={{ marginTop: '8px', border: 'none', borderRadius: '16px', padding: '16px 18px', background: '#0f172a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
                 >
@@ -990,89 +1268,6 @@ function EcommerceDemo() {
                 </button>
               </div>
             </Motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isCheckoutOpen && (
-          <>
-            <Motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsCheckoutOpen(false)}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.55)', zIndex: 116 }}
-            />
-            <Motion.div
-              initial={{ opacity: 0, y: 24, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: 24, x: '-50%' }}
-              style={{
-                position: 'fixed',
-                top: '8vh',
-                left: '50%',
-                width: 'min(680px, calc(100vw - 32px))',
-                background: '#fff',
-                borderRadius: '28px',
-                zIndex: 117,
-                padding: '24px',
-                boxShadow: '0 30px 90px rgba(15, 23, 42, 0.24)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 700 }}>Checkout</div>
-                  <h2 style={{ margin: '6px 0 0', fontSize: '1.55rem', fontWeight: 900 }}>Complete your order</h2>
-                </div>
-                <button onClick={() => setIsCheckoutOpen(false)} style={{ border: 'none', background: '#f8fafc', borderRadius: '999px', width: 40, height: 40, cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={processOrder} style={{ display: 'grid', gap: '16px' }}>
-                <input
-                  type="text"
-                  placeholder="Shipping address"
-                  value={checkoutForm.address}
-                  onChange={(e) => setCheckoutForm((prev) => ({ ...prev, address: e.target.value }))}
-                  style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
-                />
-                <input
-                  type="text"
-                  placeholder="Card number"
-                  value={checkoutForm.card}
-                  onChange={(e) => setCheckoutForm((prev) => ({ ...prev, card: e.target.value }))}
-                  style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
-                />
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="text"
-                    placeholder="Coupon code"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    style={{ flex: 1, padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1' }}
-                  />
-                  <button type="button" onClick={verifyCoupon} style={{ border: '1px solid #cbd5e1', borderRadius: '14px', background: '#fff', padding: '0 18px', fontWeight: 800, cursor: 'pointer' }}>
-                    Apply
-                  </button>
-                </div>
-                {couponError ? <div style={{ color: '#dc2626', fontSize: '0.88rem' }}>{couponError}</div> : null}
-                {appliedCoupon ? <div style={{ color: '#16a34a', fontSize: '0.88rem' }}>Coupon `{appliedCoupon.code}` applied successfully.</div> : null}
-
-                <div style={{ background: '#f8fafc', borderRadius: '18px', padding: '18px', display: 'grid', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Items</span><span>{cartItemCount}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Subtotal</span><span>${cartTotal.toFixed(2)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tier Discount</span><span>-${tierDiscountAmount.toFixed(2)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Coupon Discount</span><span>-${couponDiscountAmount.toFixed(2)}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: '1.05rem' }}><span>Total</span><span>${finalTotal.toFixed(2)}</span></div>
-                </div>
-
-                <button type="submit" style={{ border: 'none', borderRadius: '16px', padding: '16px 18px', background: '#0f172a', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
-                  Pay ${finalTotal.toFixed(2)}
-                </button>
-              </form>
-            </Motion.div>
           </>
         )}
       </AnimatePresence>
