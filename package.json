@@ -13,21 +13,17 @@
     "docker:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-verify.ps1"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
-    "cors": "^2.8.6",
     "express": "^5.2.1",
     "framer-motion": "^12.37.0",
     "lucide-react": "^0.577.0",
     "next": "^15.5.14",
     "next-auth": "^5.0.0-beta.30",
-    "next-pwa": "^5.6.0",
     "pg": "^8.11.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.8.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^2.5.5"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

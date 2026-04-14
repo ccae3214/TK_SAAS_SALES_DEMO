@@ -59,12 +59,44 @@
       "namedRegex": "^/api/cart/(?<nxtPemail>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/coupons/[id]",
+      "regex": "^/api/coupons/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/coupons/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/news/[id]",
+      "regex": "^/api/news/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/news/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/orders/user/[email]",
       "regex": "^/api/orders/user/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPemail": "nxtPemail"
       },
       "namedRegex": "^/api/orders/user/(?<nxtPemail>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/orders/[id]/status",
+      "regex": "^/api/orders/([^/]+?)/status(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/orders/(?<nxtPid>[^/]+?)/status(?:/)?$"
+    },
+    {
+      "page": "/api/products/[id]",
+      "regex": "^/api/products/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/products/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/reviews/[id]",
@@ -103,28 +135,10 @@
       "namedRegex": "^/admin(?:/)?$"
     },
     {
-      "page": "/AdminDashboard",
-      "regex": "^/AdminDashboard(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/AdminDashboard(?:/)?$"
-    },
-    {
       "page": "/checkout",
       "regex": "^/checkout(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/checkout(?:/)?$"
-    },
-    {
-      "page": "/CorporateDemo",
-      "regex": "^/CorporateDemo(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/CorporateDemo(?:/)?$"
-    },
-    {
-      "page": "/CreativeDemo",
-      "regex": "^/CreativeDemo(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/CreativeDemo(?:/)?$"
     },
     {
       "page": "/demo/corporate",
@@ -149,18 +163,6 @@
       "regex": "^/demo/saas(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/demo/saas(?:/)?$"
-    },
-    {
-      "page": "/EcommerceDemo",
-      "regex": "^/EcommerceDemo(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/EcommerceDemo(?:/)?$"
-    },
-    {
-      "page": "/SaasDemo",
-      "regex": "^/SaasDemo(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/SaasDemo(?:/)?$"
     }
   ],
   "dataRoutes": [],

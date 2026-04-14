@@ -1,5 +1,5 @@
 "use client";
-import CreativeDemo from "@/pages/CreativeDemo";
+import CreativeDemo from "@/components/CreativeDemo";
 export default function Page() {
   return <CreativeDemo />;
 }

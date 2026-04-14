@@ -1,5 +1,5 @@
 "use client";
-import CorporateDemo from "@/pages/CorporateDemo";
+import CorporateDemo from "@/components/CorporateDemo";
 export default function Page() {
   return <CorporateDemo />;
 }

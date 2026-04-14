@@ -26,8 +26,78 @@ Environment variables used by Docker verification:
 - `OIDC_CLIENT_ID`
 - `OIDC_CLIENT_SECRET`
 - `OIDC_ISSUER`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DB`
+- `DATABASE_URL`
 
 If they are not already set, the script falls back to safe local verification defaults.
+
+## Secure environment configuration
+
+This project uses an `.env` file for sensitive values so they are not hard-coded in `docker-compose.yml`.
+
+- Keep `.env` out of version control.
+- `.gitignore` already excludes `.env` and `.env.*`.
+- Use `.env.example` as a template for production values.
+
+## HTTPS and TLS with Let's Encrypt
+
+The docker-compose stack includes automatic certificate management via **Certbot**.
+
+### Automated HTTPS Setup
+
+1. **Configure environment variables** in `.env`:
+   ```env
+   LETSENCRYPT_EMAIL=your_email@example.com
+   LETSENCRYPT_DOMAIN=yourdomain.com
+   ```
+
+2. **Run the initialization script** (one-time setup):
+   ```powershell
+   # Windows PowerShell
+   .\scripts\init-certbot.ps1
+   
+   # Or specify domain/email as parameters
+   .\scripts\init-certbot.ps1 -Domain yourdomain.com -Email you@example.com
+   ```
+   
+   Or for Linux/macOS:
+   ```bash
+   bash ./scripts/init-certbot.sh
+   ```
+
+3. **Start the full stack**:
+   ```powershell
+   docker-compose up -d
+   ```
+
+### How It Works
+
+- **Nginx** listens on ports 80 and 443; redirects HTTP → HTTPS
+- **Certbot service** runs continuously and:
+  - Automatically renews expiring certificates daily
+  - Uses webroot validation (no downtime during renewal)
+  - Stores certificates in Docker volume `letsencrypt`
+- **ACME challenges** handled via `/.well-known/acme-challenge/` routing
+
+### Certificate Locations
+
+- **Inside containers**: `/etc/letsencrypt/live/{domain}/`
+- **On host**: `./certs/live/{domain}/`
+
+### Troubleshooting
+
+Check Certbot logs:
+```powershell
+docker-compose logs certbot
+```
+
+Manually renew certificates:
+```powershell
+docker-compose run --rm certbot renew
+```
+
 
 ## Fly.io Deploy
 

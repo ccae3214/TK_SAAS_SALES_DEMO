@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { get } from '@/lib/db';
-import { decrypt } from '@root/crypto_utils.js';
 
 export async function POST(request) {
   try {
@@ -23,8 +22,7 @@ export async function POST(request) {
     }
 
     try {
-      const decryptedPassword = decrypt(user.password);
-      if (decryptedPassword !== password) {
+      if (user.password !== password) {
         return NextResponse.json(
           { error: 'Invalid password' },
           { status: 401 }

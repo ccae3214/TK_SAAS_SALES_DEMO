@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import AdminDashboard from "@/pages/AdminDashboard";
+import AdminDashboard from "@/components/AdminDashboard";
 
 const getAdminEmails = () =>
   (process.env.ADMIN_EMAILS || "")

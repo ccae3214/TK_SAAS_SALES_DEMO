@@ -1,5 +1,5 @@
 "use client";
-import EcommerceDemo from "@/pages/EcommerceDemo";
+import EcommerceDemo from "@/components/EcommerceDemo";
 export default function Page() {
   return <EcommerceDemo />;
 }

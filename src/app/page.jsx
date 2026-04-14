@@ -50,7 +50,7 @@ const categoryKeys = ["All", "Store", "Business", "Portfolio", "Software"];
 
 export default function Home() {
   const { lang, setLang, t } = useLanguage();
-  const { userProfile } = useAuth();
+  const { userProfile, signInWithGoogle } = useAuth();
   const [activeCategory, setActiveCategory] = useState("All");
   const [scrolled, setScrolled] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
@@ -137,12 +137,21 @@ export default function Home() {
                 <User size={16} /> {activeUser.name}
               </div>
             ) : (
-              <Link 
-                href="/demo/ecommerce" 
-                style={{fontWeight: 700, color: 'var(--text-secondary)', textDecoration: 'none'}}
+              <button
+                onClick={() => signInWithGoogle()}
+                style={{
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '20px',
+                  padding: '6px 16px',
+                  background: '#fff',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.85rem'
+                }}
               >
-                {safeT.nav.login || (lang === 'en' ? 'Login' : '登錄')}
-              </Link>
+                Sign in with Google
+              </button>
             )}
             <button 
               onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}

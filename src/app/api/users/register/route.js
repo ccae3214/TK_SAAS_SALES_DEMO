@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { query, run, get } from '@/lib/db';
-import { encrypt } from '@root/crypto_utils.js';
 
 export async function POST(request) {
   try {
@@ -30,13 +29,10 @@ export async function POST(request) {
       );
     }
 
-    // Encrypt password
-    const encryptedPassword = encrypt(password);
-
     // Insert user
     const result = await run(
       'INSERT INTO users (name, email, password, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id, name, email, created_at',
-      [name, email, encryptedPassword]
+      [name, email, password]
     );
 
     const user = result[0] || { id: result.id, name, email };
