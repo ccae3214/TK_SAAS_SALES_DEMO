@@ -6,6 +6,7 @@ import {
   Plus, Minus, Calendar, Tag, User, Send, ExternalLink
 } from 'lucide-react';
 import { DemoOverlay } from '@/components/DemoOverlay';
+import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 
@@ -74,6 +75,7 @@ function CorporateDemo() {
   return (
     <div style={{ background: '#ffffff', minHeight: '100vh', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
       <DemoOverlay title={c.title} />
+      <PageHeader />
       
       {/* Header */}
       <header style={{ 

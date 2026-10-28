@@ -1,5 +1,6 @@
 import React from 'react';
 import { DemoOverlay } from '@/components/DemoOverlay';
+import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion } from 'framer-motion';
 import { Mail, ArrowUpRight, Instagram, Twitter, Linkedin, MapPin, ArrowRight } from 'lucide-react';
@@ -38,6 +39,7 @@ function CreativeDemo() {
   return (
     <div style={{ background: '#000', minHeight: '100vh', color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
       <DemoOverlay title={c.title} />
+      <PageHeader />
       
       {/* Dynamic Header */}
       <Motion.header 

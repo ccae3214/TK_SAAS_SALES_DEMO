@@ -26,30 +26,6 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/demo/saas": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "next-action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/demo/saas",
-      "dataRoute": "/demo/saas.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
     "/checkout": {
       "experimentalBypassFor": [
         {
@@ -74,7 +50,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/demo/ecommerce": {
+    "/demo/corporate": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -87,32 +63,8 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/demo/ecommerce",
-      "dataRoute": "/demo/ecommerce.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
-    "/": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "next-action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/",
-      "dataRoute": "/index.rsc",
+      "srcRoute": "/demo/corporate",
+      "dataRoute": "/demo/corporate.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -146,7 +98,7 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/demo/corporate": {
+    "/demo/ecommerce": {
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -159,8 +111,56 @@
         }
       ],
       "initialRevalidateSeconds": false,
-      "srcRoute": "/demo/corporate",
-      "dataRoute": "/demo/corporate.rsc",
+      "srcRoute": "/demo/ecommerce",
+      "dataRoute": "/demo/ecommerce.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/demo/saas": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/demo/saas",
+      "dataRoute": "/demo/saas.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/",
+      "dataRoute": "/index.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -174,8 +174,8 @@
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "577fbffb36e06f685acb314fdf5963ee",
-    "previewModeSigningKey": "7cc1abd8cc48dbb7b2862a38422cc4c9e2a1079f8159da863223bfa21932f3ef",
-    "previewModeEncryptionKey": "bb96aa4ca22bb9340b3beab259186bd82325c1a4d9b087c0c96567870fc2c129"
+    "previewModeId": "e0f02a1c396ccc8f35651482f05caf16",
+    "previewModeSigningKey": "8fe297e1ff66b72c9417fc8481a86b2dc732438088ac234a2217f9b260984227",
+    "previewModeEncryptionKey": "32633a9a58569d568fb5517e9d8118e3a6cf8867f79b6193a9de55adb0b10438"
   }
 }

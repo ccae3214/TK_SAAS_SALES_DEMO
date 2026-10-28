@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-82988530}
       - POSTGRES_DB=${POSTGRES_DB:-saas_demo}
     ports:
       - "5432:5432"
@@ -33,6 +33,16 @@ services:
       - postgres
     restart: always
 
+  notebook:
+    build:
+      context: ../../New project/notebook_app
+      dockerfile: Dockerfile
+    env_file:
+      - ../../New project/notebook_app/.env
+    ports:
+      - "127.0.0.1:8787:8000"
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     ports:
@@ -41,6 +51,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - app
+      - notebook
     restart: always
 
 volumes:

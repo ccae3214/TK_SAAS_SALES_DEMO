@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Search, User, Star, ArrowRight, ChevronRight, X, Plus, Minus, Trash2, CheckCircle, Package, Heart, Settings, LogOut, Shield, Lock, Ticket, Clock } from 'lucide-react';
 import { DemoOverlay } from '@/components/DemoOverlay';
+import { PageHeader } from '@/components/PageHeader';
 import { OrderSuccess } from '@/components/OrderSuccess';
 import { CheckoutPage } from '@/components/CheckoutPage';
 import { useLanguage } from '@/context/LanguageContext';
@@ -207,7 +208,7 @@ function EcommerceDemo() {
       if (data.success) {
         setUserProfile(data.user);
         setIsUserOpen(false);
-        setToast(lang === 'zh' ? '歡迎加入！帳號建立成功 🎉' : 'Welcome! Account created 🎉');
+        setToast(t.ecommerce?.welcomeMessage || 'Welcome! Account created 🎉');
         setTimeout(() => setToast(null), 4000);
       } else {
         setToast(data.error || 'Registration failed');
@@ -300,7 +301,7 @@ function EcommerceDemo() {
       if (data.success) {
         setUserProfile(data.user);
         setIsUserOpen(false);
-        setToast(lang === 'zh' ? `歡迎回來，${data.user.name}!` : `Welcome back, ${data.user.name}!`);
+        setToast(`${t.ecommerce?.welcomeBack || 'Welcome back'}, ${data.user.name}!`);
         setTimeout(() => setToast(null), 3000);
       } else {
         setToast(data.error || 'Login failed');
@@ -325,7 +326,7 @@ function EcommerceDemo() {
       if (res.ok) {
         setAppliedCoupon(data);
         setCouponError('');
-        setToast(lang === 'zh' ? `折扣碼 ${data.code} 已套用` : `Coupon ${data.code} applied`);
+        setToast((t.ecommerce?.couponApplied || 'Coupon {code} applied').replace('{code}', data.code));
         setTimeout(() => setToast(null), 3000);
       } else {
         setCouponError(data.error);
@@ -454,7 +455,7 @@ function EcommerceDemo() {
         setCheckoutForm({ address: '', card: '' });
         
         // Show success notification
-        setToast(lang === 'zh' ? '✅ 訂單成功！感謝您的購買' : '✅ Order successful! Thank you for your purchase');
+        setToast(t.ecommerce?.orderSuccess || '✅ Order successful! Thank you for your purchase');
         setTimeout(() => setToast(null), 3000);
         
         if (userProfile) {
@@ -467,12 +468,12 @@ function EcommerceDemo() {
         }
         window.scrollTo({ top: 0, behavior: 'auto' });
       } else {
-        setToast(lang === 'zh' ? `訂單處理失敗: ${data.message}` : `Order failed: ${data.message}`);
+        setToast((t.ecommerce?.orderFailed || 'Order failed: {message}').replace('{message}', data.message));
         setTimeout(() => setToast(null), 4000);
       }
     } catch (err) {
        console.error("Order error", err);
-       setToast(lang === 'zh' ? '訂單處理出錯' : 'Error processing order');
+       setToast(t.ecommerce?.orderError || 'Error processing order');
        setTimeout(() => setToast(null), 4000);
        window.scrollTo({ top: 0, behavior: 'auto' });
     }
@@ -495,12 +496,13 @@ function EcommerceDemo() {
   return (
     <div style={{ background: '#f8fafc', minHeight: '100vh', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
       <DemoOverlay title={t.themes ? t.themes[1].title : 'Ecommerce'} />
+      <PageHeader />
       
       {/* Promo Marquee */}
       <div style={{ background: '#0f172a', color: '#ffffff', padding: '10px 0', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '0.85rem', fontWeight: 600 }}>
         <Motion.div animate={{ x: [0, -1000] }} transition={{ repeat: Infinity, duration: 25, ease: "linear" }} style={{ display: 'inline-block', paddingLeft: '100%' }}>
           {lang === 'zh' 
-            ? '🔥 2026 春季系列！輸入折扣碼 "WELCOME2026" 享 20% 優惠 🎁 註冊會員領取點數回饋 🚀 全台最快 24 小時快速到貨'
+            ? t.ecommerce?.promotionBanner || '🔥 2026 Spring Collection! Use discount code "WELCOME2026" for 20% off 🎁 Register for points rewards 🚀 Fastest 24-hour delivery nationwide'
             : '🔥 SPRING 2026! USE CODE "WELCOME2026" FOR 20% OFF 🎁 REGISTER FOR POINTS REWARDS 🚀 FAST GLOBAL DELIVERY'}
         </Motion.div>
       </div>
@@ -569,7 +571,7 @@ function EcommerceDemo() {
                   color: '#22c55e',
                   fontWeight: '600'
                 }}>
-                  {lang === 'zh' ? '已加入購物車' : 'Added to cart'}
+                  {t.ecommerce?.addedToCart || 'Added to cart'}
                 </span>
               </div>
               <p style={{
@@ -588,7 +590,7 @@ function EcommerceDemo() {
                 color: '#64748b',
                 margin: '0'
               }}>
-                {lang === 'zh' ? '尺寸' : 'Size'}: {toastNotification.size} • ${toastNotification.price}
+                {t.ecommerce?.size || 'Size'}: {toastNotification.size} • ${toastNotification.price}
               </p>
             </div>
           </Motion.div>
@@ -599,7 +601,7 @@ function EcommerceDemo() {
       <header style={{ display: 'flex', justifyContent: 'space-between', padding: '24px 48px', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #e2e8f0' }}>
         <div style={{ fontSize: '1.5rem', fontWeight: 900 }}>VOGUE<span style={{color: '#a855f7'}}>.</span></div>
         <nav style={{ display: 'flex', gap: '32px', fontWeight: 600, fontSize: '0.9rem' }}>
-          {CATEGORIES.map(cat => <span key={cat} onClick={() => setActiveCategory(cat)} style={{ cursor: 'pointer', color: activeCategory === cat ? '#a855f7' : '#0f172a' }}>{lang === 'zh' ? (cat === 'All' ? '全部' : cat === 'Men' ? '男裝' : cat === 'Women' ? '女裝' : '配件') : cat}</span>)}
+          {CATEGORIES.map(cat => <span key={cat} onClick={() => setActiveCategory(cat)} style={{ cursor: 'pointer', color: activeCategory === cat ? '#a855f7' : '#0f172a' }}>{t.ecommerce?.categories ? t.ecommerce.categories[cat.toLowerCase()] || cat : cat}</span>)}
         </nav>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
           <Search onClick={() => setIsSearchOpen(!isSearchOpen)} size={20} style={{ cursor: 'pointer' }} />
@@ -895,7 +897,7 @@ function EcommerceDemo() {
                     onClick={() => {
                       logout();
                       setIsUserOpen(false);
-                      setToast(lang === 'zh' ? '👋 你已登出' : '👋 You have been logged out');
+                      setToast(t.ecommerce?.loggedOut || '👋 You have been logged out');
                       setTimeout(() => setToast(null), 3000);
                     }}
                     style={{

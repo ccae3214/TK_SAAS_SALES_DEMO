@@ -5,19 +5,26 @@ import {
   Globe, Layout, Sparkles, Box, Mail, Newspaper
 } from 'lucide-react';
 import { DemoOverlay } from '@/components/DemoOverlay';
+import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 function SaasDemo() {
   const { t, lang } = useLanguage(); 
-  const c = t?.saas || { nav: {}, hero: {}, dashboard: {}, features: {}, pricing: {} };
+  const c = t?.saas || { nav: {}, hero: {}, dashboard: {}, features: {}, pricing: { plans: [] } };
   const [news, setNews] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/news')
+    fetch('/api/news')
       .then(res => res.json())
-      .then(data => setNews(data || []))
-      .catch(err => console.log('News fetch error', err));
+      .then(data => {
+        const items = Array.isArray(data) ? data : (data?.items || []);
+        setNews(items);
+      })
+      .catch(err => {
+        console.log('News fetch error', err);
+        setNews([]);
+      });
   }, []);
 
   const containerVariants = {
@@ -46,7 +53,8 @@ function SaasDemo() {
 
   return (
     <div style={{ background: '#0a0b10', minHeight: '100vh', color: '#ffffff', fontFamily: "'Outfit', sans-serif", overflowX: 'hidden' }}>
-      <DemoOverlay title="SaaS Platform" />
+      <DemoOverlay title={c.title || 'SaaS Platform'} />
+      <PageHeader />
       
       {/* Dynamic Glow Background */}
       <div style={{ position: 'absolute', top: '-10%', left: '10%', width: '60vw', height: '60vw', background: 'radial-gradient(circle, #6366f122 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
@@ -65,15 +73,15 @@ function SaasDemo() {
           Nexus<span style={{ color: '#6366f1' }}>Core</span>
         </div>
         <nav style={{ display: 'flex', gap: '32px', fontSize: '0.9rem', fontWeight: 600, color: '#94a3b8' }}>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>Features</span>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>Pricing</span>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>About</span>
+          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.features || 'Features'}</span>
+          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.pricing || 'Pricing'}</span>
+          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.about || (lang === 'zh' ? '關於' : 'About')}</span>
         </nav>
         <Motion.button 
            whileHover={{ scale: 1.05 }}
            whileTap={{ scale: 0.95 }}
            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', padding: '12px 28px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 8px 24px rgba(99, 102, 241, 0.3)' }}>
-          {lang === 'zh' ? '立即探索' : 'Get Started'}
+          {c.nav?.getStarted || (lang === 'zh' ? '立即開始' : 'Get Started')}
         </Motion.button>
       </header>
 
@@ -84,24 +92,24 @@ function SaasDemo() {
       }}>
         <Motion.div initial="hidden" animate="visible" variants={containerVariants}>
           <Motion.div variants={itemVariants} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '8px 16px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', display: 'inline-block', marginBottom: '24px' }}>
-             🚀 Evolution 2.0 Just Released
+             {c.hero?.badge || '🚀 Evolution 2.0 Just Released'}
           </Motion.div>
           <Motion.h1 variants={itemVariants} style={{ 
             fontSize: 'max(4.5rem, 6vw)', fontWeight: 900, lineHeight: 1, 
             letterSpacing: '-3px', margin: '0 0 32px' 
           }}>
-            Accelerate <br />
-            <span style={{ background: 'linear-gradient(90deg, #6366f1, #d946ef)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>Intelligence.</span>
+            {c.hero?.titleTop || 'Accelerate'} <br />
+            <span style={{ background: 'linear-gradient(90deg, #6366f1, #d946ef)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>{c.hero?.titleBottom || 'Intelligence.'}</span>
           </Motion.h1>
           <Motion.p variants={itemVariants} style={{ fontSize: '1.4rem', color: '#94a3b8', maxWidth: '700px', margin: '0 auto 48px', lineHeight: 1.5, fontWeight: 500 }}>
-             {c.hero.subtitle}
+             {c.hero?.subtitle || 'Automate your entire CI/CD pipeline, manage global environments, and scale to millions of users with zero friction.'}
           </Motion.p>
           <Motion.div variants={itemVariants} style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
             <button style={{ background: 'white', color: '#000', border: 'none', padding: '18px 40px', borderRadius: '16px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', transition: 'all 0.25s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
-              {lang === 'zh' ? '開始免費試用' : 'Start Free Trial'}
+              {c.hero?.btnBuild || (lang === 'zh' ? '開始免費試用' : 'Start Free Trial')}
             </button>
             <button style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '18px 40px', borderRadius: '16px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', backdropFilter: 'blur(10px)' }}>
-              {lang === 'zh' ? '查看演示影片' : 'Watch Demo'}
+              {c.hero?.btnWatch || (lang === 'zh' ? '查看演示影片' : 'Watch Demo')}
             </button>
           </Motion.div>
         </Motion.div>
@@ -122,19 +130,19 @@ function SaasDemo() {
            <Motion.div variants={floatingVariants} initial="initial" animate="animate" style={{ position: 'absolute', top: '10%', left: '-10%', background: 'rgba(15, 23, 42, 0.9)', padding: '24px', borderRadius: '24px', border: '1px solid #6366f155', backdropFilter: 'blur(30px)', width: '220px', textAlign: 'left', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                  <div style={{ width: 40, height: 40, background: '#6366f122', color: '#6366f1', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Zap size={18} /></div>
-                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Efficiency</div>
+                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{lang === 'zh' ? '效率' : 'Efficiency'}</div>
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '4px' }}>+482%</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Performance Growth</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{lang === 'zh' ? '效能提升' : 'Performance Growth'}</div>
            </Motion.div>
 
            <Motion.div variants={floatingVariants} initial="initial" animate="animate" transition={{ duration: 5 }} style={{ position: 'absolute', bottom: '20%', right: '-5%', background: 'rgba(15, 23, 42, 0.9)', padding: '24px', borderRadius: '24px', border: '1px solid #d946ef55', backdropFilter: 'blur(30px)', width: '220px', textAlign: 'left', zIndex: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                  <div style={{ width: 40, height: 40, background: '#d946ef22', color: '#d946ef', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={18} /></div>
-                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Security</div>
+                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{lang === 'zh' ? '安全' : 'Security'}</div>
               </div>
               <div style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '4px' }}>100%</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Data Protected</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{lang === 'zh' ? '資料保護' : 'Data Protected'}</div>
            </Motion.div>
         </Motion.div>
       </section>
@@ -143,7 +151,7 @@ function SaasDemo() {
       <section style={{ padding: '100px 60px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <Motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px', color: '#6366f1' }}>
-             <Newspaper size={20} /> <span style={{ fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', fontSize: '0.85rem' }}>Announcements</span>
+             <Newspaper size={20} /> <span style={{ fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', fontSize: '0.85rem' }}>{lang === 'zh' ? '公告' : 'Announcements'}</span>
           </div>
           <h2 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '48px', letterSpacing: '-1.5px' }}>{lang === 'zh' ? '最新動態' : "What's New"}</h2>
         </Motion.div>
@@ -173,8 +181,8 @@ function SaasDemo() {
       {/* Pricing Section - Staggered Cards */}
       <section style={{ padding: '120px 60px', background: '#07080d' }}>
          <div style={{ textAlign: 'center', marginBottom: '80px' }}>
-            <h2 style={{ fontSize: '3.5rem', fontWeight: 950, letterSpacing: '-2px' }}>Simple <span style={{ color: '#6366f1' }}>Pricing</span></h2>
-            <p style={{ color: '#64748b', fontSize: '1.25rem', marginTop: '16px' }}>Scale your intelligence with our flexible plans.</p>
+            <h2 style={{ fontSize: '3.5rem', fontWeight: 950, letterSpacing: '-2px' }}>{c.pricing?.title || 'Simple Pricing'}</h2>
+            <p style={{ color: '#64748b', fontSize: '1.25rem', marginTop: '16px' }}>{c.pricing?.subtitle || 'Scale your intelligence with our flexible plans.'}</p>
          </div>
          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px', maxWidth: '1100px', margin: '0 auto' }}>
             {c.pricing.plans.map((plan, i) => (
@@ -185,7 +193,7 @@ function SaasDemo() {
                     padding: '48px', borderRadius: '32px', border: i === 1 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.05)',
                     position: 'relative'
                   }}>
-                  {i === 1 && <div style={{ position: 'absolute', top: 20, right: 20, background: '#6366f1', color: 'white', padding: '6px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 900 }}>MOST POPULAR</div>}
+                  {i === 1 && <div style={{ position: 'absolute', top: 20, right: 20, background: '#6366f1', color: 'white', padding: '6px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 900 }}>{plan.popular}</div>}
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '8px' }}>{plan.name}</div>
                   <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '32px' }}>{plan.price}<span style={{ fontSize: '1rem', color: '#64748b' }}>/mo</span></div>
                   <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 48px' }}>
@@ -196,7 +204,7 @@ function SaasDemo() {
                      ))}
                   </ul>
                   <button style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: i === 1 ? '#6366f1' : 'white', color: i === 1 ? 'white' : 'black', fontWeight: 800, fontSize: '1rem' }}>
-                    Choose Plan
+                    {plan.btn}
                   </button>
                </Motion.div>
             ))}

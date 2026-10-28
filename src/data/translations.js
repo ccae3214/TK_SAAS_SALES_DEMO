@@ -17,7 +17,8 @@ export const translations = {
       btnDetails: "View Details",
     },
     saas: {
-      nav: { features: "Features", developers: "Developers", pricing: "Pricing", signIn: "Sign In", getStarted: "Get Started" },
+      title: "SaaS Platform",
+      nav: { features: "Features", developers: "Developers", pricing: "Pricing", about: "About", signIn: "Sign In", getStarted: "Get Started" },
       hero: {
          badge: "DeploySync v2.0 is now live — Read the announcement",
          titleTop: "Modern infrastructure",
@@ -47,6 +48,58 @@ export const translations = {
             { name: "Pro Plan", price: "29", features: ["Unlimited Regions", "2TB Data Transfer", "24/7 Priority Support"], btn: "Go Professional", popular: "MOST POPULAR" }
          ]
       }
+    },
+    ecommerce: {
+      welcomeMessage: "Welcome! Account created 🎉",
+      welcomeBack: "Welcome back",
+      couponApplied: "Coupon {code} applied",
+      orderSuccess: "✅ Order successful! Thank you for your purchase",
+      orderFailed: "Order failed: {message}",
+      orderError: "Error processing order",
+      promotionBanner: "🔥 2026 Spring Collection! Use discount code \"WELCOME2026\" for 20% off 🎁 Register for points rewards 🚀 Fastest 24-hour delivery nationwide",
+      addedToCart: "Added to cart",
+      loggedOut: "👋 You have been logged out",
+      cartEmpty: "Your cart is empty",
+      addToCart: "Add to Cart",
+      removeFromCart: "Remove from Cart",
+      checkout: "Checkout",
+      login: "Login",
+      register: "Register",
+      logout: "Logout",
+      search: "Search products...",
+      wishlist: "Wishlist",
+      reviews: "Reviews",
+      submitReview: "Submit Review",
+      size: "Size",
+      quantity: "Quantity",
+      total: "Total",
+      subtotal: "Subtotal",
+      discount: "Discount",
+      shipping: "Shipping",
+      tax: "Tax",
+      applyCoupon: "Apply Coupon",
+      invalidCoupon: "Invalid coupon code",
+      outOfStock: "Out of Stock",
+      inStock: "In Stock",
+      categories: {
+        all: "All",
+        men: "Men",
+        women: "Women",
+        accessories: "Accessories"
+      },
+      productDetails: "Product Details",
+      relatedProducts: "Related Products",
+      customerReviews: "Customer Reviews",
+      writeReview: "Write a Review",
+      rating: "Rating",
+      comment: "Comment",
+      submit: "Submit",
+      cancel: "Cancel",
+      loading: "Loading...",
+      error: "An error occurred",
+      success: "Success",
+      confirm: "Confirm",
+      close: "Close"
     },
     themes: {
       1: {
@@ -188,6 +241,82 @@ export const translations = {
         { title: "Optimization", desc: "Meticulous testing and SEO tuning for a flawless launch." }
       ]
     },
+    admin: {
+      title: "Admin Panel",
+      sidebar: {
+        overview: "Overview",
+        orders: "Orders",
+        products: "Products",
+        coupons: "Coupons",
+        reviews: "Reviews",
+        news: "News",
+        newsletter: "Newsletter",
+        customers: "Customers",
+        inquiries: "Inquiries",
+        analytics: "Analytics",
+        settings: "Settings"
+      },
+      overview: {
+        totalRevenue: "Total Revenue",
+        orders: "Orders",
+        users: "Users",
+        subscribed: "Subscribed",
+        analyticsTitle: "Revenue & Growth Analytics",
+        analyticsDesc: "Daily performance tracking for the last 14 days."
+      },
+      products: {
+        title: "Product Catalog",
+        addBtn: "Add Product",
+        editBtn: "Edit",
+        deleteBtn: "Delete",
+        deleteConfirm: "Are you sure you want to delete this product?",
+        name: "Product Name",
+        price: "Price",
+        image: "Image URL",
+        confirm: "Confirm",
+        cancel: "Cancel"
+      },
+      coupons: {
+        title: "Coupon Codes",
+        createBtn: "Create Coupon",
+        deleteConfirm: "Are you sure you want to delete this coupon?",
+        confirm: "Create",
+        cancel: "Cancel"
+      },
+      news: {
+        title: "System News & Updates",
+        publishBtn: "Publish News",
+        deleteConfirm: "Are you sure you want to delete this news?"
+      },
+      reviews: {
+        title: "Customer Reviews",
+        deleteConfirm: "Are you sure you want to delete this review?"
+      },
+      newsletter: {
+        title: "Subscribed Emails"
+      },
+      customers: {
+        title: "Customers"
+      },
+      inquiries: {
+        title: "Inquiries"
+      },
+      orders: {
+        title: "All Orders",
+        recentTitle: "Recent Orders"
+      },
+      settings: {
+        title: "Settings",
+        language: "Language",
+        languageDesc: "Choose your preferred language",
+        chinese: "中文 (Traditional)",
+        english: "English",
+        account: "Account Settings",
+        theme: "Theme Settings",
+        save: "Save Changes",
+        logout: "Logout"
+      }
+    },
     footer: { text: "© 2026 克雷迅網頁設計. All rights reserved." },
     overlay: { preview: "Live Demo Preview" }
   },
@@ -209,7 +338,8 @@ export const translations = {
       btnDetails: "查看細節",
     },
     saas: {
-      nav: { features: "核心功能", developers: "開發者", pricing: "價格方案", signIn: "登入", getStarted: "立即開始" },
+      title: "SaaS 平台",
+      nav: { features: "核心功能", developers: "開發者", pricing: "價格方案", about: "關於", signIn: "登入", getStarted: "立即開始" },
       hero: {
          badge: "DeploySync v2.0 現已發佈 — 閱讀公告",
          titleTop: "專為高成長打造的",
@@ -239,6 +369,58 @@ export const translations = {
             { name: "專業版", price: "29", features: ["不限區域數量", "2TB 資料傳輸量", "24/7 優先技術支援"], btn: "升級專業版", popular: "最受歡迎" }
          ]
       }
+    },
+    ecommerce: {
+      welcomeMessage: "歡迎加入！帳號建立成功 🎉",
+      welcomeBack: "歡迎回來",
+      couponApplied: "折扣碼 {code} 已套用",
+      orderSuccess: "✅ 訂單成功！感謝您的購買",
+      orderFailed: "訂單處理失敗: {message}",
+      orderError: "訂單處理出錯",
+      promotionBanner: "🔥 2026 春季系列！輸入折扣碼 \"WELCOME2026\" 享 20% 優惠 🎁 註冊會員領取點數回饋 🚀 全台最快 24 小時快速到貨",
+      addedToCart: "已加入購物車",
+      loggedOut: "👋 你已登出",
+      cartEmpty: "購物車是空的",
+      addToCart: "加入購物車",
+      removeFromCart: "從購物車移除",
+      checkout: "結帳",
+      login: "登入",
+      register: "註冊",
+      logout: "登出",
+      search: "搜尋商品...",
+      wishlist: "願望清單",
+      reviews: "評價",
+      submitReview: "提交評價",
+      size: "尺寸",
+      quantity: "數量",
+      total: "總計",
+      subtotal: "小計",
+      discount: "折扣",
+      shipping: "運費",
+      tax: "稅金",
+      applyCoupon: "套用優惠券",
+      invalidCoupon: "無效的優惠券代碼",
+      outOfStock: "缺貨",
+      inStock: "有貨",
+      categories: {
+        all: "全部",
+        men: "男裝",
+        women: "女裝",
+        accessories: "配件"
+      },
+      productDetails: "商品詳情",
+      relatedProducts: "相關商品",
+      customerReviews: "顧客評價",
+      writeReview: "撰寫評價",
+      rating: "評分",
+      comment: "評論",
+      submit: "提交",
+      cancel: "取消",
+      loading: "載入中...",
+      error: "發生錯誤",
+      success: "成功",
+      confirm: "確認",
+      close: "關閉"
     },
     themes: {
       1: {
@@ -379,6 +561,82 @@ export const translations = {
         { title: "極致開發", desc: "使用最新技術打造高效能、且跨設備完美呈現的代碼。" },
         { title: "啟動優化", desc: "嚴謹的測試與 SEO 調校，確保您的網站完美上線。" }
       ]
+    },
+    admin: {
+      title: "管理面板",
+      sidebar: {
+        overview: "概覽",
+        orders: "訂單",
+        products: "商品",
+        coupons: "折價券",
+        reviews: "評價",
+        news: "新聞",
+        newsletter: "電子報",
+        customers: "客戶",
+        inquiries: "諮詢",
+        analytics: "分析",
+        settings: "設定"
+      },
+      overview: {
+        totalRevenue: "總營收",
+        orders: "訂單數",
+        users: "用戶數",
+        subscribed: "電子報訂閱",
+        analyticsTitle: "營收與成長分析",
+        analyticsDesc: "過去 14 天的每日績效追蹤"
+      },
+      products: {
+        title: "商品目錄",
+        addBtn: "新增商品",
+        editBtn: "編輯",
+        deleteBtn: "刪除",
+        deleteConfirm: "確定要刪除此商品嗎？",
+        name: "商品名稱",
+        price: "價格",
+        image: "圖片網址",
+        confirm: "確認",
+        cancel: "取消"
+      },
+      coupons: {
+        title: "折價券",
+        createBtn: "建立折價券",
+        deleteConfirm: "確定要刪除此折價券嗎？",
+        confirm: "建立",
+        cancel: "取消"
+      },
+      news: {
+        title: "系統公告與更新",
+        publishBtn: "發布公告",
+        deleteConfirm: "確定要刪除此公告嗎？"
+      },
+      reviews: {
+        title: "客戶評價",
+        deleteConfirm: "確定要刪除此評價嗎？"
+      },
+      newsletter: {
+        title: "電子報訂閱者"
+      },
+      customers: {
+        title: "客戶"
+      },
+      inquiries: {
+        title: "諮詢"
+      },
+      orders: {
+        title: "所有訂單",
+        recentTitle: "最近訂單"
+      },
+      settings: {
+        title: "設定",
+        language: "語言",
+        languageDesc: "選擇您偏好的語言",
+        chinese: "中文（繁體）",
+        english: "English",
+        account: "帳戶設定",
+        theme: "主題設定",
+        save: "保存更改",
+        logout: "登出"
+      }
     },
     footer: { text: "© 2026 克雷迅網頁設計. 保留所有權利." },
     overlay: { preview: "線上即時預覽" }

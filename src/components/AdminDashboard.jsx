@@ -5,12 +5,14 @@ import {
   LayoutDashboard, ShoppingCart, Users, MessageSquare, 
   TrendingUp, ArrowUpRight, DollarSign, Calendar,
   MoreVertical, Search, Bell, Settings, Filter, Download,
-  Mail, Phone, Clock, Plus, Edit, Trash2, X, Package, Newspaper, Ticket, Star, ChevronDown, ChevronUp
+  Mail, Phone, Clock, Plus, Edit, Trash2, X, Package, Newspaper, Ticket, Star, ChevronDown, ChevronUp, Globe, LogOut
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useLanguage } from '@/context/LanguageContext';
 
 const AdminDashboard = () => {
+  const { t, lang, setLang } = useLanguage();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
@@ -47,22 +49,22 @@ const AdminDashboard = () => {
   };
 
   const deleteProduct = (id) => {
-    if (!window.confirm('確定要刪除此商品嗎？')) return;
+    if (!window.confirm(lang === 'en' ? t.admin.products.deleteConfirm : t.admin.products.deleteConfirm)) return;
     fetch(`http://localhost:3001/api/products/${id}`, { method: 'DELETE' }).then(() => fetchStats());
   };
 
   const deleteNews = (id) => {
-    if (!window.confirm('確定要刪除此公告嗎？')) return;
+    if (!window.confirm(t.admin.news.deleteConfirm)) return;
     fetch(`http://localhost:3001/api/news/${id}`, { method: 'DELETE' }).then(() => fetchStats());
   };
 
   const deleteCoupon = (id) => {
-    if (!window.confirm('確定要刪除此折價券嗎？')) return;
+    if (!window.confirm(t.admin.coupons.deleteConfirm)) return;
     fetch(`http://localhost:3001/api/coupons/${id}`, { method: 'DELETE' }).then(() => fetchStats());
   };
 
   const deleteReview = (id) => {
-    if (!window.confirm('確定要刪除此評價嗎？')) return;
+    if (!window.confirm(t.admin.reviews.deleteConfirm)) return;
     fetch(`http://localhost:3001/api/reviews/${id}`, { method: 'DELETE' }).then(() => fetchStats());
   };
 
@@ -73,16 +75,17 @@ const AdminDashboard = () => {
   );
 
   const sidebarItems = [
-    { icon: <LayoutDashboard size={20} />, label: 'Overview' },
-    { icon: <ShoppingCart size={20} />, label: 'Orders' },
-    { icon: <Package size={20} />, label: 'Products' },
-    { icon: <Ticket size={20} />, label: 'Coupons' },
-    { icon: <Star size={20} />, label: 'Reviews' },
-    { icon: <Newspaper size={20} />, label: 'News' },
-    { icon: <Mail size={20} />, label: 'Newsletter' },
-    { icon: <Users size={20} />, label: 'Customers' },
-    { icon: <MessageSquare size={20} />, label: 'Inquiries' },
-    { icon: <TrendingUp size={20} />, label: 'Analytics' }
+    { icon: <LayoutDashboard size={20} />, label: t.admin.sidebar.overview, key: 'Overview' },
+    { icon: <ShoppingCart size={20} />, label: t.admin.sidebar.orders, key: 'Orders' },
+    { icon: <Package size={20} />, label: t.admin.sidebar.products, key: 'Products' },
+    { icon: <Ticket size={20} />, label: t.admin.sidebar.coupons, key: 'Coupons' },
+    { icon: <Star size={20} />, label: t.admin.sidebar.reviews, key: 'Reviews' },
+    { icon: <Newspaper size={20} />, label: t.admin.sidebar.news, key: 'News' },
+    { icon: <Mail size={20} />, label: t.admin.sidebar.newsletter, key: 'Newsletter' },
+    { icon: <Users size={20} />, label: t.admin.sidebar.customers, key: 'Customers' },
+    { icon: <MessageSquare size={20} />, label: t.admin.sidebar.inquiries, key: 'Inquiries' },
+    { icon: <TrendingUp size={20} />, label: t.admin.sidebar.analytics, key: 'Analytics' },
+    { icon: <Settings size={20} />, label: t.admin.sidebar.settings, key: 'Settings' }
   ];
 
   return (
@@ -99,10 +102,10 @@ const AdminDashboard = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {sidebarItems.map((item, i) => (
             <div 
-              key={i} onClick={() => setActiveTab(item.label)}
+              key={i} onClick={() => setActiveTab(item.key)}
               style={{ 
               display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px',
-              background: activeTab === item.label ? '#eff6ff' : 'transparent', color: activeTab === item.label ? '#2563eb' : '#64748b',
+              background: activeTab === item.key ? '#eff6ff' : 'transparent', color: activeTab === item.key ? '#2563eb' : '#64748b',
               fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
             }}>
               {item.icon} {item.label}
@@ -125,10 +128,10 @@ const AdminDashboard = () => {
             <Motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
                 {[
-                  { label: 'Total Revenue', val: `$${stats?.revenue?.toLocaleString() || 0}`, icon: <DollarSign size={24} />, color: '#22c55e', bg: '#f0fdf4' },
-                  { label: 'Orders', val: stats?.ordersCount || 0, icon: <ShoppingCart size={24} />, color: '#2563eb', bg: '#eff6ff' },
-                  { label: 'Users', val: stats?.usersCount || 0, icon: <Users size={24} />, color: '#a855f7', bg: '#f5f3ff' },
-                  { label: 'Subscribed', val: stats?.newsletterCount || 0, icon: <Mail size={24} />, color: '#f59e0b', bg: '#fffbeb' }
+                  { label: t.admin.overview.totalRevenue, val: `$${stats?.revenue?.toLocaleString() || 0}`, icon: <DollarSign size={24} />, color: '#22c55e', bg: '#f0fdf4' },
+                  { label: t.admin.overview.orders, val: stats?.ordersCount || 0, icon: <ShoppingCart size={24} />, color: '#2563eb', bg: '#eff6ff' },
+                  { label: t.admin.overview.users, val: stats?.usersCount || 0, icon: <Users size={24} />, color: '#a855f7', bg: '#f5f3ff' },
+                  { label: t.admin.overview.subscribed, val: stats?.newsletterCount || 0, icon: <Mail size={24} />, color: '#f59e0b', bg: '#fffbeb' }
                 ].map((stat, i) => (
                   <div key={i} style={{ padding: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -141,31 +144,33 @@ const AdminDashboard = () => {
                 ))}
               </div>
               <RecentOrdersTable 
+                t={t}
                 orders={(stats?.recentOrders || []).slice(0, 5)} 
                 items={stats?.orderItems || []}
                 expanded={expandedOrders}
                 onToggle={toggleOrder}
                 onStatusUpdate={updateOrderStatus} 
-                title="Recent Orders" 
+                title={t.admin.orders.recentTitle} 
               />
             </Motion.div>
           )}
 
           {activeTab === 'Orders' && (
              <RecentOrdersTable 
+                t={t}
                 orders={stats?.recentOrders || []} 
                 items={stats?.orderItems || []}
                 expanded={expandedOrders}
                 onToggle={toggleOrder}
                 onStatusUpdate={updateOrderStatus} 
-                title="All Orders" 
+                title={t.admin.orders.title} 
              />
           )}
 
           {activeTab === 'Newsletter' && (
              <Motion.div key="newsletter" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px' }}>
-                   <h3 style={{ fontWeight: 800, marginBottom: '24px' }}>Subscribed Emails</h3>
+                   <h3 style={{ fontWeight: 800, marginBottom: '24px' }}>{t.admin.newsletter.title}</h3>
                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {stats.allNewsletter?.map((n, i) => (
                          <div key={i} style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between' }}>
@@ -183,9 +188,9 @@ const AdminDashboard = () => {
              <Motion.div key="products" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                    <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ fontWeight: 800 }}>Product Catalog ({stats.allProducts?.length})</h3>
+                      <h3 style={{ fontWeight: 800 }}>{t.admin.products.title} ({stats.allProducts?.length})</h3>
                       <button onClick={() => { setEditingProduct(null); setShowProductModal(true); }} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                         <Plus size={18} /> Add Product
+                         <Plus size={18} /> {t.admin.products.addBtn}
                       </button>
                    </div>
                    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
@@ -209,8 +214,8 @@ const AdminDashboard = () => {
             <Motion.div key="coupons" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                   <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <h3 style={{ fontWeight: 800 }}>Coupon Codes</h3>
-                     <button onClick={() => setShowCouponModal(true)} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+ Create Coupon</button>
+                     <h3 style={{ fontWeight: 800 }}>{t.admin.coupons.title}</h3>
+                     <button onClick={() => setShowCouponModal(true)} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+ {t.admin.coupons.createBtn}</button>
                   </div>
                   <div style={{ padding: '24px' }}>
                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -244,7 +249,7 @@ const AdminDashboard = () => {
             <Motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                   <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
-                     <h3 style={{ fontWeight: 800 }}>Customer Reviews</h3>
+                     <h3 style={{ fontWeight: 800 }}>{t.admin.reviews.title}</h3>
                   </div>
                   <div style={{ padding: '24px' }}>
                      {stats.allReviews?.map((rev, i) => (
@@ -269,8 +274,8 @@ const AdminDashboard = () => {
              <Motion.div key="news" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                    <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ fontWeight: 800 }}>System News & Updates</h3>
-                      <button onClick={() => setShowNewsModal(true)} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+ Publish News</button>
+                      <h3 style={{ fontWeight: 800 }}>{t.admin.news.title}</h3>
+                      <button onClick={() => setShowNewsModal(true)} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>+ {t.admin.news.publishBtn}</button>
                    </div>
                    <div style={{ padding: '24px' }}>
                       {stats.allNews?.map((news, i) => (
@@ -288,13 +293,13 @@ const AdminDashboard = () => {
              </Motion.div>
           )}
 
-          {activeTab === 'Customers' && <CustomersTable users={stats?.allUsers || []} />}
-          {activeTab === 'Inquiries' && <InquiriesList inquiries={stats?.recentInquiries || []} />}
+          {activeTab === 'Customers' && <CustomersTable t={t} users={stats?.allUsers || []} />}
+          {activeTab === 'Inquiries' && <InquiriesList t={t} inquiries={stats?.recentInquiries || []} />}
 
           {activeTab === 'Analytics' && (
              <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '40px' }}>
-                <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>Revenue & Growth Analytics</h3>
-                <p style={{ color: '#64748b', marginBottom: '40px' }}>Daily performance tracking for the last 14 days.</p>
+                <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>{t.admin.overview.analyticsTitle}</h3>
+                <p style={{ color: '#64748b', marginBottom: '40px' }}>{t.admin.overview.analyticsDesc}</p>
                 <div style={{ height: 400 }}>
                    <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={stats?.chartData || []}>
@@ -314,17 +319,74 @@ const AdminDashboard = () => {
                 </div>
              </div>
           )}
+
+          {activeTab === 'Settings' && (
+             <Motion.div key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                   <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '32px' }}>
+                      <h3 style={{ fontWeight: 800, marginBottom: '24px' }}>{t.admin.settings.language}</h3>
+                      <p style={{ color: '#64748b', marginBottom: '20px' }}>{t.admin.settings.languageDesc}</p>
+                      <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+                         <button 
+                            onClick={() => setLang('zh')} 
+                            style={{ 
+                              padding: '12px 24px', borderRadius: '12px', border: lang === 'zh' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                              background: lang === 'zh' ? '#eff6ff' : '#fff', color: lang === 'zh' ? '#2563eb' : '#64748b',
+                              fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px'
+                            }}>
+                            <Globe size={18} /> {t.admin.settings.chinese}
+                         </button>
+                         <button 
+                            onClick={() => setLang('en')} 
+                            style={{ 
+                              padding: '12px 24px', borderRadius: '12px', border: lang === 'en' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                              background: lang === 'en' ? '#eff6ff' : '#fff', color: lang === 'en' ? '#2563eb' : '#64748b',
+                              fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px'
+                            }}>
+                            <Globe size={18} /> {t.admin.settings.english}
+                         </button>
+                      </div>
+                   </div>
+
+                   <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '32px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                         <h3 style={{ fontWeight: 800, marginBottom: '24px' }}>{t.admin.settings.account}</h3>
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                               <div style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '4px' }}>Role</div>
+                               <div style={{ fontWeight: 700 }}>Administrator</div>
+                            </div>
+                            <div>
+                               <div style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '4px' }}>Status</div>
+                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ width: 8, height: 8, background: '#22c55e', borderRadius: '50%' }}></div>
+                                  <span style={{ fontWeight: 700 }}>Active</span>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                      <button style={{ 
+                         padding: '12px 24px', borderRadius: '12px', border: 'none', 
+                         background: '#ef4444', color: '#fff', fontWeight: 700, cursor: 'pointer',
+                         display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', transition: 'all 0.2s'
+                      }}>
+                         <LogOut size={18} /> {t.admin.settings.logout}
+                      </button>
+                   </div>
+                </div>
+             </Motion.div>
+          )}
         </AnimatePresence>
       </div>
 
-      {showProductModal && <ProductModal product={editingProduct} onClose={() => setShowProductModal(false)} onSuccess={() => { setShowProductModal(false); fetchStats(); }} />}
-      {showNewsModal && <NewsModal onClose={() => setShowNewsModal(false)} onSuccess={() => { setShowNewsModal(false); fetchStats(); }} />}
-      {showCouponModal && <CouponModal onClose={() => setShowCouponModal(false)} onSuccess={() => { setShowCouponModal(false); fetchStats(); }} />}
+      {showProductModal && <ProductModal t={t} product={editingProduct} onClose={() => setShowProductModal(false)} onSuccess={() => { setShowProductModal(false); fetchStats(); }} />}
+      {showNewsModal && <NewsModal t={t} onClose={() => setShowNewsModal(false)} onSuccess={() => { setShowNewsModal(false); fetchStats(); }} />}
+      {showCouponModal && <CouponModal t={t} onClose={() => setShowCouponModal(false)} onSuccess={() => { setShowCouponModal(false); fetchStats(); }} />}
     </div>
   );
 };
 
-const RecentOrdersTable = ({ orders, items, expanded, onToggle, onStatusUpdate, title }) => (
+const RecentOrdersTable = ({ t, orders, items, expanded, onToggle, onStatusUpdate, title }) => (
   <div style={{ padding: '32px', background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '24px' }}>{title}</h2>
      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -375,7 +437,7 @@ const RecentOrdersTable = ({ orders, items, expanded, onToggle, onStatusUpdate, 
   </div>
 );
 
-const ProductModal = ({ product, onClose, onSuccess }) => {
+const ProductModal = ({ t, product, onClose, onSuccess }) => {
   const [formData, setFormData] = useState(product || { name: '', price: '', category: 'Men', tag: '', img: '' });
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -386,20 +448,20 @@ const ProductModal = ({ product, onClose, onSuccess }) => {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
        <div style={{ background: '#fff', width: '500px', borderRadius: '24px', padding: '32px' }}>
-          <h3 style={{ fontWeight: 800 }}>{product ? '編輯商品' : '新增商品'}</h3>
+          <h3 style={{ fontWeight: 800 }}>{product ? t.admin.products.modalEdit : t.admin.products.modalAdd}</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-             <input placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-             <input placeholder="Price" type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-             <input placeholder="Image URL" value={formData.img} onChange={e => setFormData({...formData, img: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-             <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 800 }}>Confirm</button>
-             <button onClick={onClose} style={{ background: 'transparent', color: '#64748b', border: 'none' }}>Cancel</button>
+             <input placeholder={t.admin.products.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+             <input placeholder={t.admin.products.price} type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+             <input placeholder={t.admin.products.image} value={formData.img} onChange={e => setFormData({...formData, img: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+             <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 800 }}>{t.admin.products.confirm}</button>
+             <button onClick={onClose} style={{ background: 'transparent', color: '#64748b', border: 'none' }}>{t.admin.products.cancel}</button>
           </form>
        </div>
     </div>
   );
 };
 
-const NewsModal = ({ onClose, onSuccess }) => {
+const NewsModal = ({ t, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({ title: '', content: '' });
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -408,19 +470,19 @@ const NewsModal = ({ onClose, onSuccess }) => {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
        <div style={{ background: '#fff', width: '500px', borderRadius: '24px', padding: '32px' }}>
-          <h3 style={{ fontWeight: 800 }}>發布系統公告</h3>
+          <h3 style={{ fontWeight: 800 }}>{t.admin.news.title}</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-             <input placeholder="News Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-             <textarea placeholder="Content..." rows="4" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-             <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 800 }}>Publish</button>
-             <button onClick={onClose} style={{ background: 'transparent', color: '#64748b', border: 'none' }}>Cancel</button>
+             <input placeholder={t.admin.news.title} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+             <textarea placeholder={t.admin.news.title} rows="4" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+             <button type="submit" style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 800 }}>{t.admin.news.publishBtn}</button>
+             <button onClick={onClose} style={{ background: 'transparent', color: '#64748b', border: 'none' }}>{t.admin.products.cancel}</button>
           </form>
        </div>
     </div>
   );
 };
 
-const CouponModal = ({ onClose, onSuccess }) => {
+const CouponModal = ({ t, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({ code: '', discount: '', type: 'PERCENT' });
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -429,7 +491,7 @@ const CouponModal = ({ onClose, onSuccess }) => {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
        <div style={{ background: '#fff', width: '500px', borderRadius: '24px', padding: '32px' }}>
-          <h3 style={{ fontWeight: 800 }}>建立折價券</h3>
+          <h3 style={{ fontWeight: 800 }}>{t.admin.coupons.title}</h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
              <input placeholder="Coupon Code (e.g. SALE50)" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
              <input placeholder="Discount Value" type="number" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
@@ -445,9 +507,9 @@ const CouponModal = ({ onClose, onSuccess }) => {
   );
 };
 
-const CustomersTable = ({ users }) => (
+const CustomersTable = ({ t, users }) => (
    <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px' }}>
-      <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>Customers</h3>
+      <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>{t.admin.customers.title}</h3>
       {users?.slice(0, 10).map((user, i) => (
          <div key={i} style={{ padding: '12px 0', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between' }}>
             <div><div style={{ fontWeight: 700 }}>{user.name}</div><div style={{ fontSize: '0.8rem', color: '#64748b' }}>{user.email}</div></div>
@@ -457,9 +519,9 @@ const CustomersTable = ({ users }) => (
    </div>
 );
 
-const InquiriesList = ({ inquiries }) => (
+const InquiriesList = ({ t, inquiries }) => (
    <div style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px' }}>
-      <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>Inquiries</h3>
+      <h3 style={{ fontWeight: 800, marginBottom: '20px' }}>{t.admin.inquiries.title}</h3>
       {inquiries.map((inq, i) => (
          <div key={i} style={{ padding: '16px', borderBottom: '1px solid #f1f5f9' }}>
             <div style={{ fontWeight: 700 }}>{inq.name} ({inq.type})</div>

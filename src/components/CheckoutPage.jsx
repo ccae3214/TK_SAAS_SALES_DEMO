@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, X, Trash2, Plus, Minus, Loader } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { PageHeader } from '@/components/PageHeader';
 
 export const CheckoutPage = ({
   cart,
@@ -46,6 +47,7 @@ export const CheckoutPage = ({
       gridTemplateColumns: '1fr 420px',
       gap: '0',
     }}>
+      <PageHeader />
       {/* Main checkout form - Left side */}
       <div style={{
         padding: '60px 48px',

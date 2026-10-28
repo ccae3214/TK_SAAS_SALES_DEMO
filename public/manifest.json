@@ -1,16 +1,30 @@
 {
-  "name": "TK SaaS Sales Demo",
-  "short_name": "TK SaaS",
-  "description": "Premium SaaS Platform Demo",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
-  "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
-  ]
+    "name":  "TK SaaS Sales Demo",
+    "short_name":  "TK SaaS",
+    "description":  "Premium SaaS Platform Demo with personal notes",
+    "start_url":  "/",
+    "display":  "standalone",
+    "background_color":  "#ffffff",
+    "theme_color":  "#2563eb",
+    "icons":  [
+                  {
+                      "src":  "/favicon.svg",
+                      "sizes":  "any",
+                      "type":  "image/svg+xml"
+                  }
+              ],
+    "shortcuts":  [
+                      {
+                          "name":  "??????",
+                          "short_name":  "???",
+                          "url":  "/notes",
+                          "icons":  [
+                                        {
+                                            "src":  "/favicon.svg",
+                                            "sizes":  "any",
+                                            "type":  "image/svg+xml"
+                                        }
+                                    ]
+                      }
+                  ]
 }

@@ -111,7 +111,7 @@ export default function Home() {
   return (
     <div>
       <div className="next-app-root">
-      <header className={scrolled ? "scrolled" : ""}>
+      <header className={`site-header${scrolled ? " scrolled" : ""}`}>
         <div className="container header-content">
           <Link href="/" className="logo">
             <div className="logo-icon">
@@ -122,6 +122,7 @@ export default function Home() {
           <nav className="nav-links" style={{ alignItems: 'center' }}>
             <a href="#home">{safeT.nav.home}</a>
             <a href="#themes">{safeT.nav.themes}</a>
+            <Link href="/notes" style={{ color: 'inherit', textDecoration: 'none' }}>Notes</Link>
             <button 
               className="text-gradient" 
               style={{fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer'}}

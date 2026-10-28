@@ -62,17 +62,15 @@ html {
   padding: 0;
 }
 
-header {
-  position: fixed;
+.site-header {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 100;
   padding: 20px 0;
   transition: var(--transition-smooth);
 }
 
-header.scrolled {
+.site-header.scrolled {
   background: rgba(248, 250, 252, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
