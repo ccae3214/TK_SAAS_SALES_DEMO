@@ -746,7 +746,7 @@ function EcommerceDemo() {
 
                   <button
                     type="button"
-                    onClick={() => signIn('google')}
+                    onClick={() => signIn('google', { callbackUrl: '/demo/ecommerce' })}
                     style={{
                       border: '1px solid #cbd5e1',
                       borderRadius: '14px',

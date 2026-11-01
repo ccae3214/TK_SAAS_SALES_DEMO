@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { query, run, get } from '@/lib/db';
+import { hashPassword } from '@/lib/passwords';
 
 export async function POST(request) {
   try {
     const { name, email, password } = await request.json();
 
     // Validate input
-    if (!name || !email || !password) {
+    if (!name || !email || typeof password !== 'string') {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
         { status: 400 }
@@ -31,8 +32,8 @@ export async function POST(request) {
 
     // Insert user
     const result = await run(
-      'INSERT INTO users (name, email, password, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id, name, email, created_at',
-      [name, email, password]
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
+      [name, email.trim().toLowerCase(), await hashPassword(password)]
     );
 
     const user = result[0] || { id: result.id, name, email };

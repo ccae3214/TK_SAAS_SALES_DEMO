@@ -17,7 +17,8 @@ dist-ssr
 database.sqlite
 private.pem
 public.pem
-
+.next
+.certs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

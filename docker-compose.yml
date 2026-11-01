@@ -1,3 +1,4 @@
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,7 +12,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: always
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-saas_demo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   app:
     build:
       context: .
@@ -28,9 +33,16 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
       - OIDC_ISSUER=${OIDC_ISSUER:-}
-      - DATABASE_URL=${DATABASE_URL}
+      - LINE_LOGIN_CHANNEL_ID=${LINE_LOGIN_CHANNEL_ID:-}
+      - LINE_LOGIN_CHANNEL_SECRET=${LINE_LOGIN_CHANNEL_SECRET:-}
+      - LINE_MESSAGING_CHANNEL_SECRET=${LINE_MESSAGING_CHANNEL_SECRET:-}
+      - LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=${LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:-}
+      - HR_ADMIN_LINE_USER_IDS=${HR_ADMIN_LINE_USER_IDS:-}
+      - HR_DOCUMENT_ENCRYPTION_KEY=${HR_DOCUMENT_ENCRYPTION_KEY:-}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-82988530}@postgres:5432/${POSTGRES_DB:-saas_demo}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: always
 
   notebook:
@@ -41,6 +53,17 @@ services:
       - ../../New project/notebook_app/.env
     ports:
       - "127.0.0.1:8787:8000"
+    restart: unless-stopped
+
+  cloudflare-ddns:
+    image: oznu/cloudflare-ddns:latest
+    environment:
+      - API_KEY=${CLOUDFLARE_API_TOKEN}
+      - ZONE=${CLOUDFLARE_ZONE:-kolecion.cc}
+      - SUBDOMAIN=${CLOUDFLARE_SUBDOMAIN:-}
+      - PROXIED=${CLOUDFLARE_PROXIED:-true}
+      - RRTYPE=A
+      - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
     restart: unless-stopped
 
   nginx:

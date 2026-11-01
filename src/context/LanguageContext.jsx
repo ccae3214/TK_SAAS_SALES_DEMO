@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 "use client";
-import React, { useState, createContext, useContext, useEffect } from 'react';
+import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
 import { translations } from '../data/translations.js';
 
 const defaultTranslation = translations?.['zh'] || {};
@@ -24,12 +24,12 @@ export const LanguageProvider = ({ children }) => {
     setMounted(true);
   }, []);
 
-  const handleSetLang = (newLang) => {
+  const handleSetLang = useCallback((newLang, { persist = true } = {}) => {
     setLang(newLang);
-    if (typeof window !== 'undefined') {
+    if (persist && typeof window !== 'undefined') {
       localStorage.setItem('language', newLang);
     }
-  };
+  }, []);
 
   const t = translations[lang] || translations['zh'];
 

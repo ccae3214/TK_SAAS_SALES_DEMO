@@ -9,6 +9,12 @@ const getAdminEmails = () =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
+const getHrAdminLineIds = () =>
+  (process.env.HR_ADMIN_LINE_USER_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
 export async function requireAdmin() {
   const session = await auth();
   const email = session?.user?.email?.toLowerCase();
@@ -42,6 +48,35 @@ export async function requireAdmin() {
     authorized: true,
     session,
   };
+}
+
+export function isHrAdminSession(session) {
+  const email = session?.user?.email?.trim().toLowerCase();
+  const lineUserId = session?.user?.lineUserId;
+  return (!!email && getAdminEmails().includes(email)) || (!!lineUserId && getHrAdminLineIds().includes(lineUserId));
+}
+
+export async function requireHrAdmin() {
+  const session = await auth();
+  if (!session?.user) {
+    return {
+      authorized: false,
+      response: NextResponse.json({ error: "Authentication required" }, { status: 401 }),
+    };
+  }
+
+  if (!isHrAdminSession(session)) {
+    const configured = getAdminEmails().length > 0 || getHrAdminLineIds().length > 0;
+    return {
+      authorized: false,
+      response: NextResponse.json(
+        { error: configured ? "HR admin access required" : "ADMIN_EMAILS or HR_ADMIN_LINE_USER_IDS is not configured on the server" },
+        { status: configured ? 403 : 503 },
+      ),
+    };
+  }
+
+  return { authorized: true, session };
 }
 
 export async function requireUser() {

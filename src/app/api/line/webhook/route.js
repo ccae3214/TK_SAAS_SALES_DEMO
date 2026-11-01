@@ -1,0 +1,90 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import pool, { query } from '@/lib/db';
+import { ensureHrIdentitySchema } from '@/lib/hr-access';
+import { replyForHrLineEvent } from '@/lib/hr-line-bot';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+function verifySignature(body, signature, secret) {
+  if (!secret || !signature) return false;
+  const expected = createHmac('sha256', secret).update(body).digest();
+  let received;
+  try { received = Buffer.from(signature, 'base64'); }
+  catch { return false; }
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+async function claimEvent(event) {
+  const eventId = event.webhookEventId;
+  if (!eventId) return true;
+  const claimed = await query(`INSERT INTO hr_line_webhook_events(event_id,event_type,status,attempts)
+    VALUES($1,$2,'processing',1)
+    ON CONFLICT(event_id) DO UPDATE SET status='processing',attempts=hr_line_webhook_events.attempts+1,last_error=NULL
+      WHERE hr_line_webhook_events.status='failed'
+    RETURNING event_id`, [eventId,event.type || 'unknown']);
+  return claimed.length > 0;
+}
+
+async function sendReply(replyToken, content) {
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
+  if (!accessToken) throw new Error('missing_messaging_access_token');
+  const response = await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ replyToken, messages: [typeof content === 'string' ? { type: 'text', text: content.slice(0,4500) } : content] }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`line_reply_failed_${response.status}`);
+}
+
+export async function POST(request) {
+  const channelSecret = process.env.LINE_MESSAGING_CHANNEL_SECRET;
+  if (!channelSecret) return NextResponse.json({ ok: false, message: 'LINE Messaging API 尚未設定。' }, { status: 503 });
+  try {
+    const rawBody = Buffer.from(await request.arrayBuffer());
+    if (!verifySignature(rawBody, request.headers.get('x-line-signature'), channelSecret)) {
+      return NextResponse.json({ ok: false, message: 'LINE 簽章驗證失敗。' }, { status: 401 });
+    }
+    const payload = JSON.parse(rawBody.toString('utf8'));
+    if (!Array.isArray(payload.events)) return NextResponse.json({ ok: false, message: 'Webhook 格式不正確。' }, { status: 400 });
+
+    if (payload.events.length) {
+      await ensureHrIdentitySchema();
+      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_webhook_events (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('processing','completed','failed')),
+        attempts INTEGER NOT NULL DEFAULT 1,
+        last_error TEXT,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+    }
+
+    let replied = 0, duplicates = 0;
+    for (const event of payload.events) {
+      if (!(await claimEvent(event))) { duplicates += 1; continue; }
+      try {
+        let text = await replyForHrLineEvent(event);
+        if (text === null) {
+          text = '克雷迅人力仲介 LINE 服務。輸入「說明」查看查詢方式，輸入「會員網站」登入；新會員可輸入「註冊」。';
+        }
+        if (text && event.replyToken) {
+          await sendReply(event.replyToken, text);
+          replied += 1;
+        }
+        if (event.webhookEventId) await query(`UPDATE hr_line_webhook_events SET status='completed',last_error=NULL,updated_at=NOW() WHERE event_id=$1`, [event.webhookEventId]);
+      } catch (error) {
+        if (event.webhookEventId) await query(`UPDATE hr_line_webhook_events SET status='failed',last_error=$2,updated_at=NOW() WHERE event_id=$1`, [event.webhookEventId, String(error?.message || 'event_error').slice(0,100)]);
+        throw error;
+      }
+    }
+    return NextResponse.json({ ok: true, received: payload.events.length, replied, duplicates });
+  } catch (error) {
+    if (error instanceof SyntaxError) return NextResponse.json({ ok: false, message: 'Webhook JSON 格式不正確。' }, { status: 400 });
+    console.error('hr_line_webhook_failed', error?.message?.startsWith('line_reply_failed_') ? error.message : error?.message === 'missing_messaging_access_token' ? error.message : error?.name || 'Error');
+    return NextResponse.json({ ok: false, message: 'LINE 回覆暫時失敗，請稍後重試。' }, { status: 502 });
+  }
+}

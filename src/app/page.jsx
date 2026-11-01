@@ -6,14 +6,13 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, Check, Languages, Monitor, Play,
   Smartphone, Zap, CreditCard, ChevronRight, Layout,
-  Shield, Star, Users, ArrowLeft, Briefcase, Palette, Layers, ShoppingBag, Globe, User
+  Shield, Star, Users, ArrowLeft, Briefcase, Palette, Layers, ShoppingBag, Globe
 } from 'lucide-react';
 
 import VideoModal from '@/components/VideoModal';
 import ContactModal from '@/components/ContactModal';
 
 import { useLanguage } from '@/context/LanguageContext';
-import { useAuth } from '@/context/AuthContext';
 
 const baseThemesData = [
   {
@@ -50,7 +49,6 @@ const categoryKeys = ["All", "Store", "Business", "Portfolio", "Software"];
 
 export default function Home() {
   const { lang, setLang, t } = useLanguage();
-  const { userProfile, signInWithGoogle } = useAuth();
   const [activeCategory, setActiveCategory] = useState("All");
   const [scrolled, setScrolled] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
@@ -106,8 +104,6 @@ export default function Home() {
     ? themesData 
     : themesData.filter(t => t.catKey === activeCategory);
 
-  const activeUser = userProfile;
-
   return (
     <div>
       <div className="next-app-root">
@@ -123,6 +119,7 @@ export default function Home() {
             <a href="#home">{safeT.nav.home}</a>
             <a href="#themes">{safeT.nav.themes}</a>
             <Link href="/notes" style={{ color: 'inherit', textDecoration: 'none' }}>Notes</Link>
+            <Link href="/hr" style={{ color: 'inherit', textDecoration: 'none' }}>克雷迅人力管理系統</Link>
             <button 
               className="text-gradient" 
               style={{fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer'}}
@@ -130,30 +127,6 @@ export default function Home() {
             >
               {safeT.nav.contact}
             </button>
-            {activeUser ? (
-              <div 
-                onClick={() => router.push('/demo/ecommerce')}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', padding: '6px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 700 }}
-              >
-                <User size={16} /> {activeUser.name}
-              </div>
-            ) : (
-              <button
-                onClick={() => signInWithGoogle()}
-                style={{
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '20px',
-                  padding: '6px 16px',
-                  background: '#fff',
-                  color: '#0f172a',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontSize: '0.85rem'
-                }}
-              >
-                Sign in with Google
-              </button>
-            )}
             <button 
               onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
               style={{
