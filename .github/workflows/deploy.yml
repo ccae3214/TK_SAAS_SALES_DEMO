@@ -26,10 +26,10 @@ jobs:
         run: |
           $branch = (git rev-parse --abbrev-ref HEAD).Trim()
           if ($branch -ne 'main') {
-            throw "部署資料夾目前在分支 '$branch'，請在 GitHub Desktop 切回 main 後再重新部署。"
+            throw "Deploy folder is on branch '$branch', not main. Switch back to main in GitHub Desktop, then re-run."
           }
           if (git status --porcelain --untracked-files=no) {
-            throw "部署資料夾有尚未 commit 的修改，請先 commit 或還原後再重新部署。"
+            throw "Deploy folder has uncommitted changes to tracked files. Commit or discard them, then re-run."
           }
 
       - name: 拉取最新程式碼
@@ -65,6 +65,6 @@ jobs:
           if (-not $ok) {
             docker compose ps
             docker compose logs --tail=50 app
-            throw "部署後網站沒有正常回應（http://localhost/），請查看上方的 log。"
+            throw "Site did not return HTTP 200 at http://localhost/ after deploy. See the logs above."
           }
           docker compose ps
