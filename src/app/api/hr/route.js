@@ -48,6 +48,7 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query("ALTER TABLE hr_workers ADD COLUMN IF NOT EXISTS resume_profile JSONB NOT NULL DEFAULT '{}'::jsonb");
+    await pool.query("UPDATE hr_workers SET resume_profile=resume_profile-'familyStatus' WHERE resume_profile ? 'familyStatus'");
     await pool.query(`UPDATE hr_workers SET resume_profile=jsonb_set(COALESCE(resume_profile,'{}'::jsonb),'{referenceNo}',to_jsonb(
       (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN 'CT' WHEN job_preference='工廠技術工' THEN 'SW' WHEN job_preference='農工' THEN 'FM' WHEN job_preference='機構看護工' THEN 'CG' END)
       || (CASE WHEN lower(resume_profile->>'gender') IN ('male','m','男','男性') THEN 'M' WHEN lower(resume_profile->>'gender') IN ('female','f','女','女性') THEN 'F' END)
@@ -179,7 +180,7 @@ const clean = (value, max = 500) => typeof value === 'string' ? value.trim().sli
 const WORKER_JOB_PREFERENCES = new Set(['家庭幫傭','家庭看護','工廠技術工','農工','機構看護工']);
 const WORKER_RESUME_FIELDS = {
   referenceNo: 80, birthDate: 30, gender: 40, birthplace: 120, address: 300, height: 20, weight: 20,
-  skinComplexion: 80, maritalStatus: 50, familyStatus: 100, religion: 80, hobby: 300,
+  skinComplexion: 80, maritalStatus: 50, religion: 80, hobby: 300,
   spouseName: 120, spouseOccupation: 120, spouseAge: 20, numberOfChildren: 20, childrenAges: 100,
   fatherName: 120, fatherOccupation: 120, fatherBirthDate: 30, motherName: 120, motherOccupation: 120, motherBirthDate: 30,
   brotherCount: 20, brotherAges: 100, sisterCount: 20, sisterAges: 100, familyRank: 40, caregiverDuringOverseas: 200,
