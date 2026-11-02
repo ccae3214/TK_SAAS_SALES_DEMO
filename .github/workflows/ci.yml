@@ -1,0 +1,26 @@
+# PR 開啟或更新時，在 GitHub 雲端檢查程式碼能不能成功 build。
+# 不會碰到你的電腦，也不需要任何機密。
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20          # 與 Dockerfile 的 node:20-alpine 一致
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXTAUTH_SECRET: ci-only-secret   # 只用來讓 build 通過，不是真的金鑰
