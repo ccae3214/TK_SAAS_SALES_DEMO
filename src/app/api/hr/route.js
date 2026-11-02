@@ -43,9 +43,17 @@ export async function ensureSchema() {
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_workers (
       id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, nationality TEXT NOT NULL DEFAULT '',
       phone TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', job_preference TEXT NOT NULL DEFAULT '',
-      notes TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+      notes TEXT NOT NULL DEFAULT '', resume_profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    await pool.query("ALTER TABLE hr_workers ADD COLUMN IF NOT EXISTS resume_profile JSONB NOT NULL DEFAULT '{}'::jsonb");
+    await pool.query(`UPDATE hr_workers SET resume_profile=jsonb_set(COALESCE(resume_profile,'{}'::jsonb),'{referenceNo}',to_jsonb(
+      (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN 'CT' WHEN job_preference='工廠技術工' THEN 'SW' WHEN job_preference='農工' THEN 'FM' WHEN job_preference='機構看護工' THEN 'CG' END)
+      || (CASE WHEN lower(resume_profile->>'gender') IN ('male','m','男','男性') THEN 'M' WHEN lower(resume_profile->>'gender') IN ('female','f','女','女性') THEN 'F' END)
+      || '-' || (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN '' ELSE $1::text END) || LPAD(id::text,3,'0')
+    ),true) WHERE COALESCE(resume_profile->>'referenceNo','') !~ '^(CT[MF]-[0-9]{3,}|(SW|FM|CG)[MF]-[0-9]{5,})$' AND job_preference IN ('家庭看護','家庭幫傭','工廠技術工','農工','機構看護工')
+      AND lower(resume_profile->>'gender') IN ('male','m','男','男性','female','f','女','女性')`,[String(new Date().getFullYear()).slice(-2)]);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_staff (
       id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
       phone TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -168,6 +176,47 @@ export async function ensureSchema() {
 }
 
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+const WORKER_JOB_PREFERENCES = new Set(['家庭幫傭','家庭看護','工廠技術工','農工','機構看護工']);
+const WORKER_RESUME_FIELDS = {
+  referenceNo: 80, birthDate: 30, gender: 40, birthplace: 120, address: 300, height: 20, weight: 20,
+  skinComplexion: 80, maritalStatus: 50, familyStatus: 100, religion: 80, hobby: 300,
+  spouseName: 120, spouseOccupation: 120, spouseAge: 20, numberOfChildren: 20, childrenAges: 100,
+  fatherName: 120, fatherOccupation: 120, fatherBirthDate: 30, motherName: 120, motherOccupation: 120, motherBirthDate: 30,
+  brotherCount: 20, brotherAges: 100, sisterCount: 20, sisterAges: 100, familyRank: 40, caregiverDuringOverseas: 200,
+  educationLevels: 200, education: 2000, coursesCompleted: 1000, languageOptions: 200, languages: 2000, cookingSkills: 700, applianceOptions: 300, applianceSkills: 700, childcareSkills: 1000,
+  experienceNewborn: 1500, experienceChildren: 1500, experienceElderly: 1500, experienceDisabled: 1500,
+  hasTattoo: 20, smokes: 20, drinksAlcohol: 20, petExperience: 500, willingToWorkWithPets: 20, seriousIllness: 20,
+  operationLast12Months: 20, allergies: 20, dayOffChores: 20, finishChoresBeforeOuting: 20, returnBy8PM: 20,
+  makeupAtWork: 20, workOnDaysOff: 20, workedAbroad: 20, overseasWorkDetails: 1000, employmentHistory: 5000, sourcePdfText: 15000, remarks: 2000,
+};
+function cleanWorkerResumeProfile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const profile=Object.fromEntries(Object.entries(WORKER_RESUME_FIELDS).map(([field, limit]) => [field, clean(value[field], limit)]));
+  const photo=typeof value.photoDataUrl==='string'?value.photoDataUrl:'';
+  if(Object.prototype.hasOwnProperty.call(value,'photoDataUrl')&&!photo)profile.photoDataUrl='';
+  else if(photo.length<=2100000&&/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))profile.photoDataUrl=photo;
+  return profile;
+}
+function workerGenderCode(value) {
+  const gender=String(value||'').trim().toLowerCase();
+  if(['male','m','男','男性'].includes(gender))return 'M';
+  if(['female','f','女','女性'].includes(gender))return 'F';
+  return '';
+}
+function workerReferenceCode(jobPreference, gender, workerId) {
+  const category=jobPreference==='家庭看護'||jobPreference==='家庭幫傭'?'CT':jobPreference==='工廠技術工'?'SW':jobPreference==='農工'?'FM':jobPreference==='機構看護工'?'CG':'';
+  const sex=workerGenderCode(gender);
+  if(!category||!sex||!validId(workerId))return '';
+  const sequence=String(workerId).padStart(3,'0');
+  const number=category==='CT'?sequence:`${String(new Date().getFullYear()).slice(-2)}${sequence}`;
+  return `${category}${sex}-${number}`;
+}
+function workerProfileWithReference(value, jobPreference, workerId) {
+  const profile=cleanWorkerResumeProfile(value);
+  const referenceNo=workerReferenceCode(jobPreference,profile.gender,workerId);
+  if(referenceNo)profile.referenceNo=referenceNo;
+  return profile;
+}
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
 const validDate = value => {
   if (!value) return true;
@@ -365,6 +414,7 @@ export async function GET() {
       pending_tasks: tasks.filter(item => item.status !== 'done').length,
       pending_documents: requirements.filter(item => item.status === 'submitted').length,
     };
+    workers = workers.map(item=>({...item,resume_profile:Object.fromEntries(Object.entries(item.resume_profile||{}).filter(([key])=>key!=='photoDataUrl'))}));
     return NextResponse.json({ role: principal.role, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: ({ admin:'管理者', worker:'工人', employer:'雇主', agency:'仲介' })[principal.role], employers, workers, agencies: visibleAgencies, members: visibleMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
@@ -440,9 +490,13 @@ export async function POST(request) {
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       const name = clean(body.name,160);
       if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
-      const created = await query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,agency_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [name,clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000),principal.agency_id]);
-      return NextResponse.json(created[0], { status: 201 });
+      const workerProfile=cleanWorkerResumeProfile(body.resumeProfile),jobPreference=clean(body.jobPreference,120);
+      if(!WORKER_JOB_PREFERENCES.has(jobPreference)||!workerGenderCode(workerProfile.gender))return NextResponse.json({error:'請選擇工作意向與性別，才能建立工作者編號。'},{status:400});
+      const created = await query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,resume_profile,agency_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name,clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),jobPreference,clean(body.notes,2000),JSON.stringify(workerProfile),principal.agency_id]);
+      const profile=workerProfileWithReference(workerProfile,jobPreference,created[0].id);
+      const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[created[0].id,JSON.stringify(profile)]);
+      return NextResponse.json(saved[0], { status: 201 });
     }
     if (body.type === 'employer' && principal.role === 'agency' && principal.agency_type === 'taiwan') {
       const name = clean(body.name,160);
@@ -490,9 +544,13 @@ export async function POST(request) {
       const name = clean(body.name, 160);
       if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
       const agencyId = body.agencyId && validId(body.agencyId) ? Number(body.agencyId) : null;
-      const result = await query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,agency_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [name, clean(body.nationality,80), clean(body.phone,50), clean(body.email,254), clean(body.jobPreference,120), clean(body.notes,2000), agencyId]);
-      return NextResponse.json(result[0], { status: 201 });
+      const workerProfile=cleanWorkerResumeProfile(body.resumeProfile),jobPreference=clean(body.jobPreference,120);
+      if(!WORKER_JOB_PREFERENCES.has(jobPreference)||!workerGenderCode(workerProfile.gender))return NextResponse.json({error:'請選擇工作意向與性別，才能建立工作者編號。'},{status:400});
+      const result = await query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,resume_profile,agency_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name, clean(body.nationality,80), clean(body.phone,50), clean(body.email,254), jobPreference, clean(body.notes,2000), JSON.stringify(workerProfile), agencyId]);
+      const profile=workerProfileWithReference(workerProfile,jobPreference,result[0].id);
+      const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[result[0].id,JSON.stringify(profile)]);
+      return NextResponse.json(saved[0], { status: 201 });
     }
     if (body.type === 'case') {
       if (!validId(body.employerId) || !validId(body.workerId)) return NextResponse.json({ error: '請選擇雇主與工作者。' }, { status: 400 });
@@ -552,7 +610,7 @@ export async function PATCH(request) {
   try {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
-    if (!principal || !['admin','agency','employer'].includes(principal.role)) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
+    if (!principal || !['admin','agency','employer','worker'].includes(principal.role)) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
     const body = await request.json();
     const id = Number(body.id), actor = clean(session.user?.email || session.user?.lineUserId || 'LINE 登入',254);
     if(body.type==='job-order-admin-status'&&principal.role==='admin'){
@@ -599,13 +657,23 @@ export async function PATCH(request) {
       if (!changed.length) return NextResponse.json({ error: '找不到所屬雇主資料。' }, { status: 404 });
       return NextResponse.json(changed[0]);
     }
+    if (principal.role === 'worker' && body.type === 'worker') {
+      if (!validId(principal.worker_id) || id !== Number(principal.worker_id)) return NextResponse.json({ error: '只能編輯自己的工作者資料。' }, { status: 403 });
+      const name = clean(body.name,160);
+      if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
+      const resumeProfile=workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),principal.worker_id);
+      const edited = await query(`UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,resume_profile=resume_profile || $7::jsonb,updated_at=NOW()
+        WHERE id=$1 RETURNING *`, [principal.worker_id,name,clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),JSON.stringify(resumeProfile)]);
+      if (!edited.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
+      return NextResponse.json(edited[0]);
+    }
     if (principal.role === 'employer') return NextResponse.json({ error: '雇主帳號只能更新所屬仲介。' }, { status: 403 });
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
       const edited = body.active !== undefined
         ? await query("UPDATE hr_workers SET status=$3,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING *", [id,principal.agency_id,body.active ? 'active' : 'inactive'])
-        : await query(`UPDATE hr_workers SET name=$3,nationality=$4,phone=$5,email=$6,job_preference=$7,notes=$8,updated_at=NOW()
-            WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000)]);
+        : await query(`UPDATE hr_workers SET name=$3,nationality=$4,phone=$5,email=$6,job_preference=$7,notes=$8,resume_profile=resume_profile || COALESCE($9::jsonb,'{}'::jsonb),updated_at=NOW()
+            WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id))]);
       if (!edited.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
       return NextResponse.json(edited[0]);
     }
@@ -694,7 +762,8 @@ export async function PATCH(request) {
           const workerName = clean(body.workerName,160);
           const workerAgencyId = Number(body.workerAgencyId);
           const jobPreference = clean(body.workerJobPreference,120);
-          if (!workerName || !validId(workerAgencyId) || !['家庭幫傭','家庭看護','工廠技術工'].includes(jobPreference)) {
+          const workerGender=clean(body.workerGender,20);
+          if (!workerName || !validId(workerAgencyId) || !['家庭幫傭','家庭看護','工廠技術工','農工','機構看護工'].includes(jobPreference) || !workerGenderCode(workerGender)) {
             return NextResponse.json({ error: '請填寫工作者姓名、工作意向與所屬菲律賓仲介。' }, { status: 400 });
           }
           const agency = await query("SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type='philippines'", [workerAgencyId]);
@@ -711,12 +780,14 @@ export async function PATCH(request) {
               await client.query('ROLLBACK');
               return NextResponse.json({ error: '此會員已綁定工作者資料，請編輯目前資料或先改派其他會員類型。' }, { status: 409 });
             }
-            const worker = await client.query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,agency_id)
-              VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [workerName,clean(body.workerNationality,80)||'菲律賓',clean(body.workerPhone,50),clean(body.workerEmail,254),jobPreference,workerAgencyId]);
+            const worker = await client.query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,resume_profile,agency_id)
+              VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *`, [workerName,clean(body.workerNationality,80)||'菲律賓',clean(body.workerPhone,50),clean(body.workerEmail,254),jobPreference,JSON.stringify(cleanWorkerResumeProfile({gender:workerGender})),workerAgencyId]);
+            const workerProfile=workerProfileWithReference({gender:workerGender},jobPreference,worker.rows[0].id);
+            const workerWithCode=await client.query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[worker.rows[0].id,JSON.stringify(workerProfile)]);
             const assigned = await client.query(`UPDATE hr_members SET role='worker',requested_role=NULL,worker_id=$2,employer_id=NULL,agency_id=NULL,active=TRUE,updated_at=NOW()
               WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,worker.rows[0].id]);
             await client.query('COMMIT');
-            return NextResponse.json({ ...assigned.rows[0], worker: worker.rows[0] });
+            return NextResponse.json({ ...assigned.rows[0], worker: workerWithCode.rows[0] });
           } catch (error) {
             await client.query('ROLLBACK');
             throw error;
@@ -849,7 +920,7 @@ export async function PATCH(request) {
         if (!clean(body.name,160)) return NextResponse.json({ error: '名稱不能空白。' }, { status: 400 });
         result = body.type === 'employer'
           ? await query('UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),clean(body.email,254),clean(body.address,300),clean(body.notes,2000),['home_care','factory','domestic_helper','other'].includes(body.employerType)?body.employerType:'other',body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null])
-          : await query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,agency_id=$8,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
+          : await query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id)),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
       } else {
         const status = body.status === 'inactive' ? 'inactive' : 'active';
         result = await query(`UPDATE ${table} SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *`, [id,status]);
