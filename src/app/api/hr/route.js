@@ -48,12 +48,12 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query("ALTER TABLE hr_workers ADD COLUMN IF NOT EXISTS resume_profile JSONB NOT NULL DEFAULT '{}'::jsonb");
-    await pool.query("UPDATE hr_workers SET resume_profile=resume_profile-'familyStatus' WHERE resume_profile ? 'familyStatus'");
+    await pool.query("UPDATE hr_workers SET resume_profile=resume_profile-'familyStatus'-'sourcePdfText' WHERE resume_profile ? 'familyStatus' OR resume_profile ? 'sourcePdfText'");
     await pool.query(`UPDATE hr_workers SET resume_profile=jsonb_set(COALESCE(resume_profile,'{}'::jsonb),'{referenceNo}',to_jsonb(
       (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN 'CT' WHEN job_preference='工廠技術工' THEN 'SW' WHEN job_preference='農工' THEN 'FM' WHEN job_preference='機構看護工' THEN 'CG' END)
       || (CASE WHEN lower(resume_profile->>'gender') IN ('male','m','男','男性') THEN 'M' WHEN lower(resume_profile->>'gender') IN ('female','f','女','女性') THEN 'F' END)
       || '-' || (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN '' ELSE $1::text END) || LPAD(id::text,3,'0')
-    ),true) WHERE COALESCE(resume_profile->>'referenceNo','') !~ '^(CT[MF]-[0-9]{3,}|(SW|FM|CG)[MF]-[0-9]{5,})$' AND job_preference IN ('家庭看護','家庭幫傭','工廠技術工','農工','機構看護工')
+    ),true) WHERE COALESCE(resume_profile->>'referenceNo','') = '' AND job_preference IN ('家庭看護','家庭幫傭','工廠技術工','農工','機構看護工')
       AND lower(resume_profile->>'gender') IN ('male','m','男','男性','female','f','女','女性')`,[String(new Date().getFullYear()).slice(-2)]);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_staff (
       id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
@@ -188,7 +188,7 @@ const WORKER_RESUME_FIELDS = {
   experienceNewborn: 1500, experienceChildren: 1500, experienceElderly: 1500, experienceDisabled: 1500,
   hasTattoo: 20, smokes: 20, drinksAlcohol: 20, petExperience: 500, willingToWorkWithPets: 20, seriousIllness: 20,
   operationLast12Months: 20, allergies: 20, dayOffChores: 20, finishChoresBeforeOuting: 20, returnBy8PM: 20,
-  makeupAtWork: 20, workOnDaysOff: 20, workedAbroad: 20, overseasWorkDetails: 1000, employmentHistory: 5000, sourcePdfText: 15000, remarks: 2000,
+  makeupAtWork: 20, workOnDaysOff: 20, workedAbroad: 20, overseasWorkDetails: 1000, employmentHistory: 5000, remarks: 2000,
 };
 function cleanWorkerResumeProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -215,7 +215,7 @@ function workerReferenceCode(jobPreference, gender, workerId) {
 function workerProfileWithReference(value, jobPreference, workerId) {
   const profile=cleanWorkerResumeProfile(value);
   const referenceNo=workerReferenceCode(jobPreference,profile.gender,workerId);
-  if(referenceNo)profile.referenceNo=referenceNo;
+  if(referenceNo&&!profile.referenceNo)profile.referenceNo=referenceNo;
   return profile;
 }
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;

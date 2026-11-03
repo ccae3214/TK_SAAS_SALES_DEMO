@@ -47,15 +47,20 @@ if (process.env.LINE_LOGIN_CHANNEL_ID && process.env.LINE_LOGIN_CHANNEL_SECRET) 
     LINE({
       clientId: process.env.LINE_LOGIN_CHANNEL_ID,
       clientSecret: process.env.LINE_LOGIN_CHANNEL_SECRET,
-      // Keep iOS LINE Login in the browser that started OAuth. Auto-login can
-      // hand the callback to a different browser, which cannot return Auth.js state cookies.
-      authorization: { params: { scope: "openid profile", disable_auto_login: "true" } },
+      // 預設啟用 LINE 自動登入：手機上會跳到 LINE App 完成認證，不必輸入 LINE 帳號密碼。
+      // 若自動登入失敗（例如 iOS 的 Universal Link 沒生效、隱私瀏覽），登入頁會提示使用者
+      // 改用 disable_auto_login=true 重試，做法依照 LINE 官方 "How to handle auto login failure"。
+      authorization: { params: { scope: "openid profile" } },
     })
   );
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
+  pages: {
+    // 登入失敗（含 LINE 自動登入失敗造成的 state 不符）時回到登入頁，由登入頁提示重試
+    error: "/hr/login",
+  },
   session: {
     strategy: "jwt",
   },
