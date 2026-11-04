@@ -64,9 +64,6 @@ export default function HrLoginPage() {
         <button type="button" style={{ ...buttonStyle, color: '#fff', background: '#06C755', border: '1px solid #06C755' }} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
           {registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
         </button>
-        <button type="button" onClick={retryLineWithoutAutoLogin} style={{ display: 'block', margin: '8px auto 0', padding: 4, border: 'none', background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-          沒有跳到 LINE App？改用 LINE 帳號密碼登入
-        </button>
         {!registerMode && <button type="button" style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#F28C28', border: '1px solid #F28C28' }} onClick={() => signIn('google', { callbackUrl: '/hr' })}>使用 Google 登入</button>}
 
         {!registerMode && <><div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0', color: '#94a3b8', fontSize: 13 }}>

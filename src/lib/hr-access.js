@@ -48,6 +48,7 @@ export async function ensureHrIdentitySchema() {
     employer_id BIGINT UNIQUE REFERENCES hr_employers(id) ON DELETE CASCADE,
     agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE CASCADE,
     active BOOLEAN NOT NULL DEFAULT TRUE,
+    admin_scope TEXT NOT NULL DEFAULT 'none',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (
@@ -60,6 +61,9 @@ export async function ensureHrIdentitySchema() {
   )`);
   await pool.query('ALTER TABLE hr_members ALTER COLUMN email DROP NOT NULL');
   await pool.query('ALTER TABLE hr_members ALTER COLUMN role DROP NOT NULL');
+  await pool.query("ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS admin_scope TEXT NOT NULL DEFAULT 'none'");
+  await pool.query("ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_admin_scope_check");
+  await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_admin_scope_check CHECK (admin_scope IN ('none','agency','system'))");
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS requested_role TEXT');
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_role_check');
   await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_role_check CHECK (role IS NULL OR role IN ('worker','employer','agency'))");
@@ -89,10 +93,11 @@ export async function getHrPrincipal(session) {
     return { role: 'admin', email: email || null, name: session.user.name || email || '管理者' };
   }
 
-  const member = await get(`SELECT m.id, m.email, m.line_user_id, m.display_name, m.role, m.requested_role,
+  const member = await get(`SELECT m.id, m.email, m.line_user_id, m.display_name, m.role, m.requested_role, m.admin_scope,
       m.worker_id, m.employer_id, m.agency_id, m.active, a.agency_type
     FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id
     WHERE m.active=TRUE AND (($1 <> '' AND lower(m.email)=lower($1)) OR ($2 <> '' AND m.line_user_id=$2))`, [email, lineUserId]);
-  return member ? { ...member, role: member.role, name: member.display_name } : null;
+  if (member?.admin_scope === 'system') return { ...member, role: 'admin', admin_scope: 'system', name: member.display_name };
+  return member ? { ...member, role: member.role, is_agency_admin: member.admin_scope === 'agency', name: member.display_name } : null;
 }
 
