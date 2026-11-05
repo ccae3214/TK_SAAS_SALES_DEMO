@@ -577,13 +577,14 @@ export default function HrMemberPortal({ actor }) {
   if (!data) return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><section className="hr-member-card"><span>克雷迅人力管理</span><h1>載入中</h1><p>正在確認此帳號可存取的案件資料。</p></section></main>;
 
   if (data.role === 'pending') {
-    const roles = { worker: '工人', employer: '雇主', agency: '仲介' };
+    const roles = { worker: '工人', employer: '雇主', agency: '仲介', training_center: '訓練中心' };
     const agencyTypes = { taiwan: '台灣仲介', philippines: '菲律賓仲介' };
-    const requestedAgencies = data.agencies.filter(item => item.active && (
+    const needsAgency = requestedRole !== 'training_center';
+    const requestedAgencies = needsAgency ? data.agencies.filter(item => item.active && (
       requestedRole === 'worker' ? item.agency_type === 'philippines'
         : requestedRole === 'employer' ? item.agency_type === 'taiwan'
           : item.agency_type === requestedAgencyType
-    ));
+    )) : [];
     const agencyName = data.agencies.find(item => Number(item.id) === Number(data.requestedAgencyId))?.name || data.requestedAgencyName;
     const currentAgency = () => data.agencies.find(item => Number(item.id) === Number(requestedAgencyId));
     async function requestMembership(event) {
@@ -591,7 +592,7 @@ export default function HrMemberPortal({ actor }) {
       setRequesting(true);
       setError('');
       try {
-        const response = await fetch('/api/hr/member-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestedRole, requestedAgencyId }) });
+        const response = await fetch('/api/hr/member-request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestedRole, requestedAgencyId: needsAgency ? requestedAgencyId : null }) });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || '申請送出失敗');
         const selectedAgency=currentAgency();
@@ -600,9 +601,13 @@ export default function HrMemberPortal({ actor }) {
       finally { setRequesting(false); }
     }
     return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
-      {data.pendingApproval ? <><h2>申請已送出，等待管理者審核</h2><p>申請類型：<strong>{roles[data.requestedRole] || '尚未選擇'}</strong></p><p>申請所屬仲介：<strong>{agencyTypes[data.requestedAgencyType] || ''}{agencyName ? ` · ${agencyName}` : '尚未選擇'}</strong></p><p>管理者核准並指派所屬資料後，你就能使用對應的會員工作區。</p></> : <><h2>選擇會員類型與所屬仲介</h2><p>管理者會審核你的身分及所選仲介；核准前不會開放案件或會員資料。</p><form onSubmit={requestMembership}><label>申請類型<select value={requestedRole} onChange={event => { setRequestedRole(event.target.value); setRequestedAgencyId(''); if(event.target.value==='worker')setRequestedAgencyType('philippines');else setRequestedAgencyType('taiwan'); }}><option value="worker">工人</option><option value="employer">雇主</option><option value="agency">仲介</option></select></label>{requestedRole==='agency'&&<label>仲介類型<select value={requestedAgencyType} onChange={event=>{setRequestedAgencyType(event.target.value);setRequestedAgencyId('');}}><option value="taiwan">台灣仲介</option><option value="philippines">菲律賓仲介</option></select></label>}<label>{requestedRole==='worker'?'所屬菲律賓仲介':requestedRole==='employer'?'所屬台灣仲介':'所屬仲介'}<select required value={requestedAgencyId} onChange={event=>setRequestedAgencyId(event.target.value)}><option value="">請選擇仲介</option>{requestedAgencies.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{requestedAgencies.length===0&&<p role="status">目前沒有可選的啟用仲介，請聯絡管理者。</p>}<button disabled={requesting||!requestedAgencyId}>{requesting ? '送出中…' : '送出審核申請'}</button></form></>}
+      {data.pendingApproval ? <><h2>申請已送出，等待管理者審核</h2><p>申請類型：<strong>{roles[data.requestedRole] || '尚未選擇'}</strong></p>{data.requestedRole !== 'training_center' && <p>申請所屬仲介：<strong>{agencyTypes[data.requestedAgencyType] || ''}{agencyName ? ` · ${agencyName}` : '尚未選擇'}</strong></p>}<p>管理者核准並指派所屬資料後，你就能使用對應的會員工作區。</p></> : <><h2>選擇會員類型與所屬仲介</h2><p>管理者會審核你的身分及所選仲介；核准前不會開放案件或會員資料。</p><form onSubmit={requestMembership}><label>申請類型<select value={requestedRole} onChange={event => { setRequestedRole(event.target.value); setRequestedAgencyId(''); if(event.target.value==='worker')setRequestedAgencyType('philippines');else setRequestedAgencyType('taiwan'); }}><option value="worker">工人</option><option value="employer">雇主</option><option value="agency">仲介</option><option value="training_center">訓練中心</option></select></label>{requestedRole==='agency'&&<label>仲介類型<select value={requestedAgencyType} onChange={event=>{setRequestedAgencyType(event.target.value);setRequestedAgencyId('');}}><option value="taiwan">台灣仲介</option><option value="philippines">菲律賓仲介</option></select></label>}{needsAgency&&<><label>{requestedRole==='worker'?'所屬菲律賓仲介':requestedRole==='employer'?'所屬台灣仲介':'所屬仲介'}<select required value={requestedAgencyId} onChange={event=>setRequestedAgencyId(event.target.value)}><option value="">請選擇仲介</option>{requestedAgencies.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>{requestedAgencies.length===0&&<p role="status">目前沒有可選的啟用仲介，請聯絡管理者。</p>}</>}<button disabled={requesting||(needsAgency&&!requestedAgencyId)}>{requesting ? '送出中…' : '送出審核申請'}</button></form></>}
       {error && <p role="alert" className="hr-request-error">{error}</p>}
     </section></main>;
+  }
+
+  if (data.role === 'training_center') {
+    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色不會存取仲介、雇主、工作者或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
   }
 
   const viewedWorker = data.role === 'worker' ? data.workers[0] : null;

@@ -404,6 +404,17 @@ export async function GET() {
         jobOrders = allJobOrders.filter(row => orderIds.has(Number(row.id)));
         orderCandidates = allCandidates.filter(row => routeIds.has(Number(row.route_id)));
       }
+    } else if (principal.role === 'training_center') {
+      employers = [];
+      workers = [];
+      cases = [];
+      visibleAgencies = [];
+      visibleMembers = [];
+      jobOrders = [];
+      orderAgencies = [];
+      orderRoutes = [];
+      orderCandidates = [];
+      agencyContacts = [];
     }
     const caseIds = new Set(cases.map(item => Number(item.id)));
     const privateCaseIds = employerPrivateCaseIds || caseIds;
@@ -423,7 +434,7 @@ export async function GET() {
     };
     workers = workers.map(item=>({...item,resume_profile:Object.fromEntries(Object.entries(item.resume_profile||{}).filter(([key])=>key!=='photoDataUrl'))}));
     employerAvailableWorkers = employerAvailableWorkers.map(item=>({...item,resume_profile:Object.fromEntries(Object.entries(item.resume_profile||{}).filter(([key])=>key!=='photoDataUrl'))}));
-    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工人', employer:'雇主', agency:'仲介' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: visibleMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工人', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: visibleMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
@@ -630,7 +641,7 @@ export async function POST(request) {
           const created = await client.query(`INSERT INTO hr_employers(name,contact_name,email,employer_type,agency_id)
             VALUES($1,$1,$2,$3,$4) RETURNING id`, [name,email,employerType,agencyId]);
           employerId = created.rows[0].id;
-        } else {
+        } else if (role === 'agency') {
           const agency = await client.query('SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE', [Number(body.targetId)]);
           if (!agency.rowCount) {
             await client.query('ROLLBACK');
@@ -919,15 +930,18 @@ export async function PATCH(request) {
       if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
       if (body.role !== undefined) {
         const role = clean(body.role,20), agencyId = Number(body.agencyId);
-        if (!HR_ROLES.has(role) || !validId(agencyId)) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
+        const requiresAgency = role !== 'training_center';
+        if (!HR_ROLES.has(role) || (requiresAgency && !validId(agencyId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
-          const agency = await client.query('SELECT id,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
-          const expectedAgencyType = role === 'worker' ? 'philippines' : role === 'employer' ? 'taiwan' : null;
-          if (!agency.rowCount || (expectedAgencyType && agency.rows[0].agency_type !== expectedAgencyType)) {
-            await client.query('ROLLBACK');
-            return NextResponse.json({ error: '所屬仲介不存在、已停用或類型不符合會員身分。' }, { status: 400 });
+          if (requiresAgency) {
+            const agency = await client.query('SELECT id,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
+            const expectedAgencyType = role === 'worker' ? 'philippines' : role === 'employer' ? 'taiwan' : null;
+            if (!agency.rowCount || (expectedAgencyType && agency.rows[0].agency_type !== expectedAgencyType)) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '所屬仲介不存在、已停用或類型不符合會員身分。' }, { status: 400 });
+            }
           }
           const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
           if (!member.rowCount) {
@@ -954,7 +968,7 @@ export async function PATCH(request) {
               const created = await client.query('INSERT INTO hr_employers(name,contact_name,agency_id) VALUES($1,$1,$2) RETURNING id', [clean(current.display_name,160)||'會員雇主',agencyId]);
               employerId = created.rows[0].id;
             }
-          } else {
+          } else if (role === 'agency') {
             memberAgencyId = agencyId;
           }
           if (current.agency_id && (role !== 'agency' || Number(current.agency_id)!==agencyId)) {

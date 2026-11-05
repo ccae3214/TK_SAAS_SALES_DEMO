@@ -30,10 +30,13 @@ async function claimEvent(event) {
 async function sendReply(replyToken, content) {
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error('missing_messaging_access_token');
+  const messages = Array.isArray(content)
+    ? content
+    : [typeof content === 'string' ? { type: 'text', text: content.slice(0,4500) } : content];
   const response = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ replyToken, messages: [typeof content === 'string' ? { type: 'text', text: content.slice(0,4500) } : content] }),
+    body: JSON.stringify({ replyToken, messages }),
     signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error(`line_reply_failed_${response.status}`);
@@ -61,6 +64,23 @@ export async function POST(request) {
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_member_settings (
+        line_user_id TEXT PRIMARY KEY,
+        preferred_language TEXT NOT NULL CHECK (preferred_language IN ('zh','en','tl')),
+        rich_menu_role TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+      await pool.query('ALTER TABLE hr_line_member_settings ADD COLUMN IF NOT EXISTS rich_menu_role TEXT');
+      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_rich_menus (
+        menu_key TEXT PRIMARY KEY,
+        rich_menu_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_admin_sessions (
+        line_user_id TEXT PRIMARY KEY,
+        session_data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
     }
 
     let replied = 0, duplicates = 0;
@@ -84,7 +104,8 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, received: payload.events.length, replied, duplicates });
   } catch (error) {
     if (error instanceof SyntaxError) return NextResponse.json({ ok: false, message: 'Webhook JSON 格式不正確。' }, { status: 400 });
-    console.error('hr_line_webhook_failed', error?.message?.startsWith('line_reply_failed_') ? error.message : error?.message === 'missing_messaging_access_token' ? error.message : error?.name || 'Error');
+    const errorCode = String(error?.message || '');
+    console.error('hr_line_webhook_failed', /^(line_reply_failed_|line_rich_menu_(create|upload|link|unlink)_failed_|line_rich_menu_action_label_too_long_)/.test(errorCode) || errorCode === 'missing_messaging_access_token' ? errorCode : error?.name || 'Error');
     return NextResponse.json({ ok: false, message: 'LINE 回覆暫時失敗，請稍後重試。' }, { status: 502 });
   }
 }

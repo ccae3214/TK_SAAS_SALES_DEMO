@@ -30,14 +30,16 @@ export async function POST(request) {
     await ensureHrIdentitySchema();
     const body = await request.json();
     const requestedRole = String(body?.requestedRole || '');
-    if (!HR_ROLES.has(requestedRole)) return NextResponse.json({ error: '請選擇工人、雇主或仲介類型。' }, { status: 400 });
-    const requestedAgencyId = Number(body?.requestedAgencyId);
-    if (!Number.isSafeInteger(requestedAgencyId) || requestedAgencyId <= 0) return NextResponse.json({ error: '請選擇所屬仲介。' }, { status: 400 });
-    const agencyType = requestedRole === 'worker' ? 'philippines' : requestedRole === 'employer' ? 'taiwan' : null;
-    const agency = agencyType
-      ? await query('SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type=$2', [requestedAgencyId,agencyType])
-      : await query('SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE', [requestedAgencyId]);
-    if (!agency.length) return NextResponse.json({ error: '所屬仲介不存在、已停用或與申請身分不符。' }, { status: 400 });
+    if (!HR_ROLES.has(requestedRole)) return NextResponse.json({ error: '請選擇工人、雇主、仲介或訓練中心類型。' }, { status: 400 });
+    const requestedAgencyId = requestedRole === 'training_center' ? null : Number(body?.requestedAgencyId);
+    if (requestedRole !== 'training_center') {
+      if (!Number.isSafeInteger(requestedAgencyId) || requestedAgencyId <= 0) return NextResponse.json({ error: '請選擇所屬仲介。' }, { status: 400 });
+      const agencyType = requestedRole === 'worker' ? 'philippines' : requestedRole === 'employer' ? 'taiwan' : null;
+      const agency = agencyType
+        ? await query('SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type=$2', [requestedAgencyId,agencyType])
+        : await query('SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE', [requestedAgencyId]);
+      if (!agency.length) return NextResponse.json({ error: '所屬仲介不存在、已停用或與申請身分不符。' }, { status: 400 });
+    }
     const principal = await getHrPrincipal(session);
     if (principal?.role === 'admin') return NextResponse.json({ error: '管理者不需申請會員類型。' }, { status: 400 });
     if (principal?.role) return NextResponse.json({ error: '此帳號已有會員類型。' }, { status: 409 });

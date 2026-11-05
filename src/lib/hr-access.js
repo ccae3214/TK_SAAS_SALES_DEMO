@@ -1,6 +1,6 @@
 import pool, { get } from '@/lib/db';
 
-export const HR_ROLES = new Set(['worker', 'employer', 'agency']);
+export const HR_ROLES = new Set(['worker', 'employer', 'agency', 'training_center']);
 
 export function getAdminEmails() {
   return (process.env.ADMIN_EMAILS || '')
@@ -42,8 +42,8 @@ export async function ensureHrIdentitySchema() {
     line_user_id TEXT UNIQUE,
     display_name TEXT NOT NULL,
     password_hash TEXT,
-    role TEXT CHECK (role IS NULL OR role IN ('worker','employer','agency')),
-    requested_role TEXT CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency')),
+    role TEXT CHECK (role IS NULL OR role IN ('worker','employer','agency','training_center')),
+    requested_role TEXT CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency','training_center')),
     requested_agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE SET NULL,
     worker_id BIGINT UNIQUE REFERENCES hr_workers(id) ON DELETE CASCADE,
     employer_id BIGINT UNIQUE REFERENCES hr_employers(id) ON DELETE CASCADE,
@@ -56,7 +56,8 @@ export async function ensureHrIdentitySchema() {
       (role IS NULL AND worker_id IS NULL AND employer_id IS NULL AND agency_id IS NULL) OR
       (role='worker' AND worker_id IS NOT NULL AND employer_id IS NULL AND agency_id IS NULL) OR
       (role='employer' AND employer_id IS NOT NULL AND worker_id IS NULL AND agency_id IS NULL) OR
-      (role='agency' AND agency_id IS NOT NULL AND worker_id IS NULL AND employer_id IS NULL)
+      (role='agency' AND agency_id IS NOT NULL AND worker_id IS NULL AND employer_id IS NULL) OR
+      (role='training_center' AND worker_id IS NULL AND employer_id IS NULL AND agency_id IS NULL)
     ),
     CHECK (email IS NOT NULL OR line_user_id IS NOT NULL)
   )`);
@@ -68,19 +69,20 @@ export async function ensureHrIdentitySchema() {
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS requested_role TEXT');
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS requested_agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE SET NULL');
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_role_check');
-  await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_role_check CHECK (role IS NULL OR role IN ('worker','employer','agency'))");
+  await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_role_check CHECK (role IS NULL OR role IN ('worker','employer','agency','training_center'))");
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_check');
   await pool.query(`ALTER TABLE hr_members ADD CONSTRAINT hr_members_check CHECK (
     (role IS NULL AND worker_id IS NULL AND employer_id IS NULL AND agency_id IS NULL) OR
     (role='worker' AND worker_id IS NOT NULL AND employer_id IS NULL AND agency_id IS NULL) OR
     (role='employer' AND employer_id IS NOT NULL AND worker_id IS NULL AND agency_id IS NULL) OR
-    (role='agency' AND agency_id IS NOT NULL AND worker_id IS NULL AND employer_id IS NULL)
+    (role='agency' AND agency_id IS NOT NULL AND worker_id IS NULL AND employer_id IS NULL) OR
+    (role='training_center' AND worker_id IS NULL AND employer_id IS NULL AND agency_id IS NULL)
   )`);
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_check1');
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_identity_check');
   await pool.query('ALTER TABLE hr_members ADD CONSTRAINT hr_members_identity_check CHECK (email IS NOT NULL OR line_user_id IS NOT NULL)');
   await pool.query("ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_requested_role_check");
-  await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_requested_role_check CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency'))");
+  await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_requested_role_check CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency','training_center'))");
   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_active_role ON hr_members(role, active)');
   // One agency can have multiple member logins; worker and employer links stay unique.
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_agency_id_key');
