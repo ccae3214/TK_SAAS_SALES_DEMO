@@ -267,8 +267,14 @@ export async function GET() {
   try {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
-    if (!principal) return NextResponse.json({ role: 'pending', pendingApproval: false, requestedRole: null, actor: { name: session.user.name || session.user.email || 'LINE 會員', email: session.user.email || '' } });
-    if (!principal.role) return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
+    if (!principal) {
+      const agencies=await query('SELECT id,name,agency_type,country,active FROM hr_agencies WHERE active=TRUE ORDER BY agency_type,name');
+      return NextResponse.json({ role: 'pending', pendingApproval: false, requestedRole: null, requestedAgencyId: null, agencies, actor: { name: session.user.name || session.user.email || 'LINE 會員', email: session.user.email || '' } });
+    }
+    if (!principal.role) {
+      const agencies=await query('SELECT id,name,agency_type,country,active FROM hr_agencies WHERE active=TRUE ORDER BY agency_type,name');
+      return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, requestedAgencyId: principal.requested_agency_id || null, requestedAgencyName: principal.requested_agency_name || null, requestedAgencyType: principal.requested_agency_type || null, agencies, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
+    }
     const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts] = await Promise.all([
       query('SELECT * FROM hr_employers ORDER BY status, name'),
       query('SELECT * FROM hr_workers ORDER BY status, name'),
@@ -298,7 +304,7 @@ export async function GET() {
         ORDER BY s.created_at DESC LIMIT 200`),
       query(`SELECT a.*, c.case_number FROM hr_case_activity a JOIN hr_cases c ON c.id=a.case_id ORDER BY a.created_at DESC LIMIT 100`),
       query('SELECT * FROM hr_agencies ORDER BY agency_type,name'),
-      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.active,m.created_at,
+      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.requested_agency_id,requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.active,m.created_at,
         a.name AS agency_name,a.agency_type,w.name AS worker_name,w.agency_id AS worker_agency_id,worker_agency.name AS worker_agency_name,
         e.name AS employer_name,e.agency_id AS employer_agency_id,employer_agency.name AS employer_agency_name,
         COALESCE((SELECT array_agg(DISTINCT case_taiwan_agency.name ORDER BY case_taiwan_agency.name)
@@ -307,11 +313,13 @@ export async function GET() {
           JOIN hr_agencies case_taiwan_agency ON case_taiwan_agency.id=case_employer.agency_id
           WHERE case_worker.agency_id=m.agency_id AND m.role='agency'),ARRAY[]::text[]) AS related_taiwan_agencies
         FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id
+        LEFT JOIN hr_agencies requested_agency ON requested_agency.id=m.requested_agency_id
         LEFT JOIN hr_workers w ON w.id=m.worker_id LEFT JOIN hr_agencies worker_agency ON worker_agency.id=w.agency_id
         LEFT JOIN hr_employers e ON e.id=m.employer_id LEFT JOIN hr_agencies employer_agency ON employer_agency.id=e.agency_id
         ORDER BY m.role NULLS FIRST,m.created_at DESC,m.display_name`),
       query('SELECT * FROM hr_application_steps ORDER BY case_id,id'),
-      query(`SELECT o.*,e.name employer_name,e.employer_type FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id ORDER BY o.created_at DESC`),
+      query(`SELECT o.*,e.name employer_name,e.employer_type,e.agency_id employer_agency_id,ea.name employer_agency_name
+        FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id LEFT JOIN hr_agencies ea ON ea.id=e.agency_id ORDER BY o.created_at DESC`),
       query(`SELECT oa.*,a.name taiwan_agency_name,m.id broker_id,m.display_name broker_name FROM hr_job_order_agencies oa JOIN hr_agencies a ON a.id=oa.taiwan_agency_id LEFT JOIN hr_members m ON m.id=oa.broker_member_id AND m.role='agency' AND m.agency_id=oa.taiwan_agency_id AND m.active=TRUE`),
       query(`SELECT r.*,a.name philippines_agency_name,oa.job_order_id,oa.taiwan_agency_id FROM hr_job_order_routes r JOIN hr_agencies a ON a.id=r.philippines_agency_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id`),
       query(`SELECT c.*,w.name worker_name,w.nationality,w.job_preference,w.agency_id worker_agency_id,r.philippines_agency_id,oa.job_order_id,oa.taiwan_agency_id,ca.name philippines_agency_name FROM hr_job_order_candidates c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_agencies ca ON ca.id=r.philippines_agency_id`),
@@ -348,11 +356,9 @@ export async function GET() {
       cases = ownCases;
       const employerOrderIds = new Set(allJobOrders.filter(row => Number(row.employer_id)===Number(principal.employer_id)).map(row=>Number(row.id)));
       const employerCandidateWorkerIds = new Set(allCandidates.filter(row=>employerOrderIds.has(Number(row.job_order_id))).map(row=>Number(row.worker_id)));
-      const employerAgencyDispatchIds = new Set(allOrderAgencies.filter(row=>employerOrderIds.has(Number(row.job_order_id))&&Number(row.taiwan_agency_id)===employerAgencyId).map(row=>Number(row.id)));
       const activePhilippinesAgencyIds = new Set(agencies.filter(item=>item.active&&item.agency_type==='philippines').map(item=>Number(item.id)));
-      const affiliatedPhilippinesAgencyIds = new Set(allRoutes.filter(row=>employerAgencyDispatchIds.has(Number(row.order_agency_id))&&activePhilippinesAgencyIds.has(Number(row.philippines_agency_id))).map(row=>Number(row.philippines_agency_id)));
       const workersWithCases = new Set(allCases.map(item=>Number(item.worker_id)));
-      employerAvailableWorkers = employerAgencyId ? allWorkers.filter(item=>item.status==='active'&&affiliatedPhilippinesAgencyIds.has(Number(item.agency_id))&&!workersWithCases.has(Number(item.id))) : [];
+      employerAvailableWorkers = employerAgencyId ? allWorkers.filter(item=>item.status==='active'&&activePhilippinesAgencyIds.has(Number(item.agency_id))&&!workersWithCases.has(Number(item.id))) : [];
       workers = allWorkers.filter(item => ownWorkerIds.has(Number(item.id)) || employerCandidateWorkerIds.has(Number(item.id)));
       employers = allEmployers.filter(item => Number(item.id) === Number(principal.employer_id));
       const relatedAgencyIds = new Set(workers.map(item => Number(item.agency_id)).filter(Boolean));
@@ -443,8 +449,10 @@ export async function POST(request) {
       const headcount = Number(body.headcount), jobType = clean(body.jobType,120);
       if (!validId(employerId) || agencyAssignments.length!==1 || !agencyIds.length || !agencyIds.every(validId) || !Number.isInteger(headcount) || headcount < 1 || headcount > 100 || !jobType || !validDate(body.expectedStartDate)) return NextResponse.json({error:'工作需求單只能指定一家所屬台灣仲介，並請填寫工作類型與需求人數。'},{status:400});
       if (agencyAssignments.some(item=>item.brokerMemberId!==null&&!validId(item.brokerMemberId))) return NextResponse.json({error:'業務資料格式不正確。'},{status:400});
-      const employerRecord=await query("SELECT id,agency_id FROM hr_employers WHERE id=$1 AND status='active'",[employerId]);
-      if(!employerRecord.length||!employerRecord[0].agency_id)return NextResponse.json({error:'請先選擇所屬台灣仲介，再建立工作需求單。'},{status:400});
+      const employerRecord=await query('SELECT id,agency_id,status FROM hr_employers WHERE id=$1',[employerId]);
+      if(!employerRecord.length)return NextResponse.json({error:'找不到雇主資料，請聯絡管理者確認會員指派。'},{status:404});
+      if(employerRecord[0].status!=='active')return NextResponse.json({error:'雇主資料目前已停用，請聯絡管理者啟用後再建立工作需求單。'},{status:409});
+      if(!employerRecord[0].agency_id)return NextResponse.json({error:'雇主資料尚未指派所屬台灣仲介，請聯絡管理者設定。'},{status:400});
       if(Number(employerRecord[0].agency_id)!==agencyIds[0])return NextResponse.json({error:'工作需求單只能送交雇主目前所屬的台灣仲介。'},{status:403});
       const validAgencies = await query("SELECT id FROM hr_agencies WHERE id=ANY($1::bigint[]) AND agency_type='taiwan' AND active=TRUE",[agencyIds]);
       if (validAgencies.length !== agencyIds.length) return NextResponse.json({error:'所選台灣仲介資料無效。'},{status:400});
@@ -455,8 +463,9 @@ export async function POST(request) {
       }
       const client=await pool.connect();
       try { await client.query('BEGIN');
-        const employer=await client.query('SELECT id,agency_id FROM hr_employers WHERE id=$1 AND status=\'active\' FOR UPDATE',[employerId]);
+        const employer=await client.query('SELECT id,agency_id,status FROM hr_employers WHERE id=$1 FOR UPDATE',[employerId]);
         if(!employer.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到雇主資料。'},{status:404});}
+        if(employer.rows[0].status!=='active'){await client.query('ROLLBACK');return NextResponse.json({error:'雇主資料目前已停用，請聯絡管理者啟用後再建立工作需求單。'},{status:409});}
         if(Number(employer.rows[0].agency_id)!==agencyIds[0]){await client.query('ROLLBACK');return NextResponse.json({error:'雇主所屬仲介已變更，請重新整理後再建立需求單。'},{status:409});}
         const order=await client.query(`INSERT INTO hr_job_orders(employer_id,job_type,headcount,description,expected_start_date) VALUES($1,$2,$3,$4,$5) RETURNING *`,[employerId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null]);
         for(const assignment of agencyAssignments) await client.query('INSERT INTO hr_job_order_agencies(job_order_id,taiwan_agency_id,broker_member_id) VALUES($1,$2,$3)',[order.rows[0].id,assignment.agencyId,assignment.brokerMemberId]);
@@ -466,6 +475,9 @@ export async function POST(request) {
     if(body.type==='job-order-admin-assignment'&&principal.role==='admin'){
       const jobOrderId=Number(body.jobOrderId),agencyId=Number(body.taiwanAgencyId),brokerMemberId=body.brokerMemberId?Number(body.brokerMemberId):null;
       if(!validId(jobOrderId)||!validId(agencyId)||(brokerMemberId!==null&&!validId(brokerMemberId)))return NextResponse.json({error:'媒合需求或仲介資料不正確。'},{status:400});
+      const employerAgency=await query(`SELECT e.agency_id FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id WHERE o.id=$1`,[jobOrderId]);
+      if(!employerAgency.length)return NextResponse.json({error:'找不到媒合需求單。'},{status:404});
+      if(!validId(employerAgency[0].agency_id)||Number(employerAgency[0].agency_id)!==agencyId)return NextResponse.json({error:'媒合需求只能指派給雇主所屬台灣仲介及其業務。'},{status:403});
       const agency=await query("SELECT id FROM hr_agencies WHERE id=$1 AND agency_type='taiwan' AND active=TRUE",[agencyId]);
       if(!agency.length)return NextResponse.json({error:'請選擇啟用中的台灣仲介。'},{status:400});
       if(brokerMemberId){const broker=await query("SELECT id FROM hr_members WHERE id=$1 AND role='agency' AND agency_id=$2 AND active=TRUE",[brokerMemberId,agencyId]);if(!broker.length)return NextResponse.json({error:'業務必須是該仲介機構底下的啟用會員。'},{status:400});}
@@ -473,19 +485,44 @@ export async function POST(request) {
       if(!assignment.length)return NextResponse.json({error:'找不到媒合需求單。'},{status:404});
       return NextResponse.json(assignment[0],{status:201});
     }
-    if (body.type === 'job-order-route' && ((principal.role === 'agency' && principal.agency_type === 'taiwan')||principal.role==='admin')) {
-      const orderAgencyId=Number(body.orderAgencyId), phIds=[...new Set((Array.isArray(body.philippinesAgencyIds)?body.philippinesAgencyIds:[]).map(Number))];
-      if(!validId(orderAgencyId)||!phIds.length||!phIds.every(validId)) return NextResponse.json({error:'請選擇菲律賓仲介。'},{status:400});
-      const validAgencies=await query("SELECT id FROM hr_agencies WHERE id=ANY($1::bigint[]) AND agency_type='philippines' AND active=TRUE",[phIds]);
-      if(validAgencies.length!==phIds.length) return NextResponse.json({error:'所選菲律賓仲介無效。'},{status:400});
+    if(body.type==='job-order-admin-philippines-assignment'&&principal.role==='admin'){
+      const orderAgencyId=Number(body.orderAgencyId),agencyIds=Array.isArray(body.philippinesAgencyIds)?[...new Set(body.philippinesAgencyIds.map(Number))]:[];
+      if(!validId(orderAgencyId)||!Array.isArray(body.philippinesAgencyIds)||agencyIds.some(id=>!validId(id)))return NextResponse.json({error:'需求單或菲律賓仲介資料不正確。'},{status:400});
       const client=await pool.connect();
-      try { await client.query('BEGIN'); const dispatch=principal.role==='admin'
-          ? await client.query('SELECT id FROM hr_job_order_agencies WHERE id=$1 FOR UPDATE',[orderAgencyId])
-          : await client.query('SELECT id FROM hr_job_order_agencies WHERE id=$1 AND taiwan_agency_id=$2 FOR UPDATE',[orderAgencyId,principal.agency_id]);
-        if(!dispatch.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到分派給本仲介的工作需求。'},{status:404});}
-        const routes=[]; for(const phId of phIds){const r=await client.query('INSERT INTO hr_job_order_routes(order_agency_id,philippines_agency_id,notes) VALUES($1,$2,$3) ON CONFLICT(order_agency_id,philippines_agency_id) DO UPDATE SET notes=EXCLUDED.notes RETURNING *',[orderAgencyId,phId,clean(body.notes,1000)]);routes.push(r.rows[0]);}
-        await client.query('COMMIT');return NextResponse.json(routes,{status:201});
-      } catch(error){await client.query('ROLLBACK');throw error;} finally{client.release();}
+      try{
+        await client.query('BEGIN');
+        const dispatch=await client.query(`SELECT oa.id,oa.job_order_id,oa.taiwan_agency_id,o.employer_id,e.name AS employer_name,ta.name AS taiwan_agency_name
+          FROM hr_job_order_agencies oa JOIN hr_job_orders o ON o.id=oa.job_order_id
+          JOIN hr_employers e ON e.id=o.employer_id JOIN hr_agencies ta ON ta.id=oa.taiwan_agency_id
+          WHERE oa.id=$1 FOR UPDATE OF oa,o`,[orderAgencyId]);
+        if(!dispatch.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單的台灣仲介指派資料。'},{status:404});}
+        const philippines=await client.query("SELECT id,name FROM hr_agencies WHERE id=ANY($1::bigint[]) AND active=TRUE AND agency_type='philippines'",[agencyIds]);
+        if(philippines.rowCount!==agencyIds.length){await client.query('ROLLBACK');return NextResponse.json({error:'請選擇有效且啟用中的菲律賓仲介。'},{status:400});}
+        const removedRoutes=await client.query(`SELECT r.id FROM hr_job_order_routes r
+          WHERE r.order_agency_id=$1 AND NOT (r.philippines_agency_id=ANY($2::bigint[]))
+            AND EXISTS(SELECT 1 FROM hr_job_order_candidates c WHERE c.route_id=r.id)`,[orderAgencyId,agencyIds]);
+        if(removedRoutes.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'已有人選推薦或面試紀錄的菲律賓仲介不可移除。'},{status:409});}
+        await client.query('DELETE FROM hr_job_order_routes WHERE order_agency_id=$1 AND NOT (philippines_agency_id=ANY($2::bigint[]))',[orderAgencyId,agencyIds]);
+        const newRoutes=[];
+        for(const agency of philippines.rows){
+          const route=await client.query(`INSERT INTO hr_job_order_routes(order_agency_id,philippines_agency_id,notes)
+            VALUES($1,$2,'管理者直接指派') ON CONFLICT(order_agency_id,philippines_agency_id) DO NOTHING RETURNING id,order_agency_id,philippines_agency_id`,[orderAgencyId,agency.id]);
+          if(route.rowCount)newRoutes.push({...route.rows[0],philippines_agency_name:agency.name});
+        }
+        for(const route of newRoutes){
+          const message=`管理者已將媒合需求單 #${dispatch.rows[0].job_order_id}（${dispatch.rows[0].employer_name}）直接指派給台灣仲介 ${dispatch.rows[0].taiwan_agency_name} 與菲律賓仲介 ${route.philippines_agency_name}，請雙方直接聯繫媒合。`;
+          for(const agencyId of [Number(dispatch.rows[0].taiwan_agency_id),Number(route.philippines_agency_id)]){
+            const room=await client.query(`INSERT INTO hr_chat_rooms(room_type,agency_id) VALUES('agency',$1)
+              ON CONFLICT(agency_id) WHERE room_type='agency' DO UPDATE SET agency_id=EXCLUDED.agency_id RETURNING id`,[agencyId]);
+            await client.query(`INSERT INTO hr_chat_messages(room_id,member_id,sender_name,sender_role,body)
+              VALUES($1,$2,$3,'admin',$4)`,[room.rows[0].id,principal.id||null,principal.name||session.user.name||'管理者',message]);
+          }
+        }
+        const routes=await client.query(`SELECT r.id,r.order_agency_id,r.philippines_agency_id,a.name AS philippines_agency_name
+          FROM hr_job_order_routes r JOIN hr_agencies a ON a.id=r.philippines_agency_id WHERE r.order_agency_id=$1 ORDER BY a.name`,[orderAgencyId]);
+        await client.query('COMMIT');
+        return NextResponse.json({routes:routes.rows},{status:201});
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
     if (body.type === 'job-order-candidate' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       const routeId=Number(body.routeId),workerId=Number(body.workerId);
@@ -494,20 +531,45 @@ export async function POST(request) {
       if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介且尚未建立任何案件的工人。'},{status:403});return NextResponse.json(result[0],{status:201});
     }
     if (body.type === 'job-order-employer-candidate' && principal.role === 'employer') {
-      const orderId=Number(body.orderId),routeId=Number(body.routeId),workerId=Number(body.workerId);
-      if(!validId(orderId)||!validId(routeId)||!validId(workerId))return NextResponse.json({error:'工作需求或工人資料不正確。'},{status:400});
-      const selected=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes)
-        SELECT r.id,w.id,'由雇主從工作需求單挑選'
-        FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id
-        JOIN hr_job_order_agencies oa ON oa.job_order_id=o.id AND oa.taiwan_agency_id=e.agency_id
-        JOIN hr_job_order_routes r ON r.order_agency_id=oa.id
-        JOIN hr_agencies ph ON ph.id=r.philippines_agency_id AND ph.active=TRUE AND ph.agency_type='philippines'
-        JOIN hr_workers w ON w.id=$3 AND w.agency_id=ph.id AND w.status='active' AND w.job_preference=o.job_type
-        WHERE o.id=$1 AND o.employer_id=$2 AND o.status='open' AND r.id=$4
-          AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id)
-        ON CONFLICT(route_id,worker_id) DO NOTHING RETURNING *`,[orderId,principal.employer_id,workerId,routeId]);
-      if(!selected.length)return NextResponse.json({error:'這位工人不符合該工作單，或已加入此工作單的人選。'},{status:409});
-      return NextResponse.json(selected[0],{status:201});
+      const orderId=Number(body.orderId),workerId=Number(body.workerId);
+      if(!validId(orderId)||!validId(workerId))return NextResponse.json({error:'工作需求或工人資料不正確。'},{status:400});
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        const order=await client.query(`SELECT o.id,o.job_type,o.status,e.agency_id,e.name employer_name,
+            oa.id order_agency_id,ta.name taiwan_agency_name
+          FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id
+          JOIN hr_job_order_agencies oa ON oa.job_order_id=o.id AND oa.taiwan_agency_id=e.agency_id
+          JOIN hr_agencies ta ON ta.id=oa.taiwan_agency_id AND ta.active=TRUE AND ta.agency_type='taiwan'
+          WHERE o.id=$1 AND o.employer_id=$2 FOR UPDATE OF o,e,oa`,[orderId,principal.employer_id]);
+        if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單或尚未指派台灣仲介。'},{status:404});}
+        const orderItem=order.rows[0];
+        if(orderItem.status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法再挑選工人。'},{status:409});}
+        const worker=await client.query(`SELECT w.id,w.name,w.agency_id,a.name philippines_agency_name
+          FROM hr_workers w JOIN hr_agencies a ON a.id=w.agency_id AND a.active=TRUE AND a.agency_type='philippines'
+          WHERE w.id=$1 AND w.status='active' AND w.job_preference=$2
+            AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id)
+          FOR UPDATE OF w`,[workerId,orderItem.job_type]);
+        if(!worker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'此工人不符合工作類型、已停用或已建立案件。'},{status:409});}
+        const selectedRoute=await client.query(`INSERT INTO hr_job_order_routes(order_agency_id,philippines_agency_id,notes)
+          VALUES($1,$2,'雇主直接挑選工人') ON CONFLICT(order_agency_id,philippines_agency_id)
+          DO UPDATE SET notes=hr_job_order_routes.notes RETURNING id`,
+        [orderItem.order_agency_id,worker.rows[0].agency_id]);
+        const selected=await client.query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,proposed_by,notes)
+          VALUES($1,$2,$3,'由雇主直接挑選') ON CONFLICT(route_id,worker_id) DO NOTHING RETURNING *`,
+        [selectedRoute.rows[0].id,workerId,principal.id||null]);
+        if(!selected.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'這位工人已加入此需求單。'},{status:409});}
+
+        const message=`雇主 ${orderItem.employer_name} 已從需求單 #${orderId} 挑選工人 ${worker.rows[0].name}（${orderItem.job_type}）。請台灣仲介與菲律賓仲介聯繫安排後續面試。`;
+        for(const agencyId of [Number(orderItem.agency_id),Number(worker.rows[0].agency_id)]){
+          const room=await client.query(`INSERT INTO hr_chat_rooms(room_type,agency_id) VALUES('agency',$1)
+            ON CONFLICT(agency_id) WHERE room_type='agency' DO UPDATE SET agency_id=EXCLUDED.agency_id RETURNING id`,[agencyId]);
+          await client.query(`INSERT INTO hr_chat_messages(room_id,member_id,sender_name,sender_role,body)
+            VALUES($1,$2,$3,'employer',$4)`,[room.rows[0].id,principal.id||null,principal.name||session.user.name||'雇主',message]);
+        }
+        await client.query('COMMIT');
+        return NextResponse.json(selected.rows[0],{status:201});
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       const name = clean(body.name,160);
@@ -519,14 +581,6 @@ export async function POST(request) {
       const profile=workerProfileWithReference(workerProfile,jobPreference,created[0].id);
       const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[created[0].id,JSON.stringify(profile)]);
       return NextResponse.json(saved[0], { status: 201 });
-    }
-    if (body.type === 'employer' && principal.role === 'agency' && principal.agency_type === 'taiwan') {
-      const name = clean(body.name,160);
-      if (!name) return NextResponse.json({ error: '請填寫雇主或客戶名稱。' }, { status: 400 });
-      const employerType = ['home_care','factory','domestic_helper','other'].includes(body.employerType) ? body.employerType : 'other';
-      const created = await query(`INSERT INTO hr_employers(name,contact_name,phone,email,address,notes,employer_type,agency_id)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [name,clean(body.contactName,120),clean(body.phone,50),clean(body.email,254),clean(body.address,300),clean(body.notes,2000),employerType,principal.agency_id]);
-      return NextResponse.json(created[0], { status: 201 });
     }
     if (principal.role !== 'admin') return NextResponse.json({ error: 'HR admin access required' }, { status: 403 });
     if (body.type === 'agency') {
@@ -684,6 +738,30 @@ export async function PATCH(request) {
       if(!changed.length)return NextResponse.json({error:'找不到媒合需求單。'},{status:404});
       return NextResponse.json(changed[0]);
     }
+    if(body.type==='job-order-update'&&principal.role==='employer'){
+      const orderId=Number(body.id),jobType=clean(body.jobType,120),headcount=Number(body.headcount),brokerMemberId=body.brokerMemberId?Number(body.brokerMemberId):null;
+      if(!validId(orderId)||!jobType||!Number.isInteger(headcount)||headcount<1||headcount>100||!validDate(body.expectedStartDate)||(brokerMemberId!==null&&!validId(brokerMemberId)))return NextResponse.json({error:'工作類型、需求人數或日期格式不正確。'},{status:400});
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        const order=await client.query(`SELECT o.id,o.status,e.agency_id FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id WHERE o.id=$1 AND o.employer_id=$2 FOR UPDATE OF o`,[orderId,principal.employer_id]);
+        if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到此需求單。'},{status:404});}
+        if(order.rows[0].status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已確認或結束，無法修改。'},{status:409});}
+        const activity=await client.query(`SELECT
+          EXISTS(SELECT 1 FROM hr_job_order_routes r JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id WHERE oa.job_order_id=$1) AS has_routes,
+          EXISTS(SELECT 1 FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id WHERE oa.job_order_id=$1) AS has_candidates`,[orderId]);
+        if(activity.rows[0].has_routes||activity.rows[0].has_candidates){await client.query('ROLLBACK');return NextResponse.json({error:'仲介已開始處理此需求單，無法再修改。'},{status:409});}
+        if(brokerMemberId){
+          const broker=await client.query("SELECT id FROM hr_members WHERE id=$1 AND role='agency' AND agency_id=$2 AND active=TRUE",[brokerMemberId,order.rows[0].agency_id]);
+          if(!broker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'指定業務必須是所屬仲介的有效會員。'},{status:400});}
+        }
+        const updated=await client.query(`UPDATE hr_job_orders SET job_type=$2,headcount=$3,description=$4,expected_start_date=$5,updated_at=NOW() WHERE id=$1 RETURNING *`,[orderId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null]);
+        const assignment=await client.query('UPDATE hr_job_order_agencies SET broker_member_id=$3 WHERE job_order_id=$1 AND taiwan_agency_id=$2 RETURNING id',[orderId,order.rows[0].agency_id,brokerMemberId]);
+        if(!assignment.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'需求單的仲介資料已變更，請重新整理後再試。'},{status:409});}
+        await client.query('COMMIT');
+        return NextResponse.json(updated.rows[0]);
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+    }
     if (body.type === 'job-order-candidate-interview' && principal.role === 'employer') {
       const candidateId=Number(body.candidateId),status=clean(body.status,20);
       if(!validId(candidateId)||!['scheduled','passed','rejected'].includes(status))return NextResponse.json({error:'面試結果不正確。'},{status:400});
@@ -712,16 +790,6 @@ export async function PATCH(request) {
         await client.query('COMMIT');return NextResponse.json(updated.rows[0]);
       } catch(error){await client.query('ROLLBACK');throw error;} finally{client.release();}
     }
-    if (principal.role === 'employer' && body.type === 'employer-agency') {
-      const agencyId = validId(body.agencyId) ? Number(body.agencyId) : null;
-      if (agencyId) {
-        const selected = await query("SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type='taiwan'", [agencyId]);
-        if (!selected.length) return NextResponse.json({ error: '請選擇有效的台灣仲介。' }, { status: 400 });
-      }
-      const changed = await query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING *', [principal.employer_id,agencyId]);
-      if (!changed.length) return NextResponse.json({ error: '找不到所屬雇主資料。' }, { status: 404 });
-      return NextResponse.json(changed[0]);
-    }
     if (principal.role === 'worker' && body.type === 'worker') {
       if (!validId(principal.worker_id) || id !== Number(principal.worker_id)) return NextResponse.json({ error: '只能編輯自己的工作者資料。' }, { status: 403 });
       const name = clean(body.name,160);
@@ -732,7 +800,7 @@ export async function PATCH(request) {
       if (!edited.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
       return NextResponse.json(edited[0]);
     }
-    if (principal.role === 'employer') return NextResponse.json({ error: '雇主帳號只能更新所屬仲介。' }, { status: 403 });
+    if (principal.role === 'employer') return NextResponse.json({ error: '雇主帳號無權執行此項更新。' }, { status: 403 });
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
       const edited = body.active !== undefined
@@ -744,10 +812,9 @@ export async function PATCH(request) {
     }
     if (body.type === 'employer' && principal.role === 'agency' && principal.agency_type === 'taiwan') {
       if (!validId(id)) return NextResponse.json({ error: '雇主編號不正確。' }, { status: 400 });
-      const edited = body.name !== undefined
-        ? await query(`UPDATE hr_employers SET name=$3,contact_name=$4,phone=$5,email=$6,address=$7,notes=$8,employer_type=$9,updated_at=NOW()
-            WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),clean(body.email,254),clean(body.address,300),clean(body.notes,2000),['home_care','factory','domestic_helper','other'].includes(body.employerType)?body.employerType:'other'])
-        : await query("UPDATE hr_employers SET status=$3,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING *", [id,principal.agency_id,body.active===false?'inactive':'active']);
+      if (body.name === undefined || body.active !== undefined) return NextResponse.json({ error: '仲介只能編輯所屬雇主資料，無權新增或變更雇主啟用狀態。' }, { status: 403 });
+      const edited = await query(`UPDATE hr_employers SET name=$3,contact_name=$4,phone=$5,email=$6,address=$7,notes=$8,employer_type=$9,updated_at=NOW()
+          WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),clean(body.email,254),clean(body.address,300),clean(body.notes,2000),['home_care','factory','domestic_helper','other'].includes(body.employerType)?body.employerType:'other']);
       if (!edited.length) return NextResponse.json({ error: '找不到所屬台灣仲介的雇主資料。' }, { status: 404 });
       return NextResponse.json(edited[0]);
     }
@@ -831,6 +898,7 @@ export async function PATCH(request) {
       const lineUserId = clean(body.lineUserId,100) || null;
       const password = typeof body.password === 'string' ? body.password : '';
       if (!displayName || (email && !/^\S+@\S+\.\S+$/.test(email))) return NextResponse.json({ error: '請填寫會員名稱與有效 Email。' }, { status: 400 });
+      if (lineUserId && lineUserId.includes('@')) return NextResponse.json({ error: 'LINE User ID 不能填寫 Email；如未使用 LINE 登入，請清除此欄位。' }, { status: 400 });
       if (!email && !lineUserId) return NextResponse.json({ error: 'Email 或 LINE User ID 至少要保留一項。' }, { status: 400 });
       if (password && password.length < 10) return NextResponse.json({ error: '新密碼至少需要 10 個字元。' }, { status: 400 });
       if (email && (await query('SELECT id FROM hr_members WHERE lower(email)=lower($1) AND id<>$2 LIMIT 1', [email,id])).length) {
@@ -850,66 +918,56 @@ export async function PATCH(request) {
     if (body.type === 'member') {
       if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
       if (body.role !== undefined) {
-        const role = clean(body.role,20), targetId = Number(body.targetId);
-        const creatingWorker = role === 'worker' && body.createWorker === true;
-        if (!HR_ROLES.has(role) || (!creatingWorker && !validId(targetId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬資料。' }, { status: 400 });
-        const targetTable = role === 'worker' ? 'hr_workers' : role === 'employer' ? 'hr_employers' : 'hr_agencies';
-        if (role === 'worker' && body.createWorker === true) {
-          const workerName = clean(body.workerName,160);
-          const workerAgencyId = Number(body.workerAgencyId);
-          const jobPreference = clean(body.workerJobPreference,120);
-          const workerGender=clean(body.workerGender,20);
-          if (!workerName || !validId(workerAgencyId) || !['家庭幫傭','家庭看護','工廠技術工','農工','機構看護工'].includes(jobPreference) || !workerGenderCode(workerGender)) {
-            return NextResponse.json({ error: '請填寫工作者姓名、工作意向與所屬菲律賓仲介。' }, { status: 400 });
-          }
-          const agency = await query("SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type='philippines'", [workerAgencyId]);
-          if (!agency.length) return NextResponse.json({ error: '所屬菲律賓仲介不存在或已停用。' }, { status: 400 });
-          const client = await pool.connect();
-          try {
-            await client.query('BEGIN');
-            const member = await client.query('SELECT id,role,worker_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
-            if (!member.rowCount) {
-              await client.query('ROLLBACK');
-              return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
-            }
-            if (member.rows[0].role === 'worker' && member.rows[0].worker_id) {
-              await client.query('ROLLBACK');
-              return NextResponse.json({ error: '此會員已綁定工作者資料，請編輯目前資料或先改派其他會員類型。' }, { status: 409 });
-            }
-            const worker = await client.query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,resume_profile,agency_id)
-              VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING *`, [workerName,clean(body.workerNationality,80)||'菲律賓',clean(body.workerPhone,50),clean(body.workerEmail,254),jobPreference,JSON.stringify(cleanWorkerResumeProfile({gender:workerGender})),workerAgencyId]);
-            const workerProfile=workerProfileWithReference({gender:workerGender},jobPreference,worker.rows[0].id);
-            const workerWithCode=await client.query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[worker.rows[0].id,JSON.stringify(workerProfile)]);
-            const assigned = await client.query(`UPDATE hr_members SET role='worker',requested_role=NULL,worker_id=$2,employer_id=NULL,agency_id=NULL,active=TRUE,updated_at=NOW()
-              WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,worker.rows[0].id]);
-            await client.query('COMMIT');
-            return NextResponse.json({ ...assigned.rows[0], worker: workerWithCode.rows[0] });
-          } catch (error) {
+        const role = clean(body.role,20), agencyId = Number(body.agencyId);
+        if (!HR_ROLES.has(role) || !validId(agencyId)) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const agency = await client.query('SELECT id,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
+          const expectedAgencyType = role === 'worker' ? 'philippines' : role === 'employer' ? 'taiwan' : null;
+          if (!agency.rowCount || (expectedAgencyType && agency.rows[0].agency_type !== expectedAgencyType)) {
             await client.query('ROLLBACK');
-            throw error;
-          } finally { client.release(); }
-        }
-        const target = await query(`SELECT id FROM ${targetTable} WHERE id=$1 AND ${role === 'agency' ? 'active=TRUE' : "status='active'"}`, [targetId]);
-        if (!target.length) return NextResponse.json({ error: '所屬資料不存在或已停用。' }, { status: 400 });
-        const workerId = role === 'worker' ? targetId : null;
-        const employerId = role === 'employer' ? targetId : null;
-        const agencyId = role === 'agency' ? targetId : null;
-        if (role !== 'agency') {
-          const relationColumn = role === 'worker' ? 'worker_id' : 'employer_id';
-          const alreadyAssigned = await query(`SELECT id FROM hr_members WHERE ${relationColumn}=$1 AND id<>$2 LIMIT 1`, [targetId,id]);
-          if (alreadyAssigned.length) {
-            const recordType = role === 'worker' ? '工作者' : '雇主';
-            return NextResponse.json({ error: `這筆${recordType}資料已指派給其他會員，請選擇尚未指派的資料。` }, { status: 409 });
+            return NextResponse.json({ error: '所屬仲介不存在、已停用或類型不符合會員身分。' }, { status: 400 });
           }
-        }
-        const currentMember = await query('SELECT agency_id FROM hr_members WHERE id=$1',[id]);
-        if (currentMember[0]?.agency_id && (role !== 'agency' || Number(currentMember[0].agency_id)!==targetId)) {
-          await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
-        }
-        const assigned = await query(`UPDATE hr_members SET role=$2,requested_role=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
-          WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,agencyId]);
-        if (!assigned.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
-        return NextResponse.json(assigned[0]);
+          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+          if (!member.rowCount) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+          }
+          const current = member.rows[0];
+          let workerId = null, employerId = null, memberAgencyId = null;
+          if (role === 'worker') {
+            if (current.role === 'worker' && current.worker_id) {
+              const updated = await client.query('UPDATE hr_workers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.worker_id,agencyId]);
+              workerId = updated.rows[0]?.id || null;
+            }
+            if (!workerId) {
+              const created = await client.query('INSERT INTO hr_workers(name,nationality,agency_id) VALUES($1,$2,$3) RETURNING id', [clean(current.display_name,160)||'會員工作者','菲律賓',agencyId]);
+              workerId = created.rows[0].id;
+            }
+          } else if (role === 'employer') {
+            if (current.role === 'employer' && current.employer_id) {
+              const updated = await client.query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.employer_id,agencyId]);
+              employerId = updated.rows[0]?.id || null;
+            }
+            if (!employerId) {
+              const created = await client.query('INSERT INTO hr_employers(name,contact_name,agency_id) VALUES($1,$1,$2) RETURNING id', [clean(current.display_name,160)||'會員雇主',agencyId]);
+              employerId = created.rows[0].id;
+            }
+          } else {
+            memberAgencyId = agencyId;
+          }
+          if (current.agency_id && (role !== 'agency' || Number(current.agency_id)!==agencyId)) {
+            await client.query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
+          }
+          const assigned = await client.query(`UPDATE hr_members SET role=$2,requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
+            WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
+          await client.query('COMMIT');
+          return NextResponse.json(assigned.rows[0]);
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally { client.release(); }
       }
       if (body.active === false) await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
       const result = await query('UPDATE hr_members SET active=$2,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
@@ -1009,6 +1067,17 @@ export async function PATCH(request) {
       await recordActivity(result[0].case_id, actor, '更新待辦', `${result[0].title}：${status}`);
       return NextResponse.json(result[0]);
     }
+    if (body.type === 'worker-resume') {
+      if (principal.role !== 'admin') return NextResponse.json({ error: '只有系統管理者可以管理工作者履歷。' }, { status: 403 });
+      if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
+      if (body.resumeProfile !== undefined && (!body.resumeProfile || typeof body.resumeProfile !== 'object' || Array.isArray(body.resumeProfile))) {
+        return NextResponse.json({ error: '履歷資料格式不正確。' }, { status: 400 });
+      }
+      const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
+      const result = await query('UPDATE hr_workers SET resume_profile=$2::jsonb,updated_at=NOW() WHERE id=$1 RETURNING id', [id,JSON.stringify(resumeProfile)]);
+      if (!result.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
     if (body.type === 'employer' || body.type === 'worker') {
       const table = body.type === 'employer' ? 'hr_employers' : 'hr_workers';
       let result;
@@ -1040,19 +1109,33 @@ export async function DELETE(request) {
   try {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
-    if (!principal || principal.role !== 'agency' || principal.agency_type !== 'philippines') return NextResponse.json({ error: '僅菲律賓仲介可管理工人資料。' }, { status: 403 });
-    const id = Number(new URL(request.url).searchParams.get('id'));
+    if (!principal) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
+    const url=new URL(request.url),id=Number(url.searchParams.get('id'));
+    if(url.searchParams.get('type')==='job-order'){
+      if(principal.role!=='employer')return NextResponse.json({error:'僅雇主可刪除自己的需求單。'},{status:403});
+      if(!validId(id))return NextResponse.json({error:'需求單編號不正確。'},{status:400});
+      const client=await pool.connect();
+      try{
+        await client.query('BEGIN');
+        const order=await client.query('SELECT id,status FROM hr_job_orders WHERE id=$1 AND employer_id=$2 FOR UPDATE',[id,principal.employer_id]);
+        if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到此需求單。'},{status:404});}
+        if(order.rows[0].status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已確認或結束，無法刪除。'},{status:409});}
+        const activity=await client.query(`SELECT
+          EXISTS(SELECT 1 FROM hr_job_order_routes r JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id WHERE oa.job_order_id=$1) AS has_routes,
+          EXISTS(SELECT 1 FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id WHERE oa.job_order_id=$1) AS has_candidates`,[id]);
+        if(activity.rows[0].has_routes||activity.rows[0].has_candidates){await client.query('ROLLBACK');return NextResponse.json({error:'仲介已開始處理此需求單，無法再刪除。'},{status:409});}
+        await client.query('DELETE FROM hr_job_orders WHERE id=$1',[id]);
+        await client.query('COMMIT');
+        return NextResponse.json({ok:true});
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+    }
+    if (principal.role !== 'agency' || principal.agency_type !== 'philippines') return NextResponse.json({ error: '僅菲律賓仲介可管理工人資料。' }, { status: 403 });
     if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
-    const removed = await query(`DELETE FROM hr_workers w WHERE w.id=$1 AND w.agency_id=$2
-      AND NOT EXISTS (SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id)
-      AND NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.worker_id=w.id) RETURNING w.id`, [id,principal.agency_id]);
+    const removed = await query('UPDATE hr_workers SET agency_id=NULL,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING id', [id,principal.agency_id]);
     if (removed.length) return NextResponse.json({ ok: true });
-    const owned = await query('SELECT id FROM hr_workers WHERE id=$1 AND agency_id=$2', [id,principal.agency_id]);
-    if (!owned.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
-    return NextResponse.json({ error: '此工作者已有案件或登入會員資料，無法刪除；可改為停用。' }, { status: 409 });
+    return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
   } catch (error) {
-    console.error('hr_agency_worker_delete_failed', error?.name || 'Error');
-    return NextResponse.json({ error: '刪除工作者資料失敗。' }, { status: 500 });
+    console.error('hr_agency_worker_unlink_failed', error?.name || 'Error');
+    return NextResponse.json({ error: '移除工作者所屬仲介失敗。' }, { status: 500 });
   }
 }
-

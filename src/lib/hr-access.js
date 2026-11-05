@@ -44,6 +44,7 @@ export async function ensureHrIdentitySchema() {
     password_hash TEXT,
     role TEXT CHECK (role IS NULL OR role IN ('worker','employer','agency')),
     requested_role TEXT CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency')),
+    requested_agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE SET NULL,
     worker_id BIGINT UNIQUE REFERENCES hr_workers(id) ON DELETE CASCADE,
     employer_id BIGINT UNIQUE REFERENCES hr_employers(id) ON DELETE CASCADE,
     agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE CASCADE,
@@ -65,6 +66,7 @@ export async function ensureHrIdentitySchema() {
   await pool.query("ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_admin_scope_check");
   await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_admin_scope_check CHECK (admin_scope IN ('none','agency','system'))");
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS requested_role TEXT');
+  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS requested_agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE SET NULL');
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_role_check');
   await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_role_check CHECK (role IS NULL OR role IN ('worker','employer','agency'))");
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_check');
@@ -93,11 +95,12 @@ export async function getHrPrincipal(session) {
     return { role: 'admin', email: email || null, name: session.user.name || email || '管理者' };
   }
 
-  const member = await get(`SELECT m.id, m.email, m.line_user_id, m.display_name, m.role, m.requested_role, m.admin_scope,
+  const member = await get(`SELECT m.id, m.email, m.line_user_id, m.display_name, m.role, m.requested_role, m.requested_agency_id,
+      requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,
       m.worker_id, m.employer_id, m.agency_id, m.active, a.agency_type
     FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id
+    LEFT JOIN hr_agencies requested_agency ON requested_agency.id=m.requested_agency_id
     WHERE m.active=TRUE AND (($1 <> '' AND lower(m.email)=lower($1)) OR ($2 <> '' AND m.line_user_id=$2))`, [email, lineUserId]);
   if (member?.admin_scope === 'system') return { ...member, role: 'admin', admin_scope: 'system', name: member.display_name };
   return member ? { ...member, role: member.role, is_agency_admin: member.admin_scope === 'agency', name: member.display_name } : null;
 }
-

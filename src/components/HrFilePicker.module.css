@@ -1,0 +1,8 @@
+.filePicker{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+.fileButton{position:relative;display:inline-flex;flex:none;cursor:pointer}
+.defaultButton{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 12px;border:0;border-radius:8px;background:#176b54;color:#fff;font:inherit;font-weight:700;line-height:1.2;white-space:nowrap}
+.disabled{opacity:.55;cursor:wait}
+.fileButton .input{position:absolute;inset:0;width:100%;height:100%;min-width:0;min-height:0;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
+.fileButton .input:disabled{cursor:wait}
+.fileButton:focus-within .defaultButton{outline:2px solid #176b54;outline-offset:3px}
+.fileName{min-width:0;color:#66776e;font-size:12px;font-weight:500;overflow-wrap:anywhere}
