@@ -112,7 +112,7 @@ async function ensureRichMenu(menuKey) {
 
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error('missing_messaging_access_token');
-  const definition = RICH_MENU_DEFINITIONS[menuKey.replace(/_v2$/, '')];
+  const definition = RICH_MENU_DEFINITIONS[menuKey.replace(/_v\d+$/, '')];
   if (!definition) throw new Error('unknown_line_rich_menu');
   if (definition.actions.some(({ label }) => [...label].length > 20)) {
     throw new Error(`line_rich_menu_action_label_too_long_${menuKey}`);

@@ -21,6 +21,19 @@ const EN = {
   '訓練中心不需仲介資料。': 'Training center members do not need an agency affiliation.',
   '此角色不會存取仲介、雇主、工作者或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。': 'This role does not access agency, employer, worker, or case data. Send "member type" to the official LINE account to view the training center menu.',
   'LINE 登入': 'LINE sign-in', '待管理者指派': 'Awaiting administrator assignment', '待審核': 'Pending review',
+  '會員申請進度': 'Membership application progress', '申請已送出，等待管理者審核': 'Application submitted · Awaiting review',
+  '申請資料已送交管理團隊，我們會在完成審核後更新你的會員權限。': 'Your application has been sent to our team. We will update your membership when the review is complete.',
+  '申請已送出': 'Application submitted', '資料已成功提交': 'Your details were submitted successfully',
+  '管理者審核中': 'Under administrator review', '確認會員類型及所屬仲介': 'Verifying your membership type and agency',
+  '開通會員工作區': 'Membership workspace enabled', '核准後即可使用對應功能': 'You can access the relevant features after approval',
+  '申請類型': 'Membership type', '所屬仲介': 'Affiliated agency',
+  '會員申請審核進度': 'Membership application review progress',
+  '開始設定你的會員帳號': 'Set up your member account', '選擇最符合你的會員類型與所屬仲介，送出後由管理者為你審核開通。': 'Choose your membership type and agency. An administrator will review and activate your account.',
+  '填寫申請': 'Submit application', '管理者審核': 'Administrator review', '開始使用': 'Get started',
+  '選擇會員類型': 'Choose membership type', '請選擇你要申請的身分': 'Select the type of membership you are applying for',
+  '選擇所屬仲介': 'Choose an agency', '你的申請將送交所選仲介確認': 'Your application will be sent to the selected agency for confirmation',
+  '送出申請後，管理者會審核你的身分。核准前不會開放案件或會員資料。': 'An administrator will review your identity after you submit. Case and member data will be unavailable until approval.',
+  '目前沒有可選的啟用仲介，請聯絡管理者。': 'There are no active agencies available. Please contact an administrator.',
   '前往': 'Go to ', '清單，共': ' list · ', '筆': ' records', '進行中案件': 'Active cases',
   '目前進行中的案件': 'Cases currently in progress', '待審文件': 'Documents awaiting review',
   '等待承辦人核准或退回': 'Awaiting staff approval or return', '待處理工作': 'Open tasks',
@@ -48,7 +61,65 @@ const EN = {
   '新增文件要求': 'Add document requirement', '啟動前置文件': 'Required before processing', '尚無案件': 'No cases yet',
   '建立案件後可追蹤體檢與訓練。': 'Create a case to track medical checks and training.', '台灣仲介': 'Taiwan agency',
   '菲律賓仲介': 'Philippines agency', '尚無仲介機構': 'No agencies yet', '建立仲介後可將工作者或雇主指派給所屬仲介。': 'Create an agency to assign workers or employers.',
-  '變更類型': 'Change type', '審核／指派': 'Review / assign', '停用帳號': 'Deactivate account', '啟用帳號': 'Activate account',
+  '變更類型': 'Change type', '管理權限': 'Manage permissions', '審核／指派': 'Review / assign', '停用帳號': 'Deactivate account', '啟用帳號': 'Activate account',
+  '案件工作區': 'Case workspace', '今日工作佇列': "Today's work queue", '逾期、今天到期或受阻的待辦，選取後可直接開啟案件': 'Overdue, due today, or blocked tasks. Open a case directly to take action.',
+  '所有待辦': 'All tasks', '今天沒有逾期、到期或受阻的待辦。': 'No overdue, due today, or blocked tasks today.',
+  '今天到期': 'Due today',
+  '待補資料或指派案件': 'Cases needing documents or assignment', '先處理缺少必要文件或尚未指派負責業務的案件': 'Prioritize cases missing required documents or a representative.',
+  '處理案件': 'Open case', '必要文件待補': 'Required documents missing', '尚未指派負責業務': 'No representative assigned',
+  '目前沒有缺件或未指派的進行中案件。': 'No active cases are missing documents or assignment.',
+  '搜尋待辦、案件編號或工作者': 'Search tasks, case number, or worker', '狀態': 'Status', '未完成': 'Open',
+  '全部分類': 'All categories', '所有期限': 'Any due date', '已逾期': 'Overdue',
+  '未來到期': 'Upcoming', '未設定期限': 'No due date', '筆待辦': ' tasks', '找不到符合的待辦': 'No matching tasks',
+  '請調整搜尋條件或清除篩選。': 'Adjust your search or clear the filters.', '搜尋文件、案件、人員或退回原因': 'Search documents, cases, people, or return reasons',
+  '審核狀態': 'Review status', '適用狀態': 'Applicability', '全部文件': 'All documents', '適用': 'Applicable', '不適用': 'Not applicable',
+  '項文件要求': ' document requirements', '找不到符合條件的文件': 'No matching documents', '目前沒有文件項目': 'No document items',
+  '請調整篩選條件或清除全部篩選。': 'Adjust the filters or clear all filters.',
+  '工作摘要': 'Work overview', '我的案件與待辦': 'My cases and tasks', '先查看案件進度，以及需要補交或等待審核的文件。': 'Check case progress and documents that need corrections or review.',
+  '申辦案件': 'Application cases', '待補必要文件': 'Required documents to provide', '審核中': 'Under review',
+  '目前沒有連結的申辦案件；文件及赴台程序會在正式建立案件後顯示。': 'No application case is linked yet. Documents and process steps will appear once a case is created.',
+  '查看必要文件': 'View required documents', '查看赴台程序': 'View application process', '需求媒合進度': 'Job matching progress',
+  '從建立需求、查看推薦人選，到安排面試與錄用，都可以在需求單追蹤。': 'Track each job order from creation and recommendations through interviews and hiring.',
+  '需求單': 'Job orders', '待查看推薦': 'Recommendations to review', '面試安排中': 'Interviews scheduled', '已錄用': 'Hired',
+  '需求已建立': 'Order created', '仲介受理': 'Agency received', '收到推薦': 'Recommendations received', '安排面試': 'Schedule interview', '完成錄用': 'Hiring complete',
+  '錄用人選會建立正式申辦案件；確認前請先核對人選與需求。': 'Hiring a candidate creates an application case. Verify the candidate and job requirements before confirming.',
+  '尚未建立需求單。前往「仲介／雇主資料」開始建立需求。': 'No job orders yet. Go to Agency / employer records to create one.',
+  '業務工作摘要': 'Representative overview', 'Staff 工作摘要': 'Staff overview', '追蹤所屬雇主、需求單與申辦案件。': 'Track assigned employers, job orders, and application cases.',
+  '查看收到的工作需求、推薦工人，並追蹤審核中的文件。': 'Review incoming job orders, recommend workers, and track documents under review.',
+  '相關案件': 'Related cases', '媒合中需求': 'Open job orders', '待面試推薦': 'Recommendations awaiting interview', '未完成待辦': 'Open tasks',
+  '查看雇主與需求單': 'View employers and job orders', '查看需求與推薦流程': 'View job orders and recommendations', '處理必要文件': 'Process required documents',
+  '更新來台程序': 'Update application process', '前往工作清單': 'Open work list',
+  '使用 LINE 授權確認身分': 'Authorize with LINE to verify your identity',
+  '登入後選擇會員類型；工人、雇主及仲介需選擇所屬仲介': 'After signing in, choose your member type and agency (if applicable)',
+  '送出後等待管理者審核；核准前不會開放案件資料': 'Wait for administrator approval; case data is unavailable until approved',
+  '文件已上傳，已送交審核。': 'Document uploaded and submitted for review.',
+  '已退回文件並通知工作者補件。': 'Document returned; the worker has been notified to provide corrections.',
+  '文件已核准。': 'Document approved.', '申請程序已儲存。': 'Application progress saved.',
+  '雇主資料已更新。': 'Employer information updated.', '工作者資料已更新。': 'Worker information updated.',
+  '已新增工作者。': 'Worker added.', '工作者狀態已更新。': 'Worker status updated.',
+  '已從仲介移除工作者。': 'Worker removed from the agency.', '文件適用狀態已更新。': 'Document applicability updated.',
+  '案件狀態已更新。': 'Case status updated.', '需求單已建立並送交所屬仲介。': 'Job order created and sent to your agency.',
+  '需求單已更新。': 'Job order updated.', '已刪除需求單。': 'Job order deleted.',
+  '已送出推薦人選。': 'Candidate recommendation submitted.', '面試狀態已更新。': 'Interview status updated.',
+  '目前階段：': 'Current stage: ', '履歷填寫進度': 'Resume completion',
+  '已填寫 ': 'Completed ', ' 個章節': ' sections',
+  '關閉補件原因視窗': 'Close correction reason dialog',
+  'intake': 'Intake', 'matching': 'Matching', 'documents': 'Documents', 'medical_training': 'Medical and training',
+  'application': 'Application', 'arrangement': 'Arrangements', 'completed': 'Completed', '項待辦': ' tasks',
+  '待我審核的文件': 'Documents awaiting my review', '份文件等待審核': ' documents awaiting review', '前往審核': 'Review documents',
+  '目前沒有待審文件。': 'No documents awaiting review.', '審核文件': 'Review document', '查看案件': 'View case',
+  '清除全部篩選': 'Clear all filters', '案件階段': 'Case stage', '全部階段': 'All stages', '案件狀態': 'Case status',
+  '下一步：': 'Next step: ', '目前階段：': 'Current stage: ', '｜整體狀態：': ' | Overall status: ',
+  '目前階段（依文件、體檢與訓練進度）': 'Current stage (based on documents, medical, and training)',
+  '文件進度': 'Document progress', '份待審 · ': ' awaiting review · ', '份必要文件待收': ' required documents missing',
+  '申請程序': 'Application steps', '尚未開始': 'Not started', '完成：': 'Completed: ', '開始：': 'Started: ',
+  '退回文件並要求補件': 'Return document and request corrections', '工作者會看到這段說明，請具體指出需要修正或補交的內容。': 'The worker will see this note. Specify what needs to be corrected or provided.',
+  '常用補件原因': 'Common correction reasons', '補件原因（必填）': 'Correction reason (required)', '請填寫補件原因。': 'Enter a correction reason.',
+  '檔案模糊，請重新上傳清晰版本': 'The file is unclear. Please upload a clearer copy.',
+  '資料不完整，請補齊缺漏內容': 'Information is incomplete. Please provide the missing details.',
+  '檔案格式錯誤，請重新上傳 PDF、JPG 或 PNG': 'The file format is incorrect. Please upload a PDF, JPG, or PNG.',
+  '文件已過期，請提供有效文件': 'The document has expired. Please provide a valid document.',
+  '退回並通知': 'Return and notify',
   '尚無一般會員帳號': 'No member accounts yet', '會員登入並申請類型後會列於此，管理者可審核並指派所屬資料。': 'Members appear here after applying for a type; administrators can review and assign their records.',
   '尚無操作紀錄': 'No activity yet', '新增或更新案件資料後，操作歷程會顯示在這裡。': 'Activity appears here after cases are created or updated.',
   '人力案件操作歷程': 'HR case activity', '文件審核、進度變更與文件存取都會記錄在這裡。': 'Document reviews, progress changes, and document access are recorded here.',
@@ -93,7 +164,7 @@ const EN = {
   '或使用會員帳號': 'Or sign in with a member account', '密碼': 'Password', '登入中…': 'Signing in…', '登入人力管理系統': 'Sign in to HR management',
   '帳號或密碼錯誤，或此會員帳號尚未啟用。': 'Invalid credentials or this member account is inactive.', '請選擇': 'Select',
   '新增案件': 'Add case', '新增雇主': 'Add employer', '新增工作者': 'Add worker', '新增仲介': 'Add agency', '新增會員帳號': 'Add member account',
-  '儲存': 'Save', '儲存中': 'Saving…', '取消': 'Cancel', '登出': 'Sign out', '關閉': 'Close', '預計日期': 'Expected date',
+  '儲存': 'Save', '儲存中': 'Saving…', '取消': 'Cancel', '登出': 'Sign out', '關閉': 'Close', '刪除帳號': 'Delete account', '預計日期': 'Expected date',
   '職類': 'Job type', '案件備註': 'Case notes', '案件詳情': 'Case details', '案件階段（依文件、體檢與訓練進度更新）': 'Case stage (updated from document, medical, and training progress)',
   '案件狀態': 'Case status', '承辦人': 'Staff member', '尚未指派': 'Unassigned', '儲存案件變更': 'Save case changes',
   '項未完成': ' incomplete', '案件活動': 'Case activity', '此案件尚無待辦事項。': 'No tasks for this case yet.', '新增': 'Add',
@@ -175,7 +246,7 @@ const EN_EXTRA = {
   '尚無工作者資料': 'No worker records yet', '尚無雇主／客戶資料': 'No employer or client records yet', '尚無案件資料': 'No case records yet', '尚無案件': 'No cases yet', '尚無仲介機構': 'No agencies yet', '尚無工作待辦': 'No tasks yet', '尚無操作紀錄': 'No activity yet', '尚無承辦人資料': 'No staff records yet', '尚無一般會員帳號': 'No member accounts yet', '尚無所屬工作者。': 'No workers assigned to this agency.', '目前沒有所屬工作者。': 'No workers assigned to this agency.', '找不到符合的案件': 'No matching cases', '找不到符合的待辦': 'No matching tasks', '請調整搜尋條件。': 'Try adjusting your search.',
   '工作需求單': 'Job order', '需求 #': 'Order #', '需求人數': 'Number of workers', '工作類型': 'Job type', '工作內容／條件': 'Job details and requirements', '預計到職日期': 'Expected start date', '預計日期': 'Expected date', '建立需求單並分派': 'Create and dispatch job order', '我的需求與推薦人選': 'My job orders and candidates', '待轉交的雇主需求': 'Employer orders to forward', '收到的工作需求與推薦工人': 'Received job orders and worker nominations', '轉交選取仲介': 'Forward to selected agencies', '推薦給雇主面試': 'Recommend for employer interview', '選擇工人': 'Select a worker', '推薦說明': 'Recommendation notes',
   '登入人力管理系統': 'Sign in to HR management', '登入中…': 'Signing in…', '使用 LINE 登入': 'Sign in with LINE', '使用 Google 登入': 'Sign in with Google', '註冊克雷迅會員': 'Register for Kolecion HR', '返回首頁': 'Back to home', '重設密碼（選填，至少 10 字元）': 'Reset password (optional, at least 10 characters)', '初始密碼（至少 10 字元）': 'Initial password (at least 10 characters)',
-  '提醒': 'Reminders', '近期案件日期': 'Upcoming case dates', '聊天室未讀': 'Unread chats', '目前沒有未讀訊息或近期重要日期。': 'No unread messages or upcoming case dates.', '今天': 'Today', '今天': 'Today', '已完成': 'Completed', '已安排': 'Scheduled', '未安排': 'Not scheduled', '進行中': 'In progress', '暫停': 'On hold', '結案': 'Closed', '未設定': 'Not set', '未指派': 'Unassigned', '未指定': 'Unassigned', '其他': 'Other', '家庭幫傭': 'Domestic helper', '家庭看護': 'Caretaker', '工廠': 'Factory', '工廠技術工': 'Factory technician',
+  '提醒': 'Reminders', '近期案件日期': 'Upcoming case dates', '聊天室未讀': 'Unread chats', '基本資料待補': 'Incomplete profiles', '履歷尚未完成': 'Resume incomplete', '基本資料未完成': 'Basic information incomplete', '補資料': 'Complete', '待補：': 'Missing: ', '國籍': 'Nationality', '聯絡電話': 'Phone number', '工作意向': 'Job preference', '出生日期': 'Date of birth', '性別': 'Gender', '出生地': 'Place of birth', '地址': 'Address', '身高': 'Height', '體重': 'Weight', '婚姻狀況': 'Marital status', '教育程度': 'Education level', '語言能力': 'Languages', '是否曾在海外工作': 'Worked abroad', '雇主／客戶名稱': 'Employer / client name', '聯絡人': 'Contact person', '電話': 'Phone', 'Email': 'Email', '仲介名稱': 'Agency name', '國家／地區': 'Country / region', '目前沒有未讀訊息、近期重要日期或待補資料。': 'No unread messages, upcoming dates, or incomplete profiles.', '今天': 'Today', '已完成': 'Completed', '已安排': 'Scheduled', '未安排': 'Not scheduled', '進行中': 'In progress', '暫停': 'On hold', '結案': 'Closed', '未設定': 'Not set', '未指派': 'Unassigned', '未指定': 'Unassigned', '其他': 'Other', '家庭幫傭': 'Domestic helper', '家庭看護': 'Caretaker', '工廠': 'Factory', '工廠技術工': 'Factory technician',
 };
 const EN_MORE = {
   '姓氏': 'Surname', '名字': 'Given name', '中間名': 'Middle name', '請填寫其他宗教': 'Enter other religion', '天主教': 'Catholic', '基督教': 'Christian', '其他：': 'Other: ',
@@ -218,6 +289,13 @@ export function translateHrText(value, lang = 'zh') {
     const orderStatus=trimmed.match(/^需求狀態：(.*?) · 轉交 (.*)$/);
     const representative=trimmed.match(/^· 業務：(.*)$/);
     const reminderDate=trimmed.match(/^(今天|\d+ 天後|逾期 \d+ 天) · (.+)$/);
+    const overdueTask=trimmed.match(/^逾期 (\d+) 天$/);
+    const reviewNextStep=trimmed.match(/^審核 (\d+) 份待審文件$/);
+    const missingNextStep=trimmed.match(/^收取 (\d+) 份必要文件$/);
+    const applicationNextStep=trimmed.match(/^完成申請程序：(.*)$/);
+    const blockedDue=trimmed.match(/^受阻 · (今天到期|逾期 \d+ 天)$/);
+    const requiredMissing=trimmed.match(/^必要文件待補 (\d+) 份$/);
+    const needsUpload=trimmed.match(/^有 (\d+) 份必要文件需要上傳或補件。$/);
     if(orderMatch)translated=`Order #${orderMatch[1]} · ${translateHrText(orderMatch[2],'en')} · ${orderMatch[3]} position${orderMatch[3]==='1'?'':'s'}`;
     else if(agencyMatch)translated=`${agencyMatch[1]} · Agency chat`;
     else if(candidateMatch)translated=`${candidateMatch[1]} (${candidateMatch[2]}) · ${translateHrText(candidateMatch[3],'en')}`;
@@ -225,6 +303,16 @@ export function translateHrText(value, lang = 'zh') {
     else if(orderStatus)translated=`Order status: ${translateHrText(orderStatus[1],'en')} · Forwarded to ${orderStatus[2]}`;
     else if(representative)translated=`· Representative: ${representative[1]||'Unassigned'}`;
     else if(reminderDate)translated=`${reminderDate[1]==='今天'?'Today':reminderDate[1].startsWith('逾期')?`Overdue ${reminderDate[1].match(/\d+/)?.[0]} days`:`${reminderDate[1].match(/\d+/)?.[0]} days from now`} · ${reminderDate[2]}`;
+    else if(overdueTask)translated=`${overdueTask[1]} days overdue`;
+    else if(reviewNextStep)translated=`Review ${reviewNextStep[1]} pending document${reviewNextStep[1]==='1'?'':'s'}`;
+    else if(missingNextStep)translated=`Collect ${missingNextStep[1]} required document${missingNextStep[1]==='1'?'':'s'}`;
+    else if(applicationNextStep)translated=`Complete application step: ${translateHrText(applicationNextStep[1],'en')}`;
+    else if(blockedDue)translated=`Blocked · ${translateHrText(blockedDue[1],'en')}`;
+    else if(requiredMissing)translated=`${requiredMissing[1]} required documents missing`;
+    else if(needsUpload)translated=`${needsUpload[1]} required document${needsUpload[1]==='1'?' needs':'s need'} to be uploaded or corrected.`;
+    else if(trimmed==='確認體檢與訓練安排')translated='Confirm medical and training arrangements';
+    else if(trimmed==='查看案件待辦並更新進度')translated='Review case tasks and update progress';
+    else if(trimmed==='先確認案件狀態並恢復處理')translated='Review the case status and resume processing';
   }
   if (!translated && trimmed.startsWith('管理') && trimmed.endsWith('，資料會儲存在 PostgreSQL。')) {
     translated = `Manage ${translateHrText(trimmed.slice(2, -'，資料會儲存在 PostgreSQL。'.length), 'en')}; data is stored in PostgreSQL.`;
@@ -373,5 +461,5 @@ export function HrLanguageTools() {
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [lang]);
 
-  return <button type="button" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ position: 'fixed', zIndex: 10000, right: 18, top: 16, border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px #0002' }}>{lang === 'en' ? '中文' : 'EN'}</button>;
+  return <button type="button" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ position: 'fixed', zIndex: 10000, left: '50%', top: 16, transform: 'translateX(-50%)', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px #0002' }}>{lang === 'en' ? '中文' : 'EN'}</button>;
 }

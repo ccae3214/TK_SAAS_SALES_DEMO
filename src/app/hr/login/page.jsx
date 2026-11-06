@@ -52,6 +52,7 @@ export default function HrLoginPage() {
         <p style={{ margin: '28px 0 8px', color: '#287a69', fontSize: 13, fontWeight: 800, letterSpacing: '.08em' }}>KOLECION HR</p>
         <h1 style={{ margin: '0 0 8px', fontSize: 27 }}>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
         <p style={{ margin: '0 0 24px', color: '#64748b', lineHeight: 1.6 }}>{registerMode ? '使用 LINE 確認身分，登入後選擇工人、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
+        {registerMode&&<ol style={{ display:'grid', gap:10, margin:'0 0 20px', padding:0, listStyle:'none' }}>{[['1','使用 LINE 授權確認身分'],['2','登入後選擇會員類型；工人、雇主及仲介需選擇所屬仲介'],['3','送出後等待管理者審核；核准前不會開放案件資料']].map(([number,text])=><li key={number} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:11, border:'1px solid #e2e8f0', borderRadius:10, background:'#f8fafc', color:'#475569', fontSize:13, lineHeight:1.55 }}><strong style={{ display:'grid', placeItems:'center', flex:'0 0 24px', width:24, height:24, borderRadius:'50%', background:'#e8f3ed', color:'#176b54' }}>{number}</strong><span>{text}</span></li>)}</ol>}
 
         {authError && (
           <div role="alert" style={{ marginBottom: 14, padding: 14, borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontSize: 14, lineHeight: 1.6 }}>

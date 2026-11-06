@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    nav: { home: "Home", themes: "Our Themes", contact: "Get Started", webDesign: "Kolecion Web Design", hrManagement: "Kolecion HR Management System" },
+    nav: { home: "Home", themes: "Our Themes", hrManagement: "HR Management", contact: "Get Started" },
     hero: {
       tagline: "Premium Web Templates Studio",
       titleTop: "Elevate Your Brand With",
@@ -321,7 +321,7 @@ export const translations = {
     overlay: { preview: "Live Demo Preview" }
   },
   zh: {
-    nav: { home: "首頁", themes: "精選版型", contact: "開始專案", webDesign: "克雷訊網頁設計", hrManagement: "克雷訊人力管理系統" },
+    nav: { home: "首頁", themes: "精選版型", hrManagement: "人力管理系統", contact: "開始專案" },
     hero: {
       tagline: "頂級網頁設計工作室",
       titleTop: "提升品牌價值",

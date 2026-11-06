@@ -23,3 +23,55 @@
 .jobOrderTable td:nth-child(5)::before{content:'菲律賓仲介'}
 @media(max-width:720px){.jobOrderTable td:nth-child(5)::before{content:'菲律賓仲介'}}
 .resumeModal{width:min(980px,100%)}.resumeEditGroup,.resumeViewGroup{padding:14px 0;border-bottom:1px solid var(--line)}.resumeEditGroup h3,.resumeViewGroup h3{margin:0 0 12px;color:var(--ink);font-size:13px}.resumeFieldWide{grid-column:1/-1}.resumeGroupHeading{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.resumeGroupHeading h3{margin:0}.resumeExperience{margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:9px}.resumeExperience legend{padding:0 6px;color:var(--muted);font-size:10px}.resumePhotoEditor{display:flex;align-items:center;gap:18px;padding:12px;margin-bottom:12px;border-radius:10px;background:#f7f9f8}.resumePhotoEditor img,.resumeViewTop img{width:96px;height:120px;object-fit:cover;border-radius:8px;background:#eef2f1}.resumePhotoEditor>span,.resumeViewTop>span{color:var(--muted);font-size:11px}.resumeViewTop{display:flex;align-items:center;gap:14px;padding:8px 0 14px}.resumeViewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}.resumeViewGrid>div{min-width:0;padding:9px 11px;border-radius:8px;background:#f7f9f8}.resumeViewGrid dt{color:var(--muted);font-size:10px}.resumeViewGrid dd{margin:4px 0 0;color:var(--ink);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.resumeViewExperience{display:grid;gap:4px;padding:10px 12px;margin:8px 0;border-radius:8px;background:#f7f9f8;color:var(--ink);font-size:11px}.resumeViewExperience span{color:var(--muted)}.resumeViewExperience p,.resumeViewGroup>p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);font-size:11px;line-height:1.6}@media(max-width:640px){.resumeViewGrid{grid-template-columns:1fr}.resumePhotoEditor{align-items:flex-start;flex-direction:column}.resumeModal{padding:16px}}
+.attentionItem{grid-template-columns:9px minmax(0,1fr) auto auto}
+.attentionItem .smallButton{min-height:32px}
+.filterField{display:flex;align-items:center;gap:7px;color:#74828a;font-size:11px;white-space:nowrap}
+.caseNextStep{display:grid;gap:5px;margin:0 0 18px;padding:13px 15px;border:1px solid #d5e9df;border-radius:10px;background:#f1f8f4;color:#315b4c;font-size:12px;line-height:1.55}
+.caseNextStep span{color:#176f5b;font-weight:700}
+.caseTimeline{margin:0 0 20px;padding:15px;border:1px solid var(--line);border-radius:10px;background:#fbfcfc}
+.caseTimeline h3{margin:0 0 12px;font-size:13px}
+.caseTimeline ol{display:grid;grid-template-columns:repeat(7,minmax(75px,1fr));gap:7px;margin:0;padding:0;list-style:none;overflow-x:auto}
+.caseTimeline li{display:grid;justify-items:center;gap:6px;color:#879399;font-size:10px;text-align:center}
+.caseTimeline li span{display:grid;place-items:center;width:25px;height:25px;border:1px solid #d8e1e2;border-radius:50%;background:#fff;font-size:11px;font-weight:800}
+.caseTimeline .timelineDone span{border-color:#b7dfc9;background:#e8f5ed;color:#267759}
+.caseTimeline .timelineCurrent{color:#176f5b;font-weight:800}
+.caseTimeline .timelineCurrent span{border-color:#176f5b;background:#176f5b;color:#fff}
+.reasonChoices{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}
+.reasonChoices .smallButton{height:auto;min-height:32px;padding:7px 10px;white-space:normal;text-align:left}
+.app :is(button,a,input,select,textarea,[tabindex]):focus-visible{outline:3px solid #247a63;outline-offset:2px;box-shadow:0 0 0 4px #247a6330}
+@media(max-width:720px){.attentionItem{grid-template-columns:9px minmax(0,1fr) auto}.attentionItem .smallButton{grid-column:2/-1;justify-self:start}.filterField{width:100%;justify-content:space-between}.filterField .inlineSelect{flex:1;max-width:none}.caseTimeline ol{grid-template-columns:repeat(7,84px)}}
+.dashboardQueues{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}
+.queueEmpty{margin:0;padding:24px 18px;color:var(--muted);font-size:12px}
+.caseTimeline li{white-space:normal}
+@media(max-width:900px){.dashboardQueues{grid-template-columns:1fr}}
+.filterToolbar{flex-wrap:wrap}
+.filterToolbar .searchBox{flex:1 1 260px}
+.filterToolbar .filterField{font-size:12px}
+.caseMobileList{display:none}
+.caseMobileCard{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.caseMobileCard header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.caseMobileCard dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:12px 0}
+.caseMobileCard dl div{min-width:0}
+.caseMobileCard dt{color:var(--muted);font-size:12px}
+.caseMobileCard dd{margin:3px 0 0;overflow-wrap:anywhere;font-size:13px;font-weight:650}
+.caseMobileCard .smallButton{min-height:36px}
+.tableWrap th{font-size:12px}
+.tableWrap td{font-size:13px}
+.tableWrap .cellNote,.cellNote{font-size:12px}
+.attentionItem strong{font-size:13px}
+.attentionItem small{font-size:12px}
+.attentionItem>span:last-child{font-size:12px}
+.status{font-size:11px}
+.panelHeader p,.subtitle,.formHint,.muted{font-size:12px}
+.searchBox input,.inlineSelect{font-size:12px}
+.rowCount{font-size:12px}
+.statCard p,.statCard>small{font-size:12px}
+.footer{font-size:12px}
+.modalBackdrop,.drawerBackdrop{overscroll-behavior:contain}
+.modal:focus,.drawer:focus,.resumeModal:focus{outline:none}
+@media(max-width:720px){
+  .caseTable{display:none}
+  .caseMobileList{display:grid;gap:10px;padding:12px}
+  .filterToolbar .rowCount{margin-left:0}
+  .caseMobileCard dl{grid-template-columns:1fr 1fr}
+}
