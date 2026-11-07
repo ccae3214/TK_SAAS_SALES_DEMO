@@ -75,3 +75,104 @@
   .filterToolbar .rowCount{margin-left:0}
   .caseMobileCard dl{grid-template-columns:1fr 1fr}
 }
+
+/* ===== 2026-11 視覺升級：只覆蓋顏色、陰影、圓角、字級；不改版面與響應式規則 ===== */
+.app{--ink:#14231d;--muted:#6b7c73;--line:#e1e9e4;--green:#176b54;--soft:#f2f9f5;
+  background:radial-gradient(900px 420px at 12% -10%,#d9efe4 0,transparent 60%),radial-gradient(760px 380px at 100% 0,#e6eff8 0,transparent 55%),#f3f6f4;
+  font-family:Inter,"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+.sidebar{background:linear-gradient(180deg,#0c3327 0,#134e3b 55%,#176b54 100%);border-right:0;box-shadow:6px 0 30px rgba(12,51,39,.18)}
+.brand{color:#fff}
+.brand strong{color:rgba(255,255,255,.66)}
+.brandMark{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.workspaceLabel{color:rgba(255,255,255,.5)}
+.nav button{color:rgba(255,255,255,.76);min-height:44px;border-radius:12px;transition:background .16s,color .16s,transform .16s}
+.nav button:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav button.navActive{background:#fff;color:#0f5a46;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.sidebarBottom{border-top:1px solid rgba(255,255,255,.16)}
+.avatar,.topAvatar{background:linear-gradient(135deg,#176b54,#2f9d7c);color:#fff}
+.signedIn strong{color:#fff;font-size:13px}
+.signedIn small{color:rgba(255,255,255,.62);font-size:11px}
+.signout{color:rgba(255,255,255,.72)}
+.signout:hover{background:rgba(255,255,255,.12);color:#fff}
+.topbar{background:rgba(255,255,255,.82);backdrop-filter:blur(14px);border-bottom:1px solid rgba(225,233,228,.9)}
+.breadcrumb{color:#7d8d84}
+.localStatus{padding:5px 11px;border-radius:999px;background:#e7f4ed;color:#176b54;font-size:12px;font-weight:700}
+.iconButton,.menuButton{border-radius:11px;transition:background .16s,border-color .16s,color .16s}
+.iconButton:hover{background:#f2f9f5;border-color:#cfe8dc;color:#176b54}
+.kicker{color:#1f8366;font-size:11px;letter-spacing:.16em}
+.pageHeading h1{font-size:28px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.subtitle{color:#6b7c73;font-size:13px}
+.primaryButton,.secondaryButton,.smallPrimary,.smallButton{transition:transform .16s,box-shadow .16s,background .16s,filter .16s}
+.primaryButton{border-radius:11px;background:linear-gradient(135deg,#176b54,#1f8366);box-shadow:0 5px 14px rgba(23,107,84,.28)}
+.primaryButton:hover:not(:disabled){background:linear-gradient(135deg,#145c48,#1a7459);transform:translateY(-1px);box-shadow:0 9px 20px rgba(23,107,84,.32)}
+.secondaryButton{border-radius:11px;background:#fff;border:1px solid var(--line);color:#425449}
+.secondaryButton:hover{background:#f2f9f5;border-color:#cfe8dc;color:#176b54}
+.smallPrimary{border-radius:9px;background:#e4f3ec;color:#176b54;font-size:12px}
+.smallPrimary:hover{background:#d3ebdf}
+.smallButton{border-radius:9px;background:#fff;border:1px solid var(--line);color:#425449;font-size:12px}
+.smallButton:hover{background:#f2f9f5;border-color:#cfe8dc;color:#176b54}
+.linkButton{color:#1f8366;font-size:12px}
+.statCard{border-radius:18px;border:1px solid var(--line);background:linear-gradient(180deg,#fff,#f8fbf9);box-shadow:0 1px 2px rgba(15,45,33,.05),0 4px 14px rgba(15,45,33,.05)}
+.statCard:hover,.statCard:focus-visible{border-color:#b9d8cc;box-shadow:0 14px 32px rgba(15,45,33,.12)}
+.statCard>strong{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums}
+.statIcon{width:40px;height:40px;border-radius:12px}
+.statCard p{color:#5c6e65;font-size:13px}
+.panel{border-radius:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(15,45,33,.05),0 4px 14px rgba(15,45,33,.05)}
+.panelHeader{background:linear-gradient(110deg,#f2f9f5,#fff);border-bottom:1px solid var(--line)}
+.panelHeader h2{font-size:16px;font-weight:800;color:var(--ink)}
+.tableWrap th{background:#f6faf7;color:#6b7c73;font-size:12px;font-weight:800;letter-spacing:.03em}
+.tableWrap td{color:#33463c;font-size:13px;border-top:1px solid #edf2ee}
+.tableWrap tbody tr{transition:background .14s}
+.tableWrap tbody tr:hover{background:#f6faf8}
+.caseNumber{color:#176b54}
+.status{padding:5px 11px;font-size:12px;font-weight:800}
+.status::before{content:'';width:6px;height:6px;margin-right:6px;border-radius:50%;background:currentColor}
+.statusOpen{background:#e4f3ec;color:#176b54}
+.statusWarn{background:#fff4dc;color:#a8690a}
+.statusNeutral{background:#eceff0;color:#586a70}
+.attentionItem{border-bottom:1px solid #edf2ee}
+.alertDot,.warnDot{width:9px;height:9px}
+.empty>span{border-radius:14px;background:#e4f3ec;color:#176b54}
+.empty>strong{font-size:15px}
+.empty>p{font-size:13px}
+.listToolbar{background:#fbfdfc;border-bottom:1px solid var(--line)}
+.searchBox{border:1px solid #d3dfd8;border-radius:11px;background:#fff;height:40px;transition:border-color .16s,box-shadow .16s}
+.searchBox:focus-within{border-color:#1f8366;box-shadow:0 0 0 3px rgba(31,131,102,.2)}
+.searchBox input{font-size:13px}
+.inlineSelect{border:1px solid #d3dfd8;border-radius:9px;font-size:12px}
+.message{border-radius:12px;font-size:13px;font-weight:700}
+.messageSuccess{background:#e4f3ec;color:#176b54;border:1px solid #bfe3d0}
+.messageError{background:#fdecea;color:#b42318;border:1px solid #f4c7c2}
+.modalBackdrop,.drawerBackdrop{background:rgba(9,28,20,.52);backdrop-filter:blur(6px)}
+.modal,.drawer{border-radius:22px;box-shadow:0 30px 90px rgba(5,25,17,.32)}
+.modalHeader h2,.drawerHeader h2{font-size:20px;font-weight:800;color:var(--ink)}
+.modalHeader,.drawerHeader{border-bottom:1px solid #edf2ee}
+.field{color:#425449;font-size:12.5px}
+.field input,.field select,.field textarea{min-height:42px;border:1px solid #d3dfd8;border-radius:11px;background:#fbfdfc;font-size:14px;transition:border-color .16s,box-shadow .16s,background .16s}
+.field input:hover,.field select:hover,.field textarea:hover{border-color:#b9cbc0}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#1f8366;background:#fff;box-shadow:0 0 0 3px rgba(31,131,102,.22)}
+.modalActions{border-top:1px solid #edf2ee}
+.casePeople>div{border-radius:13px;background:#f2f9f5;border:1px solid #e3efe8}
+.casePeople strong{font-size:14px}
+.drawerSection h3,.drawerSectionHeader h3{font-size:15px;font-weight:800}
+.drawerTask strong,.activityRow strong{font-size:13px}
+.drawerTask small,.activityRow small,.activityRow time{font-size:12px}
+.activityDot{background:#2f9d7c;box-shadow:0 0 0 4px #e4f3ec}
+.caseNextStep{border-radius:14px;border:1px solid #cfe8dc;background:linear-gradient(120deg,#e4f3ec,#f2f9f5);font-size:13px}
+.caseTimeline{border-radius:14px;background:#fbfdfc}
+.caseTimeline li{font-size:12px}
+.caseTimeline li span{width:28px;height:28px}
+.caseTimeline .timelineDone span{border-color:#9fd3b9;background:#e4f3ec;color:#176b54}
+.caseTimeline .timelineCurrent span{border-color:#176b54;background:linear-gradient(135deg,#176b54,#2f9d7c);color:#fff;box-shadow:0 0 0 4px rgba(31,131,102,.18)}
+.resumeViewGrid>div,.resumeViewExperience,.resumePhotoEditor{border-radius:12px;background:#f2f9f5}
+.resumeViewGrid dt,.resumeViewGrid dd{font-size:13px}
+.resumeViewGrid dt{font-size:12px}
+.resumeExperience{border-radius:13px}
+.matchingForm{border-radius:13px;background:#f2f9f5}
+.matchingForm select{border-radius:9px;font-size:12px}
+.jobOrderCard{border-radius:16px}
+.footer{color:#7d8d84}
+.previewVersions button{border-radius:10px;font-size:12px}
+.previewVersions .previewVersionActive{border-color:#1f8366;background:#e4f3ec;color:#176b54}
+.documentFrame{border-radius:12px}
+@media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.smallPrimary,.smallButton,.statCard,.nav button{transition:none}}
