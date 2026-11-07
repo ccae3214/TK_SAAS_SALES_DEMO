@@ -4,6 +4,7 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getAdminEmails, getAdminLineUserIds, getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
 import { hashPassword } from '@/lib/passwords';
+import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, insertCaseRequirements, syncAutoRequirements } from '@/lib/hr-requirements';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,17 +15,6 @@ const TASK_CATEGORIES = new Set(['document', 'medical', 'training', 'other']);
 const TASK_STATUSES = new Set(['todo', 'in_progress', 'done', 'blocked']);
 const MEDICAL_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'passed', 'retest', 'failed']);
 const TRAINING_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'completed']);
-const WORKER_DOCUMENTS = [
-  ['新護照','',true],['舊護照','',true],['ARC','曾在台灣工作者',true],
-  ['國民身分證（EgovPH下載）','',true],['PSA出生證明（附收據）','',true],
-  ['PSA結婚證明（附收據）','已婚者',true],['子女PSA出生證明（附收據）','有子女者',true],
-  ['PSA CENOMAR','未婚者',true],['CAV／NC2 TESDA','',true],['NBI（確認有效期限）','',true],
-  ['E-registration（建立線上資料）','',true],['PEOS','',true],['照片（2x2 16張及護照尺寸2張）','',true],
-  ['Voter ID／Voter Certificate','',true],['SSS contribution','',true],['體檢 Medical','',true],
-  ['LCR Form 1-A','',true],['DMW Info Sheet','曾在海外工作者',true],
-  ['Health Card','曾在台灣工作者',true],['BOI旅行紀錄（單身及已婚）','',true],
-  ['出生逾10年補登證明（洗禮證明；未受洗提供學校紀錄）','出生登記逾10年補登者',true],['TIN ID','',true],
-];
 const APPLICATION_STEPS = [
   ['match_date','配工／雇主面試日期'],['passport','護照確認'],['document_arrival','文件到達 D/C'],
   ['personal_documents','個人文件和證件 P/D'],['pdos','PDOS 簽立文件'],['medical','體檢 MED'],
@@ -126,6 +116,8 @@ export async function ensureSchema() {
     )`);
     await pool.query("ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicability TEXT NOT NULL DEFAULT ''");
     await pool.query('ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicable BOOLEAN NOT NULL DEFAULT TRUE');
+    // auto = 依履歷自動判斷（履歷更新時會重新套用）；manual = 仲介手動調整過，之後不覆寫。既有資料一律視為 manual。
+    await pool.query("ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicability_source TEXT NOT NULL DEFAULT 'manual'");
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_document_submissions (
       id BIGSERIAL PRIMARY KEY, requirement_id BIGINT NOT NULL REFERENCES hr_case_requirements(id) ON DELETE CASCADE,
       version_number INTEGER NOT NULL, filename TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', submitted_by TEXT NOT NULL,
@@ -163,10 +155,15 @@ export async function ensureSchema() {
     )`);
     await pool.query("UPDATE hr_case_requirements SET name='新護照' WHERE name='護照資料頁' AND NOT EXISTS (SELECT 1 FROM hr_case_requirements other WHERE other.case_id=hr_case_requirements.case_id AND other.name='新護照')");
     await pool.query("UPDATE hr_case_requirements SET name='PSA出生證明（附收據）' WHERE name='PSA 出生證明' AND NOT EXISTS (SELECT 1 FROM hr_case_requirements other WHERE other.case_id=hr_case_requirements.case_id AND other.name='PSA出生證明（附收據）')");
-    await pool.query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate,applicability,applicable)
-      SELECT c.id,d.name,TRUE,d.applicable::boolean,d.applicability,d.applicable::boolean
-      FROM hr_cases c CROSS JOIN (VALUES ${WORKER_DOCUMENTS.map((_,index)=>`($${index*3+1},$${index*3+2},$${index*3+3})`).join(',')}) AS d(name,applicability,applicable)
-      ON CONFLICT(case_id,name) DO NOTHING`, WORKER_DOCUMENTS.flatMap(([name,applicability])=>[name,applicability,!applicability]));
+    // 補齊缺少的文件列（例如之後新增了文件種類）；新列依該工作者履歷自動判斷適用性。
+    const incompleteCases = await pool.query(`SELECT c.id,w.resume_profile FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
+      WHERE (SELECT count(*) FROM hr_case_requirements r WHERE r.case_id=c.id AND r.name=ANY($1::text[]))<$2`, [WORKER_DOCUMENT_NAMES, WORKER_DOCUMENT_NAMES.length]);
+    for (const row of incompleteCases.rows) await insertCaseRequirements(pool, row.id, row.resume_profile);
+    // 修正前置文件：只有「新護照」與「PSA出生證明（附收據）」是前置文件。
+    // 舊版把所有無條件文件（含「體檢 Medical」）都設成前置，會造成要先核准體檢文件才能排體檢。
+    const fixedGates = await pool.query(`UPDATE hr_case_requirements SET entry_gate=(required AND applicable AND name=ANY($1::text[])),updated_at=NOW()
+      WHERE name=ANY($2::text[]) AND entry_gate IS DISTINCT FROM (required AND applicable AND name=ANY($1::text[])) RETURNING case_id`, [ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENT_NAMES]);
+    for (const caseId of new Set(fixedGates.rows.map(row => Number(row.case_id)))) await refreshCaseStage(caseId);
     await pool.query(`INSERT INTO hr_application_steps(case_id,step_key,label)
       SELECT c.id,s.step_key,s.label FROM hr_cases c CROSS JOIN (VALUES ${APPLICATION_STEPS.map((_,index)=>`($${index*2+1},$${index*2+2})`).join(',')}) AS s(step_key,label)
       ON CONFLICT(case_id,step_key) DO UPDATE SET label=EXCLUDED.label`, APPLICATION_STEPS.flat());
@@ -251,7 +248,7 @@ async function recordActivity(caseId, actor, action, detail) {
 
 async function refreshCaseStage(caseId) {
   const [state] = await query(`SELECT c.medical_status,c.training_status,
-    EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.status<>'approved') AS gate_closed,
+    EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed,
     EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.required AND r.applicable AND r.status<>'approved') AS documents_open
     FROM hr_cases c WHERE c.id=$1`, [caseId]);
   if (!state) return;
@@ -260,6 +257,11 @@ async function refreshCaseStage(caseId) {
     : state.medical_status !== 'passed' || state.training_status !== 'completed' ? 'medical_training'
     : 'completed';
   await query('UPDATE hr_cases SET stage=$2,updated_at=NOW() WHERE id=$1', [caseId, stage]);
+}
+
+// 履歷變更後，重新套用「自動判斷」的文件適用性（仲介手動調整過的不會被覆寫）。
+async function resyncRequirements(workerId) {
+  for (const caseId of await syncAutoRequirements(pool, workerId)) await refreshCaseStage(caseId);
 }
 
 export async function GET() {
@@ -710,9 +712,8 @@ export async function POST(request) {
       const caseNumber = `HR-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${randomUUID().slice(0,6).toUpperCase()}`;
       const result = await query(`INSERT INTO hr_cases(case_number,employer_id,worker_id,assigned_member_id,job_type,expected_start_date,notes)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [caseNumber,Number(body.employerId),Number(body.workerId),assignedMemberId,jobType,body.expectedStartDate || null,clean(body.notes,4000)]);
-      await query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate,applicability,applicable)
-        VALUES ${WORKER_DOCUMENTS.map((_,index)=>`($1,$${index*3+2},TRUE,$${index*3+4}::boolean,$${index*3+3},$${index*3+4}::boolean)`).join(',')}
-        ON CONFLICT(case_id,name) DO NOTHING`, [result[0].id,...WORKER_DOCUMENTS.flatMap(([name,applicability])=>[name,applicability,!applicability])]);
+      const [caseWorker] = await query('SELECT resume_profile FROM hr_workers WHERE id=$1', [Number(body.workerId)]);
+      await insertCaseRequirements(pool, result[0].id, caseWorker?.resume_profile);
       await query(`INSERT INTO hr_application_steps(case_id,step_key,label)
         VALUES ${APPLICATION_STEPS.map((_,index)=>`($1,$${index*2+2},$${index*2+3})`).join(',')}
         ON CONFLICT(case_id,step_key) DO NOTHING`, [result[0].id,...APPLICATION_STEPS.flat()]);
@@ -806,7 +807,8 @@ export async function PATCH(request) {
             const caseNumber=`HR-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${randomUUID().slice(0,6).toUpperCase()}`;
             const assignment=await client.query(`SELECT broker_member_id FROM hr_job_order_agencies WHERE job_order_id=$1 AND taiwan_agency_id=$2`,[item.job_order_id,item.taiwan_agency_id]);
             const created=await client.query(`INSERT INTO hr_cases(case_number,employer_id,worker_id,assigned_member_id,job_type,expected_start_date,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[caseNumber,item.employer_id,item.worker_id,assignment.rows[0]?.broker_member_id||null,item.job_type,item.expected_start_date,`由需求單 #${item.job_order_id} 面試錄用`]);caseId=created.rows[0].id;
-            await client.query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate,applicability,applicable) VALUES ${WORKER_DOCUMENTS.map((_,index)=>`($1,$${index*3+2},TRUE,$${index*3+4}::boolean,$${index*3+3},$${index*3+4}::boolean)`).join(',')} ON CONFLICT(case_id,name) DO NOTHING`,[caseId,...WORKER_DOCUMENTS.flatMap(([name,applicability])=>[name,applicability,!applicability])]);
+            const hiredWorker=await client.query('SELECT resume_profile FROM hr_workers WHERE id=$1',[item.worker_id]);
+            await insertCaseRequirements(client,caseId,hiredWorker.rows[0]?.resume_profile);
             await client.query(`INSERT INTO hr_application_steps(case_id,step_key,label) VALUES ${APPLICATION_STEPS.map((_,index)=>`($1,$${index*2+2},$${index*2+3})`).join(',')} ON CONFLICT(case_id,step_key) DO NOTHING`,[caseId,...APPLICATION_STEPS.flat()]);
             await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)',[caseId,actor,'面試錄用並建立正式申辦案件',caseNumber]);
           }
@@ -824,6 +826,7 @@ export async function PATCH(request) {
       const edited = await query(`UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,resume_profile=resume_profile || $7::jsonb,updated_at=NOW()
         WHERE id=$1 RETURNING *`, [principal.worker_id,name,clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),JSON.stringify(resumeProfile)]);
       if (!edited.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
+      await resyncRequirements(principal.worker_id);
       return NextResponse.json(edited[0]);
     }
     if (body.type === 'employer' && principal.role === 'employer') {
@@ -843,6 +846,7 @@ export async function PATCH(request) {
         : await query(`UPDATE hr_workers SET name=$3,nationality=$4,phone=$5,email=$6,job_preference=$7,notes=$8,resume_profile=resume_profile || COALESCE($9::jsonb,'{}'::jsonb),updated_at=NOW()
             WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id))]);
       if (!edited.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
+      await resyncRequirements(id);
       return NextResponse.json(edited[0]);
     }
     if (body.type === 'worker-resume' && principal.role === 'agency' && principal.agency_type === 'philippines') {
@@ -853,6 +857,7 @@ export async function PATCH(request) {
       const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
       const result = await query('UPDATE hr_workers SET resume_profile=$3::jsonb,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING id', [id,principal.agency_id,JSON.stringify(resumeProfile)]);
       if (!result.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
+      await resyncRequirements(id);
       return NextResponse.json({ ok: true });
     }
     if (body.type === 'employer' && principal.role === 'agency' && principal.agency_type === 'taiwan') {
@@ -900,10 +905,11 @@ export async function PATCH(request) {
       if (principal.role === 'agency' && principal.agency_type !== 'philippines') return NextResponse.json({error:'此申請流程僅開放菲律賓仲介會員。'},{status:403});
       const requirementId=Number(body.requirementId);
       if (!validId(requirementId)) return NextResponse.json({error:'文件項目編號不正確。'},{status:400});
-      const changed=await query(`UPDATE hr_case_requirements r SET applicable=$3,entry_gate=(r.required AND $3),updated_at=NOW()
+      const changed=await query(`UPDATE hr_case_requirements r SET applicable=$3,applicability_source='manual',
+          entry_gate=CASE WHEN r.name=ANY($6::text[]) THEN (r.required AND $3 AND r.name=ANY($5::text[])) ELSE r.entry_gate END,updated_at=NOW()
         FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
         WHERE r.id=$1 AND c.id=r.case_id AND r.status<>'submitted' AND (r.applicability<>'' OR $2::text='admin') AND ($2::text='admin' OR w.agency_id=$4)
-        RETURNING r.id,r.case_id,r.required,r.entry_gate,r.applicable`,[requirementId,principal.role,body.applicable===true,principal.agency_id||null]);
+        RETURNING r.id,r.case_id,r.required,r.entry_gate,r.applicable`,[requirementId,principal.role,body.applicable===true,principal.agency_id||null,ENTRY_GATE_DOCUMENTS,WORKER_DOCUMENT_NAMES]);
       if (!changed.length) return NextResponse.json({error:'找不到可管理的文件項目。'},{status:404});
       await recordActivity(changed[0].case_id,actor,body.applicable?'確認文件適用':'標示文件不適用',String(requirementId));
       await refreshCaseStage(changed[0].case_id);
@@ -1069,7 +1075,7 @@ export async function PATCH(request) {
       const column = workflowType === 'medical' ? 'medical_status' : 'training_status';
       const previous = await query(`SELECT c.${column} AS current_status,e.agency_id AS employer_agency_id,
         (e.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$2)) AS agency_can_manage,
-        EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.status<>'approved') AS gate_closed
+        EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed
         FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.id=$1`, [caseId,principal.agency_id||null]);
       if (!previous.length) return NextResponse.json({ error: '找不到案件。' }, { status: 404 });
       if (principal.role === 'agency' && !previous[0].agency_can_manage) return NextResponse.json({ error: '無權管理其他台灣仲介的案件。' }, { status: 403 });
@@ -1125,6 +1131,7 @@ export async function PATCH(request) {
       const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
       const result = await query('UPDATE hr_workers SET resume_profile=$2::jsonb,updated_at=NOW() WHERE id=$1 RETURNING id', [id,JSON.stringify(resumeProfile)]);
       if (!result.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
+      await resyncRequirements(id);
       return NextResponse.json({ ok: true });
     }
     if (body.type === 'employer' || body.type === 'worker') {
@@ -1141,6 +1148,7 @@ export async function PATCH(request) {
         result = await query(`UPDATE ${table} SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *`, [id,status]);
       }
       if (!result.length) return NextResponse.json({ error: '找不到資料。' }, { status: 404 });
+      if (body.type === 'worker') await resyncRequirements(id);
       return NextResponse.json(result[0]);
     }
     return NextResponse.json({ error: '更新項目不正確。' }, { status: 400 });
