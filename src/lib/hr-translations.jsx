@@ -249,6 +249,14 @@ const EN_EXTRA = {
   '提醒': 'Reminders', '近期案件日期': 'Upcoming case dates', '聊天室未讀': 'Unread chats', '基本資料待補': 'Incomplete profiles', '履歷尚未完成': 'Resume incomplete', '基本資料未完成': 'Basic information incomplete', '補資料': 'Complete', '待補：': 'Missing: ', '國籍': 'Nationality', '聯絡電話': 'Phone number', '工作意向': 'Job preference', '出生日期': 'Date of birth', '性別': 'Gender', '出生地': 'Place of birth', '地址': 'Address', '身高': 'Height', '體重': 'Weight', '婚姻狀況': 'Marital status', '教育程度': 'Education level', '語言能力': 'Languages', '是否曾在海外工作': 'Worked abroad', '雇主／客戶名稱': 'Employer / client name', '聯絡人': 'Contact person', '電話': 'Phone', 'Email': 'Email', '仲介名稱': 'Agency name', '國家／地區': 'Country / region', '目前沒有未讀訊息、近期重要日期或待補資料。': 'No unread messages, upcoming dates, or incomplete profiles.', '今天': 'Today', '已完成': 'Completed', '已安排': 'Scheduled', '未安排': 'Not scheduled', '進行中': 'In progress', '暫停': 'On hold', '結案': 'Closed', '未設定': 'Not set', '未指派': 'Unassigned', '未指定': 'Unassigned', '其他': 'Other', '家庭幫傭': 'Domestic helper', '家庭看護': 'Caretaker', '工廠': 'Factory', '工廠技術工': 'Factory technician',
 };
 const EN_MORE = {
+  '履歷': 'Resume', '工作者履歷': 'Worker Resume', '尚未上傳照片': 'No photo uploaded yet', '可新增履歷內容與照片': 'Add resume details and a photo',
+  '可由管理者建立並維護這位工作者的完整履歷。': 'An administrator can create and maintain this worker\'s full resume.',
+  '尚未建立履歷': 'No resume yet', '已有履歷資料': 'Resume on file', '尚未設定工作意向': 'Job preference not set',
+  '履歷照片僅接受 1.5 MB 以下的 JPG 或 PNG。': 'Resume photos must be JPG or PNG files under 1.5 MB.',
+  '清除整份履歷': 'Clear Entire Resume', '無法讀取履歷照片。': 'Unable to load the resume photo.', '移除照片': 'Remove Photo',
+  '重新裁切照片': 'Re-crop Photo', '關閉履歷': 'Close resume', '取消編輯': 'Cancel Editing', '家電操作補充': 'Appliance Operation Notes', '語言': 'Languages',
+  '移除工人': 'Remove Worker', '移除工人失敗': 'Failed to remove the worker.', '關閉移除確認': 'Close removal confirmation',
+  '移除失敗，請確認網路連線後再試。': 'Removal failed. Check your connection and try again.',
   '姓氏': 'Surname', '名字': 'Given name', '中間名': 'Middle name', '請填寫其他宗教': 'Enter other religion', '天主教': 'Catholic', '基督教': 'Christian', '其他：': 'Other: ',
   '仲介／雇主資料': 'Agency / employer records', '來台程序': 'Taiwan application process', '目前沒有必要文件項目。': 'There are no required documents yet.', '目前沒有來台申請程序。': 'There is no Taiwan application process yet.', '所屬仲介業務': 'Taiwan agency representative', '菲律賓仲介 Staff': 'Philippines agency staff',
   '下載履歷 PDF': 'Download resume PDF', '下載 PDF': 'Download PDF', '編輯履歷': 'Edit resume', '履歷照片': 'Resume photo', '履歷編號': 'Resume reference number', '家庭資料': 'Family information', '個人資料問答': 'Personal questionnaire', '膚色': 'Complexion', '家庭狀況': 'Family status', '配偶姓名': 'Spouse name', '配偶職業': 'Spouse occupation', '配偶年齡': 'Spouse age', '子女人數': 'Number of children', '子女年齡': 'Children’s ages', '父親姓名': 'Father’s name', '父親職業': 'Father’s occupation', '父親出生日期': 'Father’s date of birth', '母親姓名': 'Mother’s name', '母親職業': 'Mother’s occupation', '母親出生日期': 'Mother’s date of birth', '兄弟人數': 'Number of brothers', '兄弟年齡': 'Brothers’ ages', '姊妹人數': 'Number of sisters', '姊妹年齡': 'Sisters’ ages', '請用逗號分隔，並由大到小排列。例如：18,5,2,1': 'Separate ages with commas and list them from oldest to youngest. Example: 18,5,2,1', '家中排行': 'Birth order in family', '出國工作期間子女照顧者': 'Who will care for children while abroad', '完成課程': 'Courses completed', '是否有刺青': 'Do you have a tattoo?', '是否吸菸': 'Do you smoke?', '是否飲酒': 'Do you drink alcohol?', '寵物照護經驗與種類': 'Pet care experience and types of pets', '是否願意在有寵物的家庭工作': 'Willing to work in a home with pets?', '是否曾有重大疾病': 'History of serious illness?', '過去 12 個月是否接受手術': 'Surgery in the past 12 months?', '是否有過敏': 'Do you have allergies?', '休假日是否願意完成家務': 'Willing to complete household chores on a day off?', '外出前是否完成家務': 'Will you finish household chores before going out?', '休假日是否可於晚上 8 點前返家': 'Can you return home by 8 PM on a day off?', '工作時是否化妝': 'Do you wear makeup at work?', '是否願意於休假日加班': 'Willing to work overtime on a day off?', '是否曾在海外工作': 'Have you worked abroad before?', '海外工作地點與期間': 'Overseas work location and dates', '雇主、職務、期間、離職原因與工作內容': 'Employer, position, dates, reason for leaving, and duties', '備註': 'Notes', '產生中…': 'Generating…', '履歷照片請使用 JPG 或 PNG，檔案需小於 1.5 MB。': 'Resume photo must be a JPG or PNG under 1.5 MB.', '讀取履歷照片失敗。': 'Could not read resume photo.',
@@ -290,13 +298,17 @@ export function translateHrText(value, lang = 'zh') {
     const representative=trimmed.match(/^· 業務：(.*)$/);
     const reminderDate=trimmed.match(/^(今天|\d+ 天後|逾期 \d+ 天) · (.+)$/);
     const overdueTask=trimmed.match(/^逾期 (\d+) 天$/);
+    const removeWorkerTitle=trimmed.match(/^確定將工人「(.+)」從此仲介移除？$/);
+    const clearResumeConfirm=trimmed.match(/^確定清除「(.+)」的整份履歷？工作者資料與案件紀錄不會刪除。$/);
     const reviewNextStep=trimmed.match(/^審核 (\d+) 份待審文件$/);
     const missingNextStep=trimmed.match(/^收取 (\d+) 份必要文件$/);
     const applicationNextStep=trimmed.match(/^完成申請程序：(.*)$/);
     const blockedDue=trimmed.match(/^受阻 · (今天到期|逾期 \d+ 天)$/);
     const requiredMissing=trimmed.match(/^必要文件待補 (\d+) 份$/);
     const needsUpload=trimmed.match(/^有 (\d+) 份必要文件需要上傳或補件。$/);
-    if(orderMatch)translated=`Order #${orderMatch[1]} · ${translateHrText(orderMatch[2],'en')} · ${orderMatch[3]} position${orderMatch[3]==='1'?'':'s'}`;
+    if(removeWorkerTitle)translated=`Remove worker "${removeWorkerTitle[1]}" from this agency?`;
+    else if(clearResumeConfirm)translated=`Clear the entire resume for "${clearResumeConfirm[1]}"? Worker records and case history will not be deleted.`;
+    else if(orderMatch)translated=`Order #${orderMatch[1]} · ${translateHrText(orderMatch[2],'en')} · ${orderMatch[3]} position${orderMatch[3]==='1'?'':'s'}`;
     else if(agencyMatch)translated=`${agencyMatch[1]} · Agency chat`;
     else if(candidateMatch)translated=`${candidateMatch[1]} (${candidateMatch[2]}) · ${translateHrText(candidateMatch[3],'en')}`;
     else if(agencyRole)translated=`${translateHrText(agencyRole[1],'en')} representative`;

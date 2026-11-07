@@ -5,7 +5,7 @@ import { signOut } from 'next-auth/react';
 import { Activity, BriefcaseBusiness, Building2, Check, ChevronRight, CircleAlert, ClipboardList, FileCheck2, HeartPulse, History, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
 import styles from './HrManagement.module.css';
 import { useLanguage } from '@/context/LanguageContext';
-import { HrLanguageTools } from '@/lib/hr-translations';
+import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
 import HrFilePicker from '@/components/HrFilePicker';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
 import PersonNameFields from '@/components/PersonNameFields';
@@ -262,6 +262,7 @@ function normalizeResumeExperiences(profile,field) {
   return legacy?legacy.split(/\r?\n/).filter(Boolean).map(content=>({workplace:'',period:'',title:'',content})): [];
 }
 function WorkerResumeModal({worker,update,close}) {
+  const {lang}=useLanguage();
   const dialogRef=useRef(null);
   const handleDialogKeyDown=useHrDialog(dialogRef,close);
   const [profile,setProfile]=useState(()=>({...EMPTY_RESUME,...(worker.resume_profile||{})}));
@@ -309,7 +310,7 @@ function WorkerResumeModal({worker,update,close}) {
     if(succeeded)close();
   }
   async function clearResume() {
-    if(!window.confirm(`確定清除「${worker.name}」的整份履歷？工作者資料與案件紀錄不會刪除。`))return;
+    if(!window.confirm(translateHrText(`確定清除「${worker.name}」的整份履歷？工作者資料與案件紀錄不會刪除。`,lang)))return;
     setSaving(true);setError('');
     const succeeded=await update({type:'worker-resume',id:worker.id,clear:true});
     setSaving(false);
