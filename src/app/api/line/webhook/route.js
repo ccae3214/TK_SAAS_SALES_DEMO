@@ -7,6 +7,17 @@ import { replyForHrLineEvent } from '@/lib/hr-line-bot';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// 舊版指令相容：整句就是舊說法時，視為對應的「工作者」指令（例如「管理工人」「我的工人」）。
+// 只比對整句指令，管理者在編輯欄位時輸入的備註、姓名等自由文字不會被改動。
+const LEGACY_WORKER_COMMAND = /^(?:(?:管理|我的)工人|工人(?:訓練|證照|配對|雇主)進度|配對工人進度)$/;
+function withLegacyCommandTerms(event) {
+  const text = event?.message?.text;
+  if (event?.type !== 'message' || event.message?.type !== 'text' || typeof text !== 'string') return event;
+  const command = text.trim().replace(/\s+/g, ' ');
+  if (!LEGACY_WORKER_COMMAND.test(command)) return event;
+  return { ...event, message: { ...event.message, text: command.replace('工人', '工作者') } };
+}
+
 function verifySignature(body, signature, secret) {
   if (!secret || !signature) return false;
   const expected = createHmac('sha256', secret).update(body).digest();
@@ -87,7 +98,7 @@ export async function POST(request) {
     for (const event of payload.events) {
       if (!(await claimEvent(event))) { duplicates += 1; continue; }
       try {
-        let text = await replyForHrLineEvent(event);
+        let text = await replyForHrLineEvent(withLegacyCommandTerms(event));
         if (text === null) {
           text = '克雷迅人力仲介 LINE 服務。輸入「說明」查看查詢方式，輸入「會員網站」登入；新會員可輸入「註冊」。';
         }
