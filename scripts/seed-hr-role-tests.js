@@ -25,7 +25,7 @@ const workers = Array.from({ length: 5 }, (_, index) => ({
   number: index + 1,
   email: `test.worker${String(index + 1).padStart(2, '0')}@example.com`,
   legacyEmail: index < 3 ? `hr-test-worker${String(index + 1).padStart(2, '0')}@example.com` : null,
-  name: `菲律賓測試工人 ${String(index + 1).padStart(2, '0')}（虛構）`,
+  name: `菲律賓測試工作者 ${String(index + 1).padStart(2, '0')}（虛構）`,
   jobPreference: ['家庭看護（測試）','家庭看護（測試）','工廠作業員（測試）','工廠作業員（測試）','家庭幫傭（測試）'][index],
 }));
 const employers = [

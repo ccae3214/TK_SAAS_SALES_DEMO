@@ -439,7 +439,7 @@ export async function GET() {
       ['system','agency'].includes(member.admin_scope)
       ||getAdminEmails().includes(String(member.email||'').trim().toLowerCase())
       ||getAdminLineUserIds().includes(member.line_user_id)}));
-    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工人', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
@@ -542,13 +542,13 @@ export async function POST(request) {
     }
     if (body.type === 'job-order-candidate' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       const routeId=Number(body.routeId),workerId=Number(body.workerId);
-      if(!validId(routeId)||!validId(workerId))return NextResponse.json({error:'請選擇工作需求與所屬工人。'},{status:400});
+      if(!validId(routeId)||!validId(workerId))return NextResponse.json({error:'請選擇工作需求與所屬工作者。'},{status:400});
       const result=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes) SELECT r.id,w.id,$3 FROM hr_job_order_routes r JOIN hr_workers w ON w.id=$2 WHERE r.id=$1 AND r.philippines_agency_id=$4 AND w.agency_id=$4 AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id) ON CONFLICT(route_id,worker_id) DO UPDATE SET notes=EXCLUDED.notes,updated_at=NOW() RETURNING *`,[routeId,workerId,clean(body.notes,2000),principal.agency_id]);
-      if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介且尚未建立任何案件的工人。'},{status:403});return NextResponse.json(result[0],{status:201});
+      if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介且尚未建立任何案件的工作者。'},{status:403});return NextResponse.json(result[0],{status:201});
     }
     if (body.type === 'job-order-employer-candidate' && principal.role === 'employer') {
       const orderId=Number(body.orderId),workerId=Number(body.workerId);
-      if(!validId(orderId)||!validId(workerId))return NextResponse.json({error:'工作需求或工人資料不正確。'},{status:400});
+      if(!validId(orderId)||!validId(workerId))return NextResponse.json({error:'工作需求或工作者資料不正確。'},{status:400});
       const client=await pool.connect();
       try{
         await client.query('BEGIN');
@@ -560,23 +560,23 @@ export async function POST(request) {
           WHERE o.id=$1 AND o.employer_id=$2 FOR UPDATE OF o,e,oa`,[orderId,principal.employer_id]);
         if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單或尚未指派台灣仲介。'},{status:404});}
         const orderItem=order.rows[0];
-        if(orderItem.status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法再挑選工人。'},{status:409});}
+        if(orderItem.status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法再挑選工作者。'},{status:409});}
         const worker=await client.query(`SELECT w.id,w.name,w.agency_id,a.name philippines_agency_name
           FROM hr_workers w JOIN hr_agencies a ON a.id=w.agency_id AND a.active=TRUE AND a.agency_type='philippines'
           WHERE w.id=$1 AND w.status='active' AND w.job_preference=$2
             AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id)
           FOR UPDATE OF w`,[workerId,orderItem.job_type]);
-        if(!worker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'此工人不符合工作類型、已停用或已建立案件。'},{status:409});}
+        if(!worker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'此工作者不符合工作類型、已停用或已建立案件。'},{status:409});}
         const selectedRoute=await client.query(`INSERT INTO hr_job_order_routes(order_agency_id,philippines_agency_id,notes)
-          VALUES($1,$2,'雇主直接挑選工人') ON CONFLICT(order_agency_id,philippines_agency_id)
+          VALUES($1,$2,'雇主直接挑選工作者') ON CONFLICT(order_agency_id,philippines_agency_id)
           DO UPDATE SET notes=hr_job_order_routes.notes RETURNING id`,
         [orderItem.order_agency_id,worker.rows[0].agency_id]);
         const selected=await client.query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,proposed_by,notes)
           VALUES($1,$2,$3,'由雇主直接挑選') ON CONFLICT(route_id,worker_id) DO NOTHING RETURNING *`,
         [selectedRoute.rows[0].id,workerId,principal.id||null]);
-        if(!selected.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'這位工人已加入此需求單。'},{status:409});}
+        if(!selected.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'這位工作者已加入此需求單。'},{status:409});}
 
-        const message=`雇主 ${orderItem.employer_name} 已從需求單 #${orderId} 挑選工人 ${worker.rows[0].name}（${orderItem.job_type}）。請台灣仲介與菲律賓仲介聯繫安排後續面試。`;
+        const message=`雇主 ${orderItem.employer_name} 已從需求單 #${orderId} 挑選工作者 ${worker.rows[0].name}（${orderItem.job_type}）。請台灣仲介與菲律賓仲介聯繫安排後續面試。`;
         for(const agencyId of [Number(orderItem.agency_id),Number(worker.rows[0].agency_id)]){
           const room=await client.query(`INSERT INTO hr_chat_rooms(room_type,agency_id) VALUES('agency',$1)
             ON CONFLICT(agency_id) WHERE room_type='agency' DO UPDATE SET agency_id=EXCLUDED.agency_id RETURNING id`,[agencyId]);
@@ -695,7 +695,7 @@ export async function POST(request) {
           JOIN hr_members m ON m.worker_id=w.id
           WHERE w.id=$1 AND w.status='active' AND m.role='worker' AND m.active=TRUE
           LIMIT 1`, [Number(body.workerId)]);
-        if (!workerMember.length) return NextResponse.json({ error: '工作者必須是啟用中的工人類型會員。' }, { status: 400 });
+        if (!workerMember.length) return NextResponse.json({ error: '工作者必須是啟用中的工作者類型會員。' }, { status: 400 });
       }
       if (body.assignedMemberId && !validId(body.assignedMemberId)) return NextResponse.json({ error: '所屬業務格式不正確。' }, { status: 400 });
       if (!validDate(body.expectedStartDate)) return NextResponse.json({ error: '預計日期格式不正確。' }, { status: 400 });
@@ -909,7 +909,7 @@ export async function PATCH(request) {
         ON CONFLICT(case_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
           note=EXCLUDED.note,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING *`,
         [caseId,stepKey,step[1],body.startedOn||null,body.completedOn||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null]);
-      if (!saved.length) return NextResponse.json({error:'找不到可管理的所屬工人案件。'},{status:404});
+      if (!saved.length) return NextResponse.json({error:'找不到可管理的所屬工作者案件。'},{status:404});
       await recordActivity(caseId,actor,'更新申請程序',`${step[1]} · ${body.completedOn||body.startedOn||'更新備註'}`);
       return NextResponse.json(saved[0]);
     }
@@ -1191,7 +1191,7 @@ export async function DELETE(request) {
         return NextResponse.json({ok:true});
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
-    if (principal.role !== 'agency' || principal.agency_type !== 'philippines') return NextResponse.json({ error: '僅菲律賓仲介可管理工人資料。' }, { status: 403 });
+    if (principal.role !== 'agency' || principal.agency_type !== 'philippines') return NextResponse.json({ error: '僅菲律賓仲介可管理工作者資料。' }, { status: 403 });
     if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
     const removed = await query('UPDATE hr_workers SET agency_id=NULL,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING id', [id,principal.agency_id]);
     if (removed.length) return NextResponse.json({ ok: true });

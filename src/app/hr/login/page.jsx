@@ -54,7 +54,7 @@ export default function HrLoginPage() {
         <div className={styles.logo}><span className={styles.logoMark}>K</span><div className={styles.logoText}><strong>克雷迅</strong><span>KOLECION HR</span></div></div>
         <div className={styles.hero}>
           <h2>跨國人力仲介，<br />從申辦到入境一次掌握</h2>
-          <p>工人、雇主與仲介在同一個平台協作，案件進度、文件審核與聊天溝通全部即時同步。</p>
+          <p>工作者、雇主與仲介在同一個平台協作，案件進度、文件審核與聊天溝通全部即時同步。</p>
           <ul className={styles.features}>
             <li><ClipboardCheck size={20} />案件進度透明，每個階段都看得到</li>
             <li><FileText size={20} />必要文件線上上傳、審核與補件</li>
@@ -68,8 +68,8 @@ export default function HrLoginPage() {
         <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />返回首頁</Link>
         <p className={styles.eyebrow}>KOLECION HR</p>
         <h1>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
-        <p className={styles.lead}>{registerMode ? '使用 LINE 確認身分，登入後選擇工人、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
-        {registerMode&&<ol className={styles.steps}>{[['1','使用 LINE 授權確認身分'],['2','登入後選擇會員類型；工人、雇主及仲介需選擇所屬仲介'],['3','送出後等待管理者審核；核准前不會開放案件資料']].map(([number,text])=><li key={number}><strong>{number}</strong><span>{text}</span></li>)}</ol>}
+        <p className={styles.lead}>{registerMode ? '使用 LINE 確認身分，登入後選擇工作者、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
+        {registerMode&&<ol className={styles.steps}>{[['1','使用 LINE 授權確認身分'],['2','登入後選擇會員類型；工作者、雇主及仲介需選擇所屬仲介'],['3','送出後等待管理者審核；核准前不會開放案件資料']].map(([number,text])=><li key={number}><strong>{number}</strong><span>{text}</span></li>)}</ol>}
 
         {authError && (
           <div role="alert" className={styles.alert}>

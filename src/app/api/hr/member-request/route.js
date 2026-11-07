@@ -30,7 +30,7 @@ export async function POST(request) {
     await ensureHrIdentitySchema();
     const body = await request.json();
     const requestedRole = String(body?.requestedRole || '');
-    if (!HR_ROLES.has(requestedRole)) return NextResponse.json({ error: '請選擇工人、雇主、仲介或訓練中心類型。' }, { status: 400 });
+    if (!HR_ROLES.has(requestedRole)) return NextResponse.json({ error: '請選擇工作者、雇主、仲介或訓練中心類型。' }, { status: 400 });
     const requestedAgencyId = requestedRole === 'training_center' ? null : Number(body?.requestedAgencyId);
     if (requestedRole !== 'training_center') {
       if (!Number.isSafeInteger(requestedAgencyId) || requestedAgencyId <= 0) return NextResponse.json({ error: '請選擇所屬仲介。' }, { status: 400 });

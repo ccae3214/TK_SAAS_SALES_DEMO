@@ -29,10 +29,10 @@ const RICH_MENU_DEFINITIONS = {
     image: 'employer.png',
     name: 'Kolecion Employer',
     actions: [
-      { type: 'message', label: 'My worker', text: '我的工人' },
+      { type: 'message', label: 'My worker', text: '我的工作者' },
       { type: 'message', label: 'Contract progress', text: '雇主合約進度' },
       { type: 'message', label: 'Order matching', text: '雇主配對進度' },
-      { type: 'message', label: 'Matched worker', text: '配對工人進度' },
+      { type: 'message', label: 'Matched worker', text: '配對工作者進度' },
       { type: 'message', label: 'To-do list', text: '待辦' },
       { type: 'uri', label: 'Web login', uri: '/hr/login' },
     ],
@@ -41,11 +41,11 @@ const RICH_MENU_DEFINITIONS = {
     image: 'philippines-agency.png',
     name: 'Kolecion Philippines Agency',
     actions: [
-      { type: 'message', label: 'My workers', text: '我的工人' },
-      { type: 'message', label: 'Training schedule', text: '工人訓練進度' },
-      { type: 'message', label: 'Licence progress', text: '工人證照進度' },
-      { type: 'message', label: 'Match progress', text: '工人配對進度' },
-      { type: 'message', label: 'Employer progress', text: '工人雇主進度' },
+      { type: 'message', label: 'My workers', text: '我的工作者' },
+      { type: 'message', label: 'Training schedule', text: '工作者訓練進度' },
+      { type: 'message', label: 'Licence progress', text: '工作者證照進度' },
+      { type: 'message', label: 'Match progress', text: '工作者配對進度' },
+      { type: 'message', label: 'Employer progress', text: '工作者雇主進度' },
       { type: 'uri', label: 'Web login', uri: '/hr/login' },
     ],
   },
@@ -56,7 +56,7 @@ const RICH_MENU_DEFINITIONS = {
       { type: 'message', label: 'My employers', text: '我的雇主' },
       { type: 'message', label: 'Contract progress', text: '雇主合約進度' },
       { type: 'message', label: 'Order matching', text: '雇主配對進度' },
-      { type: 'message', label: 'Matched workers', text: '配對工人進度' },
+      { type: 'message', label: 'Matched workers', text: '配對工作者進度' },
       { type: 'message', label: 'To-do list', text: '待辦' },
       { type: 'uri', label: 'Web login', uri: '/hr/login' },
     ],
@@ -77,7 +77,7 @@ const RICH_MENU_DEFINITIONS = {
     image: 'admin.png',
     name: 'Kolecion Administrator',
     actions: [
-      { type: 'message', label: '管理工人', text: '管理工人' },
+      { type: 'message', label: '管理工作者', text: '管理工作者' },
       { type: 'message', label: '管理雇主', text: '管理雇主' },
       { type: 'message', label: '管理仲介', text: '管理仲介' },
       { type: 'message', label: '管理訓練中心', text: '管理訓練中心' },
@@ -184,7 +184,7 @@ export async function syncLineRichMenu(lineUserId, principal) {
 }
 
 const ADMIN_DATA_TYPES = {
-  worker: { label: '工人',table:'hr_workers',fields: ['name','nationality','gender','phone','email','jobPreference','agencyId','status','notes'] },
+  worker: { label: '工作者',table:'hr_workers',fields: ['name','nationality','gender','phone','email','jobPreference','agencyId','status','notes'] },
   employer: { label: '雇主',table:'hr_employers',fields: ['name','contactName','phone','email','address','employerType','agencyId','status','notes'] },
   agency: { label: '仲介',table:'hr_agencies',fields: ['name','agencyType','active'] },
   training_center: { label: '訓練中心',table:'hr_members',fields: ['name','email','active'] },
@@ -476,7 +476,7 @@ async function handleAdminManagement(lineUserId, text, principal) {
   if (principal?.role !== 'admin') return null;
   const command = text.trim();
   const typeNames = {
-    '管理工人':'worker','管理工作者':'worker','管理雇主':'employer','管理仲介':'agency','管理訓練中心':'training_center',
+    '管理工作者':'worker','管理工作者':'worker','管理雇主':'employer','管理仲介':'agency','管理訓練中心':'training_center',
     'manage workers':'worker','manage employers':'employer','manage agencies':'agency','training centers':'training_center',
     'pamahalaan ang mga manggagawa':'worker','pamahalaan ang mga employer':'employer','pamahalaan ang mga ahensya':'agency','pamahalaan ang mga training center':'training_center',
   };
@@ -487,7 +487,7 @@ async function handleAdminManagement(lineUserId, text, principal) {
   }
   if (command === '管理選單') {
     await saveAdminSession(lineUserId,null);
-    return adminQuickReply('管理者資料管理選單：',['管理工人','管理雇主','管理仲介','管理訓練中心'].map(label=>({label,text:label})));
+    return adminQuickReply('管理者資料管理選單：',['管理工作者','管理雇主','管理仲介','管理訓練中心'].map(label=>({label,text:label})));
   }
 
   const listMatch = command.match(/^管理清單:(worker|employer|agency|training_center):(\d+)$/);
@@ -539,7 +539,7 @@ async function handleAdminManagement(lineUserId, text, principal) {
   }
   if (command === '管理取消') {
     await saveAdminSession(lineUserId,null);
-    return '已取消目前操作。輸入「管理工人」、「管理雇主」、「管理仲介」或「管理訓練中心」開始管理。';
+    return '已取消目前操作。輸入「管理工作者」、「管理雇主」、「管理仲介」或「管理訓練中心」開始管理。';
   }
   const confirmDelete = command.match(/^管理確認刪除:(worker|employer|agency|training_center):(\d+)$/);
   if (confirmDelete) {
@@ -609,11 +609,11 @@ async function handleAdminManagement(lineUserId, text, principal) {
 const ROLE_MENU_FEATURES = {
   zh: {
     worker: ['我的案件／案件進度', '我的文件', '我的仲介', '我的雇主', '待辦事項', '前往網頁版'],
-    employer: ['我的工人', '前往網頁版'],
-    philippines_agency: ['我的工人', '工人訓練進度', '工人證照進度', '工人配對進度', '工人雇主進度', '前往網頁版'],
-    taiwan_agency: ['我的雇主', '雇主合約進度', '雇主配對進度', '配對工人進度', '代辦事項', '前往網頁版'],
+    employer: ['我的工作者', '前往網頁版'],
+    philippines_agency: ['我的工作者', '工作者訓練進度', '工作者證照進度', '工作者配對進度', '工作者雇主進度', '前往網頁版'],
+    taiwan_agency: ['我的雇主', '雇主合約進度', '雇主配對進度', '配對工作者進度', '代辦事項', '前往網頁版'],
     training_center: ['我的學生', '學生訓練進度', '學生證照進度', '學生配對進度', '學生仲介進度', '前往網頁版'],
-    admin: ['管理工人', '管理雇主', '管理仲介', '管理訓練中心', '管理案件進度', '前往網頁版'],
+    admin: ['管理工作者', '管理雇主', '管理仲介', '管理訓練中心', '管理案件進度', '前往網頁版'],
   },
   en: {
     worker: ['My case / case progress', 'My personal documents', 'My agency', 'My employer', 'To-do list', 'Go to web login'],
@@ -830,7 +830,7 @@ function languageUpdated(language) {
 
 function memberTypeName(principal, language) {
   const names = {
-    zh: { admin: '管理者', worker: '工人', employer: '雇主', training_center: '訓練中心' },
+    zh: { admin: '管理者', worker: '工作者', employer: '雇主', training_center: '訓練中心' },
     en: { admin: 'Administrator', worker: 'Worker', employer: 'Employer', training_center: 'Training center' },
     tl: { admin: 'Administrator', worker: 'Manggagawa', employer: 'Employer', training_center: 'Sentro ng pagsasanay' },
   }[language];
@@ -854,7 +854,7 @@ function memberMenuReply(principal, language) {
 
 function identityReply(principal, language) {
   const pendingRoleNames = {
-    zh: { worker: '工人', employer: '雇主', agency: '仲介', training_center: '訓練中心' },
+    zh: { worker: '工作者', employer: '雇主', agency: '仲介', training_center: '訓練中心' },
     en: { worker: 'Worker', employer: 'Employer', agency: 'Agency', training_center: 'Training center' },
     tl: { worker: 'Manggagawa', employer: 'Employer', agency: 'Ahensya', training_center: 'Sentro ng pagsasanay' },
   }[language];

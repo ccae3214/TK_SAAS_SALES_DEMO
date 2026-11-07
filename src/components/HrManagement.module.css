@@ -176,3 +176,5 @@
 .previewVersions .previewVersionActive{border-color:#1f8366;background:#e4f3ec;color:#176b54}
 .documentFrame{border-radius:12px}
 @media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.smallPrimary,.smallButton,.statCard,.nav button{transition:none}}
+.app :is(h1,h2,h3,h4,h5,h6){font-family:inherit}
+.panelHeader h2,.drawerSection h3,.drawerSectionHeader h3{letter-spacing:0}
