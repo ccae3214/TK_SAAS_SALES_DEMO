@@ -845,6 +845,16 @@ export async function PATCH(request) {
       if (!edited.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
       return NextResponse.json(edited[0]);
     }
+    if (body.type === 'worker-resume' && principal.role === 'agency' && principal.agency_type === 'philippines') {
+      if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
+      if (body.resumeProfile !== undefined && (!body.resumeProfile || typeof body.resumeProfile !== 'object' || Array.isArray(body.resumeProfile))) {
+        return NextResponse.json({ error: '履歷資料格式不正確。' }, { status: 400 });
+      }
+      const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
+      const result = await query('UPDATE hr_workers SET resume_profile=$3::jsonb,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING id', [id,principal.agency_id,JSON.stringify(resumeProfile)]);
+      if (!result.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
     if (body.type === 'employer' && principal.role === 'agency' && principal.agency_type === 'taiwan') {
       if (!validId(id)) return NextResponse.json({ error: '雇主編號不正確。' }, { status: 400 });
       if (body.name === undefined || body.active !== undefined) return NextResponse.json({ error: '仲介只能編輯所屬雇主資料，無權新增或變更雇主啟用狀態。' }, { status: 403 });

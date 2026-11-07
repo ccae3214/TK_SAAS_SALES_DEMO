@@ -12,6 +12,7 @@ import PersonNameFields from '@/components/PersonNameFields';
 import HrChat from '@/components/HrChat';
 import HrReminders from '@/components/HrReminders';
 import { useHrDialog } from '@/lib/use-hr-dialog';
+import { parseResumePdf } from '@/lib/hr-resume-import';
 
 const NAV = [
   { id: 'overview', label: '總覽', icon: LayoutDashboard },
@@ -269,6 +270,8 @@ function WorkerResumeModal({worker,update,close}) {
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
   const [photoCropFile,setPhotoCropFile]=useState(null);
+  const [importing,setImporting]=useState(false);
+  const [importMessage,setImportMessage]=useState('');
   useEffect(()=>{
     let active=true;
     fetch(`/api/hr/workers/${worker.id}/resume-photo`,{cache:'no-store'}).then(async response=>{
@@ -280,6 +283,18 @@ function WorkerResumeModal({worker,update,close}) {
   },[worker.id]);
   function setField(field,value){setProfile(current=>({...current,[field]:value}));}
   function setExperiences(field,rows){const legacyField=field==='overseasExperiences'?'overseasWorkDetails':'employmentHistory';setProfile(current=>({...current,[field]:rows,[legacyField]:''}));}
+  async function importPdf(event) {
+    const input=event.currentTarget,file=input.files?.[0];
+    if(!file)return;
+    setImportMessage('');setError('');setImporting(true);
+    try{
+      const {parsed,importedPhoto}=await parseResumePdf(file);
+      setProfile(current=>({...current,...parsed}));
+      if(importedPhoto)setPhotoCropFile(importedPhoto);
+      setImportMessage(importedPhoto?'已讀取履歷文字並自動擷取照片；請檢查資料與照片後再儲存。':'已讀取履歷文字並填入可辨識欄位；未找到可用照片，請確認並手動上傳。');
+    }catch(err){setImportMessage(err.message||'無法讀取此 PDF，請確認檔案未加密且格式正確。');}
+    finally{setImporting(false);input.value='';}
+  }
   async function choosePhoto(event) {
     const input=event.currentTarget,file=input.files?.[0];
     if(!file)return;
@@ -303,7 +318,7 @@ function WorkerResumeModal({worker,update,close}) {
   }
   const hasResume=Object.entries(profile).some(([field,value])=>field==='photoDataUrl'?Boolean(value):Array.isArray(value)?value.length>0:Boolean(String(value||'').trim()));
   return <div className={styles.modalBackdrop} onMouseDown={event=>{if(event.target===event.currentTarget)close()}}><section ref={dialogRef} tabIndex={-1} onKeyDown={handleDialogKeyDown} className={`${styles.modal} ${styles.resumeModal}`} role="dialog" aria-modal="true" aria-labelledby="worker-resume-title"><header className={styles.modalHeader}><div><span className={styles.kicker}>工作者履歷</span><h2 id="worker-resume-title">{worker.name}</h2><p className={styles.formHint}>{worker.job_preference||'尚未設定工作意向'} · {hasResume?'已有履歷資料':'尚未建立履歷'}</p></div><button type="button" className={styles.iconButton} onClick={close} aria-label="關閉履歷">×</button></header>{photoCropFile&&<HrPhotoCropper file={photoCropFile} onCancel={()=>setPhotoCropFile(null)} onConfirm={photoDataUrl=>{setField('photoDataUrl',photoDataUrl);setPhotoCropFile(null);}}/>}
-    {editing?<form onSubmit={save}><div className={styles.resumePhotoEditor}>{profile.photoDataUrl?<img src={profile.photoDataUrl} alt={`${worker.name}履歷照片`}/>:<span>尚未上傳照片</span>}<div><div className={styles.field}><span>履歷照片</span><HrFilePicker accept="image/jpeg,image/png" onChange={choosePhoto} buttonClassName={styles.smallButton} hasValue={Boolean(profile.photoDataUrl)}/></div>{profile.photoDataUrl&&<><button type="button" className={styles.smallButton} onClick={()=>setPhotoCropFile(profile.photoDataUrl)}>重新裁切照片</button><button type="button" className={styles.smallButton} onClick={()=>setField('photoDataUrl','')}>移除照片</button></>}</div></div>
+    {editing?<form onSubmit={save}><div className={styles.resumeImportBox}><div className={styles.field}><span>上傳 PDF 履歷並填入欄位</span><HrFilePicker accept="application/pdf,.pdf" onChange={importPdf} disabled={importing||saving} buttonClassName={styles.smallButton}/></div><p className={styles.formHint}>讀取到的欄位會先填入下方表單；確認內容後按「儲存履歷」才會更新。支援可選取文字的 PDF，檔案上限 15 MB。</p>{importing&&<p className={styles.formHint} role="status">正在讀取履歷 PDF…</p>}{importMessage&&<p className={styles.formHint} role="status">{importMessage}</p>}</div><div className={styles.resumePhotoEditor}>{profile.photoDataUrl?<img src={profile.photoDataUrl} alt={`${worker.name}履歷照片`}/>:<span>尚未上傳照片</span>}<div><div className={styles.field}><span>履歷照片</span><HrFilePicker accept="image/jpeg,image/png" onChange={choosePhoto} buttonClassName={styles.smallButton} hasValue={Boolean(profile.photoDataUrl)}/></div>{profile.photoDataUrl&&<><button type="button" className={styles.smallButton} onClick={()=>setPhotoCropFile(profile.photoDataUrl)}>重新裁切照片</button><button type="button" className={styles.smallButton} onClick={()=>setField('photoDataUrl','')}>移除照片</button></>}</div></div>
       {RESUME_GROUPS.map(group=><section className={styles.resumeEditGroup} key={group.title}><h3>{group.title}</h3><div className={styles.formGrid}>{group.fields.map(([field,label])=><label className={`${styles.field} ${RESUME_TEXTAREAS.has(field)?styles.resumeFieldWide:''}`} key={field}>{label}{RESUME_TEXTAREAS.has(field)?<textarea rows="3" value={profile[field]||''} onChange={event=>setField(field,event.target.value)}/>:<input lang={['birthDate','fatherBirthDate','motherBirthDate'].includes(field)?lang:undefined} type={['birthDate','fatherBirthDate','motherBirthDate'].includes(field)?'date':'text'} value={profile[field]||''} onChange={event=>setField(field,event.target.value)}/>}</label>)}</div></section>)}
       {RESUME_EXPERIENCE_FIELDS.map(([field,label])=><section className={styles.resumeEditGroup} key={field}><div className={styles.resumeGroupHeading}><h3>{label}</h3><button type="button" className={styles.smallButton} onClick={()=>setExperiences(field,[...normalizeResumeExperiences(profile,field),{workplace:'',period:'',title:'',content:''}])}>新增經歷</button></div>{normalizeResumeExperiences(profile,field).map((row,index)=><fieldset className={styles.resumeExperience} key={`${field}-${index}`}><legend>{label} {index+1}</legend><div className={styles.formGrid}><Field name={`${field}-${index}-workplace`} label="工作地點／雇主" value={row.workplace||''} onChange={event=>setExperiences(field,normalizeResumeExperiences(profile,field).map((item,i)=>i===index?{...item,workplace:event.target.value}:item))}/><Field name={`${field}-${index}-period`} label="工作期間" value={row.period||''} onChange={event=>setExperiences(field,normalizeResumeExperiences(profile,field).map((item,i)=>i===index?{...item,period:event.target.value}:item))}/><Field name={`${field}-${index}-title`} label="職稱" value={row.title||''} onChange={event=>setExperiences(field,normalizeResumeExperiences(profile,field).map((item,i)=>i===index?{...item,title:event.target.value}:item))}/><Field name={`${field}-${index}-content`} label="工作內容" multiline value={row.content||''} onChange={event=>setExperiences(field,normalizeResumeExperiences(profile,field).map((item,i)=>i===index?{...item,content:event.target.value}:item))}/></div><button type="button" className={styles.smallButton} onClick={()=>setExperiences(field,normalizeResumeExperiences(profile,field).filter((_,i)=>i!==index))}>刪除此經歷</button></fieldset>)}</section>)}
       <section className={styles.resumeEditGroup}><h3>備註</h3><Field name="remarks" label="其他說明" multiline value={profile.remarks||''} onChange={event=>setField('remarks',event.target.value)}/></section>
