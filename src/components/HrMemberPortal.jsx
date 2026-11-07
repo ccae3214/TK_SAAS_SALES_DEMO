@@ -12,6 +12,7 @@ import HrReminders from '@/components/HrReminders';
 import PersonNameFields from '@/components/PersonNameFields';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
+import { WORKER_RESUME_CHOICES, WORKER_RESUME_LANGUAGES, WORKER_RESUME_SELECTS, readLanguageLevels, resumeChoiceList } from '@/lib/hr-resume-fields';
 
 const labels = { worker: '工作者', employer: '雇主', agency: '仲介' };
 const EMPTY_WORKER_RESUME = {
@@ -31,26 +32,6 @@ const WORKER_RESUME_GROUPS = [
   { title:'備註', fields:[['remarks','其他說明']] },
 ];
 const WORKER_RESUME_TEXTAREAS = new Set(['address','education','coursesCompleted','experienceNewborn','experienceChildren','experienceElderly','experienceDisabled','petExperience','overseasWorkDetails','employmentHistory','remarks']);
-const WORKER_RESUME_CHOICES = {
-  cookingSkills:['台灣','廣東','中國','日本','泰國','印度','韓國','菲律賓'],
-  applianceOptions:['Washing Machine','Oven','Vacuum Cleaner','Microwave Oven','Dish Washer','Others'],
-  childcareSkills:['Bathing','Changing diapers','Sterilizing utensils','Feeding','Taking temperature','Others'],
-};
-const WORKER_RESUME_LANGUAGES = ['English','Tagalog','Cantonese','Mandarin','Others'];
-const WORKER_RESUME_SELECTS = {
-  height:['145以下',...Array.from({length:36},(_,index)=>String(index+145)),'181以上'],
-  weight:['39以下',...Array.from({length:31},(_,index)=>String(index+40)),'71以上'],
-  maritalStatus:['單身','有伴侶','已結婚'],
-  numberOfChildren:Array.from({length:11},(_,index)=>String(index)),
-  brotherCount:Array.from({length:11},(_,index)=>String(index)),
-  sisterCount:Array.from({length:11},(_,index)=>String(index)),
-  educationLevels:['小學','國中','高中','專科','大學'],
-};
-function resumeChoiceList(value) { return String(value||'').split(/[,，、;；|]/).map(item=>item.trim()).filter(Boolean); }
-function readLanguageLevels(value,selected) {
-  try{const parsed=JSON.parse(value||'{}');if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))return Object.fromEntries(selected.map(language=>[language,['basic','medium','native'].includes(parsed[language])?parsed[language]:'basic']));}catch{}
-  return Object.fromEntries(selected.map(language=>[language,'basic']));
-}
 function formatLanguageLevels(languageOptions,value) {
   const selected=resumeChoiceList(languageOptions);if(!selected.length)return String(value||'');
   const levels=readLanguageLevels(value,selected),labels={basic:'基礎',medium:'中等',native:'本地'};

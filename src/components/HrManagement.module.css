@@ -179,3 +179,18 @@
 @media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.smallPrimary,.smallButton,.statCard,.nav button{transition:none}}
 .app :is(h1,h2,h3,h4,h5,h6){font-family:inherit}
 .panelHeader h2,.drawerSection h3,.drawerSectionHeader h3{letter-spacing:0}
+/* Resume field controls shared with the worker portal (HrResumeFieldControl) */
+.resumeChoiceField,.resumeRadioField{min-width:0;margin:0 0 13px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.resumeChoiceField legend,.resumeRadioField legend{padding:0 6px;color:#53636a;font-size:11px;font-weight:700}
+.resumeChoiceList{display:flex;flex-wrap:wrap;gap:7px}
+.resumeChoiceItem{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#53636a;font-size:12px;font-weight:600;cursor:pointer;transition:background .14s,border-color .14s}
+.resumeChoiceItem:hover{background:#f2f9f5;border-color:#b9d8c9}
+.resumeChoiceItem:has(input:checked){background:#e4f3ec;border-color:#42977f;color:#176b54}
+.resumeChoiceItem input{margin:0}
+.resumeRadioField>div{display:flex;flex-wrap:wrap;gap:8px}
+.resumeRadioField>div label{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#53636a;font-size:12px;font-weight:700;cursor:pointer}
+.resumeRadioField>div label:has(input:checked){background:#e4f3ec;border-color:#42977f;color:#176b54}
+.resumeRadioField>div input{margin:0}
+.resumeLanguageLevel{display:grid;grid-template-columns:minmax(90px,1fr) minmax(120px,200px);align-items:center;gap:10px;margin-top:10px;color:#53636a;font-size:12px;font-weight:700}
+.resumeLanguageLevel select{min-height:36px;padding:6px 10px;border:1px solid #dfe6e7;border-radius:8px;background:#fff;font:inherit;font-size:12px}
+@media(max-width:420px){.resumeLanguageLevel{grid-template-columns:1fr}}
