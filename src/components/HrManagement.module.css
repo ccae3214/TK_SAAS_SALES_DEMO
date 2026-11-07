@@ -176,3 +176,6 @@
 .previewVersions .previewVersionActive{border-color:#1f8366;background:#e4f3ec;color:#176b54}
 .documentFrame{border-radius:12px}
 @media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.smallPrimary,.smallButton,.statCard,.nav button{transition:none}}
+
+/* 標題字型與內文一致：覆蓋 globals.css 對 h1–h6 設定的 Outfit */
+.app :is(h1,h2,h3,h4,h5,h6){font-family:inherit}
