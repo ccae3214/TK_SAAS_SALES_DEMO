@@ -42,7 +42,7 @@ export async function GET(request, { params }) {
     if (actualHash.length !== storedHash.length || !timingSafeEqual(actualHash, storedHash)) {
       throw new Error('document_integrity_check_failed');
     }
-    await pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)', [file.case_id,session.user?.email || session.user?.lineUserId || '登入會員','下載文件',`文件版本 ${id}`]);
+        await pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [file.worker_id, session.user?.email || session.user?.lineUserId || '登入會員','下載文件',`文件版本 ${id}`]);
     const preview = new URL(request.url).searchParams.get('preview') === '1';
     const previewableType = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/i.test(file.content_type || '');
     const inline = preview && previewableType;
