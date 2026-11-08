@@ -1,7 +1,7 @@
 // 執行：node --test scripts/test-hr-requirements.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveApplicability, buildRequirementRows, ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENTS } from '../src/lib/hr-requirements.js';
+import { deriveApplicability, buildRequirementRows, ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENTS, certificationNamesForJobType, CERTIFICATION_STATUSES } from '../src/lib/hr-requirements.js';
 
 const rowsByName = profile => Object.fromEntries(buildRequirementRows(profile).map(row => [row.name, row]));
 
@@ -70,4 +70,13 @@ test('出生逾10年補登證明無法推導，永遠不自動適用', () => {
 
 test('壞資料不會丟例外', () => {
   for (const bad of [null, undefined, 'x', 5, [], { overseasExperiences: 'oops' }]) assert.doesNotThrow(() => buildRequirementRows(bad));
+});
+
+test('案件專屬證照：看護類職類需要 Caregiving NC2，其他職類沒有', () => {
+  assert.deepEqual(certificationNamesForJobType('家庭看護'), ['Caregiving NC2']);
+  assert.deepEqual(certificationNamesForJobType('機構看護工'), ['Caregiving NC2']);
+  assert.deepEqual(certificationNamesForJobType('工廠技術工'), []);
+  assert.deepEqual(certificationNamesForJobType(''), []);
+  assert.deepEqual(certificationNamesForJobType(undefined), []);
+  assert.deepEqual(CERTIFICATION_STATUSES, ['not_started', 'training', 'assessment', 'obtained']);
 });

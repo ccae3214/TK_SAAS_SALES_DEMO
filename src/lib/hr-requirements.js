@@ -64,33 +64,68 @@ export function buildRequirementRows(resumeProfile) {
   });
 }
 
-// ---- 資料庫小工具（runner 可以是 pool 或 transaction 的 client，只要有 .query）----
+// ---- 案件專屬要求（證照）規則 ----
+// 文件（護照、PSA…）屬於工人，與案件無關；案件只會因為職類多出「必備證照」，
+// 例如看護案件需要 Caregiving NC2。工人還沒有證照時，用取證進度追蹤。
+export const CASE_CERTIFICATION_RULES = {
+  '家庭看護': ['Caregiving NC2'],
+  '機構看護工': ['Caregiving NC2'],
+};
 
-export async function insertCaseRequirements(runner, caseId, resumeProfile) {
-  const rows = buildRequirementRows(resumeProfile);
-  await runner.query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate,applicability,applicable,applicability_source)
-    VALUES ${rows.map((_, index) => `($1,$${index * 4 + 2},TRUE,$${index * 4 + 5}::boolean,$${index * 4 + 3},$${index * 4 + 4}::boolean,'auto')`).join(',')}
-    ON CONFLICT(case_id,name) DO NOTHING`,
-  [caseId, ...rows.flatMap(row => [row.name, row.applicability, row.applicable, row.entryGate])]);
+// 取證進度：未開始 → 訓練中 → 考照中 → 已取得
+export const CERTIFICATION_STATUSES = ['not_started', 'training', 'assessment', 'obtained'];
+
+export function certificationNamesForJobType(jobType) {
+  return CASE_CERTIFICATION_RULES[text(jobType)] || [];
 }
 
-// 履歷更新後，重新套用到「仍是自動判斷、且尚未收件」的文件。
+// ---- 資料庫小工具（runner 可以是 pool 或 transaction 的 client，只要有 .query）----
+
+// 工人建立時就建立完整文件清單；適用性依履歷預設。已存在的文件不會被動到。
+export async function insertWorkerDocuments(runner, workerId, resumeProfile) {
+  const rows = buildRequirementRows(resumeProfile);
+  await runner.query(`INSERT INTO hr_worker_documents(worker_id,name,required,entry_gate,applicability,applicable,applicability_source)
+    VALUES ${rows.map((_, index) => `($1,$${index * 4 + 2},TRUE,$${index * 4 + 5}::boolean,$${index * 4 + 3},$${index * 4 + 4}::boolean,'auto')`).join(',')}
+    ON CONFLICT(worker_id,name) DO NOTHING`,
+  [workerId, ...rows.flatMap(row => [row.name, row.applicability, row.applicable, row.entryGate])]);
+}
+
+// 替「還缺文件列」的工人補齊清單（舊資料、之後新增的文件種類、漏掉的建立入口都靠這個補）。
+export async function backfillWorkerDocuments(runner) {
+  const missing = await runner.query(`SELECT w.id,w.resume_profile FROM hr_workers w
+    WHERE (SELECT count(*) FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.name=ANY($1::text[]))<$2`,
+  [WORKER_DOCUMENT_NAMES, WORKER_DOCUMENT_NAMES.length]);
+  for (const row of missing.rows) await insertWorkerDocuments(runner, row.id, row.resume_profile);
+  return missing.rows.length;
+}
+
+// 履歷更新後，重新套用「仍是自動判斷、且尚未收件」的文件適用性。
 // 仲介手動調整過（applicability_source='manual'）或已經有人上傳／審核的文件不會被動到。
-// 回傳有變動的案件編號，呼叫端再去 refreshCaseStage。
-export async function syncAutoRequirements(runner, workerId) {
+// 回傳是否有任何文件變動，呼叫端再重算該工人所有案件的階段。
+export async function syncWorkerDocuments(runner, workerId) {
   const worker = await runner.query('SELECT resume_profile FROM hr_workers WHERE id=$1', [workerId]);
-  if (!worker.rows.length) return [];
-  const cases = await runner.query("SELECT id FROM hr_cases WHERE worker_id=$1 AND status<>'closed'", [workerId]);
-  if (!cases.rows.length) return [];
-  const caseIds = cases.rows.map(row => Number(row.id));
+  if (!worker.rows.length) return false;
   const derived = deriveApplicability(worker.rows[0].resume_profile);
-  const changed = new Set();
+  let changed = false;
   for (const [name, applicability] of WORKER_DOCUMENTS) {
     if (!applicability) continue;
-    const result = await runner.query(`UPDATE hr_case_requirements SET applicable=$3,updated_at=NOW()
-      WHERE case_id=ANY($1::bigint[]) AND name=$2 AND applicability_source='auto' AND status='missing'
-        AND applicable IS DISTINCT FROM $3::boolean RETURNING case_id`, [caseIds, name, derived[name] === true]);
-    result.rows.forEach(row => changed.add(Number(row.case_id)));
+    const result = await runner.query(`UPDATE hr_worker_documents SET applicable=$3,updated_at=NOW()
+      WHERE worker_id=$1 AND name=$2 AND applicability_source='auto' AND status='missing'
+        AND applicable IS DISTINCT FROM $3::boolean RETURNING id`, [workerId, name, derived[name] === true]);
+    if (result.rows.length) changed = true;
   }
-  return [...changed];
+  return changed;
+}
+
+// 建案時依職類建立必備證照列。
+export async function insertCaseCertifications(runner, caseId, jobType) {
+  for (const name of certificationNamesForJobType(jobType)) {
+    await runner.query(`INSERT INTO hr_case_certifications(case_id,name) VALUES($1,$2) ON CONFLICT(case_id,name) DO NOTHING`, [caseId, name]);
+  }
+}
+
+// 補齊既有案件缺少的證照列。
+export async function backfillCaseCertifications(runner) {
+  const cases = await runner.query("SELECT id,job_type FROM hr_cases WHERE job_type=ANY($1::text[])", [Object.keys(CASE_CERTIFICATION_RULES)]);
+  for (const row of cases.rows) await insertCaseCertifications(runner, row.id, row.job_type);
 }
