@@ -73,8 +73,8 @@ export async function POST(request) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const target = await client.query(`SELECT r.id,r.case_id,r.name,r.applicable,c.worker_id,w.agency_id
-      FROM hr_case_requirements r JOIN hr_cases c ON c.id=r.case_id JOIN hr_workers w ON w.id=c.worker_id
+    const target = await client.query(`SELECT r.id,r.name,r.applicable,r.worker_id,w.agency_id
+      FROM hr_worker_documents r JOIN hr_workers w ON w.id=r.worker_id
       WHERE r.id=$1 FOR UPDATE OF r`, [requirementId]);
     if (!target.rowCount) {
       await client.query('ROLLBACK');
@@ -97,8 +97,8 @@ export async function POST(request) {
     const submission = inserted.rows[0];
     await client.query(`INSERT INTO hr_document_files(submission_id,original_filename,content_type,size_bytes,sha256,iv,auth_tag,encrypted_data)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [submission.id,originalFilename,contentType,plain.length,sha256,iv,authTag,encrypted]);
-    await client.query("UPDATE hr_case_requirements SET status='submitted',review_reason='',updated_at=NOW() WHERE id=$1", [requirementId]);
-    await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)', [requirement.case_id,actor,'收到文件',`${requirement.name} · 第 ${submission.version_number} 版`]);
+    await client.query("UPDATE hr_worker_documents SET status='submitted',review_reason='',updated_at=NOW() WHERE id=$1", [requirementId]);
+    await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [requirement.worker_id,actor,'收到文件',`${requirement.name} · 第 ${submission.version_number} 版`]);
     await client.query('COMMIT');
     return NextResponse.json({ ok: true, submissionId: submission.id, version: submission.version_number }, { status: 201 });
   } catch (error) {

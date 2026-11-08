@@ -4,7 +4,8 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getAdminEmails, getAdminLineUserIds, getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
 import { hashPassword } from '@/lib/passwords';
-import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, insertCaseRequirements, syncAutoRequirements } from '@/lib/hr-requirements';
+import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
+import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -108,18 +109,10 @@ export async function ensureSchema() {
     await pool.query('CREATE INDEX IF NOT EXISTS hr_chat_messages_room_created ON hr_chat_messages(room_id,created_at DESC,id DESC)');
     await pool.query("ALTER TABLE hr_cases ADD COLUMN IF NOT EXISTS medical_status TEXT NOT NULL DEFAULT 'not_scheduled'");
     await pool.query("ALTER TABLE hr_cases ADD COLUMN IF NOT EXISTS training_status TEXT NOT NULL DEFAULT 'not_scheduled'");
-    await pool.query(`CREATE TABLE IF NOT EXISTS hr_case_requirements (
-      id BIGSERIAL PRIMARY KEY, case_id BIGINT NOT NULL REFERENCES hr_cases(id) ON DELETE CASCADE,
-      name TEXT NOT NULL, required BOOLEAN NOT NULL DEFAULT TRUE, entry_gate BOOLEAN NOT NULL DEFAULT FALSE,
-      status TEXT NOT NULL DEFAULT 'missing' CHECK (status IN ('missing','submitted','approved','returned')),
-      review_reason TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`);
-    await pool.query("ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicability TEXT NOT NULL DEFAULT ''");
-    await pool.query('ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicable BOOLEAN NOT NULL DEFAULT TRUE');
-    // auto = 依履歷自動判斷（履歷更新時會重新套用）；manual = 仲介手動調整過，之後不覆寫。既有資料一律視為 manual。
-    await pool.query("ALTER TABLE hr_case_requirements ADD COLUMN IF NOT EXISTS applicability_source TEXT NOT NULL DEFAULT 'manual'");
+    // 必要文件屬於工人（hr_worker_documents），案件只有專屬的必備證照（hr_case_certifications）。舊的案件層資料會在這裡自動搬移。
+    const documentMigration = await migrateWorkerDocuments(pool);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_document_submissions (
-      id BIGSERIAL PRIMARY KEY, requirement_id BIGINT NOT NULL REFERENCES hr_case_requirements(id) ON DELETE CASCADE,
+      id BIGSERIAL PRIMARY KEY, requirement_id BIGINT NOT NULL REFERENCES hr_worker_documents(id) ON DELETE CASCADE,
       version_number INTEGER NOT NULL, filename TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', submitted_by TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(requirement_id, version_number)
     )`);
@@ -134,7 +127,6 @@ export async function ensureSchema() {
       decision TEXT NOT NULL CHECK (decision IN ('approved','returned')), reason TEXT NOT NULL DEFAULT '',
       reviewer TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(submission_id)
     )`);
-    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS hr_case_requirements_case_name ON hr_case_requirements(case_id,name)');
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_case_tasks (
       id BIGSERIAL PRIMARY KEY, case_id BIGINT NOT NULL REFERENCES hr_cases(id) ON DELETE CASCADE,
       title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('document','medical','training','other')),
@@ -153,20 +145,14 @@ export async function ensureSchema() {
       note TEXT NOT NULL DEFAULT '', updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(case_id,step_key)
     )`);
-    await pool.query("UPDATE hr_case_requirements SET name='新護照' WHERE name='護照資料頁' AND NOT EXISTS (SELECT 1 FROM hr_case_requirements other WHERE other.case_id=hr_case_requirements.case_id AND other.name='新護照')");
-    await pool.query("UPDATE hr_case_requirements SET name='PSA出生證明（附收據）' WHERE name='PSA 出生證明' AND NOT EXISTS (SELECT 1 FROM hr_case_requirements other WHERE other.case_id=hr_case_requirements.case_id AND other.name='PSA出生證明（附收據）')");
-    // 補齊缺少的文件列（例如之後新增了文件種類）；新列依該工作者履歷自動判斷適用性。
-    const incompleteCases = await pool.query(`SELECT c.id,w.resume_profile FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
-      WHERE (SELECT count(*) FROM hr_case_requirements r WHERE r.case_id=c.id AND r.name=ANY($1::text[]))<$2`, [WORKER_DOCUMENT_NAMES, WORKER_DOCUMENT_NAMES.length]);
-    for (const row of incompleteCases.rows) await insertCaseRequirements(pool, row.id, row.resume_profile);
-    // 修正前置文件：只有「新護照」與「PSA出生證明（附收據）」是前置文件。
-    // 舊版把所有無條件文件（含「體檢 Medical」）都設成前置，會造成要先核准體檢文件才能排體檢。
-    const fixedGates = await pool.query(`UPDATE hr_case_requirements SET entry_gate=(required AND applicable AND name=ANY($1::text[])),updated_at=NOW()
-      WHERE name=ANY($2::text[]) AND entry_gate IS DISTINCT FROM (required AND applicable AND name=ANY($1::text[])) RETURNING case_id`, [ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENT_NAMES]);
-    for (const caseId of new Set(fixedGates.rows.map(row => Number(row.case_id)))) await refreshCaseStage(caseId);
     await pool.query(`INSERT INTO hr_application_steps(case_id,step_key,label)
       SELECT c.id,s.step_key,s.label FROM hr_cases c CROSS JOIN (VALUES ${APPLICATION_STEPS.map((_,index)=>`($${index*2+1},$${index*2+2})`).join(',')}) AS s(step_key,label)
       ON CONFLICT(case_id,step_key) DO UPDATE SET label=EXCLUDED.label`, APPLICATION_STEPS.flat());
+    // 文件搬到工人層、或前置文件旗標被修正後，重算受影響案件的階段。
+    const staleCases = documentMigration.migrated
+      ? await pool.query("SELECT id FROM hr_cases WHERE status<>'closed'")
+      : await pool.query('SELECT id FROM hr_cases WHERE worker_id=ANY($1::bigint[])', [documentMigration.affectedWorkerIds]);
+    for (const row of staleCases.rows) await refreshCaseStage(row.id);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_cases_status_updated ON hr_cases(status, updated_at DESC)');
     await pool.query('CREATE INDEX IF NOT EXISTS hr_tasks_case_status ON hr_case_tasks(case_id, status, due_date)');
     await ensureHrIdentitySchema();
@@ -246,22 +232,33 @@ async function recordActivity(caseId, actor, action, detail) {
   await pool.query('INSERT INTO hr_case_activity(case_id, actor_email, action, detail) VALUES($1,$2,$3,$4)', [caseId, actor, action, detail]);
 }
 
+// 文件屬於工人，沒有案件時就沒有案件動態可記；有案件的話，每個案件的動態裡都會看到這筆紀錄。
+async function recordWorkerActivity(runner, workerId, actor, action, detail) {
+  await runner.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [workerId, actor, action, detail]);
+}
+
 async function refreshCaseStage(caseId) {
   const [state] = await query(`SELECT c.medical_status,c.training_status,
-    EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed,
-    EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.required AND r.applicable AND r.status<>'approved') AS documents_open
+    EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed,
+    EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.required AND d.applicable AND d.status<>'approved') AS documents_open,
+    EXISTS(SELECT 1 FROM hr_case_certifications k WHERE k.case_id=c.id AND k.status<>'obtained') AS certification_open
     FROM hr_cases c WHERE c.id=$1`, [caseId]);
   if (!state) return;
   const stage = state.gate_closed ? 'intake'
     : state.documents_open ? 'documents'
-    : state.medical_status !== 'passed' || state.training_status !== 'completed' ? 'medical_training'
+    : state.medical_status !== 'passed' || state.training_status !== 'completed' || state.certification_open ? 'medical_training'
     : 'completed';
   await query('UPDATE hr_cases SET stage=$2,updated_at=NOW() WHERE id=$1', [caseId, stage]);
 }
 
+// 工人的文件有變動時，重算他所有案件的階段。
+async function refreshWorkerCases(workerId) {
+  for (const row of await query('SELECT id FROM hr_cases WHERE worker_id=$1', [workerId])) await refreshCaseStage(row.id);
+}
+
 // 履歷變更後，重新套用「自動判斷」的文件適用性（仲介手動調整過的不會被覆寫）。
 async function resyncRequirements(workerId) {
-  for (const caseId of await syncAutoRequirements(pool, workerId)) await refreshCaseStage(caseId);
+  if (await syncWorkerDocuments(pool, workerId)) await refreshWorkerCases(workerId);
 }
 
 export async function GET() {
@@ -278,7 +275,7 @@ export async function GET() {
       const agencies=await query('SELECT id,name,agency_type,country,active FROM hr_agencies WHERE active=TRUE ORDER BY agency_type,name');
       return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, requestedAgencyId: principal.requested_agency_id || null, requestedAgencyName: principal.requested_agency_name || null, requestedAgencyType: principal.requested_agency_type || null, agencies, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
     }
-    const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts] = await Promise.all([
+    const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts, allCertifications] = await Promise.all([
       query('SELECT * FROM hr_employers ORDER BY status, name'),
       query('SELECT * FROM hr_workers ORDER BY status, name'),
       query(`SELECT c.*, e.name AS employer_name, e.agency_id AS employer_agency_id, e.employer_type,
@@ -291,18 +288,17 @@ export async function GET() {
       query(`SELECT t.*, c.case_number, w.name AS worker_name FROM hr_case_tasks t
         JOIN hr_cases c ON c.id=t.case_id JOIN hr_workers w ON w.id=c.worker_id
         ORDER BY CASE WHEN t.status='done' THEN 1 ELSE 0 END, t.due_date NULLS LAST, t.updated_at DESC`),
-      query(`SELECT r.*, c.case_number, w.name AS worker_name, e.name AS employer_name,
+      query(`SELECT r.*, w.name AS worker_name, w.agency_id AS worker_agency_id,
         (SELECT s.id FROM hr_document_submissions s WHERE s.requirement_id=r.id ORDER BY s.version_number DESC LIMIT 1) AS latest_submission_id,
         (SELECT s.filename FROM hr_document_submissions s WHERE s.requirement_id=r.id ORDER BY s.version_number DESC LIMIT 1) AS latest_filename,
         (SELECT s.created_at FROM hr_document_submissions s WHERE s.requirement_id=r.id ORDER BY s.version_number DESC LIMIT 1) AS latest_submission_at
-        FROM hr_case_requirements r JOIN hr_cases c ON c.id=r.case_id
-        JOIN hr_workers w ON w.id=c.worker_id JOIN hr_employers e ON e.id=c.employer_id
+        FROM hr_worker_documents r JOIN hr_workers w ON w.id=r.worker_id
         ORDER BY CASE r.status WHEN 'submitted' THEN 0 WHEN 'returned' THEN 1 WHEN 'missing' THEN 2 ELSE 3 END, r.updated_at DESC`),
-      query(`SELECT s.*, r.name AS requirement_name, r.case_id, c.case_number, w.name AS worker_name,
+      query(`SELECT s.*, r.name AS requirement_name, r.worker_id, w.name AS worker_name,
         v.decision, v.reason AS review_reason, v.reviewer, v.created_at AS reviewed_at,
         f.original_filename,f.size_bytes,f.content_type
-        FROM hr_document_submissions s JOIN hr_case_requirements r ON r.id=s.requirement_id
-        JOIN hr_cases c ON c.id=r.case_id JOIN hr_workers w ON w.id=c.worker_id
+        FROM hr_document_submissions s JOIN hr_worker_documents r ON r.id=s.requirement_id
+        JOIN hr_workers w ON w.id=r.worker_id
         LEFT JOIN hr_document_reviews v ON v.submission_id=s.id LEFT JOIN hr_document_files f ON f.submission_id=s.id
         ORDER BY s.created_at DESC LIMIT 200`),
       query(`SELECT a.*, c.case_number FROM hr_case_activity a JOIN hr_cases c ON c.id=a.case_id ORDER BY a.created_at DESC LIMIT 100`),
@@ -327,6 +323,9 @@ export async function GET() {
       query(`SELECT r.*,a.name philippines_agency_name,oa.job_order_id,oa.taiwan_agency_id FROM hr_job_order_routes r JOIN hr_agencies a ON a.id=r.philippines_agency_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id`),
       query(`SELECT c.*,w.name worker_name,w.nationality,w.job_preference,w.agency_id worker_agency_id,r.philippines_agency_id,oa.job_order_id,oa.taiwan_agency_id,ca.name philippines_agency_name FROM hr_job_order_candidates c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_agencies ca ON ca.id=r.philippines_agency_id`),
       query(`SELECT m.id,m.display_name,m.agency_id,a.name AS agency_name FROM hr_members m JOIN hr_agencies a ON a.id=m.agency_id WHERE m.role='agency' AND m.active=TRUE AND a.active=TRUE AND a.agency_type='taiwan' ORDER BY a.name,m.display_name`),
+      query(`SELECT k.*,c.case_number,c.worker_id,c.job_type,w.name AS worker_name FROM hr_case_certifications k
+        JOIN hr_cases c ON c.id=k.case_id JOIN hr_workers w ON w.id=c.worker_id
+        ORDER BY (k.status='obtained'),k.updated_at DESC`),
     ]);
     let employers = allEmployers;
     let workers = allWorkers;
@@ -422,8 +421,11 @@ export async function GET() {
     const caseIds = new Set(cases.map(item => Number(item.id)));
     const privateCaseIds = employerPrivateCaseIds || caseIds;
     const tasks = allTasks.filter(item => privateCaseIds.has(Number(item.case_id)));
-    const requirements = allRequirements.filter(item => privateCaseIds.has(Number(item.case_id)));
-    const submissions = allSubmissions.filter(item => privateCaseIds.has(Number(item.case_id)));
+    // 文件屬於工人：看得到哪些工人，就看得到哪些工人的文件（雇主只看得到已建立案件的工人）。
+    const documentWorkerIds = principal.role === 'employer' ? new Set(cases.map(item => Number(item.worker_id))) : new Set(workers.map(item => Number(item.id)));
+    const requirements = allRequirements.filter(item => documentWorkerIds.has(Number(item.worker_id)));
+    const submissions = allSubmissions.filter(item => documentWorkerIds.has(Number(item.worker_id)));
+    const certifications = allCertifications.filter(item => privateCaseIds.has(Number(item.case_id)));
     const applicationSteps = allApplicationSteps.filter(item => caseIds.has(Number(item.case_id)));
     const relatedActivity = allActivity.filter(item => privateCaseIds.has(Number(item.case_id)));
     const activity = principal.role === 'admin' ? relatedActivity : relatedActivity.map(({ actor_email, ...item }) => item);
@@ -441,7 +443,7 @@ export async function GET() {
       ['system','agency'].includes(member.admin_scope)
       ||getAdminEmails().includes(String(member.email||'').trim().toLowerCase())
       ||getAdminLineUserIds().includes(member.line_user_id)}));
-    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
@@ -598,6 +600,7 @@ export async function POST(request) {
         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name,clean(body.nationality,80),clean(body.phone,50),clean(body.email,254),jobPreference,clean(body.notes,2000),JSON.stringify(workerProfile),principal.agency_id]);
       const profile=workerProfileWithReference(workerProfile,jobPreference,created[0].id);
       const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[created[0].id,JSON.stringify(profile)]);
+      await insertWorkerDocuments(pool,created[0].id,profile);
       return NextResponse.json(saved[0], { status: 201 });
     }
     if (principal.role !== 'admin') return NextResponse.json({ error: 'HR admin access required' }, { status: 403 });
@@ -639,6 +642,7 @@ export async function POST(request) {
           workerId = created.rows[0].id;
           const resumeProfile = workerProfileWithReference(profile,jobPreference,workerId);
           await client.query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1', [workerId,JSON.stringify(resumeProfile)]);
+          await insertWorkerDocuments(client,workerId,resumeProfile);
         } else if (role === 'employer') {
           const employerType = ['home_care','factory','domestic_helper','other'].includes(body.employerType) ? body.employerType : '';
           if (!employerType) {
@@ -688,6 +692,7 @@ export async function POST(request) {
         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name, clean(body.nationality,80), clean(body.phone,50), clean(body.email,254), jobPreference, clean(body.notes,2000), JSON.stringify(workerProfile), agencyId]);
       const profile=workerProfileWithReference(workerProfile,jobPreference,result[0].id);
       const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[result[0].id,JSON.stringify(profile)]);
+      await insertWorkerDocuments(pool,result[0].id,profile);
       return NextResponse.json(saved[0], { status: 201 });
     }
     if (body.type === 'case') {
@@ -712,22 +717,29 @@ export async function POST(request) {
       const caseNumber = `HR-${new Date().toISOString().slice(0,10).replaceAll('-','')}-${randomUUID().slice(0,6).toUpperCase()}`;
       const result = await query(`INSERT INTO hr_cases(case_number,employer_id,worker_id,assigned_member_id,job_type,expected_start_date,notes)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [caseNumber,Number(body.employerId),Number(body.workerId),assignedMemberId,jobType,body.expectedStartDate || null,clean(body.notes,4000)]);
+      // 文件屬於工人、在工人建立時就已產生；這裡只是保險補齊。案件本身只會依職類多出必備證照（例如看護 → Caregiving NC2）。
       const [caseWorker] = await query('SELECT resume_profile FROM hr_workers WHERE id=$1', [Number(body.workerId)]);
-      await insertCaseRequirements(pool, result[0].id, caseWorker?.resume_profile);
+      await insertWorkerDocuments(pool, Number(body.workerId), caseWorker?.resume_profile);
+      await insertCaseCertifications(pool, result[0].id, jobType);
       await query(`INSERT INTO hr_application_steps(case_id,step_key,label)
         VALUES ${APPLICATION_STEPS.map((_,index)=>`($1,$${index*2+2},$${index*2+3})`).join(',')}
         ON CONFLICT(case_id,step_key) DO NOTHING`, [result[0].id,...APPLICATION_STEPS.flat()]);
       await recordActivity(result[0].id, actor, '建立案件', caseNumber);
+      await refreshCaseStage(result[0].id);
       return NextResponse.json(result[0], { status: 201 });
     }
     if (body.type === 'requirement') {
-      if (!validId(body.caseId)) return NextResponse.json({ error: '請選擇案件。' }, { status: 400 });
+      // 額外的文件要求加在工人身上（可傳 workerId，或傳 caseId 由案件找到工人）。
+      let workerId = validId(body.workerId) ? Number(body.workerId) : null;
+      if (!workerId && validId(body.caseId)) workerId = Number((await query('SELECT worker_id FROM hr_cases WHERE id=$1', [Number(body.caseId)]))[0]?.worker_id) || null;
+      if (!workerId) return NextResponse.json({ error: '請選擇工作者。' }, { status: 400 });
       const name = clean(body.name, 160);
       if (!name) return NextResponse.json({ error: '請填寫文件名稱。' }, { status: 400 });
-      const result = await query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate)
-        VALUES($1,$2,$3,$4) RETURNING *`, [Number(body.caseId), name, body.required !== false, body.entryGate === true]);
-      await recordActivity(Number(body.caseId), actor, '新增文件要求', name);
-      await refreshCaseStage(Number(body.caseId));
+      const result = await query(`INSERT INTO hr_worker_documents(worker_id,name,required,entry_gate,applicability_source)
+        VALUES($1,$2,$3,$4,'manual') ON CONFLICT(worker_id,name) DO NOTHING RETURNING *`, [workerId, name, body.required !== false, body.entryGate === true]);
+      if (!result.length) return NextResponse.json({ error: '這位工作者已經有同名的文件。' }, { status: 409 });
+      await recordWorkerActivity(pool, workerId, actor, '新增文件要求', name);
+      await refreshWorkerCases(workerId);
       return NextResponse.json(result[0], { status: 201 });
     }
     if (body.type === 'task') {
@@ -808,7 +820,8 @@ export async function PATCH(request) {
             const assignment=await client.query(`SELECT broker_member_id FROM hr_job_order_agencies WHERE job_order_id=$1 AND taiwan_agency_id=$2`,[item.job_order_id,item.taiwan_agency_id]);
             const created=await client.query(`INSERT INTO hr_cases(case_number,employer_id,worker_id,assigned_member_id,job_type,expected_start_date,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[caseNumber,item.employer_id,item.worker_id,assignment.rows[0]?.broker_member_id||null,item.job_type,item.expected_start_date,`由需求單 #${item.job_order_id} 面試錄用`]);caseId=created.rows[0].id;
             const hiredWorker=await client.query('SELECT resume_profile FROM hr_workers WHERE id=$1',[item.worker_id]);
-            await insertCaseRequirements(client,caseId,hiredWorker.rows[0]?.resume_profile);
+            await insertWorkerDocuments(client,item.worker_id,hiredWorker.rows[0]?.resume_profile);
+            await insertCaseCertifications(client,caseId,item.job_type);
             await client.query(`INSERT INTO hr_application_steps(case_id,step_key,label) VALUES ${APPLICATION_STEPS.map((_,index)=>`($1,$${index*2+2},$${index*2+3})`).join(',')} ON CONFLICT(case_id,step_key) DO NOTHING`,[caseId,...APPLICATION_STEPS.flat()]);
             await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)',[caseId,actor,'面試錄用並建立正式申辦案件',caseNumber]);
           }
@@ -899,21 +912,34 @@ export async function PATCH(request) {
         RETURNING m.id,m.email,m.display_name,m.role,m.active`,[memberId,principal.agency_id,body.active!==false]);
       return NextResponse.json(result[0]);
     }
-    if (principal.role !== 'admin' && !principal.is_agency_admin && !['requirement-applicability','application-step','review','workflow','case'].includes(body.type)) return NextResponse.json({ error: 'HR admin access required' }, { status: 403 });
-    if (principal.is_agency_admin && !['member-profile','member','requirement-applicability','application-step','review','workflow','case'].includes(body.type)) return NextResponse.json({ error: '仲介管理者無權執行此操作。' }, { status: 403 });
+    if (principal.role !== 'admin' && !principal.is_agency_admin && !['requirement-applicability','application-step','review','workflow','case','certification'].includes(body.type)) return NextResponse.json({ error: 'HR admin access required' }, { status: 403 });
+    if (principal.is_agency_admin && !['member-profile','member','requirement-applicability','application-step','review','workflow','case','certification'].includes(body.type)) return NextResponse.json({ error: '仲介管理者無權執行此操作。' }, { status: 403 });
     if (body.type === 'requirement-applicability') {
       if (principal.role === 'agency' && principal.agency_type !== 'philippines') return NextResponse.json({error:'此申請流程僅開放菲律賓仲介會員。'},{status:403});
       const requirementId=Number(body.requirementId);
       if (!validId(requirementId)) return NextResponse.json({error:'文件項目編號不正確。'},{status:400});
-      const changed=await query(`UPDATE hr_case_requirements r SET applicable=$3,applicability_source='manual',
+      const changed=await query(`UPDATE hr_worker_documents r SET applicable=$3,applicability_source='manual',
           entry_gate=CASE WHEN r.name=ANY($6::text[]) THEN (r.required AND $3 AND r.name=ANY($5::text[])) ELSE r.entry_gate END,updated_at=NOW()
-        FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
-        WHERE r.id=$1 AND c.id=r.case_id AND r.status<>'submitted' AND (r.applicability<>'' OR $2::text='admin') AND ($2::text='admin' OR w.agency_id=$4)
-        RETURNING r.id,r.case_id,r.required,r.entry_gate,r.applicable`,[requirementId,principal.role,body.applicable===true,principal.agency_id||null,ENTRY_GATE_DOCUMENTS,WORKER_DOCUMENT_NAMES]);
+        FROM hr_workers w
+        WHERE r.id=$1 AND w.id=r.worker_id AND r.status<>'submitted' AND (r.applicability<>'' OR $2::text='admin') AND ($2::text='admin' OR w.agency_id=$4)
+        RETURNING r.id,r.worker_id,r.required,r.entry_gate,r.applicable`,[requirementId,principal.role,body.applicable===true,principal.agency_id||null,ENTRY_GATE_DOCUMENTS,WORKER_DOCUMENT_NAMES]);
       if (!changed.length) return NextResponse.json({error:'找不到可管理的文件項目。'},{status:404});
-      await recordActivity(changed[0].case_id,actor,body.applicable?'確認文件適用':'標示文件不適用',String(requirementId));
-      await refreshCaseStage(changed[0].case_id);
+      await recordWorkerActivity(pool,changed[0].worker_id,actor,body.applicable?'確認文件適用':'標示文件不適用',String(requirementId));
+      await refreshWorkerCases(changed[0].worker_id);
       return NextResponse.json(changed[0]);
+    }
+    if (body.type === 'certification') {
+      // 案件專屬的必備證照（例如看護案件的 Caregiving NC2）；工人還沒有證照時，用這裡追蹤取證進度。
+      const certificationId=Number(body.id), status=clean(body.status,30);
+      if (!validId(certificationId)||!CERTIFICATION_STATUSES.includes(status)||!validDate(body.targetDate)) return NextResponse.json({error:'取證進度或日期不正確。'},{status:400});
+      const saved=await query(`UPDATE hr_case_certifications k SET status=$2,target_date=$3,note=$4,updated_by=$5,updated_at=NOW()
+        FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_employers e ON e.id=c.employer_id
+        WHERE k.id=$1 AND c.id=k.case_id AND ($6::text='admin' OR ($6::text='agency' AND (($8::text='philippines' AND w.agency_id=$7) OR ($8::text='taiwan' AND e.agency_id=$7))))
+        RETURNING k.*`,[certificationId,status,body.targetDate||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null]);
+      if (!saved.length) return NextResponse.json({error:'找不到可管理的證照項目。'},{status:404});
+      await recordActivity(saved[0].case_id,actor,'更新取證進度',`${saved[0].name}：${status}`);
+      await refreshCaseStage(saved[0].case_id);
+      return NextResponse.json(saved[0]);
     }
     if (body.type === 'application-step') {
       const caseId=Number(body.caseId), stepKey=clean(body.stepKey,60), step=APPLICATION_STEPS.find(([key])=>key===stepKey);
@@ -1000,6 +1026,7 @@ export async function PATCH(request) {
               const created = await client.query('INSERT INTO hr_workers(name,nationality,agency_id) VALUES($1,$2,$3) RETURNING id', [clean(current.display_name,160)||'會員工作者','菲律賓',agencyId]);
               workerId = created.rows[0].id;
             }
+            await insertWorkerDocuments(client, workerId, {});
           } else if (role === 'employer') {
             if (current.role === 'employer' && current.employer_id) {
               const updated = await client.query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.employer_id,agencyId]);
@@ -1040,10 +1067,10 @@ export async function PATCH(request) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const target = await client.query(`SELECT s.id,s.requirement_id,r.case_id,s.version_number,w.agency_id,
+        const target = await client.query(`SELECT s.id,s.requirement_id,r.worker_id,s.version_number,w.agency_id,
           (SELECT MAX(latest.version_number) FROM hr_document_submissions latest WHERE latest.requirement_id=r.id) AS latest_version
-          FROM hr_document_submissions s JOIN hr_case_requirements r ON r.id=s.requirement_id
-          JOIN hr_cases c ON c.id=r.case_id JOIN hr_workers w ON w.id=c.worker_id
+          FROM hr_document_submissions s JOIN hr_worker_documents r ON r.id=s.requirement_id
+          JOIN hr_workers w ON w.id=r.worker_id
           WHERE s.id=$1 AND r.status='submitted' FOR UPDATE OF r`, [submissionId]);
         if (principal.role === 'agency' && target.rowCount && Number(target.rows[0].agency_id)!==Number(principal.agency_id)) {
           await client.query('ROLLBACK');
@@ -1055,10 +1082,10 @@ export async function PATCH(request) {
         }
         const item = target.rows[0];
         await client.query('INSERT INTO hr_document_reviews(submission_id,decision,reason,reviewer) VALUES($1,$2,$3,$4)', [submissionId,decision,decision==='returned'?reason:'',actor]);
-        await client.query('UPDATE hr_case_requirements SET status=$2,review_reason=$3,updated_at=NOW() WHERE id=$1', [item.requirement_id,decision,decision==='returned'?reason:'']);
-        await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)', [item.case_id,actor,decision==='approved'?'核准文件':'退回文件',decision==='returned'?reason:`文件版本 ${item.version_number}`]);
+        await client.query('UPDATE hr_worker_documents SET status=$2,review_reason=$3,updated_at=NOW() WHERE id=$1', [item.requirement_id,decision,decision==='returned'?reason:'']);
+        await recordWorkerActivity(client,item.worker_id,actor,decision==='approved'?'核准文件':'退回文件',decision==='returned'?reason:`文件版本 ${item.version_number}`);
         await client.query('COMMIT');
-        await refreshCaseStage(item.case_id);
+        await refreshWorkerCases(item.worker_id);
         return NextResponse.json({ ok: true });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -1075,7 +1102,7 @@ export async function PATCH(request) {
       const column = workflowType === 'medical' ? 'medical_status' : 'training_status';
       const previous = await query(`SELECT c.${column} AS current_status,e.agency_id AS employer_agency_id,
         (e.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$2)) AS agency_can_manage,
-        EXISTS(SELECT 1 FROM hr_case_requirements r WHERE r.case_id=c.id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed
+        EXISTS(SELECT 1 FROM hr_worker_documents r WHERE r.worker_id=c.worker_id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed
         FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.id=$1`, [caseId,principal.agency_id||null]);
       if (!previous.length) return NextResponse.json({ error: '找不到案件。' }, { status: 404 });
       if (principal.role === 'agency' && !previous[0].agency_can_manage) return NextResponse.json({ error: '無權管理其他台灣仲介的案件。' }, { status: 403 });

@@ -1,5 +1,7 @@
 import { getHrPrincipal } from '@/lib/hr-access';
 import { query } from '@/lib/db';
+import pool from '@/lib/db';
+import { insertWorkerDocuments } from '@/lib/hr-requirements';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -450,6 +452,7 @@ async function createAdminRecord(type, values) {
     const sequence = String(created[0].id).padStart(3,'0');
     const referenceNo = `${category}${sex}-${category === 'CT' ? sequence : `${String(new Date().getFullYear()).slice(-2)}${sequence}`}`;
     await query("UPDATE hr_workers SET resume_profile=jsonb_set(resume_profile,'{referenceNo}',to_jsonb($2::text),true) WHERE id=$1", [created[0].id,referenceNo]);
+    await insertWorkerDocuments(pool, created[0].id, { gender });
     return created;
   }
   if (type === 'employer') {
@@ -679,15 +682,19 @@ async function visibleCases(principal, limit = 8) {
     ORDER BY c.updated_at DESC LIMIT ${limitParam}`, params);
 }
 
+// 文件屬於工人（不需要案件）。工人看自己的；雇主只看已與自己建案的工人；仲介看所屬工人與所屬雇主案件中的工人。
 async function visibleRequirements(principal) {
-  const scope = caseScope(principal);
-  if (!scope) return [];
-  return query(`SELECT r.name,r.status,r.review_reason,c.case_number,w.name AS worker_name
-    FROM hr_case_requirements r JOIN hr_cases c ON c.id=r.case_id
-    JOIN hr_workers w ON w.id=c.worker_id JOIN hr_employers e ON e.id=c.employer_id
-    ${scope.where ? `WHERE ${scope.where}` : ''}
-    ORDER BY CASE r.status WHEN 'submitted' THEN 0 WHEN 'returned' THEN 1 ELSE 2 END,c.updated_at DESC,r.id
-    LIMIT 12`, scope.params);
+  let where, params;
+  if (principal.role === 'admin') { where = 'TRUE'; params = []; }
+  else if (principal.role === 'worker') { where = 'w.id=$1'; params = [principal.worker_id]; }
+  else if (principal.role === 'employer') { where = 'EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id AND c.employer_id=$1)'; params = [principal.employer_id]; }
+  else if (principal.role === 'agency') { where = '(w.agency_id=$1 OR EXISTS(SELECT 1 FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.worker_id=w.id AND e.agency_id=$1))'; params = [principal.agency_id]; }
+  else return [];
+  return query(`SELECT d.name,d.status,d.review_reason,w.name AS worker_name
+    FROM hr_worker_documents d JOIN hr_workers w ON w.id=d.worker_id
+    WHERE ${where} AND d.required AND d.applicable AND d.status<>'approved'
+    ORDER BY CASE d.status WHEN 'returned' THEN 0 WHEN 'missing' THEN 1 ELSE 2 END,d.entry_gate DESC,w.id,d.id
+    LIMIT 12`, params);
 }
 
 async function visibleTasks(principal) {
@@ -955,14 +962,14 @@ export async function replyForHrLineEvent(event) {
 
   if (/文件|護照|psa|出生證明|document|passport|birth certificate|dokumento|pasaporte/.test(lower)) {
     const rows = await visibleRequirements(principal);
-    if (!rows.length) return activeLanguage === 'en' ? 'There is no case document progress available.' : activeLanguage === 'tl' ? 'Walang available na progreso ng dokumento para sa kaso.' : '目前沒有可查看的案件文件進度。';
+    if (!rows.length) return activeLanguage === 'en' ? 'No documents are outstanding.' : activeLanguage === 'tl' ? 'Walang kulang na dokumento.' : '目前沒有待補或待審的文件。';
     const docLabels = activeLanguage === 'en'
       ? {missing:'Not received',submitted:'Pending review',approved:'Approved',returned:'Returned for update'}
       : activeLanguage === 'tl'
         ? {missing:'Hindi pa natatanggap',submitted:'Naghihintay ng pagsusuri',approved:'Naaprubahan',returned:'Ibinalik para ayusin'}
         : DOC_LABELS;
-    const header = activeLanguage === 'en' ? 'Document progress:' : activeLanguage === 'tl' ? 'Progreso ng dokumento:' : '文件進度：';
-    return [header, ...rows.map(item => `${item.case_number}｜${item.name}: ${docLabels[item.status] || item.status}${item.status === 'returned' && item.review_reason ? ` (${item.review_reason})` : ''}`)].join('\n');
+    const header = activeLanguage === 'en' ? 'Documents still needed:' : activeLanguage === 'tl' ? 'Mga dokumentong kailangan pa:' : '尚未完成的文件：';
+    return [header, ...rows.map(item => `${principal.role === 'worker' ? '' : `${item.worker_name}｜`}${item.name}: ${docLabels[item.status] || item.status}${item.status === 'returned' && item.review_reason ? ` (${item.review_reason})` : ''}`)].join('\n');
   }
   if (/待辦|待處理|工作事項|task|to-do|pending work|gawain|nakabinbin/.test(lower)) {
     const rows = await visibleTasks(principal);
