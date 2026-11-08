@@ -337,6 +337,9 @@ function PortalStyles() {
 .hr-member-shell .card-title h2{margin:0}
 .hr-member-shell .hr-member-footer{padding:10px 4px 6px;text-align:center;color:var(--ink-3);font-size:12px}
 .hr-member-shell .hr-request-error,.hr-member-shell .hr-request-success{display:block;max-width:1100px;margin:0 auto 14px;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:700;line-height:1.6}
+.hr-member-shell .application-submit-success{max-width:none;margin:0 0 16px;animation:application-submit-pop .35s ease-out}
+@keyframes application-submit-pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.hr-member-shell .application-submit-success{animation:none}}
 .hr-member-shell .hr-request-error{border:1px solid #f4c7c2;background:var(--red-bg);color:var(--red)!important}
 .hr-member-shell .hr-request-success{border:1px solid #bfe3d0;background:var(--g-100);color:var(--g-700)!important}
 .hr-member-shell .hr-member-card button,.hr-member-shell .progress-modal button.worker-delete-confirm,.hr-member-shell .progress-modal .worker-edit-actions button,.hr-member-shell .process-row button,.hr-member-shell .progress-step button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 16px;border:0;border-radius:11px;background:linear-gradient(135deg,var(--g-700),var(--g-600));color:#fff;font:inherit;font-size:14px;font-weight:700;line-height:1.2;cursor:pointer;box-shadow:0 4px 12px rgba(23,107,84,.22);transition:transform .16s,box-shadow .16s,filter .16s}
@@ -632,6 +635,7 @@ export default function HrMemberPortal({ actor }) {
   const [requestedAgencyId, setRequestedAgencyId] = useState('');
   const [requestedAgencyType, setRequestedAgencyType] = useState('taiwan');
   const [requesting, setRequesting] = useState(false);
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [progressWorker, setProgressWorker] = useState(null);
   const [profileWorker, setProfileWorker] = useState(null);
   const [workerToDelete, setWorkerToDelete] = useState(null);
@@ -858,11 +862,15 @@ export default function HrMemberPortal({ actor }) {
         if (!response.ok) throw new Error(body.error || '申請送出失敗');
         const selectedAgency=currentAgency();
         setData(current => ({ ...current, pendingApproval: true, requestedRole: body.requestedRole, requestedAgencyId: body.requestedAgencyId, requestedAgencyName: selectedAgency?.name || null, requestedAgencyType: selectedAgency?.agency_type || null }));
+        // 送出成功的明確回饋：顯示提示條，並把畫面捲回最上面（手機上否則看不到畫面已經換成審核進度）。
+        setRequestSubmitted(true);
+        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err) { setError(err.message); }
       finally { setRequesting(false); }
     }
     return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
       {data.pendingApproval ? <div className="application-review">
+        {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>送出成功！你的{roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。</p>}
         <div className="application-review-heading">
           <div className="application-review-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></div>
           <div><span className="application-review-eyebrow">會員申請進度</span><span className="application-review-badge">審核中</span></div>
