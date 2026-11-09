@@ -250,6 +250,16 @@ const EN_EXTRA = {
   '提醒': 'Reminders', '近期案件日期': 'Upcoming case dates', '聊天室未讀': 'Unread chats', '基本資料待補': 'Incomplete profiles', '履歷尚未完成': 'Resume incomplete', '基本資料未完成': 'Basic information incomplete', '補資料': 'Complete', '待補：': 'Missing: ', '國籍': 'Nationality', '聯絡電話': 'Phone number', '工作意向': 'Job preference', '出生日期': 'Date of birth', '性別': 'Gender', '出生地': 'Place of birth', '地址': 'Address', '身高': 'Height', '體重': 'Weight', '婚姻狀況': 'Marital status', '教育程度': 'Education level', '語言能力': 'Languages', '是否曾在海外工作': 'Worked abroad', '雇主／客戶名稱': 'Employer / client name', '聯絡人': 'Contact person', '電話': 'Phone', 'Email': 'Email', '仲介名稱': 'Agency name', '國家／地區': 'Country / region', '目前沒有未讀訊息、近期重要日期或待補資料。': 'No unread messages, upcoming dates, or incomplete profiles.', '今天': 'Today', '已完成': 'Completed', '已安排': 'Scheduled', '未安排': 'Not scheduled', '進行中': 'In progress', '暫停': 'On hold', '結案': 'Closed', '未設定': 'Not set', '未指派': 'Unassigned', '未指定': 'Unassigned', '其他': 'Other', '家庭幫傭': 'Domestic helper', '家庭看護': 'Caretaker', '工廠': 'Factory', '工廠技術工': 'Factory technician',
 };
 const EN_MORE = {
+  '被退回，請補件': 'Returned — please resubmit',
+  '被退回': 'Returned',
+  '待上傳': 'To upload',
+  '全部': 'All',
+  '搜尋工作者': 'Search workers',
+  '目前沒有符合的文件。': 'No matching documents.',
+  '查看舊版本': 'View earlier versions',
+  '文件齊全': 'All documents in',
+  '文件狀態篩選': 'Filter by document status',
+  '已核准／適用文件': 'Approved / applicable documents',
   '履歷': 'Resume', '工作者履歷': 'Worker Resume', '尚未上傳照片': 'No photo uploaded yet', '可新增履歷內容與照片': 'Add resume details and a photo',
   '可由管理者建立並維護這位工作者的完整履歷。': 'An administrator can create and maintain this worker\'s full resume.',
   '尚未建立履歷': 'No resume yet', '已有履歷資料': 'Resume on file', '尚未設定工作意向': 'Job preference not set',
