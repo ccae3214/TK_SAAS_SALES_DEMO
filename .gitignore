@@ -29,3 +29,6 @@ public.pem
 *.njsproj
 *.sln
 *.sw?
+.certs
+.certbot_www
+.github
