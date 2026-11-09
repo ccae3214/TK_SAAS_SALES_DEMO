@@ -922,21 +922,77 @@ export async function PATCH(request) {
       const agencyId = Number(body.agencyId);
       if (!validId(memberId) || !['none','agency','system'].includes(scope)) return NextResponse.json({ error: '管理者權限設定不正確。' }, { status: 400 });
       if (scope === 'system' && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以指派系統管理者身分。' }, { status: 403 });
-      const target = await query('SELECT id,role,agency_id,admin_scope FROM hr_members WHERE id=$1',[memberId]);
-      if (!target.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
-      const isSystemTarget = target[0].admin_scope === 'system' || target[0].role === 'system_admin';
-      if (isSystemTarget && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以管理其他系統管理者。' }, { status: 403 });
-      if (scope === 'agency' && (target[0].role !== 'agency' || !validId(agencyId) || Number(target[0].agency_id)!==agencyId)) return NextResponse.json({ error: '仲介管理者必須是所屬機構的仲介會員，請先指派仲介機構。' }, { status: 400 });
-      const saved = await query(`UPDATE hr_members SET admin_scope=$2,
-        role=CASE WHEN $2='system' THEN 'system_admin' WHEN $2='none' AND role='system_admin' THEN NULL ELSE role END,
-        worker_id=CASE WHEN $2='system' THEN NULL ELSE worker_id END,
-        employer_id=CASE WHEN $2='system' THEN NULL ELSE employer_id END,
-        agency_id=CASE WHEN $2='system' THEN NULL ELSE agency_id END,
-        requested_role=CASE WHEN $2='system' THEN NULL ELSE requested_role END,
-        requested_agency_id=CASE WHEN $2='system' THEN NULL ELSE requested_agency_id END,
-        updated_at=NOW() WHERE id=$1
-        RETURNING id,email,display_name,role,admin_scope,agency_id,active`,[memberId,scope]);
-      return NextResponse.json(saved[0]);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const target = await client.query('SELECT id,role,worker_id,employer_id,agency_id,admin_scope FROM hr_members WHERE id=$1 FOR UPDATE',[memberId]);
+        if (!target.rowCount) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+        }
+        const member = target.rows[0];
+        const isSystemTarget = member.admin_scope === 'system' || member.role === 'system_admin';
+        if (isSystemTarget && !isRootAdmin) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以管理其他系統管理者。' }, { status: 403 });
+        }
+        if (['worker','employer'].includes(member.role) && scope !== 'none') {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '工作者與雇主會員只能使用一般會員權限。' }, { status: 400 });
+        }
+        if (scope === 'agency' && member.role !== 'agency') {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '仲介管理者權限只適用於仲介會員。' }, { status: 400 });
+        }
+        if (scope === 'system' && ['worker','employer'].includes(member.role)) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '請透過變更會員類型將工作者或雇主轉為系統管理者。' }, { status: 400 });
+        }
+        let agency = null;
+        if (['worker','employer','agency'].includes(member.role)) {
+          if (!validId(agencyId)) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: '請選擇所屬仲介。' }, { status: 400 });
+          }
+          const expectedType = member.role === 'worker' ? 'philippines' : member.role === 'employer' ? 'taiwan' : null;
+          const agencyResult = await client.query(
+            `SELECT id,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE${expectedType ? ' AND agency_type=$2' : ''}`,
+            expectedType ? [agencyId,expectedType] : [agencyId],
+          );
+          if (!agencyResult.rowCount) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: expectedType === 'philippines' ? '請選擇啟用中的菲律賓仲介。' : expectedType === 'taiwan' ? '請選擇啟用中的台灣仲介。' : '請選擇啟用中的仲介機構。' }, { status: 400 });
+          }
+          agency = agencyResult.rows[0];
+        }
+        if (member.role === 'worker') {
+          const changed = await client.query('UPDATE hr_workers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id',[member.worker_id,agency.id]);
+          if (!changed.rowCount) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: '找不到會員綁定的工作者資料。' }, { status: 409 });
+          }
+        } else if (member.role === 'employer') {
+          const changed = await client.query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id',[member.employer_id,agency.id]);
+          if (!changed.rowCount) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: '找不到會員綁定的雇主資料。' }, { status: 409 });
+          }
+        }
+        const saved = await client.query(`UPDATE hr_members SET admin_scope=$2,
+          role=CASE WHEN $2='system' THEN 'system_admin' WHEN $2='none' AND role='system_admin' THEN NULL ELSE role END,
+          agency_id=CASE WHEN $2='system' THEN NULL WHEN role='agency' THEN $3 ELSE agency_id END,
+          requested_role=CASE WHEN $2='system' THEN NULL ELSE requested_role END,
+          requested_agency_id=CASE WHEN $2='system' THEN NULL ELSE requested_agency_id END,
+          updated_at=NOW() WHERE id=$1
+          RETURNING id,email,display_name,role,admin_scope,agency_id,active`,[memberId,scope,agency?.id||null]);
+        await client.query('COMMIT');
+        return NextResponse.json(saved.rows[0]);
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
     }
     if (body.type === 'member-profile' && principal.is_agency_admin) {
       const memberId=Number(body.id);
