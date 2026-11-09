@@ -46,7 +46,7 @@ details.group > summary { cursor: pointer; }
   padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #111827; font: inherit; cursor: pointer;
 }
 .actions button:hover:not(:disabled), .uploadRow button:hover:not(:disabled) { background: #f3f4f6; }
-button:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
+.page button:disabled, .page input:disabled { opacity: 0.55; cursor: not-allowed; }
 .page .primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .page .primary:hover:not(:disabled) { background: #1e40af; }
 .page .danger { background: #fff; border-color: #dc2626; color: #b91c1c; }
