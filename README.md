@@ -1,5 +1,7 @@
 # TK SaaS Sales Demo
 
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+
 ## 本機接手驗收入口（2026-11-05 B 三流程整理）
 
 已將 main 合併進本機 wei，建立獨立測試站，並完成 B：仲介關係目錄、角色化工作起點、需求與配對五階段、新會員申請／待審指引。網站已在本機重建，仍不連真實 LINE／Google。

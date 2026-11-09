@@ -1,5 +1,7 @@
 # LOCAL_REVIEW｜合併 main 後的本機驗收入口
 
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+
 ## 2026-11-10 PR 的 local test
 
 本輪已重新 build／僅重建 app，並完整重跑 Node 19 項、Chromium 20 項通過。不要為了驗 PR 啟動原部署 compose，不要重跑 bootstrap 或刪 volume。此頁下方先前的未 commit／push 是歷史狀態；PR 與 CI 以 GitHub 為準。

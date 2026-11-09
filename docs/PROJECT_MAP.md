@@ -1,5 +1,7 @@
 # PROJECT_MAP｜TK SaaS Sales Demo 專案地圖
 
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+
 2026-11-10：B 候選已重新通過 Node 19 項、重建後 Chromium 20 項及 Docker build；使用者授權建立 feature → main PR，不合併、不部署。下方未提交／未發佈為前輪快照，發佈及 CI 以 GitHub PR 為準；驗證看 VERIFICATION_REPORT.md。
 
 盤點日期：2026-11-05。已將 origin/main 快轉整合至本機 wei，基準 commit：`e939b40ee27c21746b106f784502061fa939db8e`。本輪配置另在 `feature/local-review-onboarding`，未 commit／push。

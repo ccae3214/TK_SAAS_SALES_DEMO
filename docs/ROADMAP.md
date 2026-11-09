@@ -1,5 +1,7 @@
 # ROADMAP｜B 仲介管理、配對與新會員指引
 
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+
 2026-11-10：B 候選已重新通過 Node 19 項、重建後 Chromium 20 項及 Docker build；使用者授權建立 feature → main PR，不合併、不部署。下方未提交／未發佈為前輪快照，發佈及 CI 以 GitHub PR 為準；驗證看 VERIFICATION_REPORT.md。
 
 本輪已實作並通過 19 項 Node、20 項 Chromium 檢查；最終證據見 VERIFICATION_REPORT.md。使用者已選定 B。本文件是這個 repo 的現行計畫主檔；操作與實測看 LOCAL_REVIEW.md／TASK_LOG.md。歷史比較不作本輪驗收依據。
