@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
-import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, LogOut } from 'lucide-react';
+import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, LogOut, ChevronDown, Check } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
 import HrFilePicker from '@/components/HrFilePicker';
@@ -11,6 +11,7 @@ import HrChat from '@/components/HrChat';
 import HrReminders from '@/components/HrReminders';
 import PersonNameFields from '@/components/PersonNameFields';
 import { useHrDialog } from '@/lib/use-hr-dialog';
+import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
 import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
 import { WORKER_RESUME_CHOICES, WORKER_RESUME_LANGUAGES, WORKER_RESUME_SELECTS, readLanguageLevels, resumeChoiceList } from '@/lib/hr-resume-fields';
 
@@ -210,6 +211,83 @@ function MemberRoleHome({data,cases,requirements,openTab}) {
   return null;
 }
 
+function DocumentGuideMeta({ guide }) {
+  return <div className="document-meta">
+    {guide.agency&&<span><em>辦理單位</em>{guide.agency}</span>}
+    {guide.time&&<span><em>預估時間</em>{guide.time}</span>}
+    {guide.cost&&<span><em>費用</em>{guide.cost}</span>}
+    {guide.tag&&<span className={`guide-tag tag-${guide.tag}`}>{guide.tag==='estimate'?'估計':'查證'}</span>}
+    {guide.note&&<p>{guide.note}</p>}
+  </div>;
+}
+
+function GuideTag({ tag }) {
+  return tag?<span className={`guide-tag tag-${tag}`}>{tag==='estimate'?'估計':'查證'}</span>:null;
+}
+
+function WorkerStageDocuments({ caseItem, requirements, steps, acknowledgments, renderDocumentItem, onAcknowledge }) {
+  const [openStages, setOpenStages] = useState({});
+  const [busyKey, setBusyKey] = useState('');
+  const confirmed = new Map(acknowledgments.map(item => [item.ack_key, item.confirmed_at]));
+  const rows = WORKER_STAGES.map(stage => {
+    const documents = requirements.filter(item => stageOfRequirement(item.name) === stage.key);
+    const known = stage.steps.map(key => steps.find(item => item.step_key === key)).filter(Boolean);
+    const extra = stage.fallback ? steps.filter(item => stageOfStep(item.step_key) === stage.key && !stage.steps.includes(item.step_key)) : [];
+    const stageSteps = [...known, ...extra];
+    const acks = stage.acks || [];
+    const total = documents.length + stageSteps.length + acks.length;
+    const done = documents.filter(item => !item.applicable || item.status === 'approved').length
+      + stageSteps.filter(item => item.completed_on).length + acks.filter(item => confirmed.has(item.key)).length;
+    return { stage, documents, stageSteps, acks, total, done };
+  });
+  const totalAll = rows.reduce((sum, row) => sum + row.total, 0);
+  const doneAll = rows.reduce((sum, row) => sum + row.done, 0);
+  const currentKey = (rows.find(row => row.total > 0 && row.done < row.total) || {}).stage?.key || '';
+  async function act(key, value) {
+    setBusyKey(key);
+    try { await onAcknowledge(caseItem.id, key, value); } finally { setBusyKey(''); }
+  }
+  return <div className="worker-case">
+    <h3>{caseItem.case_number} · {caseItem.employer_name}</h3>
+    <div className="stage-overall"><div><strong>整體進度</strong><span>{doneAll}/{totalAll}</span></div><progress value={doneAll} max={totalAll || 1} /></div>
+    <div className="stage-list">
+      {rows.map(({ stage, documents, stageSteps, acks, total, done }) => {
+        const isOpen = stage.key in openStages ? openStages[stage.key] : stage.key === currentKey;
+        const isCurrent = stage.key === currentKey;
+        return <section key={stage.key} className={`stage-card${isCurrent ? ' stage-current' : ''}${total > 0 && done === total ? ' stage-done' : ''}`}>
+          <button type="button" className="stage-toggle" aria-expanded={isOpen} onClick={() => setOpenStages(prev => ({ ...prev, [stage.key]: !isOpen }))}>
+            <span className="stage-badge">{stage.key}</span>
+            <span className="stage-heading"><strong>{stage.title}</strong>{stage.duration&&<small>{stage.duration}</small>}</span>
+            {isCurrent&&<span className="stage-current-tag">目前階段</span>}
+            {total > 0&&<span className="stage-count">{done}/{total}</span>}
+            <ChevronDown size={18} aria-hidden="true" className="stage-chevron" />
+          </button>
+          {isOpen&&<div className="stage-body">
+            <p className="stage-summary">{stage.summary}</p>
+            {documents.length > 0&&<div className="stage-section"><h4>文件</h4>{documents.map(item => renderDocumentItem(item, DOCUMENT_GUIDE[item.name]))}</div>}
+            {stageSteps.length > 0&&<div className="stage-section"><h4>辦理進度</h4>{stageSteps.map(step => <div className="stage-step" key={step.step_key}>
+              <div><strong>{step.label}</strong>{step.note&&<small>{step.note}</small>}</div>
+              {step.completed_on&&<time>{String(step.completed_on).slice(0, 10)}</time>}
+              <span className={`doc-status ${step.completed_on ? 'doc-approved' : step.started_on ? 'doc-submitted' : 'doc-missing'}`}>{step.completed_on ? '已完成' : step.started_on ? '進行中' : '尚未開始'}</span>
+            </div>)}</div>}
+            {acks.length > 0&&<div className="stage-section"><h4>請你確認</h4>{acks.map(ack => {
+              const when = confirmed.get(ack.key);
+              return <div key={ack.key} className={`stage-ack${when ? ' is-confirmed' : ''}`}>
+                <p>{ack.text}</p>
+                {when ? <div className="stage-ack-done"><span className="stage-ack-check"><Check size={14} aria-hidden="true" />已確認</span><time>{String(when).slice(0, 10)}</time><button type="button" className="table-action" disabled={busyKey === ack.key} onClick={() => act(ack.key, false)}>取消確認</button></div>
+                  : <button type="button" disabled={busyKey === ack.key} onClick={() => act(ack.key, true)}>我已確認</button>}
+              </div>;
+            })}</div>}
+            {(stage.tips || []).length > 0&&<div className="stage-section"><h4>注意事項</h4><ul className="stage-tips">{stage.tips.map((tip, index) => <li key={index}><span>{tip.text}</span><GuideTag tag={tip.tag} /></li>)}</ul></div>}
+            {(stage.info || []).length > 0&&<div className="stage-section"><h4>須知</h4>{stage.info.map((info, index) => <div className="stage-info" key={index}>{info.title&&<strong>{info.title}</strong>}<p>{info.text}</p><GuideTag tag={info.tag} /></div>)}</div>}
+            {total === 0 && !(stage.info || []).length && !(stage.tips || []).length&&<p className="stage-empty">此階段沒有需要你處理的項目。</p>}
+          </div>}
+        </section>;
+      })}
+    </div>
+  </div>;
+}
+
 function PortalStyles() {
   return <style jsx global>{`
 .hr-member-shell .hr-member-pending{max-width:600px;margin:30px auto}
@@ -337,9 +415,6 @@ function PortalStyles() {
 .hr-member-shell .card-title h2{margin:0}
 .hr-member-shell .hr-member-footer{padding:10px 4px 6px;text-align:center;color:var(--ink-3);font-size:12px}
 .hr-member-shell .hr-request-error,.hr-member-shell .hr-request-success{display:block;max-width:1100px;margin:0 auto 14px;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:700;line-height:1.6}
-.hr-member-shell .application-submit-success{max-width:none;margin:0 0 16px;animation:application-submit-pop .35s ease-out}
-@keyframes application-submit-pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){.hr-member-shell .application-submit-success{animation:none}}
 .hr-member-shell .hr-request-error{border:1px solid #f4c7c2;background:var(--red-bg);color:var(--red)!important}
 .hr-member-shell .hr-request-success{border:1px solid #bfe3d0;background:var(--g-100);color:var(--g-700)!important}
 .hr-member-shell .hr-member-card button,.hr-member-shell .progress-modal button.worker-delete-confirm,.hr-member-shell .progress-modal .worker-edit-actions button,.hr-member-shell .process-row button,.hr-member-shell .progress-step button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 16px;border:0;border-radius:11px;background:linear-gradient(135deg,var(--g-700),var(--g-600));color:#fff;font:inherit;font-size:14px;font-weight:700;line-height:1.2;cursor:pointer;box-shadow:0 4px 12px rgba(23,107,84,.22);transition:transform .16s,box-shadow .16s,filter .16s}
@@ -618,6 +693,68 @@ function PortalStyles() {
 .hr-member-shell label.resume-language-level{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.hr-member-shell .hr-member-header,.hr-member-shell .hr-member-card,.hr-member-shell .progress-modal,.hr-member-shell .progress-modal-backdrop{animation:none}
 .hr-member-shell .hr-member-card button,.hr-member-shell .workspace-tabs button,.hr-member-shell .member-home-metrics article{transition:none}}
+/* ===== 工人階段文件 ===== */
+.hr-member-shell .stage-overall{display:grid;gap:8px;margin:0 0 16px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(120deg,var(--g-50),#fff)}
+.hr-member-shell .stage-overall>div{display:flex;justify-content:space-between;gap:12px;color:var(--ink-2);font-size:13px}
+.hr-member-shell .stage-overall strong{font-weight:800;color:var(--ink)}
+.hr-member-shell .stage-overall span{font-weight:800;color:var(--g-700);font-variant-numeric:tabular-nums}
+.hr-member-shell .stage-overall progress{width:100%;height:9px;border:0;border-radius:99px;overflow:hidden;background:var(--line-soft);accent-color:var(--g-600)}
+.hr-member-shell .stage-overall progress::-webkit-progress-bar{background:var(--line-soft);border-radius:99px}
+.hr-member-shell .stage-overall progress::-webkit-progress-value{background:linear-gradient(90deg,var(--g-600),var(--g-500));border-radius:99px}
+.hr-member-shell .stage-overall progress::-moz-progress-bar{background:linear-gradient(90deg,var(--g-600),var(--g-500));border-radius:99px}
+.hr-member-shell .stage-list{display:grid;gap:12px}
+.hr-member-shell .stage-card{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;transition:border-color .16s,box-shadow .16s}
+.hr-member-shell .stage-card.stage-current{border-color:#9fd3b9;box-shadow:0 0 0 3px rgba(31,131,102,.1)}
+.hr-member-shell button.stage-toggle{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:14px 16px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none}
+.hr-member-shell button.stage-toggle:hover:not(:disabled){background:var(--g-50);transform:none;box-shadow:none;filter:none}
+.hr-member-shell .stage-badge{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:11px;background:var(--g-100);color:var(--g-700);font-size:15px;font-weight:800}
+.hr-member-shell .stage-current .stage-badge{background:linear-gradient(135deg,var(--g-700),var(--g-500));color:#fff}
+.hr-member-shell .stage-done .stage-badge{background:var(--g-700);color:#fff}
+.hr-member-shell .stage-heading{display:grid;gap:2px;flex:1;min-width:0}
+.hr-member-shell .stage-heading strong{font-size:15px;font-weight:800;color:var(--ink)}
+.hr-member-shell .stage-heading small{color:var(--ink-3);font-size:12px;font-weight:500;line-height:1.5}
+.hr-member-shell .stage-current-tag{flex:none;padding:4px 10px;border-radius:999px;background:var(--g-100);color:var(--g-700);font-size:12px;font-weight:800}
+.hr-member-shell .stage-count{flex:none;color:var(--ink-3);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.hr-member-shell .stage-chevron{flex:none;color:var(--ink-3);transition:transform .2s}
+.hr-member-shell button.stage-toggle[aria-expanded=true] .stage-chevron{transform:rotate(180deg)}
+.hr-member-shell .stage-body{padding:4px 16px 18px;border-top:1px solid var(--line-soft)}
+.hr-member-shell .stage-summary{margin:12px 0 0;color:var(--ink-3);font-size:13.5px;line-height:1.65}
+.hr-member-shell .stage-section{margin-top:16px}
+.hr-member-shell .stage-section>h4{display:flex;align-items:center;gap:8px;margin:0 0 4px;color:var(--g-700);font-size:13px;font-weight:800;letter-spacing:.04em}
+.hr-member-shell .stage-section>h4::before{content:'';width:4px;height:13px;border-radius:4px;background:linear-gradient(var(--g-500),var(--g-700))}
+.hr-member-shell .stage-step{display:flex;align-items:center;gap:12px;padding:11px 14px;margin-top:8px;border:1px solid var(--line-soft);border-radius:12px;background:#fcfdfc}
+.hr-member-shell .stage-step>div{display:grid;gap:2px;flex:1;min-width:0}
+.hr-member-shell .stage-step strong{color:var(--ink);font-size:14px}
+.hr-member-shell .stage-step small{color:var(--ink-3);font-size:12px}
+.hr-member-shell .stage-step time,.hr-member-shell .stage-ack-done time{color:var(--ink-3);font-size:12px;font-variant-numeric:tabular-nums}
+.hr-member-shell .stage-ack{display:grid;gap:10px;padding:13px 14px;margin-top:8px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.hr-member-shell .stage-ack.is-confirmed{border-color:#bfe3d0;background:var(--g-50)}
+.hr-member-shell .stage-ack>p{margin:0;color:var(--ink-2)!important;font-size:13.5px;line-height:1.7}
+.hr-member-shell .stage-ack>button{justify-self:start}
+.hr-member-shell .stage-ack-done{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hr-member-shell .stage-ack-check{display:inline-flex;align-items:center;gap:6px;color:var(--g-700);font-size:13px;font-weight:800}
+.hr-member-shell .stage-tips{display:grid;gap:8px;margin:8px 0 0;padding:0;list-style:none}
+.hr-member-shell .stage-tips li{display:flex;align-items:flex-start;gap:8px;padding:10px 13px;margin:0;border:1px solid #f1deb0;border-radius:11px;background:var(--amber-bg);color:#6b4a0c;font-size:13px;line-height:1.65}
+.hr-member-shell .stage-tips li>span:first-child{flex:1}
+.hr-member-shell .stage-info{display:grid;gap:3px;padding:12px 14px;margin-top:8px;border:1px solid var(--line-soft);border-radius:12px;background:#fcfdfc}
+.hr-member-shell .stage-info strong{color:var(--ink);font-size:13.5px}
+.hr-member-shell .stage-info p{margin:0;color:var(--ink-2)!important;font-size:13.5px;line-height:1.7}
+.hr-member-shell .stage-empty{margin:14px 0 0;color:var(--ink-3);font-size:13px}
+.hr-member-shell .stage-footnotes{margin-top:22px;padding-top:16px;border-top:1px solid var(--line-soft)}
+.hr-member-shell .stage-footnotes h3{margin:14px 0 6px;font-size:14px;font-weight:800}
+.hr-member-shell .stage-notice{margin:0;font-size:12.5px;line-height:1.75}
+.hr-member-shell .document-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:10px;color:var(--ink-2);font-size:12.5px}
+.hr-member-shell .document-meta em{margin-right:6px;color:var(--ink-3);font-style:normal;font-weight:700}
+.hr-member-shell .document-meta p{flex-basis:100%;margin:2px 0 0;color:var(--ink-3)!important;font-size:12.5px}
+.hr-member-shell .guide-tag{flex:none;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.02em}
+.hr-member-shell .tag-estimate{background:var(--amber-bg);color:var(--amber)}
+.hr-member-shell .tag-verified{background:var(--g-100);color:var(--g-700)}
+@media(max-width:700px){
+.hr-member-shell .stage-body{padding:4px 12px 16px}
+.hr-member-shell button.stage-toggle{padding:12px;gap:10px}
+.hr-member-shell .stage-current-tag{display:none}
+.hr-member-shell .stage-step{flex-wrap:wrap}
+}
     `}</style>;
 }
 
@@ -635,7 +772,6 @@ export default function HrMemberPortal({ actor }) {
   const [requestedAgencyId, setRequestedAgencyId] = useState('');
   const [requestedAgencyType, setRequestedAgencyType] = useState('taiwan');
   const [requesting, setRequesting] = useState(false);
-  const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [progressWorker, setProgressWorker] = useState(null);
   const [profileWorker, setProfileWorker] = useState(null);
   const [workerToDelete, setWorkerToDelete] = useState(null);
@@ -785,6 +921,10 @@ export default function HrMemberPortal({ actor }) {
       formElement.reset(); setOperationMessage('文件已上傳，已送交審核。'); await refresh();
     } catch(err) { setError(err.message); } finally { setUploading(false); }
   }
+  async function acknowledge(caseId, key, confirmed) {
+    const response=await fetch('/api/hr',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'worker-acknowledge',caseId,key,confirmed})});
+    const body=await response.json().catch(()=>({})); if(!response.ok){setError(body.error||'確認失敗');return;} await refresh();
+  }
   async function setApplicability(requirement) {
     const response=await fetch('/api/hr',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'requirement-applicability',requirementId:requirement.id,applicable:!requirement.applicable})});
     const body=await response.json(); if(!response.ok){setError(body.error||'更新文件適用狀態失敗');return;} setOperationMessage('文件適用狀態已更新。'); await refresh();
@@ -862,15 +1002,11 @@ export default function HrMemberPortal({ actor }) {
         if (!response.ok) throw new Error(body.error || '申請送出失敗');
         const selectedAgency=currentAgency();
         setData(current => ({ ...current, pendingApproval: true, requestedRole: body.requestedRole, requestedAgencyId: body.requestedAgencyId, requestedAgencyName: selectedAgency?.name || null, requestedAgencyType: selectedAgency?.agency_type || null }));
-        // 送出成功的明確回饋：顯示提示條，並把畫面捲回最上面（手機上否則看不到畫面已經換成審核進度）。
-        setRequestSubmitted(true);
-        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (err) { setError(err.message); }
       finally { setRequesting(false); }
     }
     return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
       {data.pendingApproval ? <div className="application-review">
-        {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>送出成功！你的{roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。</p>}
         <div className="application-review-heading">
           <div className="application-review-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></div>
           <div><span className="application-review-eyebrow">會員申請進度</span><span className="application-review-badge">審核中</span></div>
@@ -928,23 +1064,8 @@ export default function HrMemberPortal({ actor }) {
   const isTaiwanOperator = data.role === 'agency' && data.agencyType === 'taiwan';
   const canManageCaseProgress = data.role === 'agency';
   const workerCases = viewedWorker ? data.cases.filter(item => Number(item.worker_id) === Number(viewedWorker.id)) : ['agency','employer'].includes(data.role) ? data.cases : [];
-  // 必要文件屬於工作者，不需要案件就會存在；案件只多出「必備證照」（例如看護案件的 Caregiving NC2）。
-  const workerRequirements = viewedWorker ? data.requirements.filter(item => Number(item.worker_id) === Number(viewedWorker.id)) : data.requirements;
-  const documentWorkers = data.workers.filter(person => data.requirements.some(item => Number(item.worker_id) === Number(person.id)));
-  const DOCUMENT_GROUPS = [
-    ['returned', '被退回，請補件', item => item.applicable && item.status === 'returned'],
-    ['missing', '待上傳', item => item.applicable && item.status === 'missing'],
-    ['submitted', '審核中', item => item.applicable && item.status === 'submitted'],
-    ['approved', '已核准', item => item.applicable && item.status === 'approved'],
-    ['na', '不適用', item => !item.applicable],
-  ];
-  const CERTIFICATION_LABELS = { not_started: '未開始', training: '訓練中', assessment: '考照中', obtained: '已取得' };
-  async function updateCertification(certification, status) {
-    const response=await fetch('/api/hr',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'certification',id:certification.id,status,targetDate:certification.target_date?String(certification.target_date).slice(0,10):'',note:certification.note||''})});
-    const body=await response.json(); if(!response.ok){setError(body.error||'更新取證進度失敗');return;} setOperationMessage('取證進度已更新。'); await refresh();
-  }
-  const renderDocument = item => {const history=data.submissions.filter(sub=>Number(sub.requirement_id)===Number(item.id));return <div className="document-item" key={item.id}><div className="document-heading"><div><strong>{item.name}</strong>{item.entry_gate&&<small>前置文件</small>}{item.applicability&&<small>{item.applicability}</small>}</div><span className={`doc-status doc-${item.applicable?item.status:'na'}`}>{!item.applicable?'不適用':({missing:'待收件',submitted:'待審核',approved:'已合格',returned:'退件待修正'}[item.status]||item.status)}</span></div>{item.review_reason&&item.applicable&&item.status==='returned'&&<p className="return-note">補件原因：{item.review_reason}</p>}{history.length>0&&<div className="document-history">{history.map(sub=><div key={sub.id}><span>第{sub.version_number}版 · {sub.original_filename}</span><span>{sub.decision==='approved'?'合格':sub.decision==='returned'?`退件：${sub.review_reason||''}`:'審核中'}</span><a href={`/api/hr/documents/${sub.id}?preview=1`} target="_blank" rel="noreferrer">檢視</a></div>)}</div>}{item.applicable&&(data.role==='worker'||isPhilippinesOperator)&&<form className="upload-row" onSubmit={event=>uploadDocument(event,item)}><input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required/><input name="note" placeholder="補件說明（選填）"/><button disabled={uploading}>{uploading?'上傳中…':item.status==='returned'?'重新上傳':'上傳文件'}</button></form>}{isPhilippinesOperator&&<div className="document-actions">{item.applicability&&<button className="table-action" onClick={()=>setApplicability(item)}>{item.applicable?'標示不適用':'確認適用'}</button>}{item.status==='submitted'&&<><button className="table-action" onClick={()=>reviewDocument(item,'approved')}>核准文件</button><button className="table-action" onClick={()=>reviewDocument(item,'returned')}>退回補件</button></>}</div>}</div>};
-  const canUpdateCertification = data.role === 'agency' || data.role === 'admin';
+  const workerRequirements = data.requirements.filter(item => workerCases.some(row => Number(row.id) === Number(item.case_id)));
+  const renderDocumentItem=(item,guide)=>{const history=data.submissions.filter(sub=>Number(sub.requirement_id)===Number(item.id));return <div className="document-item" key={item.id}><div className="document-heading"><div><strong>{item.name}</strong>{item.applicability&&<small>{item.applicability}</small>}</div><span className={`doc-status doc-${item.applicable?item.status:'na'}`}>{!item.applicable?'不適用':({missing:'待收件',submitted:'待審核',approved:'已合格',returned:'退件待修正'}[item.status]||item.status)}</span></div>{guide&&<DocumentGuideMeta guide={guide} />}{item.review_reason&&item.applicable&&item.status==='returned'&&<p className="return-note">補件原因：{item.review_reason}</p>}{history.length>0&&<div className="document-history">{history.map(sub=><div key={sub.id}><span>第{sub.version_number}版 · {sub.original_filename}</span><span>{sub.decision==='approved'?'合格':sub.decision==='returned'?`退件：${sub.review_reason||''}`:'審核中'}</span><a href={`/api/hr/documents/${sub.id}?preview=1`} target="_blank" rel="noreferrer">檢視</a></div>)}</div>}{item.applicable&&(data.role==='worker'||isPhilippinesOperator)&&<form className="upload-row" onSubmit={event=>uploadDocument(event,item)}><input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required/><input name="note" placeholder="補件說明（選填）"/><button disabled={uploading}>{uploading?'上傳中…':item.status==='returned'?'重新上傳':'上傳文件'}</button></form>}{isPhilippinesOperator&&<div className="document-actions">{item.applicability&&<button className="table-action" onClick={()=>setApplicability(item)}>{item.applicable?'標示不適用':'確認適用'}</button>}{item.status==='submitted'&&<><button className="table-action" onClick={()=>reviewDocument(item,'approved')}>核准文件</button><button className="table-action" onClick={()=>reviewDocument(item,'returned')}>退回補件</button></>}</div>}</div>};
   const activeTaiwanAgencies=data.agencies.filter(item=>item.active&&item.agency_type==='taiwan');
   return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><HrLanguageTools /><PortalStyles />
     <header className="hr-member-header"><div className="hr-member-header-main"><span className="hr-member-avatar" aria-hidden="true">{String(actor.name||'?').trim().charAt(0)||'?'}</span><div><span>克雷迅人力管理</span><h1>{data.role==='agency'?(data.agencyType==='taiwan'?'業務':'Staff'):(labels[data.role] || data.roleName)}工作區</h1><p>{actor.name}</p></div></div><button onClick={() => signOut({ callbackUrl: '/' })}><LogOut size={16} aria-hidden="true" />登出</button></header>
@@ -976,7 +1097,7 @@ export default function HrMemberPortal({ actor }) {
     {activeWorkspaceTab==='agencyEmployer'&&data.role==='worker'&&workerCases.length>0&&<section className="hr-member-card"><h2>台灣仲介業務</h2>{workerCases.map(item=><p key={item.id}>{item.case_number} · {item.broker_name||'尚未指定'}</p>)}</section>}
     {activeWorkspaceTab==='agencyEmployer'&&data.role === 'employer' && !!data.cases.length && <section className="hr-member-card"><h2>所屬仲介案件與配工工作者</h2><div className="hr-member-table-wrap"><table><thead><tr><th>案件編號</th><th>工作者</th><th>進度</th><th>狀態</th><th>操作</th></tr></thead><tbody>{data.cases.map(item=>{const steps=data.applicationSteps.filter(step=>Number(step.case_id)===Number(item.id));const completed=steps.filter(step=>step.started_on||step.completed_on||step.note).length;return <tr key={item.id}><td>{item.case_number}</td><td>{item.worker_name}</td><td>{completed}/{steps.length} 項已更新</td><td>{({open:'進行中',on_hold:'暫停',closed:'結案'})[item.status]||item.status}</td><td><button className="table-action" onClick={()=>{const worker=data.workers.find(row=>Number(row.id)===Number(item.worker_id));if(worker)setProgressWorker(worker)}}>查看工作者進度</button></td></tr>})}</tbody></table></div></section>}
     {activeWorkspaceTab==='agencyEmployer'&&data.role === 'employer' && !progressWorker && data.workers.some(item=>!item.sharedAgencyCaseOnly) && <section className="hr-member-card"><h2>我的工作者與未媒合人選</h2><div className="hr-member-table-wrap"><table><thead><tr><th>姓名</th><th>國籍</th><th>工作意向</th><th>所屬仲介</th><th>狀態</th><th>進度</th><th>履歷</th></tr></thead><tbody>{data.workers.filter(item=>!item.sharedAgencyCaseOnly).map(item=>{const agency=data.agencies.find(row=>Number(row.id)===Number(item.agency_id));const hasCase=data.cases.some(row=>Number(row.worker_id)===Number(item.id));return <tr key={item.id}><td>{item.name}</td><td>{item.nationality||'—'}</td><td>{item.job_preference||'—'}</td><td>{agency?.name||'—'}</td><td>{item.status==='active'?'啟用':'停用'}</td><td>{hasCase?<button className="table-action" onClick={()=>setProgressWorker(item)}>查看進度</button>:'尚未媒合'}</td><td><button className="table-action" onClick={()=>setProfileWorker(item)}>查看履歷</button><button className="table-action" disabled={resumePdfLoading} onClick={()=>void downloadWorkerResume(item)}>下載 PDF</button></td></tr>})}</tbody></table></div></section>}
-    {activeWorkspaceTab==='documents'&&<section className="hr-member-card"><h2>必要文件與審核</h2>{documentWorkers.length?documentWorkers.map(person=>{const rows=data.requirements.filter(item=>Number(item.worker_id)===Number(person.id));return <div className="worker-case" key={person.id}>{data.role!=='worker'&&<h3>{person.name}</h3>}{DOCUMENT_GROUPS.map(([key,label,test])=>{const items=rows.filter(test).sort((x,y)=>Number(y.entry_gate)-Number(x.entry_gate));return items.length?<div className={`document-group document-group-${key}`} key={key}><h4>{label}（{items.length}）</h4>{items.map(renderDocument)}</div>:null})}</div>}):<p>目前沒有必要文件項目。</p>}{workerCases.some(caseItem=>(data.certifications||[]).some(cert=>Number(cert.case_id)===Number(caseItem.id)))&&<div className="worker-case"><h3>案件必備證照與取證進度</h3>{workerCases.map(caseItem=>{const certs=(data.certifications||[]).filter(cert=>Number(cert.case_id)===Number(caseItem.id));return certs.length?<div key={caseItem.id}><h4>{caseItem.case_number} · {caseItem.worker_name}（{caseItem.job_type}）</h4>{certs.map(cert=><div className="document-item" key={cert.id}><div className="document-heading"><div><strong>{cert.name}</strong>{cert.target_date&&<small>預計取得：{String(cert.target_date).slice(0,10)}</small>}</div><span className={`doc-status doc-${cert.status==='obtained'?'approved':'missing'}`}>{CERTIFICATION_LABELS[cert.status]||cert.status}</span></div>{canUpdateCertification&&<div className="document-actions"><select value={cert.status} onChange={event=>updateCertification(cert,event.target.value)} aria-label={`${cert.name} 取證進度`}>{Object.entries(CERTIFICATION_LABELS).map(([value,text])=><option key={value} value={value}>{text}</option>)}</select></div>}</div>)}</div>:null})}</div>}</section>}
+    {activeWorkspaceTab==='documents'&&(data.role==='worker'?<section className="hr-member-card"><h2>必要文件與審核</h2>{workerCases.length?workerCases.map(caseItem=><WorkerStageDocuments key={caseItem.id} caseItem={caseItem} requirements={workerRequirements.filter(item=>Number(item.case_id)===Number(caseItem.id))} steps={(data.applicationSteps||[]).filter(item=>Number(item.case_id)===Number(caseItem.id))} acknowledgments={(data.acknowledgments||[]).filter(item=>Number(item.case_id)===Number(caseItem.id))} renderDocumentItem={renderDocumentItem} onAcknowledge={acknowledge} />):<p>目前沒有必要文件項目。</p>}<div className="stage-footnotes"><p className="stage-notice">{STAGE_NOTICE}</p><h3>遇到問題怎麼辦</h3><p className="stage-notice">{STAGE_HELP}</p></div></section>:<section className="hr-member-card"><h2>必要文件與審核</h2>{workerCases.length?workerCases.map(caseItem=><div className="worker-case" key={caseItem.id}><h3>{caseItem.case_number} · {caseItem.employer_name}</h3>{workerRequirements.filter(item=>Number(item.case_id)===Number(caseItem.id)).map(item=>renderDocumentItem(item))}</div>):<p>目前沒有必要文件項目。</p>}</section>)}
     {activeWorkspaceTab==='process'&&<section className="hr-member-card"><h2>赴台申請程序</h2>{workerCases.length?workerCases.map(caseItem=><div className="worker-case" key={caseItem.id}><h3>{caseItem.case_number} · {caseItem.employer_name}</h3>{data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id)).map(step=>{const singleDate=['match_date','passport','document_arrival','personal_documents','pdos','medical','accr_in','accr_out','umid','expected_entry','actual_entry'].includes(step.step_key);const canEdit=canManageCaseProgress;return <form className="process-row" key={step.id} onSubmit={event=>saveApplicationStep(event,step)}><strong>{step.label}</strong>{singleDate?<label>{step.step_key==='expected_entry'?'預定入境日期':step.step_key==='actual_entry'?'實際入境日期':step.step_key==='match_date'?'配工／面試日期':step.step_key==='passport'?'護照確認日期':step.step_key==='document_arrival'?'文件到達日期':step.step_key==='personal_documents'?'個人文件確認日期':step.step_key==='pdos'?'PDOS 日期':step.step_key==='medical'?'體檢日期':step.step_key==='accr_in'?'入件日期':step.step_key==='accr_out'?'出件日期':'辦理日期'}<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label>:<><label>{step.step_key==='training'?'訓練開始日':'辦件／開始日'}<input type="date" name="startedOn" defaultValue={step.started_on?String(step.started_on).slice(0,10):''} disabled={!canEdit}/></label><label>{step.step_key==='training'?'訓練完成日':'完成／出件日'}<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label></>}<input name="note" placeholder="狀態／備註" defaultValue={step.note||''} disabled={!canEdit}/>{canEdit&&<button disabled={stepSaving===`${step.case_id}:${step.step_key}`}>{stepSaving===`${step.case_id}:${step.step_key}`?'儲存中…':'儲存'}</button>}</form>})}</div>):<p>目前沒有來台申請程序。</p>}</section>}
     {activeWorkspaceTab==='agencyEmployer'&&data.role==='worker'&&!!data.employers.length && <section className="hr-member-card"><h2>我的雇主</h2><div className="hr-member-table-wrap"><table><thead><tr><th>雇主／客戶</th><th>類型</th><th>聯絡人</th><th>狀態</th></tr></thead><tbody>{data.employers.map(item => <tr key={item.id}><td>{item.name}</td><td>{{home_care:'家庭看護',factory:'工廠',domestic_helper:'家庭幫傭',other:'其他'}[item.employer_type] || '其他'}</td><td>{item.contact_name || '—'}</td><td>{item.status === 'active' ? '啟用' : '停用'}</td></tr>)}</tbody></table></div></section>}
     {activeWorkspaceTab==='agencyEmployer'&&!!data.agencies.length && data.role === 'worker' && <section className="hr-member-card"><h2>所屬仲介</h2><ul>{data.agencies.map(item => <li key={item.id}>{item.name}（{item.country || (item.agency_type === 'taiwan' ? '台灣' : '菲律賓')}）</li>)}</ul></section>}
