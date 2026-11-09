@@ -1304,3 +1304,43 @@ export async function replyForHrLineEvent(event) {
   }
   return helpText(principal, activeLanguage);
 }
+export async function pushLineMessage(lineUserId, messages) {
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
+  if (!accessToken) throw new Error('missing_messaging_access_token');
+  const list = Array.isArray(messages)
+    ? messages
+    : [typeof messages === 'string' ? { type: 'text', text: messages.slice(0, 4500) } : messages];
+  const response = await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: lineUserId, messages: list }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`line_push_failed_${response.status}`);
+}
+
+function memberApprovedMessage(language, { role, agencyType, agencyName }) {
+  const type = memberTypeName({ role, agency_type: agencyType }, language);
+  const copy = {
+    zh: {
+      text: `🎉 恭喜你，文件通過審核！\n\n以下文件已通過系統核准：\n・會員申請資料（類型：${type}${agencyName ? `｜所屬仲介：${agencyName}` : ''}）\n\n現在可以輸入「我的身分」取得會員選單。`,
+      button: { label: '我的身分', text: '我的身分' },
+    },
+    en: {
+      text: `🎉 Congratulations! Your documents have passed review.\n\nThe following documents have been approved by the system:\n・Membership application (type: ${type}${agencyName ? ` | agency: ${agencyName}` : ''})\n\nYou can now send “my identity” to get your member menu.`,
+      button: { label: 'My identity', text: 'my identity' },
+    },
+    tl: {
+      text: `🎉 Binabati kita! Pumasa na ang iyong mga dokumento sa pagsusuri.\n\nAng mga sumusunod na dokumento ay naaprubahan na ng system:\n・Aplikasyon sa membership (uri: ${type}${agencyName ? ` | ahensya: ${agencyName}` : ''})\n\nMaaari mo nang ipadala ang “aking pagkakakilanlan” para makuha ang iyong member menu.`,
+      button: { label: 'Aking pagkakakilanlan', text: 'aking pagkakakilanlan' },
+    },
+  }[language] || null;
+  const picked = copy || { text: '', button: null };
+  return adminQuickReply(picked.text, [picked.button]); // 附一顆快捷按鈕，會員點一下就等於輸入指令
+}
+
+export async function notifyMemberApproved({ lineUserId, role, agencyType = null, agencyName = '' }) {
+  if (!lineUserId) return;
+  const language = (await getPreferredLanguage(lineUserId)) || (role === 'worker' ? 'en' : 'zh');
+  await pushLineMessage(lineUserId, memberApprovedMessage(language, { role, agencyType, agencyName }));
+}

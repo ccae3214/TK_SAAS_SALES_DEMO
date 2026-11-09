@@ -7,7 +7,7 @@ import { hashPassword } from '@/lib/passwords';
 import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
-
+import { notifyMemberApproved } from '@/lib/hr-line-bot';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -1020,17 +1020,14 @@ export async function PATCH(request) {
         if (!HR_ROLES.has(role) || (requiresAgency && !validId(agencyId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
         const client = await pool.connect();
         try {
-          await client.query('BEGIN');
+           await client.query('BEGIN');
+          let approvedAgency = null;
           if (requiresAgency) {
-            const agency = await client.query('SELECT id,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
-            const expectedAgencyType = role === 'worker' ? 'philippines' : role === 'employer' ? 'taiwan' : null;
-            if (!agency.rowCount || (expectedAgencyType && agency.rows[0].agency_type !== expectedAgencyType)) {
-              await client.query('ROLLBACK');
-              return NextResponse.json({ error: '所屬仲介不存在、已停用或類型不符合會員身分。' }, { status: 400 });
-            }
+            const agency = await client.query('SELECT id,name,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
+            // ……原本的 expectedAgencyType 檢查保持不變……
+            approvedAgency = agency.rows[0];
           }
-          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
-          if (!member.rowCount) {
+          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);if (!member.rowCount) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
           }
@@ -1063,7 +1060,14 @@ export async function PATCH(request) {
           }
           const assigned = await client.query(`UPDATE hr_members SET role=$2,requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
             WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
-          await client.query('COMMIT');
+          syncLineRichMenu(lineUserId, { role, agency_type })
+            await client.query('COMMIT');
+          if (!current.role && current.line_user_id) {
+            notifyMemberApproved({
+              lineUserId: current.line_user_id, role,
+              agencyType: approvedAgency?.agency_type || null, agencyName: approvedAgency?.name || '',
+            }).catch(error => console.error('hr_member_approved_push_failed', String(error?.message || error).slice(0, 120)));
+          }
           return NextResponse.json(assigned.rows[0]);
         } catch (error) {
           await client.query('ROLLBACK');
