@@ -7,7 +7,7 @@ import { hashPassword } from '@/lib/passwords';
 import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
-import { notifyMemberApproved } from '@/lib/hr-line-bot';
+import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -1024,10 +1024,19 @@ export async function PATCH(request) {
           let approvedAgency = null;
           if (requiresAgency) {
             const agency = await client.query('SELECT id,name,agency_type FROM hr_agencies WHERE id=$1 AND active=TRUE FOR SHARE', [agencyId]);
-            // ……原本的 expectedAgencyType 檢查保持不變……
+            if (!agency.rowCount) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '找不到啟用中的所屬仲介。' }, { status: 400 });
+            }
             approvedAgency = agency.rows[0];
+            const expectedAgencyType = role === 'worker' ? 'philippines' : role === 'employer' ? 'taiwan' : null;
+            if (expectedAgencyType && approvedAgency.agency_type !== expectedAgencyType) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: role === 'worker' ? '工作者必須指派給菲律賓仲介。' : '雇主必須指派給台灣仲介。' }, { status: 400 });
+            }
           }
-          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);if (!member.rowCount) {
+          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+          if (!member.rowCount) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
           }
@@ -1060,8 +1069,11 @@ export async function PATCH(request) {
           }
           const assigned = await client.query(`UPDATE hr_members SET role=$2,requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
             WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
-          syncLineRichMenu(lineUserId, { role, agency_type })
-            await client.query('COMMIT');
+          await client.query('COMMIT');
+          if (current.line_user_id) {
+            syncLineRichMenu(current.line_user_id, { role, agency_type: approvedAgency?.agency_type || null })
+              .catch(error => console.error('hr_member_rich_menu_sync_failed', String(error?.message || error).slice(0, 120)));
+          }
           if (!current.role && current.line_user_id) {
             notifyMemberApproved({
               lineUserId: current.line_user_id, role,
