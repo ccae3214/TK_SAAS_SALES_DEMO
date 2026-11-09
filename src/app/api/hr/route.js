@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
-import { ensureHrIdentitySchema, getAdminEmails, getAdminLineUserIds, getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
+import { ensureHrIdentitySchema, getAdminEmails, getAdminLineUserIds, getHrPrincipal, isHrRootAdminSession, HR_MEMBER_ROLES } from '@/lib/hr-access';
 import { hashPassword } from '@/lib/passwords';
 import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
@@ -281,6 +281,7 @@ export async function GET() {
       const agencies=await query('SELECT id,name,agency_type,country,active FROM hr_agencies WHERE active=TRUE ORDER BY agency_type,name');
       return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, requestedAgencyId: principal.requested_agency_id || null, requestedAgencyName: principal.requested_agency_name || null, requestedAgencyType: principal.requested_agency_type || null, agencies, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
     }
+    const isRootAdmin = isHrRootAdminSession(session);
     const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts, allCertifications] = await Promise.all([
       query('SELECT * FROM hr_employers ORDER BY status, name'),
       query('SELECT * FROM hr_workers ORDER BY status, name'),
@@ -446,11 +447,18 @@ export async function GET() {
     };
     workers = workers.map(item=>({...item,resume_profile:Object.fromEntries(Object.entries(item.resume_profile||{}).filter(([key])=>key!=='photoDataUrl'))}));
     employerAvailableWorkers = employerAvailableWorkers.map(item=>({...item,resume_profile:Object.fromEntries(Object.entries(item.resume_profile||{}).filter(([key])=>key!=='photoDataUrl'))}));
+    visibleMembers=visibleMembers.filter(member=>{
+      const isSystemAdmin = member.admin_scope === 'system' || member.role === 'system_admin';
+      if (!isSystemAdmin || isRootAdmin) return true;
+      return (principal.id && Number(member.id) === Number(principal.id))
+        || (!!session.user.email && String(member.email||'').trim().toLowerCase() === session.user.email.trim().toLowerCase())
+        || (!!session.user.lineUserId && member.line_user_id === session.user.lineUserId);
+    });
     const protectedMembers=visibleMembers.map(member=>({...member,protected_admin:
-      ['system','agency'].includes(member.admin_scope)
+      (['system','agency'].includes(member.admin_scope) || member.role === 'system_admin') && !isRootAdmin
       ||getAdminEmails().includes(String(member.email||'').trim().toLowerCase())
       ||getAdminLineUserIds().includes(member.line_user_id)}));
-    return NextResponse.json({ role: principal.role, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
@@ -623,7 +631,8 @@ export async function POST(request) {
       const lineUserId = clean(body.lineUserId,100) || null;
       const password = typeof body.password === 'string' ? body.password : '';
       const agencyId = Number(body.agencyId);
-      if (!name || !/^\S+@\S+\.\S+$/.test(email) || !HR_ROLES.has(role)) return NextResponse.json({ error: '會員姓名、Email 與類型皆須正確填寫。' }, { status: 400 });
+      if (!name || !/^\S+@\S+\.\S+$/.test(email) || !HR_MEMBER_ROLES.has(role)) return NextResponse.json({ error: '會員姓名、Email 與類型皆須正確填寫。' }, { status: 400 });
+      if (role === 'system_admin' && !isHrRootAdminSession(session)) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以新增系統管理者。' }, { status: 403 });
       if (password.length < 10) return NextResponse.json({ error: '測試登入密碼至少需要 10 個字元。' }, { status: 400 });
       if (role === 'worker' || role === 'employer') {
         const agencyType = role === 'worker' ? 'philippines' : 'taiwan';
@@ -667,10 +676,14 @@ export async function POST(request) {
           }
           memberAgencyId = Number(body.targetId);
         }
-        const createdMember = await client.query(`INSERT INTO hr_members(email,line_user_id,display_name,password_hash,role,worker_id,employer_id,agency_id)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,active,created_at`,
-        [email,lineUserId,name,await hashPassword(password),role,workerId,employerId,memberAgencyId]);
+        const createdMember = await client.query(`INSERT INTO hr_members(email,line_user_id,display_name,password_hash,role,worker_id,employer_id,agency_id,admin_scope)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,admin_scope,active,created_at`,
+        [email,lineUserId,name,await hashPassword(password),role,workerId,employerId,memberAgencyId,role === 'system_admin' ? 'system' : 'none']);
         await client.query('COMMIT');
+        if (role === 'system_admin' && lineUserId) {
+          syncLineRichMenu(lineUserId, { role: 'admin' })
+            .catch(error => console.error('hr_member_rich_menu_sync_failed', String(error?.message || error).slice(0, 120)));
+        }
         return NextResponse.json(createdMember.rows[0], { status: 201 });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -776,6 +789,7 @@ export async function PATCH(request) {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
     if (!principal || !['admin','agency','employer','worker'].includes(principal.role)) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
+    const isRootAdmin = isHrRootAdminSession(session);
     const body = await request.json();
     const id = Number(body.id), actor = clean(session.user?.email || session.user?.lineUserId || 'LINE 登入',254);
     if(body.type==='job-order-admin-status'&&principal.role==='admin'){
@@ -907,10 +921,20 @@ export async function PATCH(request) {
       const scope = clean(body.adminScope,20);
       const agencyId = Number(body.agencyId);
       if (!validId(memberId) || !['none','agency','system'].includes(scope)) return NextResponse.json({ error: '管理者權限設定不正確。' }, { status: 400 });
-      const target = await query('SELECT id,role,agency_id FROM hr_members WHERE id=$1',[memberId]);
+      if (scope === 'system' && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以指派系統管理者身分。' }, { status: 403 });
+      const target = await query('SELECT id,role,agency_id,admin_scope FROM hr_members WHERE id=$1',[memberId]);
       if (!target.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+      const isSystemTarget = target[0].admin_scope === 'system' || target[0].role === 'system_admin';
+      if (isSystemTarget && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以管理其他系統管理者。' }, { status: 403 });
       if (scope === 'agency' && (target[0].role !== 'agency' || !validId(agencyId) || Number(target[0].agency_id)!==agencyId)) return NextResponse.json({ error: '仲介管理者必須是所屬機構的仲介會員，請先指派仲介機構。' }, { status: 400 });
-      const saved = await query(`UPDATE hr_members SET admin_scope=$2,updated_at=NOW() WHERE id=$1
+      const saved = await query(`UPDATE hr_members SET admin_scope=$2,
+        role=CASE WHEN $2='system' THEN 'system_admin' WHEN $2='none' AND role='system_admin' THEN NULL ELSE role END,
+        worker_id=CASE WHEN $2='system' THEN NULL ELSE worker_id END,
+        employer_id=CASE WHEN $2='system' THEN NULL ELSE employer_id END,
+        agency_id=CASE WHEN $2='system' THEN NULL ELSE agency_id END,
+        requested_role=CASE WHEN $2='system' THEN NULL ELSE requested_role END,
+        requested_agency_id=CASE WHEN $2='system' THEN NULL ELSE requested_agency_id END,
+        updated_at=NOW() WHERE id=$1
         RETURNING id,email,display_name,role,admin_scope,agency_id,active`,[memberId,scope]);
       return NextResponse.json(saved[0]);
     }
@@ -990,6 +1014,11 @@ export async function PATCH(request) {
     }
     if (body.type === 'member-profile') {
       if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
+      const currentMember = await query('SELECT role,admin_scope FROM hr_members WHERE id=$1',[id]);
+      if (!currentMember.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+      if ((currentMember[0].role === 'system_admin' || currentMember[0].admin_scope === 'system') && !isRootAdmin) {
+        return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以編輯其他系統管理者帳號。' }, { status: 403 });
+      }
       const displayName = clean(body.displayName,160);
       const email = clean(body.email,254).toLowerCase() || null;
       const lineUserId = clean(body.lineUserId,100) || null;
@@ -1016,8 +1045,9 @@ export async function PATCH(request) {
       if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
       if (body.role !== undefined) {
         const role = clean(body.role,20), agencyId = Number(body.agencyId);
-        const requiresAgency = role !== 'training_center';
-        if (!HR_ROLES.has(role) || (requiresAgency && !validId(agencyId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
+        const requiresAgency = !['training_center','system_admin'].includes(role);
+        if (!HR_MEMBER_ROLES.has(role) || (requiresAgency && !validId(agencyId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
+        if (role === 'system_admin' && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以指派系統管理者身分。' }, { status: 403 });
         const client = await pool.connect();
         try {
            await client.query('BEGIN');
@@ -1035,12 +1065,16 @@ export async function PATCH(request) {
               return NextResponse.json({ error: role === 'worker' ? '工作者必須指派給菲律賓仲介。' : '雇主必須指派給台灣仲介。' }, { status: 400 });
             }
           }
-          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
           if (!member.rowCount) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
           }
           const current = member.rows[0];
+          if ((current.admin_scope === 'system' || current.role === 'system_admin') && !isRootAdmin) {
+            await client.query('ROLLBACK');
+            return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者身分。' }, { status: 403 });
+          }
           let workerId = null, employerId = null, memberAgencyId = null;
           if (role === 'worker') {
             if (current.role === 'worker' && current.worker_id) {
@@ -1067,11 +1101,12 @@ export async function PATCH(request) {
           if (current.agency_id && (role !== 'agency' || Number(current.agency_id)!==agencyId)) {
             await client.query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
           }
-          const assigned = await client.query(`UPDATE hr_members SET role=$2,requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
-            WHERE id=$1 RETURNING id,email,display_name,role,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
+          const assigned = await client.query(`UPDATE hr_members SET role=$2,admin_scope=CASE WHEN $2='system_admin' THEN 'system' ELSE 'none' END,
+            requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
+            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
           await client.query('COMMIT');
           if (current.line_user_id) {
-            syncLineRichMenu(current.line_user_id, { role, agency_type: approvedAgency?.agency_type || null })
+            syncLineRichMenu(current.line_user_id, { role: role === 'system_admin' ? 'admin' : role, agency_type: approvedAgency?.agency_type || null })
               .catch(error => console.error('hr_member_rich_menu_sync_failed', String(error?.message || error).slice(0, 120)));
           }
           if (!current.role && current.line_user_id) {
@@ -1085,6 +1120,11 @@ export async function PATCH(request) {
           await client.query('ROLLBACK');
           throw error;
         } finally { client.release(); }
+      }
+      const target = await query('SELECT role,admin_scope FROM hr_members WHERE id=$1',[id]);
+      if (!target.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+      if ((target[0].role === 'system_admin' || target[0].admin_scope === 'system') && !isRootAdmin) {
+        return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者帳號狀態。' }, { status: 403 });
       }
       if (body.active === false) await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
       const result = await query('UPDATE hr_members SET active=$2,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
@@ -1231,6 +1271,7 @@ export async function DELETE(request) {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
     if (!principal) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
+    const isRootAdmin = isHrRootAdminSession(session);
     const url=new URL(request.url),id=Number(url.searchParams.get('id'));
     if(deleteType==='member'){
       if(principal.role!=='admin')return NextResponse.json({error:'僅系統管理者可刪除會員帳號。'},{status:403});
@@ -1238,10 +1279,11 @@ export async function DELETE(request) {
       const client=await pool.connect();
       try{
         await client.query('BEGIN');
-        const member=await client.query('SELECT id,email,line_user_id,admin_scope FROM hr_members WHERE id=$1 FOR UPDATE',[id]);
+        const member=await client.query('SELECT id,email,line_user_id,role,admin_scope FROM hr_members WHERE id=$1 FOR UPDATE',[id]);
         if(!member.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到會員帳號。'},{status:404});}
         const target=member.rows[0];
-        if(target.admin_scope==='system'||target.admin_scope==='agency'||getAdminEmails().includes(String(target.email||'').trim().toLowerCase())||getAdminLineUserIds().includes(target.line_user_id)){
+        const isSystemTarget = target.admin_scope==='system' || target.role==='system_admin';
+        if((isSystemTarget&&!isRootAdmin)||target.admin_scope==='agency'||getAdminEmails().includes(String(target.email||'').trim().toLowerCase())||getAdminLineUserIds().includes(target.line_user_id)){
           await client.query('ROLLBACK');return NextResponse.json({error:'管理者帳號受保護，不能從會員管理刪除。'},{status:403});
         }
         const sameEmail=target.email&&session.user.email&&target.email.toLowerCase()===session.user.email.trim().toLowerCase();

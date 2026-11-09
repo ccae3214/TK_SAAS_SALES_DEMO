@@ -27,6 +27,8 @@ Environment variables used by Docker verification:
 - `APP_ORIGIN`
 - `NEXTAUTH_SECRET`
 - `ADMIN_EMAILS`
+- `HR_ADMIN_EMAILS` (optional; comma-separated Google/Gmail accounts granted HR administrator access)
+- `HR_ADMIN_LINE_USER_IDS` (root HR administrators allowed to manage system administrator accounts)
 - `OIDC_CLIENT_ID`
 - `OIDC_CLIENT_SECRET`
 - `OIDC_ISSUER`
@@ -36,6 +38,8 @@ Environment variables used by Docker verification:
 - `DATABASE_URL`
 
 If they are not already set, the script falls back to safe local verification defaults.
+
+To grant HR system administrator access by Google/Gmail login, set `HR_ADMIN_EMAILS` to a comma-separated list of email addresses. Existing `ADMIN_EMAILS` remains supported. `HR_ADMIN_LINE_USER_IDS` is the root administrator allowlist: only these LINE users can create, read, update, or delete other system administrator accounts. Add at least one trusted LINE User ID there before granting the system administrator member type; ordinary HR administrators cannot promote accounts to that type.
 
 ## Secure environment configuration
 

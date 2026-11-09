@@ -958,6 +958,43 @@ async function setPreferredLanguage(lineUserId, language) {
     SET preferred_language=EXCLUDED.preferred_language,updated_at=NOW()`, [lineUserId, language]);
 }
 
+function lineProfileLanguageToBotLanguage(language) {
+  const locale = String(language || '').trim().toLowerCase().replace('_', '-');
+  if (/^zh(?:-|$)/.test(locale)) return 'zh';
+  if (/^en(?:-|$)/.test(locale)) return 'en';
+  if (/^(?:tl|fil)(?:-|$)/.test(locale)) return 'tl';
+  return null;
+}
+
+async function getLineProfileLanguage(lineUserId) {
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
+  if (!lineUserId || !accessToken) return null;
+  try {
+    const response = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(lineUserId)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) {
+      console.warn('line_profile_language_lookup_failed', response.status);
+      return null;
+    }
+    const profile = await response.json();
+    return lineProfileLanguageToBotLanguage(profile.language);
+  } catch (error) {
+    console.warn('line_profile_language_lookup_failed', error?.name || 'Error');
+    return null;
+  }
+}
+
+async function resolveReplyLanguage(lineUserId, fallback) {
+  const preferred = await getPreferredLanguage(lineUserId);
+  if (preferred) return preferred;
+  const profileLanguage = await getLineProfileLanguage(lineUserId);
+  if (!profileLanguage) return fallback;
+  await setPreferredLanguage(lineUserId, profileLanguage);
+  return profileLanguage;
+}
+
 function detectedLanguage(text) {
   if (/[\u3400-\u9fff]/.test(text)) return 'zh';
   return 'en';
@@ -1206,7 +1243,7 @@ function identityReply(principal, language) {
 export async function replyForHrLineEvent(event) {
   if (event?.type === 'follow') {
     const lineUserId = event.source?.userId;
-    const language = await getPreferredLanguage(lineUserId) || 'zh';
+    const language = await resolveReplyLanguage(lineUserId, 'zh');
     const principal = lineUserId ? await getHrPrincipal({ user: { lineUserId, name: 'LINE 會員' } }) : null;
     await syncLineRichMenu(lineUserId, principal);
     return principal?.role ? memberMenuReply(principal, language) : memberWebsiteReply(language, true);
@@ -1215,7 +1252,9 @@ export async function replyForHrLineEvent(event) {
   const text = String(event.message.text || '').trim().replace(/\s+/g, ' ');
   const lower = text.toLowerCase();
   const lineUserId = event.source?.userId;
-  const preference = await getPreferredLanguage(lineUserId);
+  const preference = event.source?.type === 'user'
+    ? await resolveReplyLanguage(lineUserId, detectedLanguage(text))
+    : await getPreferredLanguage(lineUserId);
   const language = preference || detectedLanguage(text);
   if (event.source?.type !== 'user') return language === 'en'
     ? 'For privacy, case queries are available only in a one-to-one chat with the official LINE account.'
