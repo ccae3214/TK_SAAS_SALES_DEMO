@@ -1,5 +1,13 @@
 # TK SaaS Sales Demo
 
+## 本機接手驗收入口（2026-11-05 B 三流程整理）
+
+已將 main 合併進本機 wei，建立獨立測試站，並完成 B：仲介關係目錄、角色化工作起點、需求與配對五階段、新會員申請／待審指引。網站已在本機重建，仍不連真實 LINE／Google。
+使用 Windows 瀏覽器開啟 <http://localhost:8088/hr/login>；帳號、密碼讀取方式、WSL 操作、環境變數與實際驗證結果只看 [docs/LOCAL_REVIEW.md](docs/LOCAL_REVIEW.md)。
+本輪工作紀錄見 [docs/TASK_LOG.md](docs/TASK_LOG.md)，完整實測見 [docs/VERIFICATION_REPORT.md](docs/VERIFICATION_REPORT.md)，唯一計畫主檔為 [docs/ROADMAP.md](docs/ROADMAP.md)，檔案地圖見 [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)。
+
+此站只含虛構資料，未連真實 LINE／Google。本次已授權開 PR，尚不合併或部署；2026-11-10 重新驗證 Node 19／Chromium 20 項通過，GitHub CI 狀態另以 PR 為準。下方原有部署／TLS／Fly.io 說明不作本輪本機啟動依據；設定差異與未驗項目見 LOCAL_REVIEW。
+
 ## 克雷迅人力管理
 
 `/hr` 是克雷迅人力仲介管理系統，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。新案件會建立護照資料頁與 PSA 出生證明前置文件，兩者核准後才能安排體檢及訓練；各必要文件、體檢與訓練同步追蹤。PDF、JPG、PNG 文件會以 AES-256-GCM 加密後儲存在 PostgreSQL，下載僅限管理者或該工人、雇主、仲介的關聯帳號，並寫入案件活動紀錄。請備份 `.env` 裡的 `HR_DOCUMENT_ENCRYPTION_KEY`；遺失金鑰後無法解密既有文件。管理者由 `ADMIN_EMAILS` 指定；如需用 LINE 登入管理者帳號，請先用該管理者的 LINE 登入，再開啟 `/api/auth/line-user-id` 取得 LINE User ID，將 ID 加入 `HR_ADMIN_LINE_USER_IDS` 後重啟 app 容器。會員登入後可申請工人、雇主或仲介類型；尚未指派類型的帳號會等待管理者審核並綁定所屬資料。管理者也可在會員帳號頁直接新增或變更類型。工人只讀取自己的案件、案件雇主與所屬仲介；雇主只讀取尚未媒合與已屬於自己的工人；仲介只讀取所屬仲介的工人、雇主與案件。LINE Login 需在 LINE Developers Console 建立 LINE Login channel，將 Channel ID 與 Channel secret 填入 `.env`，並登記回呼網址 `${NEXTAUTH_URL}/api/auth/callback/line`。

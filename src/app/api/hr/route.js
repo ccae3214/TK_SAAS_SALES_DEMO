@@ -268,7 +268,7 @@ export async function GET() {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
     if (!principal) return NextResponse.json({ role: 'pending', pendingApproval: false, requestedRole: null, actor: { name: session.user.name || session.user.email || 'LINE 會員', email: session.user.email || '' } });
-    if (!principal.role) return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
+    if (!principal.role) return NextResponse.json({ role: 'pending', pendingApproval: !!principal.requested_role, requestedRole: principal.requested_role || null, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
     const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts] = await Promise.all([
       query('SELECT * FROM hr_employers ORDER BY status, name'),
       query('SELECT * FROM hr_workers ORDER BY status, name'),

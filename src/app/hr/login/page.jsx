@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { getProviders, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { HrLanguageTools } from '@/lib/hr-translations';
 
@@ -14,11 +14,22 @@ export default function HrLoginPage() {
   const [busy, setBusy] = useState(false);
   const [registerMode, setRegisterMode] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [providers, setProviders] = useState({});
+  const [providerLoading, setProviderLoading] = useState(true);
+  const [providerError, setProviderError] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRegisterMode(params.get('register') === '1');
     setAuthError(params.get('error') || '');
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getProviders().then(value => { if (active) { setProviders(value || {}); setProviderError(!value); } })
+      .catch(() => { if (active) setProviderError(true); })
+      .finally(() => { if (active) setProviderLoading(false); });
+    return () => { active = false; };
   }, []);
 
   // LINE 預設用自動登入（跳到 LINE App 認證）。自動登入失敗時，改用「關閉自動登入」重試，
@@ -53,7 +64,7 @@ export default function HrLoginPage() {
         <h1 style={{ margin: '0 0 8px', fontSize: 27 }}>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
         <p style={{ margin: '0 0 24px', color: '#64748b', lineHeight: 1.6 }}>{registerMode ? '使用 LINE 確認身分，登入後選擇工人、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
 
-        {authError && (
+        {authError && providers.line && (
           <div role="alert" style={{ marginBottom: 14, padding: 14, borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontSize: 14, lineHeight: 1.6 }}>
             登入沒有完成。如果你剛剛是從 LINE App 跳回來，可能是瀏覽器不同或隱私模式造成的，請按下方按鈕，改用 LINE 帳號密碼登入再試一次。
             <button type="button" onClick={retryLineWithoutAutoLogin} style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#06C755', border: '1px solid #06C755' }}>
@@ -61,11 +72,15 @@ export default function HrLoginPage() {
             </button>
           </div>
         )}
-        <button type="button" style={{ ...buttonStyle, color: '#fff', background: '#06C755', border: '1px solid #06C755' }} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
+        {providers.line && <button type="button" style={{ ...buttonStyle, color: '#fff', background: '#06C755', border: '1px solid #06C755' }} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
           {registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
-        </button>
-        {!registerMode && <button type="button" style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#F28C28', border: '1px solid #F28C28' }} onClick={() => signIn('google', { callbackUrl: '/hr' })}>使用 Google 登入</button>}
+        </button>}
+        {!registerMode && providers.google && <button type="button" style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#F28C28', border: '1px solid #F28C28' }} onClick={() => signIn('google', { callbackUrl: '/hr' })}>使用 Google 登入</button>}
 
+        {providerLoading && <p role="status">正在確認可用的登入方式…</p>}
+        {providerError && <p role="alert">暫時無法讀取登入方式，請重新整理頁面再試。</p>}
+        {!providerLoading && !providers.line && !providers.google && <p style={{color:'#64748b',lineHeight:1.7,margin:'18px 0'}}>目前使用會員帳號登入；LINE 與 Google 登入尚未開放。新會員請先向邀請你的管理者取得登入方式，登入後再申請身分。</p>}
+        {registerMode && !providerLoading && !providers.line && <Link href="/hr/login">返回會員帳號登入</Link>}
         {!registerMode && <><div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0', color: '#94a3b8', fontSize: 13 }}>
           <span style={{ height: 1, flex: 1, background: '#e2e8f0' }} />或使用會員帳號<span style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
         </div>

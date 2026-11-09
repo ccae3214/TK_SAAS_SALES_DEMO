@@ -195,12 +195,62 @@ const EN_MORE = {
   '護照資料頁與 PSA 出生證明是預設前置文件。這裡新增的文件可與體檢、訓練同步辦理。': 'Passport bio page and PSA birth certificate are prerequisite documents. Other documents added here can be processed alongside medical checks and training.', '護照資料頁與 PSA 出生證明核准後，才能安排體檢與訓練。': 'Medical checks and training can be scheduled after the passport bio page and PSA birth certificate are approved.',
   '選擇仲介': 'Select an agency', '選擇台灣仲介': 'Select a Taiwan agency', '選擇轉交機構': 'Select agencies to forward to', '雇主案件與工作者進度': 'Employer cases and worker progress', '雇主／工作類型': 'Employer / job type', '項已更新': 'items updated', '項文件要求': 'document requirements', '預覽': 'Preview', '類型': 'Type', '階段': 'Stage', '（Staff 作業） · 台灣 Broker：': '(Staff) · Taiwan representative (Broker): ', '｜合作台灣仲介：': ' · Partner Taiwan agencies: ',
 };
+const FLOW_EN = {
+  "需求轉介與追蹤": "Request forwarding & tracking",
+  "完善本人履歷": "Complete my resume",
+  "工作起點": "Start here",
+  "需求與配對": "Requests & matching",
+  "人員與機構資料": "People & agencies",
+  "下一步": "Next step",
+  "雇主工作起點": "Employer starting point",
+  "台灣仲介工作起點": "Taiwan agency starting point",
+  "菲律賓仲介工作起點": "Philippines agency starting point",
+  "工人工作起點": "Worker starting point",
+  "先建立需求，再由合作仲介推薦人選；錄用後進入辦件。": "Create a request, review agency recommendations, then follow the application after hiring.",
+  "確認負責業務、轉交需求，並追蹤工人錄用與來台進度。": "Confirm the representative, forward requests, and track hiring and Taiwan application progress.",
+  "查看收到的需求、推薦合適工人，再處理文件與申辦進度。": "Review received requests, recommend workers, then handle documents and applications.",
+  "先完善本人履歷，再查看必要文件與來台程序；送審不等於已核准。": "Complete your resume, then check required documents and application steps. Submission is not approval.",
+  "前往需求與配對": "Open requests & matching",
+  "查看需求與配對": "View requests & matching",
+  "查看必要文件": "View required documents",
+  "項待準備文件": "documents to prepare",
+  "張進行中需求": "active requests",
+  "需求建立": "Request created",
+  "仲介轉介": "Agency referral",
+  "推薦人選": "Worker nomination",
+  "面試確認": "Interview review",
+  "錄用辦件": "Hiring & application",
+  "需求已取消，保留歷史供查閱。": "This request was cancelled. History remains available.",
+  "已完成錄用，請到來台程序追蹤後續辦件。": "Hiring is complete. Open the Taiwan application process for next steps.",
+  "雇主確認面試結果；錄用後會建立正式案件。": "The employer reviews interview results. Hiring creates an application case.",
+  "等待雇主安排面試或確認人選。": "Waiting for the employer to arrange an interview or review the candidate.",
+  "等待菲律賓仲介推薦合適工人。": "Waiting for the Philippines agency to recommend workers.",
+  "台灣仲介選擇合作菲律賓仲介並轉交需求。": "The Taiwan agency selects a Philippines agency and forwards the request.",
+  "先指定合作台灣仲介，再進行轉介。": "Assign a Taiwan agency before forwarding the request.",
+  "需求追蹤與歷史": "Request tracking & history",
+  "進行中的需求可繼續處理；已額滿或取消的需求只保留紀錄，不再提供配對操作。": "Active requests can be processed. Filled or cancelled requests are read-only history.",
+  "目前沒有分派給你的需求，請由雇主或台灣仲介建立或轉交。": "No requests are assigned to you. An employer or Taiwan agency must create or forward one.",
+  "機構詳情": "Agency details",
+  "查看機構詳情": "View agency details",
+  "收起詳情": "Close details",
+  "搜尋仲介": "Search agencies",
+  "輸入機構名稱": "Enter agency name",
+  "仲介類型": "Agency type",
+  "全部機構": "All agencies",
+  "機構成員與責任": "Agency members & responsibilities",
+  "所屬雇主與工人": "Assigned employers & workers",
+  "相關需求與案件": "Related requests & cases",
+  "查看會員帳號": "View member accounts",
+  "查看媒合需求單": "View matching requests",
+  "請在媒合需求單指派負責業務。": "Assign a representative from the matching requests screen.",
+  "會員起步指引": "Membership guide"
+};
 const HR_TEXT_ORIGINALS = new WeakMap();
 
 export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
-  let translated = EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed];
+  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;
