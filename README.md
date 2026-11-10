@@ -1,14 +1,14 @@
 # TK SaaS Sales Demo
 
-目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `6caf5df` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 35／Chromium 25 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `aaab5fa` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 35／Chromium 26 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
 
 ## 本機接手驗收入口（2026-11-05 B 三流程整理）
 
-已將 main 合併進本機 wei，建立獨立測試站，並完成 B：仲介關係目錄、角色化工作起點、需求與配對五階段、新會員申請／待審指引。網站已在本機重建，仍不連真實 LINE／Google。
+目前以 feature 分支整合 main，使用獨立測試站，並完成 B：仲介關係目錄、角色化工作起點、需求與配對五階段、新會員申請／待審指引。網站已在本機重建，仍不連真實 LINE／Google。
 使用 Windows 瀏覽器開啟 <http://localhost:8088/hr/login>；帳號、密碼讀取方式、WSL 操作、環境變數與實際驗證結果只看 [docs/LOCAL_REVIEW.md](docs/LOCAL_REVIEW.md)。
 本輪工作紀錄見 [docs/TASK_LOG.md](docs/TASK_LOG.md)，完整實測見 [docs/VERIFICATION_REPORT.md](docs/VERIFICATION_REPORT.md)，唯一計畫主檔為 [docs/ROADMAP.md](docs/ROADMAP.md)，檔案地圖見 [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)。
 
-此站只含虛構資料，未連真實 LINE／Google。本次已授權開 PR，尚不合併或部署；2026-11-10 main 整合後重新驗證 Node 35／Chromium 25 項通過，GitHub CI 狀態另以 PR 為準。下方原有部署／TLS／Fly.io 說明不作本輪本機啟動依據；設定差異與未驗項目見 LOCAL_REVIEW。
+此站只含虛構資料，未連真實 LINE／Google。本次已授權開 PR，尚不合併或部署；2026-11-10 main 整合後重新驗證 Node 35／Chromium 26 項通過，GitHub CI 狀態另以 PR 為準。下方原有部署／TLS／Fly.io 說明不作本輪本機啟動依據；設定差異與未驗項目見 LOCAL_REVIEW。
 
 ## 克雷迅人力管理
 

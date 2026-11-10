@@ -4,11 +4,11 @@
 
 ## 已完成
 
-- [x] main `6caf5df` 整合到 `feature/local-review-onboarding`，解決五個內容衝突；不直接寫 main。
+- [x] main `aaab5fa` 整合到 `feature/local-review-onboarding`，解決五個內容衝突；不直接寫 main。
 - [x] 保留 main 的工作摘要、完整會員申請與機構選擇、訓練中心、履歷／文件重構及雇主直接選工。
 - [x] 接入 B：仲介關係目錄、工作起點、獨立需求與配對、五階段導覽、額滿／取消唯讀與待審重讀。
 - [x] 經使用者批准，停止 app、備份、實際還原至獨立驗證 DB，再對隔離 review DB 執行既有 migration。
-- [x] Docker build、Node 35 項及 Chromium 25 項通過；不把跳過的 lint／型別算通過。
+- [x] Docker build、Node 35 項及 Chromium 26 項通過；不把跳過的 lint／型別算通過。
 - [x] 同時測管理者指派→菲律賓推薦→面試→錄用，及雇主直接挑選→面試→錄用；逐步 API 讀回。
 - [x] 留下未錄用工人與已指派的 open 需求供手動驗收，不再讓自動測試耗盡全部人選。
 

@@ -2,7 +2,7 @@
 
 ## 現在的候選
 
-已整合 main `6caf5df` 到 `feature/local-review-onboarding`；PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。未合併到 main、未部署。Node 35 項／Chromium 25 項通過，證據與限制看 VERIFICATION_REPORT.md。
+已整合 main `aaab5fa` 到 `feature/local-review-onboarding`；PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。未合併到 main、未部署。Node 35 項／Chromium 26 項通過，證據與限制看 VERIFICATION_REPORT.md。
 
 Windows 只使用瀏覽器：http://localhost:8088/hr/login 。這是 Docker Desktop 的隔離虛構資料，不連真實 LINE／Google；不要啟動原部署 compose 來驗本 PR。
 

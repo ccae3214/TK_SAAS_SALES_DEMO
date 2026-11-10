@@ -8,6 +8,7 @@ import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, in
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
+import { withAdminAudit } from '@/lib/hr-audit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -283,8 +284,8 @@ export async function GET() {
     }
     const isRootAdmin = isHrRootAdminSession(session);
     const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts, allCertifications] = await Promise.all([
-      query('SELECT * FROM hr_employers ORDER BY status, name'),
-      query('SELECT * FROM hr_workers ORDER BY status, name'),
+      query('SELECT e.* FROM hr_employers e WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.last_employer_id=e.id AND m.employer_id IS NULL) ORDER BY e.status, e.name'),
+      query('SELECT w.* FROM hr_workers w WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.last_worker_id=w.id AND m.worker_id IS NULL) ORDER BY w.status, w.name'),
       query(`SELECT c.*, e.name AS employer_name, e.agency_id AS employer_agency_id, e.employer_type,
         (SELECT m.display_name FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id JOIN hr_members m ON m.id=ja.broker_member_id WHERE jc.case_id=c.id ORDER BY jc.id LIMIT 1) AS broker_name,
         w.name AS worker_name, w.agency_id AS worker_agency_id, assigned_member.display_name AS assigned_member_name,
@@ -465,7 +466,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request) {
+async function handlePost(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -781,7 +782,7 @@ export async function POST(request) {
   }
 }
 
-export async function PATCH(request) {
+async function handlePatch(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -1131,6 +1132,21 @@ export async function PATCH(request) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者身分。' }, { status: 403 });
           }
+          if (current.role === 'worker' && current.worker_id && role !== 'worker') {
+            const openCase = await client.query("SELECT 1 FROM hr_cases WHERE worker_id=$1 AND status<>'closed' LIMIT 1", [current.worker_id]);
+            if (openCase.rowCount) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '這位工作者還有進行中的案件，請先結案或改派後再變更會員類型。' }, { status: 409 });
+            }
+          }
+          if (current.role === 'employer' && current.employer_id && role !== 'employer') {
+            const openWork = await client.query(`SELECT 1 FROM hr_cases WHERE employer_id=$1 AND status<>'closed'
+              UNION ALL SELECT 1 FROM hr_job_orders WHERE employer_id=$1 AND status='open' LIMIT 1`, [current.employer_id]);
+            if (openWork.rowCount) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '這位雇主還有進行中的案件或需求單，請先結案或取消後再變更會員類型。' }, { status: 409 });
+            }
+          }
           let workerId = null, employerId = null, memberAgencyId = null;
           // 工作者／雇主資料是「會員的身分」，不是每次變更類型就新增一筆：
           // 優先重用目前綁定的資料，其次是會員先前離開此類型時記住的資料，都沒有才新建。
@@ -1331,7 +1347,7 @@ export async function PATCH(request) {
   }
 }
 
-export async function DELETE(request) {
+async function handleDelete(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -1392,3 +1408,8 @@ export async function DELETE(request) {
     return NextResponse.json({ error: deleteType==='member'?'刪除會員帳號失敗，請稍後再試。':'移除工作者所屬仲介失敗。' }, { status: 500 });
   }
 }
+
+// 系統管理員的新增／修改／刪除操作會寫入操作紀錄（hr_admin_audit_log）。
+export const POST = withAdminAudit('POST', handlePost);
+export const PATCH = withAdminAudit('PATCH', handlePatch);
+export const DELETE = withAdminAudit('DELETE', handleDelete);

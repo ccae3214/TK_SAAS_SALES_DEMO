@@ -1,6 +1,6 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前基底：main `6caf5df`，整合於 `feature/local-review-onboarding`，不直接修改 main。PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。下列描述是目前程式責任，不代表完整權限／正式資料驗收已通過。
+目前基底：main `aaab5fa`，整合於 `feature/local-review-onboarding`，不直接修改 main。PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。下列描述是目前程式責任，不代表完整權限／正式資料驗收已通過。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
 
@@ -59,15 +59,17 @@
 - compose.review.yaml：固定 project、容器與 volume 的隔離測試站，不修改原部署拓樸。
 - scripts/local-review-bootstrap.mjs：限定 review DB 的初始化；已有會員即拒絕重灌；更新為 main initializer 與 migration 相依注入，來源標記失配即拒絕。
 - scripts/seed-hr-role-tests.js：main 的虛構資料 seed，含寫資料／重設密碼行為，不可當唯讀測試任意執行。
-- scripts/verify-local-review.py：固定本機及 project 的 Playwright；六角色、兩條配對 UI、API 讀回、新會員、文件頁、390px、未耗盡的手動 fixture。
+- scripts/verify-local-review.py：固定本機及 project 的 Playwright；六角色、兩條配對 UI、API 讀回、新會員、文件頁、390px、稽核 endpoint 授權、未耗盡的手動 fixture。
 - tests/hr-workflow.test.mjs：B 投影與 main 功能保留回歸，23 項。
 - scripts/test-hr-requirements.mjs：main 文件適用性／證照測試，12 項。
 - docs/review/b-*.png：本輪重新產生的虛構資料畫面；無 b- 前綴圖片是前輪歷史。
-- .github/workflows/ci.yml／deploy.yml：main 6caf5df 恢復的 CI build／self-hosted 部署；不由 B 改動，PR checks 及部署必須分開判讀。
+- .github/workflows/ci.yml／deploy.yml：main aaab5fa 恢復的 CI build／self-hosted 部署；不由 B 改動，PR checks 及部署必須分開判讀。
+
+- src/lib/hr-audit.js、src/app/api/hr/admin-audit/route.js：aaab5fa 的管理者稽核 wrapper、查詢與 schema；原樣保留，已驗端點 admin／非 admin／匿名授權，未全面驗稽核寫入。
 
 ## main 併入的新檔／移除
 
-上述工作者進度、履歷元件、worker document migration、HR agency-workers API、rich menu 圖片（public/line-rich-menus/*）等均由 main 帶入。main 的既有補丁／批次輔助檔（admin-search-bars.patch、fix-member-role-change.patch、apply-worker-progress-feature.mjs、unify-hr-terms.mjs）、scripts/cleanup-orphan-duplicates.sql 不在本輪執行；不能因檔案存在就宣稱已套用。
+上述工作者進度、履歷元件、worker document migration、HR agency-workers API、rich menu 圖片（public/line-rich-menus/*）等均由 main 帶入。main 的既有補丁／批次輔助檔（admin-audit-log.patch、unify-hr-terms.mjs）、scripts/cleanup-orphan-duplicates.sql 不在本輪執行；不能因檔案存在就宣稱已套用。aaab5fa 已刪除 admin-search-bars.patch、fix-member-role-change.patch、apply-worker-progress-feature.mjs、google-login-fix.patch，沿用其清理。
 
 main 已刪除舊 ACME 帳戶憑證目錄、certbot_www/.gitkeep、舊展示圖片；沿用其刪除，不復原或複製私鑰。既有 Git 歷史是否含敏感資料及是否需撤銷／輪替須另評估，不能因目前檔案刪除就宣稱歷史乾淨。
 

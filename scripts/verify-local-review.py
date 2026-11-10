@@ -54,6 +54,14 @@ with sync_playwright() as p:
     for role, email in [('admin', 'review.admin@example.invalid'), ('taiwan', 'test.agency.tw@example.com'), ('philippines', 'test.agency.ph@example.com'), ('employer', 'test.employer01@example.com'), ('worker', 'test.worker01@example.com'), ('new', new_member_email)]:
         login(role, email)
     passed('unconfigured external login methods hidden')
+    # Latest main's restored audit endpoint: validate administrator access and fail-closed non-admin access.
+    audit = contexts['admin'].request.get(BASE + '/api/hr/admin-audit')
+    assert audit.status == 200 and isinstance(audit.json()['rows'], list)
+    assert contexts['worker'].request.get(BASE + '/api/hr/admin-audit').status == 403
+    anonymous = browser.new_context()
+    assert anonymous.request.get(BASE + '/api/hr/admin-audit').status == 401
+    anonymous.close()
+    passed('latest-main audit endpoint allows admin and denies worker and anonymous sessions')
 
     def state(role):
         response = contexts[role].request.get(BASE + '/api/hr')
