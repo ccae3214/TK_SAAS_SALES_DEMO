@@ -4,7 +4,7 @@
 
 ## 已完成
 
-- [x] main `aaab5fa` 整合到 `feature/local-review-onboarding`，解決五個內容衝突；不直接寫 main。
+- [x] main `756b2b8` 整合到 `feature/local-review-onboarding`，解決五個內容衝突；不直接寫 main。
 - [x] 保留 main 的工作摘要、完整會員申請與機構選擇、訓練中心、履歷／文件重構及雇主直接選工。
 - [x] 接入 B：仲介關係目錄、工作起點、獨立需求與配對、五階段導覽、額滿／取消唯讀與待審重讀。
 - [x] 經使用者批准，停止 app、備份、實際還原至獨立驗證 DB，再對隔離 review DB 執行既有 migration。

@@ -1,6 +1,6 @@
 # VERIFICATION_REPORT｜B 三流程整理實際驗收
 
-## 最新狀態：整合 main aaab5fa 的本機候選
+## 最新狀態：整合 main 756b2b8 的本機候選
 
 發佈讀回：候選 `78565a9` 已 push，GitHub commit API 確認第二個 parent 就是 main `aaab5fa`，compare API 為 ahead、behind_by=0，merge_base 同 main；但 PR 當次讀回仍回 mergeable=false／dirty 且沒有 checks。這是 GitHub PR 狀態與已讀回 ancestry 不一致的現象，尚未確認原因，不把它宣稱為 CI 通過或可合併。此紀錄只描述當次觀察，後續最新狀態以 PR 讀回為準。
 
@@ -18,7 +18,7 @@ PR：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature �
 - 新會員沿用 main 的完整類型＋所屬仲介表單，加入重讀狀態；不採用舊版只有角色選擇的表單。舊自動測試的手動轉交改測管理者指派，是配合 main 已變更的流程，並額外驗證雇主直接選工，不減少配對閉環斷言。
 - 測試中途曾因管理端桌面不是 article、新會員 select 巢狀 label、必要文件需展開 B 階段而失敗；修正定位／展開後完整重跑通過。`git diff --check` 曾發現空白，已修正並重跑。
 - `node --check scripts/local-review-bootstrap.mjs`／Python compile 通過；bootstrap 對既有 DB 以預期非零拒絕，不重設帳號。配合新版 initializer 更新抽取與 migration 相依注入；本輪未重跑全新空 DB 的初始化，不能宣稱冷啟動已驗收。
-- 最後完整瀏覽器測試後隔離資料累計：會員 24、工人 20、案件 19、需求 18、文件 440、送件 0；含歷史及中途測試紀錄，不把它們都算成單次成功測試建立。
+- 最後完整瀏覽器測試後隔離資料累計：會員 25、工人 22、案件 21、需求 20、文件 484、送件 0；含歷史及中途測試紀錄，不把它們都算成單次成功測試建立。
 - 留給使用者：工人 `DEMO-手動推薦測試工人-A`（ID 10）、需求 `DEMO-手動推薦驗收`（ID 16，open 且已指派菲律賓機構）；畫面已選得到且推薦按鈕啟用，未提交推薦、未錄用。
 - main 已恢復 CI／Deploy workflows；CI 僅 build，合併 main 可能觸發部署，未獲授權不合併。lint／型別仍依既有設定跳過，Browserslist 過時警告未處理。
 - 未驗：真實 LINE／Google／通知、iPhone／WebView、完整跨機構拒絕、agency admin 全流程、真實文件上下載、並行錄用、全新環境初始化與正式備份還原。僅本機小型資料集的備份還原與遷移已測；不是正式放行。
@@ -26,6 +26,9 @@ PR：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature �
 - 額外逐筆查核原有會員／工人／案件／需求的識別與關係仍在。初次以文件 ID 必須完全不變查核失敗，原因是 main migration 原本就會合併重複文件；進一步確認原 220 列含 22 列重複、共 198 組工作者／文件／狀態，全部仍存在，無遺漏。文件 ID 不保證保留，不能用總列數相同取代此語意查核。
 - main `aaab5fa` 的稽核 endpoint 已驗 admin 200、worker 403、匿名 401，並確認 hr_admin_audit_log 已建立；未驗稽核寫入的所有 action。最新 main 的 schema／權限／稽核程式原樣保留。
 - 完整 staged diff 檢查曾指出 upstream 補丁檔自帶的尾端空白（先前 admin-search-bars.patch，後來 admin-audit-log.patch）；未擅改補丁內容。最終相對 aaab5fa 的 PR diff、工作區 diff 檢查通過；這不是縮減產品測試。
+
+- 後續重新開啟同一 Draft PR 以刷新計算時，讀回 base 已是 `756b2b8`，因此前述 PR dirty 不能直接斷言為 GitHub 平台錯誤；先前 base 資訊已過時。已再整合此 main 更新、保留新增的管理端刪除功能與稽核（未執行任何刪除），解決 1 個管理頁衝突後，重建並完整重跑 Node 35／Chromium 26 全通過。
+- 最終驗證基底固定為 `756b2b8`，其後若團隊再更新 main，須另外判斷差異，不把這份結果自動外推至未測版本。最後 image `sha256:a150c8200bac63ee56c761c04f3c2cd5fe3e1667723183d0333fe6244c91618a`。
 
 ## 以下為歷史紀錄
 

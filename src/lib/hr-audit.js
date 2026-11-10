@@ -79,6 +79,8 @@ function describe(method, type, body, name, before, created) {
   }
   if (method === 'DELETE') {
     if (type === 'member') return { action: '刪除', name, phrase: `刪除了${name}會員帳號` };
+    if (type === 'employer' || type === 'worker') return { action: '刪除', name, phrase: `刪除了${name}${label}` };
+    if (type === 'case') return { action: '刪除', name, phrase: `刪除了案件 ${name}` };
     return null;
   }
   switch (type) {

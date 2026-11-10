@@ -1,6 +1,6 @@
 # TK SaaS Sales Demo
 
-目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `aaab5fa` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 35／Chromium 26 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `756b2b8` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 35／Chromium 26 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
 
 ## 本機接手驗收入口（2026-11-05 B 三流程整理）
 
