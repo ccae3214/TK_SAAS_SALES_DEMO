@@ -8,6 +8,7 @@ import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, in
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
+import { withAdminAudit } from '@/lib/hr-audit';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -465,7 +466,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request) {
+async function handlePost(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -781,7 +782,7 @@ export async function POST(request) {
   }
 }
 
-export async function PATCH(request) {
+async function handlePatch(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -1346,7 +1347,7 @@ export async function PATCH(request) {
   }
 }
 
-export async function DELETE(request) {
+async function handleDelete(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
@@ -1407,3 +1408,8 @@ export async function DELETE(request) {
     return NextResponse.json({ error: deleteType==='member'?'刪除會員帳號失敗，請稍後再試。':'移除工作者所屬仲介失敗。' }, { status: 500 });
   }
 }
+
+// 系統管理員的新增／修改／刪除操作會寫入操作紀錄（hr_admin_audit_log）。
+export const POST = withAdminAudit('POST', handlePost);
+export const PATCH = withAdminAudit('PATCH', handlePatch);
+export const DELETE = withAdminAudit('DELETE', handleDelete);
