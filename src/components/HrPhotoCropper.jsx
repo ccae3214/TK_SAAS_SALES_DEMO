@@ -24,9 +24,14 @@ export default function HrPhotoCropper({ file, onCancel, onConfirm }) {
       setImageUrl(file);
       return;
     }
-    const url = URL.createObjectURL(file);
-    setImageUrl(url);
-    return () => URL.revokeObjectURL(url);
+    // Use a data: URL instead of a blob: URL — the nginx CSP (img-src 'self' data:) blocks blob: images,
+    // which made every locally chosen photo fail with "cannot read this photo".
+    let cancelled = false;
+    const reader = new FileReader();
+    reader.onload = () => { if (!cancelled) setImageUrl(String(reader.result || '')); };
+    reader.onerror = () => { if (!cancelled) setError(english ? 'Could not read this photo.' : '無法讀取此照片。'); };
+    reader.readAsDataURL(file);
+    return () => { cancelled = true; };
   }, [file]);
 
   function initializeImage() {
