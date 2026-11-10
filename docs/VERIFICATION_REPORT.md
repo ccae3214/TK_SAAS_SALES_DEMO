@@ -2,6 +2,9 @@
 
 ## 最新狀態：整合 main aaab5fa 的本機候選
 
+發佈讀回：候選 `78565a9` 已 push，GitHub commit API 確認第二個 parent 就是 main `aaab5fa`，compare API 為 ahead、behind_by=0，merge_base 同 main；但 PR 當次讀回仍回 mergeable=false／dirty 且沒有 checks。這是 GitHub PR 狀態與已讀回 ancestry 不一致的現象，尚未確認原因，不把它宣稱為 CI 通過或可合併。此紀錄只描述當次觀察，後續最新狀態以 PR 讀回為準。
+
+
 PR：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支解決五個內容衝突並整合 main `6caf5df`，再納入測試期間新增的 main `aaab5fa`（操作稽核與會員類型保護），未合併到 main、未部署；GitHub head／CI／Draft 狀態以 PR 讀回為準。下方較早的「有衝突／等待遷移授權／沒有 workflows／19 或 20 項測試」都是歷史紀錄。
 
 - 使用者明確批准先備份再遷移，只操作 Docker `tk-saas-local-review` 的 `tk_saas_review`。
