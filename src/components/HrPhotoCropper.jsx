@@ -7,6 +7,36 @@ import styles from './HrPhotoCropper.module.css';
 const OUTPUT_WIDTH = 600;
 const OUTPUT_HEIGHT = 750;
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (typeof FileReader !== 'undefined') {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error || new Error('read_failed'));
+        reader.readAsDataURL(file);
+        return;
+      }
+      if (typeof file.arrayBuffer === 'function') {
+        file.arrayBuffer().then(buffer => {
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          resolve(`data:${file.type || 'image/jpeg'};base64,${btoa(binary)}`);
+        }).catch(reject);
+        return;
+      }
+      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        resolve(URL.createObjectURL(file));
+        return;
+      }
+      reject(new Error('unsupported'));
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 export default function HrPhotoCropper({ file, onCancel, onConfirm }) {
   const { lang } = useLanguage();
   const viewportRef = useRef(null);
@@ -24,13 +54,12 @@ export default function HrPhotoCropper({ file, onCancel, onConfirm }) {
       setImageUrl(file);
       return;
     }
-    // Use a data: URL instead of a blob: URL — the nginx CSP (img-src 'self' data:) blocks blob: images,
-    // which made every locally chosen photo fail with "cannot read this photo".
+    // Read the photo as a data: URL (the nginx CSP blocks blob: images). Some in-app mobile
+    // browsers have no FileReader, so every API is feature-checked and failures never throw.
     let cancelled = false;
-    const reader = new FileReader();
-    reader.onload = () => { if (!cancelled) setImageUrl(String(reader.result || '')); };
-    reader.onerror = () => { if (!cancelled) setError(english ? 'Could not read this photo.' : '無法讀取此照片。'); };
-    reader.readAsDataURL(file);
+    readFileAsDataUrl(file)
+      .then(url => { if (!cancelled) setImageUrl(url); })
+      .catch(() => { if (!cancelled) setError(english ? 'Could not read this photo.' : '無法讀取此照片。'); });
     return () => { cancelled = true; };
   }, [file]);
 
