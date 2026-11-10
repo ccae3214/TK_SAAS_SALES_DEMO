@@ -2,7 +2,7 @@
 
 ## 現在的候選
 
-已整合 main `756b2b8` 到 `feature/local-review-onboarding`；PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。未合併到 main、未部署。Node 35 項／Chromium 26 項通過，證據與限制看 VERIFICATION_REPORT.md。
+已整合 main `e0e5a71` 到 `feature/local-review-onboarding`；PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。未合併到 main、未部署。Node 55 項／Chromium 既有 26 項＋撤回專項 15 項通過，證據與限制看 VERIFICATION_REPORT.md。
 
 Windows 只使用瀏覽器：http://localhost:8088/hr/login 。這是 Docker Desktop 的隔離虛構資料，不連真實 LINE／Google；不要啟動原部署 compose 來驗本 PR。
 
@@ -19,6 +19,12 @@ Windows 只使用瀏覽器：http://localhost:8088/hr/login 。這是 Docker Des
 | 已送審會員 | review.new@example.invalid |
 
 密碼只在本機 repo root `.env.review.local` 的 `REVIEW_LOGIN_PASSWORD` 查看；不貼聊天／PR／Git。這是隔離 Demo 共用密碼，不是正式認證政策。普通分頁共用 cookie；每個角色先登出，或用獨立瀏覽器 profile。
+
+## 推薦錯誤：撤回推薦（本輪新增）
+
+合作人先看 REVIEW_REPORT.md。菲律賓帳號在「需求與配對」找到所屬機構、尚未面試的仲介推薦，按「撤回推薦」並確認。先取消時資料不變；確認後顯示「推薦歷史／已撤回推薦」，工人與文件不刪。雇主重整後不能安排或錄用此人選；可改推其他工作者。
+
+已安排面試、已錄用、雇主直接挑選或已結束需求不提供撤回；跨機構即使自行呼叫 API 也拒絕。同一 route 的已撤回人選保留歷史、不提供重新啟用。額滿需求仍可查撤回歷史但不提供操作。
 
 ## 最短手動驗收：菲律賓推薦
 
@@ -71,8 +77,9 @@ main 已不再提供台灣仲介手動轉交；不要照舊版步驟尋找該按
 
 【WSL】
 
-    node --test tests/hr-workflow.test.mjs scripts/test-hr-requirements.mjs
+    node --test tests/hr-candidate-withdrawal.test.mjs tests/hr-workflow.test.mjs scripts/test-hr-requirements.mjs
     <playwright-python> scripts/verify-local-review.py
+    <playwright-python> scripts/verify-recommendation-withdrawal.py
     git diff --check
 
 `<playwright-python>` 為已安裝 Playwright／Chromium 的獨立 Python 環境。腳本固定 localhost:8088 並核對 Docker project；建立虛構待審會員／工人，實際點兩條配對 UI，再 API 讀回；最後準備未錄用人選與已指派 open 需求供人工驗收。不是唯讀，也不是完整真實註冊測試。

@@ -291,6 +291,16 @@ const EN_MORE = {
   '選擇仲介': 'Select an agency', '選擇台灣仲介': 'Select a Taiwan agency', '選擇轉交機構': 'Select agencies to forward to', '雇主案件與工作者進度': 'Employer cases and worker progress', '雇主／工作類型': 'Employer / job type', '項已更新': 'items updated', '項文件要求': 'document requirements', '預覽': 'Preview', '類型': 'Type', '階段': 'Stage', '（Staff 作業） · 台灣業務：': '(Staff) · Taiwan representative (Broker): ', '｜合作台灣仲介：': ' · Partner Taiwan agencies: ',
 };
 const FLOW_EN = {
+  '撤回推薦': 'Withdraw recommendation',
+  '撤回中…': 'Withdrawing…',
+  '已撤回推薦': 'Recommendation withdrawn',
+  '推薦歷史（': 'Recommendation history (',
+  '僅撤回推薦，工作者與原推薦紀錄均已保留。': 'Only the recommendation was withdrawn. The worker and original record are retained.',
+  '推薦錯誤時，可在安排面試前撤回；不會刪除工作者、履歷或文件。': 'A mistaken recommendation can be withdrawn before an interview is arranged. Worker records, resumes and documents are not deleted.',
+  '需求已結束，推薦與撤回紀錄僅供查閱。': 'This request has ended. Recommendation and withdrawal records are read-only.',
+  '推薦已撤回，工作者與歷史紀錄已保留。': 'Recommendation withdrawn. Worker records and history are retained.',
+  '此推薦已撤回，無法安排面試或錄用。': 'This recommendation was withdrawn and cannot be interviewed or hired.',
+  '只能撤回仲介推薦且尚未安排面試的人選；已安排面試、錄用或結束的需求不可撤回。': 'Only agency recommendations without an arranged interview can be withdrawn. Interviewed, hired or closed requests cannot be withdrawn.',
   "需求轉介與追蹤": "Request forwarding & tracking",
   "完善本人履歷": "Complete my resume",
   "工作起點": "Start here",

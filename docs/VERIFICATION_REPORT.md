@@ -1,5 +1,17 @@
 # VERIFICATION_REPORT｜B 三流程整理實際驗收
 
+## 本輪更新：推薦撤回與合作人審查
+
+- 已依使用者確認，新增所屬菲律賓仲介在安排面試前撤回推薦；保留工人、履歷、文件與推薦歷史，阻擋跨機構、雇主來源、已面試／錄用、結束需求及過時寫入。
+- 本輪凍結整合基底 main `e0e5a71`，仍在 feature/local-review-onboarding／PR #12；不合併 main、不部署、不新增 schema。本次操作權限範圍已另外確認，不擴充其他角色代撤回權限。
+- 實測：Node 55 通過、0 失敗、0 跳過；既有 Chromium 回歸 26 通過；推薦撤回專項 15 通過，兩組瀏覽器 pageerror=0；最終 Docker build 成功並重建 app。錯誤角色、跨機構、重試、資料保留及真實 PostgreSQL 並行互斥均已驗。
+- 舊 image 先重現缺按鈕；新專項中途因測試 UI 未填說明卻預期有說明而失敗，補上實際輸入後完整重跑，未刪除斷言。
+- 使用既有 rejected＋append-only notes 事件表示撤回，含伺服器時間與 member ID；不是新的獨立防竄改稽核。已撤回同一 route 不提供重新啟用，改推其他人選；細節及 NULL 歷史來源假設見 REVIEW_REPORT。
+- 合作人入口：[REVIEW_REPORT.md](REVIEW_REPORT.md)。這是實作者自我審查＋執行證據，不是獨立 reviewer 核准。GitHub CI／head 以 PR 讀回為準，不預填成功。
+- 未驗：真實 LINE／Google／通知、iPhone／WebView、完整多機構矩陣、真實附件、正式資料與完整壓力／重試矩陣；lint／型別仍被原 build 設定跳過。
+
+## 前輪整合與驗證紀錄（歷史）
+
 ## 最新狀態：整合 main 756b2b8 的本機候選
 
 發佈讀回：候選 `78565a9` 已 push，GitHub commit API 確認第二個 parent 就是 main `aaab5fa`，compare API 為 ahead、behind_by=0，merge_base 同 main；但 PR 當次讀回仍回 mergeable=false／dirty 且沒有 checks。這是 GitHub PR 狀態與已讀回 ancestry 不一致的現象，尚未確認原因，不把它宣稱為 CI 通過或可合併。此紀錄只描述當次觀察，後續最新狀態以 PR 讀回為準。

@@ -1,6 +1,6 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前基底：main `756b2b8`，整合於 `feature/local-review-onboarding`，不直接修改 main。PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。下列描述是目前程式責任，不代表完整權限／正式資料驗收已通過。
+目前基底：main `e0e5a71`，整合於 `feature/local-review-onboarding`，不直接修改 main。PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。下列描述是目前程式責任，不代表完整權限／正式資料驗收已通過。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
 
@@ -21,12 +21,22 @@
 | / | src/app/page.jsx：品牌與產品展示 |
 | /admin、/notes、/checkout、/demo/* | 原有商店／筆記／展示，非本輪 HR 驗收範圍 |
 
+## 本輪新增檔案：推薦撤回
+
+- src/lib/hr-candidate-withdrawal.js：純狀態／顯示與既有 notes 事件標記。
+- src/lib/hr-candidate-withdrawal-store.js：伺服器交易、機構／來源與狀態判定、鎖定、冪等。
+- src/components/HrRecommendationHistory.jsx：撤回按鈕、歷史與 readonly 結束需求。
+- tests/hr-candidate-withdrawal.test.mjs：20 項單元／交易替身測試。
+- scripts/verify-recommendation-withdrawal.py：固定隔離環境，15 項 UI／真實 DB／HTTP 授權及競爭查核。
+- docs/REVIEW_REPORT.md：合作人用自我審查、實測證據與放行限制。
+- docs/review/recommendation-withdrawal.png：390px 寬度撤回歷史截圖，僅虛構資料。
+
 ## HR 主要程式
 
 | 路徑 | 責任 |
 | --- | --- |
-| src/app/api/hr/route.js | schema initializer、HR 讀寫、雇主需求／直接選工、管理者指派、菲律賓推薦、面試／錄用；B 差異僅 pendingApproval 旗標 |
-| src/lib/hr-access.js、src/auth.js、src/lib/security.js | main 的身分、session、角色與 request 保護；未因 B 擴充權限 |
+| src/app/api/hr/route.js | schema initializer、HR 讀寫、雇主需求／直接選工、管理者指派、菲律賓推薦、面試／錄用；B 待審旗標，另有本輪批准的撤回 action、來源欄位與防復活保護 |
+| src/lib/hr-access.js、src/auth.js、src/lib/security.js | main 的身分、session、角色與 request 保護；既有角色不變；本輪另經批准限定菲律賓仲介撤回 action |
 | src/components/HrManagement.jsx／module.css | 保留 main 管理搜尋、履歷、文件審核等；接入仲介目錄、流程與桌面／手機額滿控制 |
 | src/components/HrMemberPortal.jsx | main 會員表單與所屬機構、工作摘要、履歷、文件、選工；B 加工作起點、獨立配對分頁與待審重讀 |
 | src/components/HrAgencyDirectory.jsx | 仲介名稱／國家／類型搜尋、台菲篩選、授權資料的關係詳情 |
@@ -63,13 +73,13 @@
 - tests/hr-workflow.test.mjs：B 投影與 main 功能保留回歸，23 項。
 - scripts/test-hr-requirements.mjs：main 文件適用性／證照測試，12 項。
 - docs/review/b-*.png：本輪重新產生的虛構資料畫面；無 b- 前綴圖片是前輪歷史。
-- .github/workflows/ci.yml／deploy.yml：main 756b2b8 恢復的 CI build／self-hosted 部署；不由 B 改動，PR checks 及部署必須分開判讀。
+- .github/workflows/ci.yml／deploy.yml：main e0e5a71 恢復的 CI build／self-hosted 部署；不由 B 改動，PR checks 及部署必須分開判讀。
 
-- src/lib/hr-audit.js、src/app/api/hr/admin-audit/route.js：756b2b8 的管理者稽核 wrapper、查詢與 schema；原樣保留，已驗端點 admin／非 admin／匿名授權，未全面驗稽核寫入。
+- src/lib/hr-audit.js、src/app/api/hr/admin-audit/route.js：e0e5a71 的管理者稽核 wrapper、查詢與 schema；原樣保留，已驗端點 admin／非 admin／匿名授權，未全面驗稽核寫入。
 
 ## main 併入的新檔／移除
 
-上述工作者進度、履歷元件、worker document migration、HR agency-workers API、rich menu 圖片（public/line-rich-menus/*）等均由 main 帶入。main 的既有輔助檔 unify-hr-terms.mjs 不在本輪執行；不能因檔案存在就宣稱已套用。main 分批刪除 admin-search-bars.patch、fix-member-role-change.patch、apply-worker-progress-feature.mjs、google-login-fix.patch、admin-audit-log.patch 與 scripts/cleanup-orphan-duplicates.sql，沿用其清理。756b2b8 的管理端刪除功能原樣保留，但本輪沒有執行刪除。
+上述工作者進度、履歷元件、worker document migration、HR agency-workers API、rich menu 圖片（public/line-rich-menus/*）等均由 main 帶入。main 的既有輔助檔 unify-hr-terms.mjs 不在本輪執行；不能因檔案存在就宣稱已套用。main 分批刪除 admin-search-bars.patch、fix-member-role-change.patch、apply-worker-progress-feature.mjs、google-login-fix.patch、admin-audit-log.patch 與 scripts/cleanup-orphan-duplicates.sql，沿用其清理。e0e5a71 的管理端刪除功能原樣保留，但本輪沒有執行刪除。
 
 main 已刪除舊 ACME 帳戶憑證目錄、certbot_www/.gitkeep、舊展示圖片；沿用其刪除，不復原或複製私鑰。既有 Git 歷史是否含敏感資料及是否需撤銷／輪替須另評估，不能因目前檔案刪除就宣稱歷史乾淨。
 
