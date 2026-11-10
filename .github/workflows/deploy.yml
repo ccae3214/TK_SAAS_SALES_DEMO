@@ -1,4 +1,4 @@
-# 合併到 main 後，在你的電腦（self-hosted runner）自動：拉程式碼 → build → 重啟 Docker → 健康檢查。
+# 合併到 main 後，在 self-hosted runner 自動部署。
 # 也可以到 GitHub 的 Actions 分頁，手動按 Run workflow 重新部署。
 name: Deploy
 
@@ -18,8 +18,6 @@ jobs:
     defaults:
       run:
         shell: powershell
-        # 部署用的資料夾。建議之後改成專用的乾淨資料夾（例如 C:\deploy\TK_SAAS_SALES_DEMO），
-        # 這樣你在原本資料夾切換分支、改程式時，不會讓部署失敗。
         working-directory: C:\Users\ccae3\Documents\GitHub\TK_SAAS_SALES_DEMO
     steps:
       - name: 檢查部署資料夾狀態

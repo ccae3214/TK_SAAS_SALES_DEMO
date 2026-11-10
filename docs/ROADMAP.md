@@ -1,29 +1,26 @@
-# ROADMAP｜B 仲介管理、配對與新會員指引
+# ROADMAP｜main 整合後的本機驗收
 
-目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+本文件是唯一計畫主檔；操作看 LOCAL_REVIEW.md、證據看 VERIFICATION_REPORT.md、歷史看 TASK_LOG.md。
 
-2026-11-10：B 候選已重新通過 Node 19 項、重建後 Chromium 20 項及 Docker build；使用者授權建立 feature → main PR，不合併、不部署。下方未提交／未發佈為前輪快照，發佈及 CI 以 GitHub PR 為準；驗證看 VERIFICATION_REPORT.md。
+## 已完成
 
-本輪已實作並通過 19 項 Node、20 項 Chromium 檢查；最終證據見 VERIFICATION_REPORT.md。使用者已選定 B。本文件是這個 repo 的現行計畫主檔；操作與實測看 LOCAL_REVIEW.md／TASK_LOG.md。歷史比較不作本輪驗收依據。
+- [x] main `6caf5df` 整合到 `feature/local-review-onboarding`，解決五個內容衝突；不直接寫 main。
+- [x] 保留 main 的工作摘要、完整會員申請與機構選擇、訓練中心、履歷／文件重構及雇主直接選工。
+- [x] 接入 B：仲介關係目錄、工作起點、獨立需求與配對、五階段導覽、額滿／取消唯讀與待審重讀。
+- [x] 經使用者批准，停止 app、備份、實際還原至獨立驗證 DB，再對隔離 review DB 執行既有 migration。
+- [x] Docker build、Node 35 項及 Chromium 25 項通過；不把跳過的 lint／型別算通過。
+- [x] 同時測管理者指派→菲律賓推薦→面試→錄用，及雇主直接挑選→面試→錄用；逐步 API 讀回。
+- [x] 留下未錄用工人與已指派的 open 需求供手動驗收，不再讓自動測試耗盡全部人選。
 
-## 已確認範圍
+## 下一步
 
-1. 管理者仲介目錄：搜尋／台菲篩選、機構成員、所屬雇主／工人、相關需求／案件、未指定負責人的提示；只使用既有授權 API 回傳資料。
-2. 會員工作起點：各角色明確下一步，配對需求獨立於人員資料分頁；需求→轉介→推薦→面試→錄用以一致狀態導覽呈現。已額滿／取消需求保留歷史但不再顯示轉交、推薦、錄用操作。
-3. 新會員：區分未選角與已送審；角色說明、三步驟指引、重讀審核狀態；登入頁僅呈現實際可用的 provider。沿用目前審查，不新增自動核准／註冊政策。
+1. Windows 瀏覽器於 localhost:8088 手動驗收，回報具體 UI 問題；不因未定位的美化建議阻擋交付。
+2. PR #12 更新後讀回精確 head、base 與 CI；通過不等同正式放行，合併 main／部署須另行批准。
+3. 若要正式環境／真實文件，另驗認證與跨機構拒絕矩陣、附件歷史遷移、通知可靠性、並行錄用、備份還原與安全缺口。
 
-## 不在本輪
+## 範圍界線
 
-不改 schema、認證機制、管理權限或角色可見範圍；不啟用真實 LINE／Google／通知、不處理真實個資，不 push／部署。前輪安全缺口另行處理；額滿需求 UI 停用不代表後端狀態防護已重整。
-
-## 執行與驗收順序
-
-- [x] 共用狀態投影與單元測試：未申請／待審、需求階段、額滿／取消、既有機構關係。
-- [x] 仲介目錄與角色化工作起點、分頁與配對狀態導覽。
-- [x] 新會員指引與登入方式可用性提示。
-- [x] Docker build、重建本機 app（保留 DB volume）。
-- [x] 真實 Chromium：管理者搜尋／機構詳情、六種身分、390px 畫面、已額滿無操作、新會員送審與重新整理持續一致。
-- [x] 隔離資料：以角色 session/API 或畫面測新增需求→轉介→推薦→面試→錄用，清楚區分 API 與全 UI 驗收；每次寫入讀回。
-- [x] PROJECT_MAP、README、TASK_LOG、LOCAL_REVIEW 與驗收證據同步。
-
-UI 拆分不增加任何角色讀取範圍；測試只使用使用者已授權的隔離虛構 PostgreSQL。需新增權限、schema 或外部 secrets 時停止另問。
+- DB 授權只限既有 Docker 隔離虛構資料庫 `tk_saas_review` 的備份、還原驗證與 main 既有 migration；未修改 migration SQL、正式 schema 或正式資料。
+- 新會員保留 main 的所屬仲介與訓練中心選項，不縮回舊版只選角色。
+- main 已移除台灣仲介手動轉交 API；採 main 現行雇主直接選工／管理者指派，不能為讓舊測試通過而恢復舊權限。
+- 不改 secrets、不啟用外部 provider 或部署、不自動合併 main。

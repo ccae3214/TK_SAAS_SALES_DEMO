@@ -118,28 +118,26 @@ with sync_playwright() as p:
     employer.get_by_label('工作類型', exact=False).select_option('家庭幫傭')
     employer.get_by_label('需求人數', exact=True).fill('1')
     employer.get_by_label('工作內容／條件', exact=True).fill('B本機流程驗收 ' + token)
-    employer.get_by_role('checkbox', name='克雷迅台灣仲介測試帳號', exact=True).check()
-    employer.get_by_role('button', name='建立需求單並分派', exact=True).click()
+    employer.get_by_role('button', name='建立需求單並送交所屬仲介', exact=True).click()
     expect(employer.get_by_text('B本機流程驗收 ' + token, exact=True)).to_be_visible()
     order = next(row for row in state('employer')['jobOrders'] if row['description'] == 'B本機流程驗收 ' + token)
     passed('employer creates and dispatches request via UI, read back')
 
-    taiwan = pages['taiwan']
-    taiwan.reload()
-    taiwan = tab('taiwan', '需求與配對')
-    article = taiwan.locator('article').filter(has_text='B本機流程驗收 ' + token)
+    # Latest main removed Taiwan manual forwarding. Exercise its administrator assignment UI instead.
     ph_id = next(row['id'] for row in state('employer')['agencies'] if row['agency_type'] == 'philippines')
-    article.get_by_label('轉交菲律賓仲介', exact=False).select_option([str(ph_id)])
-    article.get_by_role('button', name='轉交選取仲介', exact=True).click()
-    expect(article.get_by_text('等待菲律賓仲介推薦合適工人。', exact=True)).to_be_visible()
+    pages['admin'].reload()
+    admin = tab('admin', '媒合需求單')
+    card = admin.locator('tr').filter(has_text='B本機流程驗收 ' + token)
+    card.get_by_role('checkbox', name='克雷迅菲律賓仲介測試帳號', exact=True).check()
+    card.get_by_role('button', name='儲存菲律賓仲介指派', exact=True).click()
     assert any(str(row['job_order_id']) == str(order['id']) for row in state('taiwan')['orderRoutes'])
-    passed('Taiwan agency forwards via UI, read back')
+    passed('latest-main administrator assigns Philippines via UI, Taiwan route read back')
 
     ph = pages['philippines']
     ph.reload()
     ph = tab('philippines', '需求與配對')
     article = ph.locator('article').filter(has_text='B本機流程驗收 ' + token)
-    article.get_by_label('推薦所屬工人', exact=False).select_option(str(worker['id']))
+    article.get_by_label('推薦所屬工作者', exact=False).select_option(str(worker['id']))
     article.get_by_role('button', name='推薦給雇主面試', exact=True).click()
     expect(article.get_by_text('等待雇主安排面試或確認人選。', exact=True)).to_be_visible()
     candidate = next(row for row in state('employer')['orderCandidates'] if str(row['job_order_id']) == str(order['id']))
@@ -166,19 +164,66 @@ with sync_playwright() as p:
     for role in ['taiwan', 'philippines']:
         pages[role].reload()
         page = tab(role, '需求與配對')
-        expect(page.get_by_role('button', name='轉交選取仲介', exact=True)).to_have_count(0)
-        expect(page.get_by_role('button', name='推薦給雇主面試', exact=True)).to_have_count(0)
+        terminal = page.locator('article').filter(has=page.get_by_role('heading', name=f"需求 #{order['id']} · 家庭幫傭 · 已額滿", exact=True))
+        expect(terminal).to_have_count(1)
+        expect(terminal.get_by_role('button', name='轉交選取仲介', exact=True)).to_have_count(0)
+        expect(terminal.get_by_role('button', name='推薦給雇主面試', exact=True)).to_have_count(0)
     passed('both agency UIs stop actions after hiring')
+
+    # Preserve latest-main employer direct selection in addition to administrator -> Philippines recommendation.
+    response = contexts['philippines'].request.post(BASE + '/api/hr', headers={'Origin': BASE}, data={'type': 'worker', 'name': 'B直接選工虛構工作者' + token, 'nationality': '菲律賓', 'jobPreference': '家庭幫傭', 'resumeProfile': {'gender': 'female'}})
+    assert response.status == 201
+    direct_worker = response.json()
+    assert any(str(row['id']) == str(direct_worker['id']) for row in state('philippines')['workers'])
+    employer.reload()
+    employer = tab('employer', '需求與配對')
+    employer.get_by_label('工作類型', exact=False).select_option('家庭幫傭')
+    employer.get_by_label('需求人數', exact=True).fill('1')
+    employer.get_by_label('工作內容／條件', exact=True).fill('B直接選工驗收 ' + token)
+    employer.get_by_role('button', name='建立需求單並送交所屬仲介', exact=True).click()
+    expect(employer.get_by_text('B直接選工驗收 ' + token, exact=True)).to_be_visible()
+    direct_order = next(row for row in state('employer')['jobOrders'] if row['description'] == 'B直接選工驗收 ' + token)
+    direct_article = employer.locator('article.job-order-card').filter(has_text='B直接選工驗收 ' + token)
+    direct_article.locator('.candidate-card').filter(has_text='B直接選工虛構工作者' + token).get_by_role('button', name='挑選工作者', exact=True).click()
+    expect(direct_article.get_by_text('等待雇主安排面試或確認人選。', exact=True)).to_be_visible()
+    direct_candidate = next(row for row in state('employer')['orderCandidates'] if str(row['job_order_id']) == str(direct_order['id']))
+    assert str(direct_candidate['worker_id']) == str(direct_worker['id'])
+    assert any(str(row['job_order_id']) == str(direct_order['id']) for row in state('taiwan')['orderRoutes'])
+    assert any(str(row['job_order_id']) == str(direct_order['id']) for row in state('philippines')['orderRoutes'])
+    passed('latest-main employer direct worker selection via UI, both agency routes read back')
+    direct_article.get_by_role('button', name='安排面試', exact=True).click()
+    expect(direct_article.get_by_text('雇主確認面試結果；錄用後會建立正式案件。', exact=True)).to_be_visible()
+    assert next(row for row in state('employer')['orderCandidates'] if str(row['id']) == str(direct_candidate['id']))['status'] == 'scheduled'
+    direct_article.get_by_role('button', name='錄用', exact=True).click()
+    expect(direct_article.get_by_text('已額滿', exact=True)).to_be_visible()
+    direct_hired = next(row for row in state('employer')['orderCandidates'] if str(row['id']) == str(direct_candidate['id']))
+    assert direct_hired['status'] == 'passed' and direct_hired['case_id']
+    assert any(str(row['id']) == str(direct_hired['case_id']) for row in state('employer')['cases'])
+    expect(direct_article.get_by_role('button', name='挑選工作者', exact=True)).to_have_count(0)
+    passed('latest-main direct selection interview and hiring via UI, case and filled state read back')
+
+    pages['admin'].reload()
+    admin = tab('admin', '媒合需求單')
+    closed = admin.locator('tr').filter(has_text='B直接選工驗收 ' + token)
+    expect(closed.get_by_role('button', name='儲存菲律賓仲介指派', exact=True)).to_have_count(0)
+    passed('filled requests disable administrator desktop matching controls')
+    worker_state = state('worker')
+    assert worker_state['requirements'] and all(row.get('worker_id') for row in worker_state['requirements'])
+    worker_page = tab('worker', '必要文件')
+    worker_page.get_by_role('button', name='B 備齊個人文件', exact=False).click()
+    expect(worker_page.get_by_text('新護照', exact=True)).to_be_visible()
+    passed('latest-main worker-owned document data and worker document UI preserved')
 
     new = pages['new']
     d = state('new')
     if not d.get('requestedRole'):
-        expect(new.get_by_role('heading', name='先選擇你要使用的身分')).to_be_visible()
+        expect(new.get_by_role('heading', name='開始設定你的會員帳號')).to_be_visible()
         new.set_viewport_size({'width': 390, 'height': 844})
         assert new.evaluate('document.documentElement.scrollWidth <= innerWidth')
         new.evaluate('window.scrollTo(0,0)')
         new.screenshot(path=str(OUT / 'b-new-member-choose.png'), full_page=True)
-        new.get_by_role('radio', name='雇主', exact=False).check()
+        new.get_by_label('申請類型', exact=False).select_option('employer')
+        new.get_by_label('所屬台灣仲介', exact=False).select_option(str(state('employer')['employers'][0]['agency_id']))
         new.get_by_role('button', name='送出審核申請', exact=True).click()
         expect(new.get_by_role('heading', name='申請已送出，等待管理者審核')).to_be_visible()
         assert state('new')['requestedRole'] == 'employer'
@@ -192,6 +237,36 @@ with sync_playwright() as p:
     new.evaluate('window.scrollTo(0,0)')
     new.screenshot(path=str(OUT / 'b-new-member-waiting.png'), full_page=True)
     passed('pending membership survives reload and status refresh')
+    # Leave a reusable unconsumed fixture and an assigned open request for human review.
+    manual_name = 'DEMO-手動推薦測試工人-A'
+    ph_data = state('philippines')
+    manual = next((w for w in ph_data['workers'] if w['name'] == manual_name and w['status'] == 'active' and not any(str(c['worker_id']) == str(w['id']) for c in ph_data['cases'])), None)
+    if manual is None:
+        response = contexts['philippines'].request.post(BASE + '/api/hr', headers={'Origin': BASE}, data={'type': 'worker', 'name': manual_name, 'nationality': '菲律賓', 'jobPreference': '家庭幫傭', 'resumeProfile': {'gender': 'female'}})
+        assert response.status == 201
+        manual = response.json()
+    employer_data = state('employer')
+    manual_order = next((o for o in employer_data['jobOrders'] if o['description'] == 'DEMO-手動推薦驗收' and o['status'] == 'open'), None)
+    if manual_order is None:
+        response = contexts['employer'].request.post(BASE + '/api/hr', headers={'Origin': BASE}, data={'type': 'job-order', 'jobType': '家庭幫傭', 'headcount': 1, 'description': 'DEMO-手動推薦驗收', 'taiwanAgencyAssignments': [{'agencyId': employer_data['employers'][0]['agency_id']}]})
+        assert response.status == 201
+        manual_order = response.json()
+    employer_data = state('employer')
+    manual_dispatch = next(a for a in employer_data['orderAgencies'] if str(a['job_order_id']) == str(manual_order['id']))
+    existing_routes = [r['philippines_agency_id'] for r in employer_data['orderRoutes'] if str(r['order_agency_id']) == str(manual_dispatch['id'])]
+    response = contexts['admin'].request.post(BASE + '/api/hr', headers={'Origin': BASE}, data={'type': 'job-order-admin-philippines-assignment', 'orderAgencyId': manual_dispatch['id'], 'philippinesAgencyIds': list({str(x) for x in existing_routes + [ph_data['agencyId']]})})
+    assert response.status == 201
+    ph = pages['philippines']
+    ph.reload()
+    ph = tab('philippines', '需求與配對')
+    manual_article = ph.locator('article').filter(has_text='DEMO-手動推薦驗收')
+    manual_select = manual_article.get_by_label('推薦所屬工作者', exact=False)
+    expect(manual_select.locator(f"option[value='{manual['id']}']")).to_have_count(1)
+    manual_select.select_option(str(manual['id']))
+    expect(manual_article.get_by_role('button', name='推薦給雇主面試', exact=True)).to_be_enabled()
+    assert not any(str(c['worker_id']) == str(manual['id']) for c in state('philippines')['cases'])
+    print(json.dumps({'manual_worker_id': manual['id'], 'manual_order_id': manual_order['id'], 'manual_candidate_submitted': False}, ensure_ascii=False))
+    passed('manual recommendation worker and assigned request left usable, not submitted or hired')
     assert not errors, errors
     passed('no browser pageerror across tested contexts')
     browser.close()

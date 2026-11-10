@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { getProviders, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { HrLanguageTools } from '@/lib/hr-translations';
+import { AlertCircle, ArrowLeft, ClipboardCheck, FileText, MessagesSquare, MessageCircle, X } from 'lucide-react';
+import styles from './login.module.css';
 
 export default function HrLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [loginErrorOpen, setLoginErrorOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [registerMode, setRegisterMode] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -39,62 +41,85 @@ export default function HrLoginPage() {
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
-    setError('');
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-      callbackUrl: '/hr',
-    });
-    setBusy(false);
-    if (result?.ok) router.replace('/hr');
-    else setError('帳號或密碼錯誤，或此會員帳號尚未啟用。');
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: '/hr',
+      });
+      if (result?.ok) router.replace('/hr');
+      else setLoginErrorOpen(true);
+    } catch {
+      setLoginErrorOpen(true);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  const buttonStyle = {
-    width: '100%', padding: '13px 16px', borderRadius: 10, fontSize: 15,
-    fontWeight: 700, cursor: 'pointer',
-  };
+  const googleIcon = <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>;
 
   return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f3f6fb', color: '#14213d' }}><HrLanguageTools />
-      <section style={{ width: '100%', maxWidth: 430, padding: 32, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, boxShadow: '0 18px 55px rgba(20,33,61,.09)' }}>
-        <Link href="/" style={{ color: '#64748b', textDecoration: 'none', fontSize: 14 }}>← 返回首頁</Link>
-        <p style={{ margin: '28px 0 8px', color: '#287a69', fontSize: 13, fontWeight: 800, letterSpacing: '.08em' }}>KOLECION HR</p>
-        <h1 style={{ margin: '0 0 8px', fontSize: 27 }}>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
-        <p style={{ margin: '0 0 24px', color: '#64748b', lineHeight: 1.6 }}>{registerMode ? '使用 LINE 確認身分，登入後選擇工人、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
+    <main className={styles.page}><HrLanguageTools />
+      <aside className={styles.brandPanel} aria-hidden="true">
+        <div className={styles.logo}><span className={styles.logoMark}>K</span><div className={styles.logoText}><strong>克雷迅</strong><span>KOLECION HR</span></div></div>
+        <div className={styles.hero}>
+          <h2>跨國人力仲介，<br />從申辦到入境一次掌握</h2>
+          <p>工作者、雇主與仲介在同一個平台協作，案件進度、文件審核與聊天溝通全部即時同步。</p>
+          <ul className={styles.features}>
+            <li><ClipboardCheck size={20} />案件進度透明，每個階段都看得到</li>
+            <li><FileText size={20} />必要文件線上上傳、審核與補件</li>
+            <li><MessagesSquare size={20} />LINE 通知與站內聊天室即時溝通</li>
+          </ul>
+        </div>
+        <div className={styles.foot}>© 克雷迅人力管理系統</div>
+      </aside>
+      <div className={styles.formSide}>
+      <section className={styles.card}>
+        <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />返回首頁</Link>
+        <p className={styles.eyebrow}>KOLECION HR</p>
+        <h1>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
+        <p className={styles.lead}>{registerMode ? '使用 LINE 確認身分，登入後選擇工作者、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
+        {registerMode&&<ol className={styles.steps}>{[['1','使用 LINE 授權確認身分'],['2','登入後選擇會員類型；工作者、雇主及仲介需選擇所屬仲介'],['3','送出後等待管理者審核；核准前不會開放案件資料']].map(([number,text])=><li key={number}><strong>{number}</strong><span>{text}</span></li>)}</ol>}
 
         {authError && providers.line && (
-          <div role="alert" style={{ marginBottom: 14, padding: 14, borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontSize: 14, lineHeight: 1.6 }}>
+          <div role="alert" className={styles.alert}>
             登入沒有完成。如果你剛剛是從 LINE App 跳回來，可能是瀏覽器不同或隱私模式造成的，請按下方按鈕，改用 LINE 帳號密碼登入再試一次。
-            <button type="button" onClick={retryLineWithoutAutoLogin} style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#06C755', border: '1px solid #06C755' }}>
+            <button type="button" onClick={retryLineWithoutAutoLogin} className={`${styles.btn} ${styles.line}`}>
               改用 LINE 帳號密碼登入
             </button>
           </div>
         )}
-        {providers.line && <button type="button" style={{ ...buttonStyle, color: '#fff', background: '#06C755', border: '1px solid #06C755' }} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
-          {registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
+        {providers.line && <button type="button" className={`${styles.btn} ${styles.line}`} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
+          <MessageCircle size={20} aria-hidden="true" />{registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
         </button>}
-        {!registerMode && providers.google && <button type="button" style={{ ...buttonStyle, marginTop: 10, color: '#fff', background: '#F28C28', border: '1px solid #F28C28' }} onClick={() => signIn('google', { callbackUrl: '/hr' })}>使用 Google 登入</button>}
+        {!registerMode && providers.google && <button type="button" className={`${styles.btn} ${styles.google}`} onClick={() => signIn('google', { callbackUrl: '/hr' })}>{googleIcon}使用 Google 登入</button>}
 
         {providerLoading && <p role="status">正在確認可用的登入方式…</p>}
         {providerError && <p role="alert">暫時無法讀取登入方式，請重新整理頁面再試。</p>}
-        {!providerLoading && !providers.line && !providers.google && <p style={{color:'#64748b',lineHeight:1.7,margin:'18px 0'}}>目前使用會員帳號登入；LINE 與 Google 登入尚未開放。新會員請先向邀請你的管理者取得登入方式，登入後再申請身分。</p>}
+        {!providerLoading && !providers.line && !providers.google && <p>目前使用會員帳號登入；LINE 與 Google 登入尚未開放。</p>}
         {registerMode && !providerLoading && !providers.line && <Link href="/hr/login">返回會員帳號登入</Link>}
-        {!registerMode && <><div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0', color: '#94a3b8', fontSize: 13 }}>
-          <span style={{ height: 1, flex: 1, background: '#e2e8f0' }} />或使用會員帳號<span style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
-        </div>
-        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-          <label style={{ display: 'grid', gap: 6, color: '#475569', fontSize: 14 }}>Email
-            <input type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)} style={{ padding: 12, border: '1px solid #cbd5e1', borderRadius: 9, fontSize: 15 }} />
+        {!registerMode && <><div className={styles.divider}>或使用會員帳號</div>
+        <form onSubmit={submit} className={styles.form}>
+          <label className={styles.field}>Email
+            <input type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)} />
           </label>
-          <label style={{ display: 'grid', gap: 6, color: '#475569', fontSize: 14 }}>密碼
-            <input type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} style={{ padding: 12, border: '1px solid #cbd5e1', borderRadius: 9, fontSize: 15 }} />
+          <label className={styles.field}>密碼
+            <input type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} />
           </label>
-          {error && <p role="alert" style={{ margin: 0, color: '#b91c1c', fontSize: 14 }}>{error}</p>}
-          <button type="submit" disabled={busy} style={{ ...buttonStyle, marginTop: 4, color: '#fff', background: '#14213d', border: 0, opacity: busy ? .7 : 1 }}>{busy ? '登入中…' : '登入人力管理系統'}</button>
+          <button type="submit" disabled={busy} className={`${styles.btn} ${styles.submit}`}>{busy ? '登入中…' : '登入人力管理系統'}</button>
         </form></>}
       </section>
+      </div>
+      {loginErrorOpen && <div className={styles.modalBackdrop} onMouseDown={event => { if (event.target === event.currentTarget) setLoginErrorOpen(false); }} onKeyDown={event => { if (event.key === 'Escape') setLoginErrorOpen(false); }}>
+        <section className={styles.errorDialog} role="alertdialog" aria-modal="true" aria-labelledby="login-error-title" aria-describedby="login-error-description">
+          <button type="button" className={styles.dialogClose} aria-label="關閉" onClick={() => setLoginErrorOpen(false)}><X size={19} /></button>
+          <div className={styles.dialogIcon}><AlertCircle size={27} aria-hidden="true" /></div>
+          <h2 id="login-error-title">登入失敗</h2>
+          <p id="login-error-description">請重新檢查帳號密碼。若帳號尚未啟用，請洽官方 LINE@ 管理員。</p>
+          <button type="button" autoFocus className={`${styles.btn} ${styles.dialogConfirm}`} onClick={() => setLoginErrorOpen(false)}>我知道了</button>
+        </section>
+      </div>}
     </main>
   );
 }

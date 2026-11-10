@@ -9,7 +9,7 @@ export default function HrAgencyDirectory({ data, edit, update, navigate }) {
   const [type, setType] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const agencies = data.agencies || [];
-  const visible = agencies.filter(agency => (type === 'all' || agency.agency_type === type) && agency.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const visible = agencies.filter(agency => (type === 'all' || agency.agency_type === type) && [agency.name, agency.country, agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'].join(' ').toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const selected = visible.find(agency => String(agency.id) === String(selectedId));
   const detail = selected ? agencySnapshot(selected, data) : null;
   return <section className={styles.directory} aria-label="仲介關係總覽">

@@ -18,9 +18,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20          # 與 Dockerfile 的 node:20-alpine 一致
+          node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run build
         env:
-          NEXTAUTH_SECRET: ci-only-secret   # 只用來讓 build 通過，不是真的金鑰
+          NEXTAUTH_SECRET: ci-only-secret

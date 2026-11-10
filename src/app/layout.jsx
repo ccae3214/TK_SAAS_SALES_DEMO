@@ -1,5 +1,4 @@
 import "./globals.css";
-import "../index.css";
 import Providers from "./providers";
 
 export const metadata = {
@@ -17,7 +16,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="zh">
       <head>
-        <meta charSet="utf-8" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/favicon.svg" />

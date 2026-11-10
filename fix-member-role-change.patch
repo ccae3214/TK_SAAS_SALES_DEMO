@@ -1,0 +1,118 @@
+diff --git a/scripts/cleanup-orphan-duplicates.sql b/scripts/cleanup-orphan-duplicates.sql
+new file mode 100644
+index 0000000..48bef3b
+--- /dev/null
++++ b/scripts/cleanup-orphan-duplicates.sql
+@@ -0,0 +1,37 @@
++-- 清理「變更會員類型」舊版 bug 留下的重複工作者／雇主（只處理沒有任何關聯資料的孤兒）。
++-- 用法：先只執行 SELECT 確認名單，沒問題再執行下方 DELETE。
++-- 孤兒 = 沒有任何會員綁定、沒有案件、沒有推薦紀錄、沒有上傳過文件，且同名資料已有會員綁定。
++
++-- 1) 預覽：重複的孤兒工作者
++SELECT w.id, w.name, w.status, w.created_at
++FROM hr_workers w
++WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.worker_id = w.id)
++  AND NOT EXISTS (SELECT 1 FROM hr_cases c WHERE c.worker_id = w.id)
++  AND NOT EXISTS (SELECT 1 FROM hr_job_order_candidates jc WHERE jc.worker_id = w.id)
++  AND NOT EXISTS (SELECT 1 FROM hr_worker_documents d JOIN hr_document_submissions s ON s.requirement_id = d.id WHERE d.worker_id = w.id)
++  AND EXISTS (SELECT 1 FROM hr_workers other JOIN hr_members m ON m.worker_id = other.id WHERE other.name = w.name AND other.id <> w.id)
++ORDER BY w.name, w.id;
++
++-- 2) 預覽：重複的孤兒雇主
++SELECT e.id, e.name, e.status, e.created_at
++FROM hr_employers e
++WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.employer_id = e.id)
++  AND NOT EXISTS (SELECT 1 FROM hr_cases c WHERE c.employer_id = e.id)
++  AND NOT EXISTS (SELECT 1 FROM hr_job_orders o WHERE o.employer_id = e.id)
++  AND EXISTS (SELECT 1 FROM hr_employers other JOIN hr_members m ON m.employer_id = other.id WHERE other.name = e.name AND other.id <> e.id)
++ORDER BY e.name, e.id;
++
++-- 3) 確認後刪除（取消註解再執行）
++-- BEGIN;
++-- DELETE FROM hr_workers w
++-- WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.worker_id = w.id)
++--   AND NOT EXISTS (SELECT 1 FROM hr_cases c WHERE c.worker_id = w.id)
++--   AND NOT EXISTS (SELECT 1 FROM hr_job_order_candidates jc WHERE jc.worker_id = w.id)
++--   AND NOT EXISTS (SELECT 1 FROM hr_worker_documents d JOIN hr_document_submissions s ON s.requirement_id = d.id WHERE d.worker_id = w.id)
++--   AND EXISTS (SELECT 1 FROM hr_workers other JOIN hr_members m ON m.worker_id = other.id WHERE other.name = w.name AND other.id <> w.id);
++-- DELETE FROM hr_employers e
++-- WHERE NOT EXISTS (SELECT 1 FROM hr_members m WHERE m.employer_id = e.id)
++--   AND NOT EXISTS (SELECT 1 FROM hr_cases c WHERE c.employer_id = e.id)
++--   AND NOT EXISTS (SELECT 1 FROM hr_job_orders o WHERE o.employer_id = e.id)
++--   AND EXISTS (SELECT 1 FROM hr_employers other JOIN hr_members m ON m.employer_id = other.id WHERE other.name = e.name AND other.id <> e.id);
++-- COMMIT;
+diff --git a/src/app/api/hr/route.js b/src/app/api/hr/route.js
+index 3de8c9a..06f82b7 100644
+--- a/src/app/api/hr/route.js
++++ b/src/app/api/hr/route.js
+@@ -1121,7 +1121,7 @@ export async function PATCH(request) {
+               return NextResponse.json({ error: role === 'worker' ? '工作者必須指派給菲律賓仲介。' : '雇主必須指派給台灣仲介。' }, { status: 400 });
+             }
+           }
+-          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
++          const member = await client.query('SELECT id,role,worker_id,employer_id,last_worker_id,last_employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+           if (!member.rowCount) {
+             await client.query('ROLLBACK');
+             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+@@ -1132,9 +1132,13 @@ export async function PATCH(request) {
+             return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者身分。' }, { status: 403 });
+           }
+           let workerId = null, employerId = null, memberAgencyId = null;
++          // 工作者／雇主資料是「會員的身分」，不是每次變更類型就新增一筆：
++          // 優先重用目前綁定的資料，其次是會員先前離開此類型時記住的資料，都沒有才新建。
++          // 離開類型時資料列不刪除（保留文件與案件），但會停用，避免出現在可媒合的名單中。
+           if (role === 'worker') {
+-            if (current.role === 'worker' && current.worker_id) {
+-              const updated = await client.query('UPDATE hr_workers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.worker_id,agencyId]);
++            const reusableWorkerId = current.worker_id || current.last_worker_id || null;
++            if (reusableWorkerId) {
++              const updated = await client.query("UPDATE hr_workers SET agency_id=$2,status='active',updated_at=NOW() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM hr_members o WHERE o.worker_id=hr_workers.id AND o.id<>$3) RETURNING id", [reusableWorkerId,agencyId,id]);
+               workerId = updated.rows[0]?.id || null;
+             }
+             if (!workerId) {
+@@ -1143,8 +1147,9 @@ export async function PATCH(request) {
+             }
+             await insertWorkerDocuments(client, workerId, {});
+           } else if (role === 'employer') {
+-            if (current.role === 'employer' && current.employer_id) {
+-              const updated = await client.query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.employer_id,agencyId]);
++            const reusableEmployerId = current.employer_id || current.last_employer_id || null;
++            if (reusableEmployerId) {
++              const updated = await client.query("UPDATE hr_employers SET agency_id=$2,status='active',updated_at=NOW() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM hr_members o WHERE o.employer_id=hr_employers.id AND o.id<>$3) RETURNING id", [reusableEmployerId,agencyId,id]);
+               employerId = updated.rows[0]?.id || null;
+             }
+             if (!employerId) {
+@@ -1157,9 +1162,17 @@ export async function PATCH(request) {
+           if (current.agency_id && (role !== 'agency' || Number(current.agency_id)!==agencyId)) {
+             await client.query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
+           }
++          // 離開工作者／雇主類型：記住原本的資料列並停用，而不是留下一筆仍啟用、沒有會員的孤兒資料。
++          const leavingWorkerId = current.worker_id && Number(current.worker_id) !== Number(workerId) ? current.worker_id : null;
++          const leavingEmployerId = current.employer_id && Number(current.employer_id) !== Number(employerId) ? current.employer_id : null;
++          if (leavingWorkerId) await client.query("UPDATE hr_workers SET status='inactive',updated_at=NOW() WHERE id=$1", [leavingWorkerId]);
++          if (leavingEmployerId) await client.query("UPDATE hr_employers SET status='inactive',updated_at=NOW() WHERE id=$1", [leavingEmployerId]);
+           const assigned = await client.query(`UPDATE hr_members SET role=$2,admin_scope=CASE WHEN $2='system_admin' THEN 'system' ELSE 'none' END,
+-            requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
+-            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
++            requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,
++            last_worker_id=COALESCE($6::bigint,CASE WHEN $3::bigint IS NULL THEN last_worker_id END),
++            last_employer_id=COALESCE($7::bigint,CASE WHEN $4::bigint IS NULL THEN last_employer_id END),
++            active=TRUE,updated_at=NOW()
++            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId,leavingWorkerId,leavingEmployerId]);
+           await client.query('COMMIT');
+           if (current.line_user_id) {
+             syncLineRichMenu(current.line_user_id, { role: role === 'system_admin' ? 'admin' : role, agency_type: approvedAgency?.agency_type || null })
+diff --git a/src/lib/hr-access.js b/src/lib/hr-access.js
+index f6ed5f8..674d050 100644
+--- a/src/lib/hr-access.js
++++ b/src/lib/hr-access.js
+@@ -94,6 +94,9 @@ export async function ensureHrIdentitySchema() {
+   await pool.query("ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_requested_role_check");
+   await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_requested_role_check CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency','training_center'))");
+   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_active_role ON hr_members(role, active)');
++  // 會員離開工作者／雇主類型時，記住原本綁定的資料列，之後切換回來就重用同一筆，避免產生重複的工作者／雇主。
++  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_worker_id BIGINT REFERENCES hr_workers(id) ON DELETE SET NULL');
++  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_employer_id BIGINT REFERENCES hr_employers(id) ON DELETE SET NULL');
+   // One agency can have multiple member logins; worker and employer links stay unique.
+   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_agency_id_key');
+   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_agency_id_idx ON hr_members(agency_id) WHERE agency_id IS NOT NULL');

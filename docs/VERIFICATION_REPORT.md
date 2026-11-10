@@ -1,5 +1,27 @@
 # VERIFICATION_REPORT｜B 三流程整理實際驗收
 
+## 最新狀態：整合 main 6caf5df 的本機候選
+
+PR：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支解決五個內容衝突並整合 main `6caf5df`，未合併到 main、未部署；GitHub head／CI／Draft 狀態以 PR 讀回為準。下方較早的「有衝突／等待遷移授權／沒有 workflows／19 或 20 項測試」都是歷史紀錄。
+
+- 使用者明確批准先備份再遷移，只操作 Docker `tk-saas-local-review` 的 `tk_saas_review`。
+- 停止 app 後 `pg_dump -Fc` 備份到 Agent profile 的獨立 backups 目錄（不進 Git）；實際 `createdb`／`pg_restore --exit-on-error` 至獨立驗證 DB，6 組關鍵計數一致：會員 18、工人 10、案件 10、需求 7、必要文件 220、送件 0。保留原 dump 與還原驗證 DB，不刪 volume。
+- 啟動新版後讀回：舊 `hr_case_requirements` 已遷移為 `hr_worker_documents`、存在 `hr_case_certifications`；上述會員／工人／案件／需求計數不變，文件仍 220、送件仍 0。此資料集沒有已上傳文件，不能推論真實附件歷史遷移通過。
+- 保留 main：工作摘要、會員所屬仲介與訓練中心選項、送審成功提示、工作者層級文件、履歷與審核元件。相對 main 的 HR API 差異僅 pendingApproval 旗標；不重寫其 schema、權限或認證政策。
+- main 已改為雇主直接選工，或管理者指派菲律賓機構後由該機構推薦；不恢復已移除的台灣仲介手動轉交 API。B 導覽改為需求建立→仲介分工→挑選／推薦→面試→錄用。
+- `node --test tests/hr-workflow.test.mjs scripts/test-hr-requirements.mjs`：35 通過、0 失敗、0 跳過（B 23＋main 文件規則 12）。
+- Docker build 成功；僅重建 app 後，`<playwright-python> scripts/verify-local-review.py`：25 通過、0 失敗、pageerror=0。兩條配對路徑皆 UI 操作及 API 讀回；工人與待審帳號為 fixture，不冒稱真實註冊。
+- 額滿需求在雇主、菲律賓仲介與管理者桌面／手機配對控制停止操作；台灣仲介保留新版追蹤頁。Node 仍涵蓋取消與過時 open 額滿投影。
+- 新會員沿用 main 的完整類型＋所屬仲介表單，加入重讀狀態；不採用舊版只有角色選擇的表單。舊自動測試的手動轉交改測管理者指派，是配合 main 已變更的流程，並額外驗證雇主直接選工，不減少配對閉環斷言。
+- 測試中途曾因管理端桌面不是 article、新會員 select 巢狀 label、必要文件需展開 B 階段而失敗；修正定位／展開後完整重跑通過。`git diff --check` 曾發現空白，已修正並重跑。
+- `node --check scripts/local-review-bootstrap.mjs`／Python compile 通過；bootstrap 對既有 DB 以預期非零拒絕，不重設帳號。配合新版 initializer 更新抽取與 migration 相依注入；本輪未重跑全新空 DB 的初始化，不能宣稱冷啟動已驗收。
+- 最後完整瀏覽器測試後隔離資料累計：會員 23、工人 18、案件 17、需求 16、文件 396、送件 0；含歷史及中途測試紀錄，不把它們都算成單次成功測試建立。
+- 留給使用者：工人 `DEMO-手動推薦測試工人-A`（ID 10）、需求 `DEMO-手動推薦驗收`（ID 16，open 且已指派菲律賓機構）；畫面已選得到且推薦按鈕啟用，未提交推薦、未錄用。
+- main 已恢復 CI／Deploy workflows；CI 僅 build，合併 main 可能觸發部署，未獲授權不合併。lint／型別仍依既有設定跳過，Browserslist 過時警告未處理。
+- 未驗：真實 LINE／Google／通知、iPhone／WebView、完整跨機構拒絕、agency admin 全流程、真實文件上下載、並行錄用、全新環境初始化與正式備份還原。僅本機小型資料集的備份還原與遷移已測；不是正式放行。
+
+## 以下為歷史紀錄
+
 ## 2026-11-10 PR 候選重新驗證
 
 - 使用者已授權提交、push 與建立 PR；來源 `feature/local-review-onboarding`，目標 `main`。下方「未 commit／push」為前輪歷史，實際發佈與 CI 狀態以 GitHub PR 為準；本輪不合併、不部署。

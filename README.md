@@ -1,6 +1,6 @@
 # TK SaaS Sales Demo
 
-目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。明確 fetch main 後確認最新 `f26ea46` 與 B 候選有 5 個內容衝突，先保留 Draft；local test 只涵蓋本 PR 舊基底候選，未完成最新 main 整合。最新 main 已刪除 `.github`，目前無 CI checks；下文 CI／部署 workflow 為舊基底歷史，需分開判讀。
+目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `6caf5df` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 35／Chromium 25 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
 
 ## 本機接手驗收入口（2026-11-05 B 三流程整理）
 
@@ -8,11 +8,11 @@
 使用 Windows 瀏覽器開啟 <http://localhost:8088/hr/login>；帳號、密碼讀取方式、WSL 操作、環境變數與實際驗證結果只看 [docs/LOCAL_REVIEW.md](docs/LOCAL_REVIEW.md)。
 本輪工作紀錄見 [docs/TASK_LOG.md](docs/TASK_LOG.md)，完整實測見 [docs/VERIFICATION_REPORT.md](docs/VERIFICATION_REPORT.md)，唯一計畫主檔為 [docs/ROADMAP.md](docs/ROADMAP.md)，檔案地圖見 [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)。
 
-此站只含虛構資料，未連真實 LINE／Google。本次已授權開 PR，尚不合併或部署；2026-11-10 重新驗證 Node 19／Chromium 20 項通過，GitHub CI 狀態另以 PR 為準。下方原有部署／TLS／Fly.io 說明不作本輪本機啟動依據；設定差異與未驗項目見 LOCAL_REVIEW。
+此站只含虛構資料，未連真實 LINE／Google。本次已授權開 PR，尚不合併或部署；2026-11-10 main 整合後重新驗證 Node 35／Chromium 25 項通過，GitHub CI 狀態另以 PR 為準。下方原有部署／TLS／Fly.io 說明不作本輪本機啟動依據；設定差異與未驗項目見 LOCAL_REVIEW。
 
 ## 克雷迅人力管理
 
-`/hr` 是克雷迅人力仲介管理系統，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。新案件會建立護照資料頁與 PSA 出生證明前置文件，兩者核准後才能安排體檢及訓練；各必要文件、體檢與訓練同步追蹤。PDF、JPG、PNG 文件會以 AES-256-GCM 加密後儲存在 PostgreSQL，下載僅限管理者或該工人、雇主、仲介的關聯帳號，並寫入案件活動紀錄。請備份 `.env` 裡的 `HR_DOCUMENT_ENCRYPTION_KEY`；遺失金鑰後無法解密既有文件。管理者由 `ADMIN_EMAILS` 指定；如需用 LINE 登入管理者帳號，請先用該管理者的 LINE 登入，再開啟 `/api/auth/line-user-id` 取得 LINE User ID，將 ID 加入 `HR_ADMIN_LINE_USER_IDS` 後重啟 app 容器。會員登入後可申請工人、雇主或仲介類型；尚未指派類型的帳號會等待管理者審核並綁定所屬資料。管理者也可在會員帳號頁直接新增或變更類型。工人只讀取自己的案件、案件雇主與所屬仲介；雇主只讀取尚未媒合與已屬於自己的工人；仲介只讀取所屬仲介的工人、雇主與案件。LINE Login 需在 LINE Developers Console 建立 LINE Login channel，將 Channel ID 與 Channel secret 填入 `.env`，並登記回呼網址 `${NEXTAUTH_URL}/api/auth/callback/line`。
+`/hr` 是克雷迅人力仲介管理系統，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。必要文件屬於工作者、不屬於案件：工作者一建立就會有 22 項文件清單（含上傳、審核、補件紀錄），之後不論配到哪個雇主、有幾個案件都共用同一份，不必重傳。其中「新護照」與「PSA出生證明（附收據）」是前置文件，兩者核准後才能安排體檢及訓練；其餘文件（含體檢 Medical）與體檢、訓練同步追蹤。7 項條件式文件（PSA 結婚證明、子女 PSA 出生證明、CENOMAR、ARC、Health Card、DMW Info Sheet、出生逾 10 年補登證明）會依工作者履歷（婚姻狀況、子女人數、海外／台灣工作經歷）自動判斷是否適用；履歷資訊不足或無法推導的（如補登證明）預設不適用，由仲介覆核。仲介手動調整過的適用狀態不會被自動覆寫，履歷更新時只會重新套用尚未收件、且未經手動調整的文件。案件只會依職類多出「必備證照」（例如家庭看護、機構看護工需要 Caregiving NC2），工作者還沒有證照時，用「未開始→訓練中→考照中→已取得」追蹤取證進度，證照取得前案件不會進入完成階段。
 
 ## Docker Deploy Verify
 
@@ -37,6 +37,8 @@ Environment variables used by Docker verification:
 - `APP_ORIGIN`
 - `NEXTAUTH_SECRET`
 - `ADMIN_EMAILS`
+- `HR_ADMIN_EMAILS` (optional; comma-separated Google/Gmail accounts granted HR administrator access)
+- `HR_ADMIN_LINE_USER_IDS` (root HR administrators allowed to manage system administrator accounts)
 - `OIDC_CLIENT_ID`
 - `OIDC_CLIENT_SECRET`
 - `OIDC_ISSUER`
@@ -46,6 +48,8 @@ Environment variables used by Docker verification:
 - `DATABASE_URL`
 
 If they are not already set, the script falls back to safe local verification defaults.
+
+To grant HR system administrator access by Google/Gmail login, set `HR_ADMIN_EMAILS` to a comma-separated list of email addresses. Existing `ADMIN_EMAILS` remains supported. `HR_ADMIN_LINE_USER_IDS` is the root administrator allowlist: only these LINE users can create, read, update, or delete other system administrator accounts. Add at least one trusted LINE User ID there before granting the system administrator member type; ordinary HR administrators cannot promote accounts to that type.
 
 ## Secure environment configuration
 

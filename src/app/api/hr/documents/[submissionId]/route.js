@@ -19,18 +19,20 @@ export async function GET(request, { params }) {
     await ensureHrIdentitySchema();
     const principal = await getHrPrincipal(session);
     if (!principal) return NextResponse.json({ error: 'HR membership is not configured for this account' }, { status: 403 });
-    const result = await pool.query(`SELECT f.*,s.requirement_id,r.case_id,c.worker_id,c.employer_id,
-      w.agency_id AS worker_agency_id,e.agency_id AS employer_agency_id
+    // 文件屬於工人：本人、所屬菲律賓仲介、管理者可下載；雇主與台灣仲介只能下載已與自己建案的工人的文件。
+    const result = await pool.query(`SELECT f.*,s.requirement_id,r.worker_id,w.agency_id AS worker_agency_id,
+      COALESCE(array_agg(DISTINCT c.employer_id) FILTER (WHERE c.id IS NOT NULL),ARRAY[]::bigint[]) AS employer_ids,
+      COALESCE(array_agg(DISTINCT e.agency_id) FILTER (WHERE e.agency_id IS NOT NULL),ARRAY[]::bigint[]) AS employer_agency_ids
       FROM hr_document_files f
-      JOIN hr_document_submissions s ON s.id=f.submission_id JOIN hr_case_requirements r ON r.id=s.requirement_id
-      JOIN hr_cases c ON c.id=r.case_id JOIN hr_workers w ON w.id=c.worker_id JOIN hr_employers e ON e.id=c.employer_id
-      WHERE f.submission_id=$1`, [id]);
+      JOIN hr_document_submissions s ON s.id=f.submission_id JOIN hr_worker_documents r ON r.id=s.requirement_id
+      JOIN hr_workers w ON w.id=r.worker_id LEFT JOIN hr_cases c ON c.worker_id=w.id LEFT JOIN hr_employers e ON e.id=c.employer_id
+      WHERE f.submission_id=$1 GROUP BY f.submission_id,s.requirement_id,r.worker_id,w.agency_id`, [id]);
     if (!result.rowCount) return NextResponse.json({ error: '找不到文件。' }, { status: 404 });
     const file = result.rows[0];
     const allowed = principal.role === 'admin' ||
       (principal.role === 'worker' && Number(principal.worker_id) === Number(file.worker_id)) ||
-      (principal.role === 'employer' && Number(principal.employer_id) === Number(file.employer_id)) ||
-      (principal.role === 'agency' && (Number(principal.agency_id) === Number(file.worker_agency_id) || Number(principal.agency_id) === Number(file.employer_agency_id)));
+      (principal.role === 'employer' && file.employer_ids.map(Number).includes(Number(principal.employer_id))) ||
+      (principal.role === 'agency' && (Number(principal.agency_id) === Number(file.worker_agency_id) || file.employer_agency_ids.map(Number).includes(Number(principal.agency_id))));
     if (!allowed) return NextResponse.json({ error: '此帳號無權下載這份文件。' }, { status: 403 });
     const decipher = createDecipheriv('aes-256-gcm', key, file.iv);
     decipher.setAuthTag(file.auth_tag);
@@ -40,7 +42,7 @@ export async function GET(request, { params }) {
     if (actualHash.length !== storedHash.length || !timingSafeEqual(actualHash, storedHash)) {
       throw new Error('document_integrity_check_failed');
     }
-    await pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)', [file.case_id,session.user?.email || session.user?.lineUserId || '登入會員','下載文件',`文件版本 ${id}`]);
+        await pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [file.worker_id, session.user?.email || session.user?.lineUserId || '登入會員','下載文件',`文件版本 ${id}`]);
     const preview = new URL(request.url).searchParams.get('preview') === '1';
     const previewableType = /^(application\/pdf|image\/(png|jpeg|gif|webp))$/i.test(file.content_type || '');
     const inline = preview && previewableType;

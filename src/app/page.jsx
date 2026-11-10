@@ -113,13 +113,13 @@ export default function Home() {
             <div className="logo-icon">
               <Layers color="white" size={24} />
             </div>
-            克雷迅網頁設計
+            {safeT.nav.webDesign}
           </Link>
           <nav className="nav-links" style={{ alignItems: 'center' }}>
             <a href="#home">{safeT.nav.home}</a>
             <a href="#themes">{safeT.nav.themes}</a>
             <Link href="/notes" style={{ color: 'inherit', textDecoration: 'none' }}>Notes</Link>
-            <Link href="/hr" style={{ color: 'inherit', textDecoration: 'none' }}>克雷迅人力管理系統</Link>
+            <Link href="/hr" style={{ color: 'inherit', textDecoration: 'none' }}>{safeT.nav.hrManagement}</Link>
             <button 
               className="text-gradient" 
               style={{fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer'}}

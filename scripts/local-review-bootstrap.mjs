@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { hashPassword } from '../src/lib/passwords.js';
+import { migrateWorkerDocuments } from '../src/lib/hr-worker-documents-schema.js';
 const require = createRequire('/app/package.json');
 const { Pool } = require('pg');
 const url = new URL(process.env.DATABASE_URL || '');
@@ -23,10 +24,17 @@ try {
   const { ensureHrIdentitySchema } = makeAccess(pool, get);
   const source = await readFile(new URL('../src/app/api/hr/route.js', import.meta.url), 'utf8');
   // Execute the exact checked-out schema initializer, not a second divergent schema.
-  const constants = source.slice(source.indexOf('const WORKER_DOCUMENTS'), source.indexOf('export async function ensureSchema'));
-  const initializer = source.slice(source.indexOf('export async function ensureSchema'), source.indexOf('\nconst clean =')).replace('export async function', 'async function');
-  const makeSchema = vm.runInNewContext(`(function(pool,ensureHrIdentitySchema){${constants}\n${initializer};return ensureSchema;})`, { Date });
-  await makeSchema(pool, ensureHrIdentitySchema)();
+  const section = (start, end) => {
+    const from = source.indexOf(start), to = source.indexOf(end, from + start.length);
+    if (from < 0 || to <= from) throw new Error('Schema extraction markers changed; refusing incomplete initializer');
+    return source.slice(from, to);
+  };
+  const constants = section('const CASE_STATUSES', 'export async function ensureSchema');
+  const initializer = section('export async function ensureSchema', '\nconst clean =').replace('export async function', 'async function');
+  const stageRefresh = section('async function refreshCaseStage(', '\n// 工人的文件有變動時');
+  const runQuery = async (sql, args) => (await pool.query(sql, args)).rows;
+  const makeSchema = vm.runInNewContext(`(function(pool,ensureHrIdentitySchema,migrateWorkerDocuments,query){${constants}\n${initializer}\n${stageRefresh};return ensureSchema;})`, { Date });
+  await makeSchema(pool, ensureHrIdentitySchema, migrateWorkerDocuments, runQuery)();
   const seed = spawnSync(process.execPath, [new URL('./seed-hr-role-tests.js', import.meta.url).pathname], {
     env: { ...process.env, PG_MODULE_PATH: '/app/node_modules/pg/lib/index.js' }, encoding: 'utf8',
   });

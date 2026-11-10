@@ -25,7 +25,7 @@ const workers = Array.from({ length: 5 }, (_, index) => ({
   number: index + 1,
   email: `test.worker${String(index + 1).padStart(2, '0')}@example.com`,
   legacyEmail: index < 3 ? `hr-test-worker${String(index + 1).padStart(2, '0')}@example.com` : null,
-  name: `菲律賓測試工人 ${String(index + 1).padStart(2, '0')}（虛構）`,
+  name: `菲律賓測試工作者 ${String(index + 1).padStart(2, '0')}（虛構）`,
   jobPreference: ['家庭看護（測試）','家庭看護（測試）','工廠作業員（測試）','工廠作業員（測試）','家庭幫傭（測試）'][index],
 }));
 const employers = [
@@ -54,7 +54,6 @@ try {
     CHECK ((role='worker' AND worker_id IS NOT NULL AND employer_id IS NULL AND agency_id IS NULL) OR
     (role='employer' AND employer_id IS NOT NULL AND worker_id IS NULL AND agency_id IS NULL) OR
     (role='agency' AND agency_id IS NOT NULL AND worker_id IS NULL AND employer_id IS NULL)))`);
-  await client.query('CREATE UNIQUE INDEX IF NOT EXISTS hr_case_requirements_case_name ON hr_case_requirements(case_id,name)');
   const agencyIds = {};
   for (const agency of agencies) {
     const row = await client.query(`INSERT INTO hr_agencies(name,agency_type,country,active)
@@ -111,10 +110,11 @@ try {
     [caseNumber,employerIds[index],workerIds[index],staffId,workers[index].jobPreference]);
   }
 
-  await client.query(`INSERT INTO hr_case_requirements(case_id,name,required,entry_gate)
-    SELECT c.id,req.name,TRUE,TRUE FROM hr_cases c CROSS JOIN (VALUES('護照資料頁'),('PSA 出生證明')) req(name)
+  // 必要文件屬於工人（hr_worker_documents，需先啟動過應用程式讓 ensureSchema 建表）。
+  await client.query(`INSERT INTO hr_worker_documents(worker_id,name,required,entry_gate)
+    SELECT DISTINCT c.worker_id,req.name,TRUE,TRUE FROM hr_cases c CROSS JOIN (VALUES('新護照'),('PSA出生證明（附收據）')) req(name)
     WHERE c.case_number LIKE 'HR-TEST-ROLE-%' OR c.case_number LIKE 'HR-TEST-20261030-%'
-    ON CONFLICT(case_id,name) DO NOTHING`);
+    ON CONFLICT(worker_id,name) DO NOTHING`);
   await client.query(`INSERT INTO hr_case_activity(case_id,actor_email,action,detail)
     SELECT id,'test-run@example.com','建立測試案件',case_number FROM hr_cases
     WHERE case_number LIKE 'HR-TEST-ROLE-%' AND NOT EXISTS(SELECT 1 FROM hr_case_activity a WHERE a.case_id=hr_cases.id AND a.action='建立測試案件')`);
