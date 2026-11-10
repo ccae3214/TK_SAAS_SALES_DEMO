@@ -1,0 +1,42 @@
+# Isolated local review only; does not use the deployment compose file.
+name: tk-saas-local-review
+services:
+  review-postgres:
+    image: postgres:16-alpine
+    container_name: tk-saas-review-postgres
+    environment:
+      POSTGRES_USER: review
+      POSTGRES_PASSWORD: ${REVIEW_DB_PASSWORD:?Use --env-file .env.review.local}
+      POSTGRES_DB: tk_saas_review
+    volumes:
+      - review_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U review -d tk_saas_review]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    image: tk-saas-sales-demo-review:workflow-b
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tk-saas-review-app
+    ports:
+      - 127.0.0.1:8088:3000
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_URL: http://localhost:8088
+      APP_ORIGIN: http://localhost:8088
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_SECRET: ${REVIEW_AUTH_SECRET:?Use --env-file .env.review.local}
+      HR_DOCUMENT_ENCRYPTION_KEY: ${REVIEW_DOCUMENT_KEY:?Use --env-file .env.review.local}
+      ADMIN_EMAILS: review.admin@example.invalid
+      DATABASE_URL: postgresql://review:${REVIEW_DB_PASSWORD}@review-postgres:5432/tk_saas_review
+      LOCAL_REVIEW_ONLY: "1"
+      REVIEW_LOGIN_PASSWORD: ${REVIEW_LOGIN_PASSWORD:?Use --env-file .env.review.local}
+    depends_on:
+      review-postgres:
+        condition: service_healthy
+volumes:
+  review_data:
+    name: tk_saas_review_postgres_data

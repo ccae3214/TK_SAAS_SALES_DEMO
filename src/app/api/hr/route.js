@@ -9,6 +9,8 @@ import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
 import { withAdminAudit } from '@/lib/hr-audit';
+import { WITHDRAWAL_MARKER, isWithdrawnRecommendation } from '@/lib/hr-candidate-withdrawal';
+import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -280,7 +282,7 @@ export async function GET() {
     }
     if (!principal.role) {
       const agencies=await query('SELECT id,name,agency_type,country,active FROM hr_agencies WHERE active=TRUE ORDER BY agency_type,name');
-      return NextResponse.json({ role: 'pending', pendingApproval: true, requestedRole: principal.requested_role || null, requestedAgencyId: principal.requested_agency_id || null, requestedAgencyName: principal.requested_agency_name || null, requestedAgencyType: principal.requested_agency_type || null, agencies, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
+      return NextResponse.json({ role: 'pending', pendingApproval: !!principal.requested_role, requestedRole: principal.requested_role || null, requestedAgencyId: principal.requested_agency_id || null, requestedAgencyName: principal.requested_agency_name || null, requestedAgencyType: principal.requested_agency_type || null, agencies, actor: { name: principal.name || session.user.name || '會員', email: principal.email || '' } });
     }
     const isRootAdmin = isHrRootAdminSession(session);
     const [allEmployers, allWorkers, allCases, allTasks, allRequirements, allSubmissions, allActivity, agencies, members, allApplicationSteps, allJobOrders, allOrderAgencies, allRoutes, allCandidates, allAgencyContacts, allCertifications] = await Promise.all([
@@ -329,7 +331,7 @@ export async function GET() {
         FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id LEFT JOIN hr_agencies ea ON ea.id=e.agency_id ORDER BY o.created_at DESC`),
       query(`SELECT oa.*,a.name taiwan_agency_name,m.id broker_id,m.display_name broker_name FROM hr_job_order_agencies oa JOIN hr_agencies a ON a.id=oa.taiwan_agency_id LEFT JOIN hr_members m ON m.id=oa.broker_member_id AND m.role='agency' AND m.agency_id=oa.taiwan_agency_id AND m.active=TRUE`),
       query(`SELECT r.*,a.name philippines_agency_name,oa.job_order_id,oa.taiwan_agency_id FROM hr_job_order_routes r JOIN hr_agencies a ON a.id=r.philippines_agency_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id`),
-      query(`SELECT c.*,w.name worker_name,w.nationality,w.job_preference,w.agency_id worker_agency_id,r.philippines_agency_id,oa.job_order_id,oa.taiwan_agency_id,ca.name philippines_agency_name FROM hr_job_order_candidates c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_agencies ca ON ca.id=r.philippines_agency_id`),
+      query(`SELECT c.*,(c.proposed_by IS NULL OR EXISTS(SELECT 1 FROM hr_members proposer WHERE proposer.id=c.proposed_by AND proposer.role='agency' AND proposer.agency_id=r.philippines_agency_id)) AS agency_recommendation,w.name worker_name,w.nationality,w.job_preference,w.agency_id worker_agency_id,r.philippines_agency_id,oa.job_order_id,oa.taiwan_agency_id,ca.name philippines_agency_name FROM hr_job_order_candidates c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_agencies ca ON ca.id=r.philippines_agency_id`),
       query(`SELECT m.id,m.display_name,m.agency_id,a.name AS agency_name FROM hr_members m JOIN hr_agencies a ON a.id=m.agency_id WHERE m.role='agency' AND m.active=TRUE AND a.active=TRUE AND a.agency_type='taiwan' ORDER BY a.name,m.display_name`),
       query(`SELECT k.*,c.case_number,c.worker_id,c.job_type,w.name AS worker_name FROM hr_case_certifications k
         JOIN hr_cases c ON c.id=k.case_id JOIN hr_workers w ON w.id=c.worker_id
@@ -562,8 +564,9 @@ async function handlePost(request) {
     }
     if (body.type === 'job-order-candidate' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       const routeId=Number(body.routeId),workerId=Number(body.workerId);
+      if(String(body.notes||'').includes(WITHDRAWAL_MARKER.trim()))return NextResponse.json({error:'推薦說明包含保留的系統標記。'},{status:400});
       if(!validId(routeId)||!validId(workerId))return NextResponse.json({error:'請選擇工作需求與所屬工作者。'},{status:400});
-      const result=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes) SELECT r.id,w.id,$3 FROM hr_job_order_routes r JOIN hr_workers w ON w.id=$2 WHERE r.id=$1 AND r.philippines_agency_id=$4 AND w.agency_id=$4 AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id) ON CONFLICT(route_id,worker_id) DO UPDATE SET notes=EXCLUDED.notes,updated_at=NOW() RETURNING *`,[routeId,workerId,clean(body.notes,2000),principal.agency_id]);
+      const result=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes,proposed_by) SELECT r.id,w.id,$3,$5 FROM hr_job_order_routes r JOIN hr_workers w ON w.id=$2 JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE r.id=$1 AND r.philippines_agency_id=$4 AND w.agency_id=$4 AND o.status='open' AND w.status='active' AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id) ON CONFLICT(route_id,worker_id) DO UPDATE SET notes=EXCLUDED.notes,updated_at=NOW() WHERE hr_job_order_candidates.status='proposed' AND hr_job_order_candidates.interview_at IS NULL AND hr_job_order_candidates.case_id IS NULL RETURNING *`,[routeId,workerId,clean(body.notes,2000),principal.agency_id,principal.id]);
       if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介且尚未建立任何案件的工作者。'},{status:403});return NextResponse.json(result[0],{status:201});
     }
     if (body.type === 'job-order-employer-candidate' && principal.role === 'employer') {
@@ -823,6 +826,10 @@ async function handlePatch(request) {
         return NextResponse.json(updated.rows[0]);
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
+    if (body.type === 'job-order-candidate-withdraw') {
+      const result = await withdrawRecommendation(pool, principal, body.candidateId);
+      return NextResponse.json(result.body, { status: result.status });
+    }
     if (body.type === 'job-order-candidate-interview' && principal.role === 'employer') {
       const candidateId=Number(body.candidateId),status=clean(body.status,20);
       if(!validId(candidateId)||!['scheduled','passed','rejected'].includes(status))return NextResponse.json({error:'面試結果不正確。'},{status:400});
@@ -831,6 +838,10 @@ async function handlePatch(request) {
         const candidate=await client.query(`SELECT c.*,r.id route_id,oa.job_order_id,oa.taiwan_agency_id,o.employer_id,o.job_type,o.expected_start_date,o.headcount FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE c.id=$1 AND o.employer_id=$2 FOR UPDATE OF c,o`,[candidateId,principal.employer_id]);
         if(!candidate.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到此工作需求的人選。'},{status:404});}
         const item=candidate.rows[0];let caseId=item.case_id;
+        if(isWithdrawnRecommendation(item)){
+          await client.query('ROLLBACK');
+          return NextResponse.json({error:'此推薦已撤回，無法安排面試或錄用。'},{status:409});
+        }
         if(status==='passed'&&!caseId){
           const count=await client.query("SELECT count(*)::int n FROM hr_job_order_candidates WHERE status='passed' AND route_id IN (SELECT r.id FROM hr_job_order_routes r JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id WHERE oa.job_order_id=$1)",[item.job_order_id]);
           await client.query('SELECT id FROM hr_workers WHERE id=$1 FOR UPDATE',[item.worker_id]);
