@@ -100,6 +100,52 @@ export async function ensureHrIdentitySchema() {
   // One agency can have multiple member logins; worker and employer links stay unique.
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_agency_id_key');
   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_agency_id_idx ON hr_members(agency_id) WHERE agency_id IS NOT NULL');
+  await syncMemberActiveStatus();
+}
+
+// 會員的啟用狀態是唯一來源：停用／啟用會員時，綁定的工作者／雇主資料會同步更新。
+// 用資料庫 trigger 處理，網頁管理員、仲介管理者、LINE bot 都走同一套規則。
+async function syncMemberActiveStatus() {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // 避免多個請求同時建立 function / trigger 而互相衝突。
+    await client.query('SELECT pg_advisory_xact_lock(727401)');
+    await client.query(`CREATE OR REPLACE FUNCTION hr_sync_member_active_status() RETURNS trigger AS $$
+    BEGIN
+      IF NEW.active IS DISTINCT FROM OLD.active THEN
+        IF NEW.worker_id IS NOT NULL THEN
+          UPDATE hr_workers
+            SET status = CASE WHEN NEW.active THEN 'active' ELSE 'inactive' END, updated_at = NOW()
+            WHERE id = NEW.worker_id
+              AND status <> CASE WHEN NEW.active THEN 'active' ELSE 'inactive' END;
+        END IF;
+        IF NEW.employer_id IS NOT NULL THEN
+          UPDATE hr_employers
+            SET status = CASE WHEN NEW.active THEN 'active' ELSE 'inactive' END, updated_at = NOW()
+            WHERE id = NEW.employer_id
+              AND status <> CASE WHEN NEW.active THEN 'active' ELSE 'inactive' END;
+        END IF;
+      END IF;
+      RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql`);
+    await client.query('DROP TRIGGER IF EXISTS hr_members_sync_active_status ON hr_members');
+    await client.query(`CREATE TRIGGER hr_members_sync_active_status
+      AFTER UPDATE OF active ON hr_members
+      FOR EACH ROW EXECUTE PROCEDURE hr_sync_member_active_status()`);
+    // 修正既有資料：會員已停用，但綁定的工作者／雇主還是啟用。
+    await client.query(`UPDATE hr_workers w SET status='inactive', updated_at=NOW()
+      FROM hr_members m WHERE m.worker_id=w.id AND m.active=FALSE AND w.status='active'`);
+    await client.query(`UPDATE hr_employers e SET status='inactive', updated_at=NOW()
+      FROM hr_members m WHERE m.employer_id=e.id AND m.active=FALSE AND e.status='active'`);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getHrPrincipal(session) {
