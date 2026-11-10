@@ -94,6 +94,9 @@ export async function ensureHrIdentitySchema() {
   await pool.query("ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_requested_role_check");
   await pool.query("ALTER TABLE hr_members ADD CONSTRAINT hr_members_requested_role_check CHECK (requested_role IS NULL OR requested_role IN ('worker','employer','agency','training_center'))");
   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_active_role ON hr_members(role, active)');
+  // 會員離開工作者／雇主類型時，記住原本綁定的資料列，之後切換回來就重用同一筆，避免產生重複的工作者／雇主。
+  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_worker_id BIGINT REFERENCES hr_workers(id) ON DELETE SET NULL');
+  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_employer_id BIGINT REFERENCES hr_employers(id) ON DELETE SET NULL');
   // One agency can have multiple member logins; worker and employer links stay unique.
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_agency_id_key');
   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_agency_id_idx ON hr_members(agency_id) WHERE agency_id IS NOT NULL');

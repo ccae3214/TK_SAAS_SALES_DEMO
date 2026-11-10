@@ -1121,7 +1121,7 @@ export async function PATCH(request) {
               return NextResponse.json({ error: role === 'worker' ? '工作者必須指派給菲律賓仲介。' : '雇主必須指派給台灣仲介。' }, { status: 400 });
             }
           }
-          const member = await client.query('SELECT id,role,worker_id,employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+          const member = await client.query('SELECT id,role,worker_id,employer_id,last_worker_id,last_employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
           if (!member.rowCount) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
@@ -1132,9 +1132,13 @@ export async function PATCH(request) {
             return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者身分。' }, { status: 403 });
           }
           let workerId = null, employerId = null, memberAgencyId = null;
+          // 工作者／雇主資料是「會員的身分」，不是每次變更類型就新增一筆：
+          // 優先重用目前綁定的資料，其次是會員先前離開此類型時記住的資料，都沒有才新建。
+          // 離開類型時資料列不刪除（保留文件與案件），但會停用，避免出現在可媒合的名單中。
           if (role === 'worker') {
-            if (current.role === 'worker' && current.worker_id) {
-              const updated = await client.query('UPDATE hr_workers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.worker_id,agencyId]);
+            const reusableWorkerId = current.worker_id || current.last_worker_id || null;
+            if (reusableWorkerId) {
+              const updated = await client.query("UPDATE hr_workers SET agency_id=$2,status='active',updated_at=NOW() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM hr_members o WHERE o.worker_id=hr_workers.id AND o.id<>$3) RETURNING id", [reusableWorkerId,agencyId,id]);
               workerId = updated.rows[0]?.id || null;
             }
             if (!workerId) {
@@ -1143,8 +1147,9 @@ export async function PATCH(request) {
             }
             await insertWorkerDocuments(client, workerId, {});
           } else if (role === 'employer') {
-            if (current.role === 'employer' && current.employer_id) {
-              const updated = await client.query('UPDATE hr_employers SET agency_id=$2,updated_at=NOW() WHERE id=$1 RETURNING id', [current.employer_id,agencyId]);
+            const reusableEmployerId = current.employer_id || current.last_employer_id || null;
+            if (reusableEmployerId) {
+              const updated = await client.query("UPDATE hr_employers SET agency_id=$2,status='active',updated_at=NOW() WHERE id=$1 AND NOT EXISTS(SELECT 1 FROM hr_members o WHERE o.employer_id=hr_employers.id AND o.id<>$3) RETURNING id", [reusableEmployerId,agencyId,id]);
               employerId = updated.rows[0]?.id || null;
             }
             if (!employerId) {
@@ -1157,9 +1162,17 @@ export async function PATCH(request) {
           if (current.agency_id && (role !== 'agency' || Number(current.agency_id)!==agencyId)) {
             await client.query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
           }
+          // 離開工作者／雇主類型：記住原本的資料列並停用，而不是留下一筆仍啟用、沒有會員的孤兒資料。
+          const leavingWorkerId = current.worker_id && Number(current.worker_id) !== Number(workerId) ? current.worker_id : null;
+          const leavingEmployerId = current.employer_id && Number(current.employer_id) !== Number(employerId) ? current.employer_id : null;
+          if (leavingWorkerId) await client.query("UPDATE hr_workers SET status='inactive',updated_at=NOW() WHERE id=$1", [leavingWorkerId]);
+          if (leavingEmployerId) await client.query("UPDATE hr_employers SET status='inactive',updated_at=NOW() WHERE id=$1", [leavingEmployerId]);
           const assigned = await client.query(`UPDATE hr_members SET role=$2,admin_scope=CASE WHEN $2='system_admin' THEN 'system' ELSE 'none' END,
-            requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,active=TRUE,updated_at=NOW()
-            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId]);
+            requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,
+            last_worker_id=COALESCE($6::bigint,CASE WHEN $3::bigint IS NULL THEN last_worker_id END),
+            last_employer_id=COALESCE($7::bigint,CASE WHEN $4::bigint IS NULL THEN last_employer_id END),
+            active=TRUE,updated_at=NOW()
+            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId,leavingWorkerId,leavingEmployerId]);
           await client.query('COMMIT');
           if (current.line_user_id) {
             syncLineRichMenu(current.line_user_id, { role: role === 'system_admin' ? 'admin' : role, agency_type: approvedAgency?.agency_type || null })
