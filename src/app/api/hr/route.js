@@ -1380,6 +1380,45 @@ async function handleDelete(request) {
         return NextResponse.json({ok:true});
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
+    if(['employer','worker','case'].includes(deleteType)){
+      if(principal.role!=='admin')return NextResponse.json({error:'僅系統管理者可刪除雇主、工作者與案件。'},{status:403});
+      if(!validId(id))return NextResponse.json({error:'資料編號不正確。'},{status:400});
+      const client=await pool.connect();
+      const refuse=async(message,status=409)=>{await client.query('ROLLBACK');return NextResponse.json({error:message},{status});};
+      try{
+        await client.query('BEGIN');
+        if(deleteType==='case'){
+          const found=await client.query('SELECT id FROM hr_cases WHERE id=$1 FOR UPDATE',[id]);
+          if(!found.rowCount)return await refuse('找不到案件。',404);
+          // 待辦、活動紀錄、證照與申請程序會隨案件刪除；媒合需求單上的推薦人選保留，只解除與此案件的連結。
+          await client.query('UPDATE hr_job_order_candidates SET case_id=NULL WHERE case_id=$1',[id]);
+          await client.query('DELETE FROM hr_cases WHERE id=$1',[id]);
+        }else if(deleteType==='employer'){
+          const found=await client.query('SELECT id FROM hr_employers WHERE id=$1 FOR UPDATE',[id]);
+          if(!found.rowCount)return await refuse('找不到雇主資料。',404);
+          const used=(await client.query(`SELECT EXISTS(SELECT 1 FROM hr_members WHERE employer_id=$1) AS has_member,
+            EXISTS(SELECT 1 FROM hr_cases WHERE employer_id=$1) AS has_cases,
+            EXISTS(SELECT 1 FROM hr_job_orders WHERE employer_id=$1) AS has_orders`,[id])).rows[0];
+          if(used.has_member)return await refuse('此雇主資料已綁定會員帳號，請先到「會員帳號」變更該會員的類型後再刪除。');
+          if(used.has_cases)return await refuse('此雇主還有案件，請先刪除相關案件後再刪除雇主。');
+          if(used.has_orders)return await refuse('此雇主還有媒合需求單，請先處理需求單後再刪除雇主。');
+          await client.query('DELETE FROM hr_employers WHERE id=$1',[id]);
+        }else{
+          const found=await client.query('SELECT id FROM hr_workers WHERE id=$1 FOR UPDATE',[id]);
+          if(!found.rowCount)return await refuse('找不到工作者資料。',404);
+          const used=(await client.query(`SELECT EXISTS(SELECT 1 FROM hr_members WHERE worker_id=$1) AS has_member,
+            EXISTS(SELECT 1 FROM hr_cases WHERE worker_id=$1) AS has_cases,
+            EXISTS(SELECT 1 FROM hr_job_order_candidates WHERE worker_id=$1) AS has_candidates`,[id])).rows[0];
+          if(used.has_member)return await refuse('此工作者資料已綁定會員帳號，請先到「會員帳號」變更該會員的類型後再刪除。');
+          if(used.has_cases)return await refuse('此工作者還有案件，請先刪除相關案件後再刪除工作者。');
+          if(used.has_candidates)return await refuse('此工作者已被推薦到媒合需求單，請先處理推薦紀錄後再刪除。');
+          // 工作者的文件與履歷資料會一併刪除。
+          await client.query('DELETE FROM hr_workers WHERE id=$1',[id]);
+        }
+        await client.query('COMMIT');
+        return NextResponse.json({ok:true});
+      }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+    }
     if(url.searchParams.get('type')==='job-order'){
       if(principal.role!=='employer')return NextResponse.json({error:'僅雇主可刪除自己的需求單。'},{status:403});
       if(!validId(id))return NextResponse.json({error:'需求單編號不正確。'},{status:400});
@@ -1404,8 +1443,9 @@ async function handleDelete(request) {
     if (removed.length) return NextResponse.json({ ok: true });
     return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
   } catch (error) {
-    console.error(deleteType==='member'?'hr_member_delete_failed':'hr_agency_worker_unlink_failed', error?.name || 'Error');
-    return NextResponse.json({ error: deleteType==='member'?'刪除會員帳號失敗，請稍後再試。':'移除工作者所屬仲介失敗。' }, { status: 500 });
+    const recordDelete=['employer','worker','case'].includes(deleteType);
+    console.error(deleteType==='member'?'hr_member_delete_failed':recordDelete?'hr_record_delete_failed':'hr_agency_worker_unlink_failed', error?.name || 'Error');
+    return NextResponse.json({ error: deleteType==='member'?'刪除會員帳號失敗，請稍後再試。':recordDelete?'刪除失敗，請稍後再試。':'移除工作者所屬仲介失敗。' }, { status: 500 });
   }
 }
 
