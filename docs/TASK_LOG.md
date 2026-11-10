@@ -1,5 +1,14 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 手動推薦 fixture 與最新 main 整合前檢查
+
+- 使用者已同意補可推薦工人並整合 main 到 PR 分支；明確 fetch 後，最新 main 為 `6caf5df`。
+- 在既有隔離 review app 以菲律賓仲介 session 呼叫既有 API，新增 `DEMO-手動推薦測試工人-A`（worker ID 10）；API 讀回確認 active、尚無案件，Chromium 重整後 1 個推薦下拉可見該工人。未實際推薦／錄用，保留給手動驗收。
+- 第一次畫面檢查因 API 新增後頁面未重整而失敗；腳本補重整後重跑通過，沒有重複新增 fixture。
+- 整合前發現 main 帶有新的自動 schema 遷移：文件由案件轉到工人、建立案件證照、合併文件與新增會員欄位。尚未執行 merge、重建新版 app 或讓遷移接觸 review DB；須先取得本次隔離 DB migration 的明確批准，建議先備份並驗證備份再執行。
+- main 的 `6caf5df` 已恢復 CI／Deploy workflows；前輪「main 沒有 workflows」僅適用當時快照。未合併到 main、未部署、未 push。
+
+
 ## 2026-11-10 PR 候選重新驗證
 
 - 使用者已授權提交、push 與建立 PR；來源 `feature/local-review-onboarding`，目標 `main`。下方「未 commit／push」為前輪歷史，實際發佈與 CI 狀態以 GitHub PR 為準；本輪不合併、不部署。
