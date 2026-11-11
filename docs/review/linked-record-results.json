@@ -1,0 +1,52 @@
+{
+  "base": "3772bcfc5a584c4c70d28ec1bdb85abddfe6ba6f",
+  "scope": "isolated fictional review; not production, iPhone, or real third-party authentication",
+  "node": {
+    "tests": 85,
+    "pass": 85,
+    "fail": 0,
+    "skipped": 0
+  },
+  "linked_integration": {
+    "checks": 20,
+    "failed": 0,
+    "pageerror": 0,
+    "scope": "isolated fictional API/UI/real PostgreSQL, not production/third-party login/iPhone"
+  },
+  "existing_browser_regression": {
+    "passed": 26,
+    "failed": 0
+  },
+  "recommendation_withdrawal": {
+    "passed": 15,
+    "failed": 0
+  },
+  "backup_restore": {
+    "result": "PASS",
+    "source_counts": {
+      "hr_members": 27,
+      "hr_workers": 43,
+      "hr_employers": 5,
+      "hr_cases": 28,
+      "hr_job_orders": 35,
+      "hr_worker_documents": 924,
+      "hr_document_submissions": 0
+    },
+    "restored_counts": {
+      "hr_members": 27,
+      "hr_workers": 43,
+      "hr_employers": 5,
+      "hr_cases": 28,
+      "hr_job_orders": 35,
+      "hr_worker_documents": 924,
+      "hr_document_submissions": 0
+    },
+    "source_unchanged_at_backup": true
+  },
+  "limitations": [
+    "lint and type validation skipped by existing build",
+    "no production or real LINE/Google/iPhone validation",
+    "real PostgreSQL fault injection wraps the store query boundary; not a real outage",
+    "post-commit document applicability/stage refresh remains the existing separate follow-up"
+  ]
+}

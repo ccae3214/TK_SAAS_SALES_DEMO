@@ -2,7 +2,18 @@
 
 本文件是唯一計畫主檔；操作看 LOCAL_REVIEW.md、證據看 VERIFICATION_REPORT.md、歷史看 TASK_LOG.md。
 
-## 本輪已批准並完成：撤回推薦
+## 2026-11-11：main 基底修正與 PR 交付
+
+- [x] 查證 #17 是 main → wei 的 squash，同 tree，未發現同步退版；保留 main 後續自動更新與 CSP／nonce。
+- [x] 從最新 main `3772bcf` 建 fix/hr-linked-record-consistency，不直接寫 main，以 main 為 PR 目標。
+- [x] 取得本次隔離 DB 既有 trigger 與保留管理者 Email 防護授權；備份並實際還原，7 組資料計數一致。
+- [x] 共同交易修正正／反向同步，Email 驗證、機構範圍與已批准的保留地址防護，保留 LINE-only／無登入舊工人相容。
+- [x] Node 85、既有 Chromium 26／撤回 15／新整合 20 通過；新版 Docker build 與 image 讀回一致；app 運作中。
+- [x] 合作人報告 LINKED_RECORD_REVIEW.md、機器摘要 review/linked-record-results.json、操作／紀錄／地圖同步。
+- [ ] 本次 PR 發佈與精確 head CI 結果以 PR 讀回為準；合作人獨立審查／Windows 手動驗收。
+- [ ] 真實 provider／iPhone／完整安全矩陣與 Email 改名 session 生命週期另案；不合併 main、不部署。
+
+## PR #12 已批准並完成：撤回推薦（歷史）
 
 - [x] 僅所屬菲律賓仲介、仲介來源、需求 open、尚未安排面試的人選可撤回；不實體刪工人或推薦歷史。
 - [x] 狀態／機構與來源在伺服器重新驗證、candidate/order row locks、冪等；過時雇主面試／推薦更新不得復活。

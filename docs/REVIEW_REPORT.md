@@ -1,5 +1,7 @@
 # REVIEW REPORT｜PR #12：B 流程整理與推薦撤回
 
+本文件保留 PR #12 的歷史快照，#12 已合併。2026-11-11 main／wei 同步查核、最新一致性修正、85／26／15／20 測試結果與限制，請先看 [LINKED_RECORD_REVIEW.md](LINKED_RECORD_REVIEW.md)。後續均由最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。
+
 日期：2026-11-10。對象：合作開發者／PR reviewer。
 
 PR：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12

@@ -1,6 +1,18 @@
 # VERIFICATION_REPORT｜B 三流程整理實際驗收
 
-## 本輪更新：推薦撤回與合作人審查
+## 2026-11-11：main 3772bcf 一致性修正
+
+合作人完整證據與指令看 [LINKED_RECORD_REVIEW.md](LINKED_RECORD_REVIEW.md)，實際 log 解析摘要 [linked-record-results.json](review/linked-record-results.json)。#17 為 main → wei、squash tree 與當時 main 相同；本輪由最新 main 建 fix branch，保留後續自動更新與 CSP／nonce。
+
+- Node 85 通過／0 失敗／0 跳過；既有 Chromium 26、新一致性整合 20、推薦撤回 15 全通過，三組 pageerror=0。
+- 新版 Docker build 成功；running container image 與 image tag 相同。lint／型別仍被既有設定跳過，不算通過。
+- 真實 PostgreSQL 正反向指定寫入故障注入比對姓名／Email／updated_at 都回滾；兩個真正並行 HTTP 對同 Email 回 200/409，落敗者原資料保留。不是完整壓測或真實 outage。
+- 這次明確授權後，先備份並實際還原，7 組資料計數一致，再套用 main 既有 trigger；function／trigger 已由唯讀 catalog 查核。本 PR 無新增 schema。
+- 保留無登入舊工人與 LINE-only 空 Email；保留地址／機構／角色拒絕及 UI 清空拒絕後正常儲存皆驗。main 的 nonce CSP、閒置 focus 更新與編輯器跳過更新已驗。
+- 未驗正式資料、真實附件、第三方 provider、iPhone、破壞性刪除、所有身份／壓力矩陣及改 Email 後舊 session UX。文件／案件 resync 保留既有 commit 後 follow-up，不能宣稱全域原子性。
+- 本機 app 運作中；未合併 main、未部署。CI 以本次 PR 精確 head 為準，不沿用 #12/#17 的舊成功。
+
+## 前輪更新：推薦撤回與合作人審查（歷史）
 
 - 已依使用者確認，新增所屬菲律賓仲介在安排面試前撤回推薦；保留工人、履歷、文件與推薦歷史，阻擋跨機構、雇主來源、已面試／錄用、結束需求及過時寫入。
 - 本輪凍結整合基底 main `e0e5a71`，仍在 feature/local-review-onboarding／PR #12；不合併 main、不部署、不新增 schema。本次操作權限範圍已另外確認，不擴充其他角色代撤回權限。
