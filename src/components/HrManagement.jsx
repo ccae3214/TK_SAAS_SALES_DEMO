@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
-import { Activity, BriefcaseBusiness, Building2, Check, ChevronRight, CircleAlert, ClipboardList, FileCheck2, HeartPulse, History, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
+import { Activity, BriefcaseBusiness, Building2, Check, ChevronRight, CircleAlert, ClipboardList, FileCheck2, GraduationCap, HeartPulse, History, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search, ShieldCheck, UserRound, UsersRound, X } from 'lucide-react';
 import styles from './HrManagement.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
@@ -10,6 +10,7 @@ import HrFilePicker from '@/components/HrFilePicker';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
 import PersonNameFields from '@/components/PersonNameFields';
 import HrChat from '@/components/HrChat';
+import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrReminders from '@/components/HrReminders';
 import HrAgencyDirectory from '@/components/HrAgencyDirectory';
 import { OrderJourney } from '@/components/HrJourney';
@@ -32,6 +33,7 @@ const NAV = [
   { id: 'workers', label: '工作者', icon: UserRound },
   { id: 'agencies', label: '仲介機構', icon: Building2 },
   { id: 'members', label: '會員帳號', icon: UsersRound },
+  { id: 'training', label: '訓練中心', icon: GraduationCap },
   { id: 'activity', label: '操作紀錄', icon: History },
 ];
 const STAGES = [['intake','需求受理'],['matching','媒合中'],['documents','文件處理'],['medical_training','體檢與訓練'],['application','申請辦理'],['arrangement','後續安排'],['completed','完成']];
@@ -183,7 +185,7 @@ export default function HrManagement({ actor }) {
     <aside className={`${styles.sidebar} ${mobileNav ? styles.sidebarOpen : ''}`}>
       <div className={styles.brand}><span className={styles.brandMark}>K</span><span>克雷迅<strong>人力管理</strong></span></div>
       <div className={styles.workspaceLabel}>工作區</div>
-      <nav className={styles.nav}>{NAV.filter(item=>!(data?.role==='agency'&&data.isAgencyAdmin&&['agencies','activity'].includes(item.id))).map(({id,label,icon:Icon}) => <button key={id} className={active===id?styles.navActive:''} onClick={()=>{setActive(id);setQuickFilter('');setMobileNav(false);setSearch('');}}><Icon size={18}/><span>{label}</span>{active===id&&<ChevronRight size={15} className={styles.navArrow}/>}</button>)}</nav>
+      <nav className={styles.nav}>{NAV.filter(item=>!(data?.role==='agency'&&data.isAgencyAdmin&&['agencies','activity'].includes(item.id))&&!(item.id==='training'&&data?.role!=='admin')).map(({id,label,icon:Icon}) => <button key={id} className={active===id?styles.navActive:''} onClick={()=>{setActive(id);setQuickFilter('');setMobileNav(false);setSearch('');}}><Icon size={18}/><span>{label}</span>{active===id&&<ChevronRight size={15} className={styles.navArrow}/>}</button>)}</nav>
       <div className={styles.sidebarBottom}><div className={styles.signedIn}><span className={styles.avatar}>{(actor.name||'管').slice(0,1)}</span><span><strong>{actor.name}</strong><small>{actor.email}</small>{(data?.role==='admin'||data?.isAgencyAdmin)&&<span className={styles.adminBadge}><ShieldCheck size={13}/>{data.roleName}</span>}</span></div><button className={styles.signout} onClick={()=>signOut({callbackUrl:'/'})}><LogOut size={17}/>登出</button></div>
     </aside>
     {mobileNav&&<button aria-label="關閉導覽" className={styles.scrim} onClick={()=>setMobileNav(false)}/>}
@@ -204,7 +206,8 @@ export default function HrManagement({ actor }) {
           {active==='workers'&&<WorkerList rows={filteredWorkers} search={search} setSearch={setSearch} update={update} add={()=>openModal('worker')} edit={record=>openModal('worker',record)} resume={setResumeWorker} remove={data.role==='admin'?record=>deleteRecord('worker',record):undefined}/>}
           {active==='agencies'&&<HrAgencyDirectory data={data} update={update} edit={record=>openModal('agency',record)} navigate={setActive}/>}
           {active==='members'&&<MemberList rows={filteredMembers} search={search} setSearch={setSearch} update={update} review={record=>openModal('member-role',record)} edit={record=>openModal(record.modalType||'member-profile',record)} manageAdmin={data.role==='admin'} isRootAdmin={data.isRootAdmin} deleteMember={deleteMember} saving={saving}/>}
-          {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
+          {active==='training'&&data.role==='admin'&&<HrTrainingCenterWorkspace/>}
+    {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
           <footer className={styles.footer}>克雷迅人力管理</footer>
         </>}
       </div>

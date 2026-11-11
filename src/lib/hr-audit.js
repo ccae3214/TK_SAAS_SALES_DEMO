@@ -149,6 +149,19 @@ async function write(ctx, response) {
   );
 }
 
+// 給不走 withAdminAudit 的管理 API 直接寫入一筆操作紀錄（例如訓練中心工作區）；失敗只記 log。
+export async function recordAdminAction({ principal, session, action, type, id, name, phrase }) {
+  try {
+    const actorName = String(principal?.name || session?.user?.name || session?.user?.email || '系統管理員').slice(0, 160);
+    await ensureAuditSchema();
+    await pool.query(
+      `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [principal?.id || null, actorName, String(session?.user?.email || '').slice(0, 254), action, type || '', idOf(id), String(name || '').slice(0, 200), `${actorName}系統管理員${phrase}`.slice(0, 500)]
+    );
+  } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
+}
+
 // 包住 route handler：只在系統管理員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
 export function withAdminAudit(method, handler) {
   return async function auditedHandler(request) {
