@@ -16,6 +16,7 @@ import { OrderJourney } from '@/components/HrJourney';
 import { orderJourney } from '@/lib/hr-workflow';
 import { recommendationStatus } from '@/lib/hr-candidate-withdrawal';
 import { useHrDialog } from '@/lib/use-hr-dialog';
+import { useAutoRefresh } from '@/lib/use-auto-refresh';
 import { parseResumePdf } from '@/lib/hr-resume-import';
 import HrResumeFieldControl from '@/components/HrResumeFieldControl';
 
@@ -87,20 +88,25 @@ export default function HrManagement({ actor }) {
   const [saving, setSaving] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const response = await fetch('/api/hr', { cache: 'no-store' });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || '無法讀取資料');
       setData(body);
       setSelectedCase(current => current ? body.cases.find(item => item.id === current.id) || null : null);
-      setMessage(null);
-    } catch (error) { setMessage({ type: 'error', text: error.message }); }
-    finally { setLoading(false); }
+      if (!silent) setMessage(null);
+    } catch (error) { if (!silent) setMessage({ type: 'error', text: error.message }); }
+    finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // 回到此分頁／視窗時自動更新資料；有彈窗、案件抽屜、編輯中或儲存中時略過，避免覆蓋使用者正在處理的內容。
+  useAutoRefresh(() => load({ silent: true }), {
+    shouldSkip: () => saving || Boolean(modal) || Boolean(selectedCase) || Boolean(resumeWorker),
+  });
 
   function openModal(type, record = null) { setEditingRecord(record); setModal(type); }
 

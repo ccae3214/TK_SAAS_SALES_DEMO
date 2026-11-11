@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { useAutoRefresh } from '@/lib/use-auto-refresh';
 import { signOut } from 'next-auth/react';
 import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, LogOut, ChevronDown, Check } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
@@ -903,6 +904,11 @@ export default function HrMemberPortal({ actor }) {
     const savedPreference = localStorage.getItem('hr-language:philippines-agency');
     setLang(savedPreference === 'zh' ? 'zh' : 'en', { persist: false });
   }, [data?.role, data?.agencyType, setLang]);
+
+  // 回到此分頁／視窗時自動更新資料；有彈窗、編輯中或儲存中時略過，避免覆蓋使用者正在處理的內容。
+  useAutoRefresh(refresh, {
+    shouldSkip: () => Boolean(withdrawing != null || editingEmployer || editingOrderId || uploading || stepSaving || workerSaving || employerSaving || orderSubmitting || reviewSaving || requesting || resumeImporting || resumePdfLoading || resumePhotoLoading),
+  });
 
   async function refresh() {
     const response = await fetch('/api/hr', { cache: 'no-store' });
