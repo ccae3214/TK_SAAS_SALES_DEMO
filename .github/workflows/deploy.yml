@@ -1,0 +1,68 @@
+# 合併到 main 後，在 self-hosted runner 自動部署。
+# 也可以到 GitHub 的 Actions 分頁，手動按 Run workflow 重新部署。
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+        working-directory: C:\Users\ccae3\Documents\GitHub\TK_SAAS_SALES_DEMO
+    steps:
+      - name: 檢查部署資料夾狀態
+        run: |
+          $branch = (git rev-parse --abbrev-ref HEAD).Trim()
+          if ($branch -ne 'main') {
+            throw "Deploy folder is on branch '$branch', not main. Switch back to main in GitHub Desktop, then re-run."
+          }
+          if (git status --porcelain --untracked-files=no) {
+            throw "Deploy folder has uncommitted changes to tracked files. Commit or discard them, then re-run."
+          }
+
+      - name: 拉取最新程式碼
+        run: |
+          $before = (Get-FileHash nginx.conf).Hash
+          git pull --ff-only origin main
+          $after = (Get-FileHash nginx.conf).Hash
+          if ($before -ne $after) {
+            "NGINX_CHANGED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Build app 映像檔
+        run: docker compose build app
+
+      - name: 重啟服務
+        run: docker compose up -d
+
+      # nginx.conf 是「單一檔案掛載」，git 換掉檔案後容器可能還在讀舊的，需要重建容器才會生效。
+      - name: 重建 nginx（nginx.conf 有變動時）
+        if: env.NGINX_CHANGED == 'true'
+        run: docker compose up -d --force-recreate nginx
+
+      - name: 健康檢查
+        run: |
+          $ok = $false
+          for ($i = 1; $i -le 12; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri http://localhost/ -UseBasicParsing -TimeoutSec 10
+              if ($r.StatusCode -eq 200) { $ok = $true; break }
+            } catch { }
+            Start-Sleep -Seconds 5
+          }
+          if (-not $ok) {
+            docker compose ps
+            docker compose logs --tail=50 app
+            throw "Site did not return HTTP 200 at http://localhost/ after deploy. See the logs above."
+          }
+          docker compose ps

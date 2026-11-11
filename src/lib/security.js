@@ -9,6 +9,14 @@ const getAdminEmails = () =>
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
+const getHrAdminEmails = () =>
+  [process.env.ADMIN_EMAILS, process.env.HR_ADMIN_EMAILS]
+    .filter(Boolean)
+    .join(",")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
 const getHrAdminLineIds = () =>
   (process.env.HR_ADMIN_LINE_USER_IDS || "")
     .split(",")
@@ -53,7 +61,7 @@ export async function requireAdmin() {
 export function isHrAdminSession(session) {
   const email = session?.user?.email?.trim().toLowerCase();
   const lineUserId = session?.user?.lineUserId;
-  return (!!email && getAdminEmails().includes(email)) || (!!lineUserId && getHrAdminLineIds().includes(lineUserId));
+  return (!!email && getHrAdminEmails().includes(email)) || (!!lineUserId && getHrAdminLineIds().includes(lineUserId));
 }
 
 export async function requireHrAdmin() {
@@ -66,11 +74,11 @@ export async function requireHrAdmin() {
   }
 
   if (!isHrAdminSession(session)) {
-    const configured = getAdminEmails().length > 0 || getHrAdminLineIds().length > 0;
+    const configured = getHrAdminEmails().length > 0 || getHrAdminLineIds().length > 0;
     return {
       authorized: false,
       response: NextResponse.json(
-        { error: configured ? "HR admin access required" : "ADMIN_EMAILS or HR_ADMIN_LINE_USER_IDS is not configured on the server" },
+        { error: configured ? "HR admin access required" : "HR_ADMIN_EMAILS, ADMIN_EMAILS, or HR_ADMIN_LINE_USER_IDS is not configured on the server" },
         { status: configured ? 403 : 503 },
       ),
     };

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { get, run } from '@/lib/db';
-import { hashPassword, verifyPassword } from '@/lib/passwords';
+import { get } from '@/lib/db';
 
 export async function POST(request) {
   try {
@@ -13,8 +12,7 @@ export async function POST(request) {
       );
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const user = await get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+    const user = await get('SELECT * FROM users WHERE email = $1', [email]);
     
     if (!user) {
       return NextResponse.json(
@@ -23,13 +21,18 @@ export async function POST(request) {
       );
     }
 
-    const isHashed = user.password.startsWith('scrypt$');
-    const validPassword = isHashed
-      ? await verifyPassword(password, user.password)
-      : user.password === password;
-    if (!validPassword) return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
-    if (!isHashed) {
-      await run('UPDATE users SET password = $1 WHERE id = $2', [await hashPassword(password), user.id]);
+    try {
+      if (user.password !== password) {
+        return NextResponse.json(
+          { error: 'Invalid password' },
+          { status: 401 }
+        );
+      }
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Authentication failed' },
+        { status: 401 }
+      );
     }
 
     return NextResponse.json({

@@ -31,10 +31,20 @@ export async function GET(_request, { params }) {
           )
         ))
         OR ($2::text='employer' AND (
-          NOT EXISTS(SELECT 1 FROM hr_cases active_case WHERE active_case.worker_id=w.id AND active_case.status<>'closed')
-          OR EXISTS(SELECT 1 FROM hr_cases own_case WHERE own_case.worker_id=w.id AND own_case.employer_id=$5)
-          OR EXISTS(SELECT 1 FROM hr_cases agency_case JOIN hr_employers ae ON ae.id=agency_case.employer_id
-            WHERE agency_case.worker_id=w.id AND ae.agency_id=(SELECT employer.agency_id FROM hr_employers employer WHERE employer.id=$5))
+          EXISTS(SELECT 1 FROM hr_cases own_case WHERE own_case.worker_id=w.id AND own_case.employer_id=$5)
+          OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc
+            JOIN hr_job_order_routes r ON r.id=jc.route_id
+            JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id
+            JOIN hr_job_orders o ON o.id=oa.job_order_id
+            WHERE jc.worker_id=w.id AND o.employer_id=$5)
+          OR EXISTS(SELECT 1 FROM hr_job_orders o
+            JOIN hr_job_order_agencies oa ON oa.job_order_id=o.id
+            JOIN hr_employers employer ON employer.id=o.employer_id AND employer.agency_id=oa.taiwan_agency_id
+            JOIN hr_job_order_routes r ON r.order_agency_id=oa.id
+            JOIN hr_workers available ON available.id=w.id AND available.agency_id=r.philippines_agency_id
+            WHERE o.employer_id=$5 AND o.status='open' AND available.status='active'
+              AND available.job_preference=o.job_type
+              AND NOT EXISTS(SELECT 1 FROM hr_cases any_case WHERE any_case.worker_id=available.id))
         ))
       )`, [Number(rawId), principal.role, Number(principal.worker_id)||null, Number(principal.agency_id)||null, Number(principal.employer_id)||null]);
     if (!rows.length) return NextResponse.json({ error: 'Worker record not found.' }, { status: 404 });

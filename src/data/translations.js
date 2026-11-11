@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    nav: { home: "Home", themes: "Our Themes", contact: "Get Started" },
+    nav: { home: "Home", themes: "Our Themes", hrManagement: "HR Management", contact: "Get Started" },
     hero: {
       tagline: "Premium Web Templates Studio",
       titleTop: "Elevate Your Brand With",
@@ -321,7 +321,7 @@ export const translations = {
     overlay: { preview: "Live Demo Preview" }
   },
   zh: {
-    nav: { home: "首頁", themes: "精選版型", contact: "開始專案" },
+    nav: { home: "首頁", themes: "精選版型", hrManagement: "人力管理系統", contact: "開始專案" },
     hero: {
       tagline: "頂級網頁設計工作室",
       titleTop: "提升品牌價值",
