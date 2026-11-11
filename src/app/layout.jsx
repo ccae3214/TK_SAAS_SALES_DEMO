@@ -1,5 +1,6 @@
 import "./globals.css";
 import Providers from "./providers";
+import { headers } from "next/headers";
 
 export const metadata = {
   title: "TK SaaS Sales Demo - NEXT EDITION",
@@ -12,7 +13,9 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const nonce = (await headers()).get("x-nonce");
+
   return (
     <html lang="zh">
       <head>
@@ -20,7 +23,7 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/favicon.svg" />
         <meta name="theme-color" content="#2563eb" />
-        <script>
+        <script nonce={nonce}>
           {`
             window.addEventListener('error', (event) => {
               console.error('[Global Error Listener]', {
