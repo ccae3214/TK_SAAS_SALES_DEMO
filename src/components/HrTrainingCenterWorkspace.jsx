@@ -6,7 +6,7 @@ import { useHrDialog } from '@/lib/use-hr-dialog';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
-const TABS = [['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次']];
+const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次']];
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
 const dateText = value => value ? String(value).slice(0, 10) : '—';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -22,6 +22,12 @@ function classPhase(item) {
   if (now >= start) return ['訓練中', 'neutral'];
   return ['未開班', 'neutral'];
 }
+
+const daysFromToday = value => Math.round((new Date(`${dateText(value)}T00:00:00`) - new Date(`${today()}T00:00:00`)) / 86400000);
+const whenText = days => days === 0 ? '今天' : days > 0 ? `${days} 天後` : `已過 ${-days} 天`;
+
+// 在管理者頁面外（訓練中心會員頁）使用時需要自帶這些顏色變數。
+const THEME = { '--ink': '#14231d', '--muted': '#6b7c73', '--line': '#e1e9e4', '--green': '#176b54', '--soft': '#f2f9f5' };
 
 function Pill({ tone = 'neutral', children }) {
   const toneClass = tone === 'open' ? styles.statusOpen : tone === 'warn' ? styles.statusWarn : styles.statusNeutral;
@@ -59,23 +65,23 @@ function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSub
   </div>;
 }
 
-export default function HrTrainingCenterWorkspace() {
+export default function HrTrainingCenterWorkspace({ self = false }) {
   const [data, setData] = useState(null);
   const [centerId, setCenterId] = useState('');
-  const [tab, setTab] = useState('teachers');
+  const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
 
   const load = useCallback(async id => {
     try {
-      const response = await fetch(`/api/hr/training-center${id ? `?centerId=${encodeURIComponent(id)}` : ''}`, { cache: 'no-store' });
+      const response = await fetch(`/api/hr/training-center${id && !self ? `?centerId=${encodeURIComponent(id)}` : ''}`, { cache: 'no-store' });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error || '讀取訓練中心資料失敗。');
       setData(json);
       setCenterId(json.center ? String(json.center.id) : '');
     } catch (error) { setMessage({ type: 'error', text: error.message }); setData(current => current || { centers: [], center: null }); }
-  }, []);
+  }, [self]);
   useEffect(() => { void load(''); }, [load]);
 
   async function request(method, body, query = '') {
@@ -100,7 +106,7 @@ export default function HrTrainingCenterWorkspace() {
   const toggle = (resource, row) => save('PATCH', { resource, id: row.id, toggleActive: true }, `已${row.active ? '停用' : '啟用'}「${row.name}」`);
 
   if (!data) return <section className={styles.panel}><Empty title="讀取中" text="正在載入訓練中心資料。" /></section>;
-  if (!data.center) return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>訓練中心工作區</h2></div></div>{message && <p className={`${styles.message} ${styles.messageError}`}>{message.text}</p>}<Empty title="尚無訓練中心" text="請先到「會員帳號」把會員類型設為訓練中心，再回來管理老師、課程與班別。" /></section>;
+  if (!data.center) return <section className={styles.panel} style={THEME}><div className={styles.panelHeader}><div><h2>訓練中心工作區</h2></div></div>{message && <p className={`${styles.message} ${styles.messageError}`}>{message.text}</p>}<Empty title="尚無訓練中心" text="請先到「會員帳號」把會員類型設為訓練中心，再回來管理老師、課程與班別。" /></section>;
 
   const { center, certifications, teachers, holdings, courses, classes, batches } = data;
   const activeCerts = certifications.filter(item => item.active);
@@ -173,17 +179,45 @@ export default function HrTrainingCenterWorkspace() {
     submit: values => record ? save('PATCH', { resource: 'batch', id: record.id, ...values }, '已更新證照批次') : save('POST', { resource: 'batch', ...values }, '已新增證照批次'),
   });
 
-  return <>
+  return <div style={{ ...THEME, display: 'grid', gap: 16 }}>
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
-        <div><h2>訓練中心工作區</h2><p>管理訓練中心老師持有的證照、證照課程、依證照開班的訓練／考證／取證日期，以及班別的證照批次。</p></div>
-        <label className={styles.filterField}>訓練中心<select className={styles.inlineSelect} value={centerId} onChange={event => { setData(null); void load(event.target.value); }}>{data.centers.map(item => <option key={item.id} value={item.id}>{item.display_name}{item.active ? '' : '（停用）'}</option>)}</select></label>
+        <div><h2>{self ? center.display_name : '訓練中心工作區'}</h2><p>管理訓練中心老師持有的證照、證照課程、依證照開班的訓練／考證／取證日期，以及班別的證照批次。</p></div>
+        {!self && <label className={styles.filterField}>訓練中心<select className={styles.inlineSelect} value={centerId} onChange={event => { setData(null); void load(event.target.value); }}>{data.centers.map(item => <option key={item.id} value={item.id}>{item.display_name}{item.active ? '' : '（停用）'}</option>)}</select></label>}
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
         {TABS.map(([id, label]) => <button key={id} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{label}</button>)}
       </div>
     </section>
+
+    {tab === 'overview' && (() => {
+      const phases = classes.map(item => classPhase(item)[0]);
+      const upcoming = classes.flatMap(item => [['開訓', item.training_start_date], ['考證', item.exam_date], ['取證', item.certificate_issue_date]]
+        .filter(([, date]) => date).map(([kind, date]) => ({ key: `${item.id}-${kind}`, kind, date: dateText(date), days: daysFromToday(date), item })))
+        .filter(event => event.days >= 0 && event.days <= 60).sort((a, b) => a.days - b.days);
+      const expiring = holdings.filter(item => item.expires_date && daysFromToday(item.expires_date) <= 60)
+        .map(item => ({ ...item, days: daysFromToday(item.expires_date), teacher: teachers.find(t => Number(t.id) === Number(item.teacher_id)) }))
+        .sort((a, b) => a.days - b.days);
+      const cards = [
+        ['老師', teachers.filter(item => item.active).length, `共登記 ${holdings.length} 筆持證`, 'teachers'],
+        ['證照／課程', `${activeCerts.length} / ${courses.filter(item => item.active).length}`, '啟用中的證照與課程', 'courses'],
+        ['訓練中班別', phases.filter(item => item === '訓練中').length, `共 ${classes.length} 個班別`, 'classes'],
+        ['待考證', phases.filter(item => item === '待考證').length, '訓練結束、尚未到考證日', 'classes'],
+        ['待取證', phases.filter(item => item === '待取證').length, `證照批次 ${batches.filter(item => item.status !== 'issued').length} 筆未發證`, 'batches'],
+      ];
+      return <>
+        <div className={styles.statGrid}>{cards.map(([label, value, caption, target]) => <button type="button" key={label} className={styles.statCard} onClick={() => setTab(target)}><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}><div><h2>近 60 天日程</h2><p>即將開訓、考證與取證的班別。</p></div><span className={styles.rowCount}>{upcoming.length} 項</span></div>
+          {upcoming.length ? <div className={styles.tableWrap}><table><thead><tr><th>日期</th><th>倒數</th><th>事項</th><th>班別</th><th>證照／課程</th><th>授課老師</th></tr></thead><tbody>{upcoming.map(event => <tr key={event.key}><td>{event.date}</td><td>{whenText(event.days)}</td><td><Pill tone={event.kind === '取證' ? 'open' : event.kind === '考證' ? 'warn' : 'neutral'}>{event.kind}</Pill></td><td><strong>{event.item.name}</strong></td><td>{event.item.certification_name}<br /><small>{event.item.course_name}</small></td><td>{event.item.teacher_name || '尚未指定'}</td></tr>)}</tbody></table></div> : <Empty title="近 60 天沒有日程" text="到「開班與日期」排定班別的訓練、考證與取證日期後，會顯示在這裡。" />}
+        </section>
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}><div><h2>老師證照到期提醒</h2><p>已到期或 60 天內到期的老師證照，請提早換證。</p></div><span className={styles.rowCount}>{expiring.length} 項</span></div>
+          {expiring.length ? <div className={styles.tableWrap}><table><thead><tr><th>老師</th><th>證照</th><th>證號</th><th>有效期限</th><th>狀態</th></tr></thead><tbody>{expiring.map(item => <tr key={item.id}><td><strong>{item.teacher?.name || '—'}</strong></td><td>{item.certification_name}</td><td>{item.certificate_no || '—'}</td><td>{dateText(item.expires_date)}</td><td><Pill tone={item.days < 0 ? 'warn' : 'neutral'}>{item.days < 0 ? `已過期（${whenText(item.days)}）` : whenText(item.days)}</Pill></td></tr>)}</tbody></table></div> : <Empty title="沒有即將到期的證照" text="老師證照有效期限在 60 天內時會提醒你。" />}
+        </section>
+      </>;
+    })()}
 
     {tab === 'teachers' && <>
       <section className={styles.panel}>
@@ -212,5 +246,5 @@ export default function HrTrainingCenterWorkspace() {
     </section>}
 
     {modal && <FormModal key={modal.title} title={modal.title} hint={modal.hint} fields={modal.fields} initial={modal.initial} onSubmit={modal.submit} close={() => setModal(null)} saving={saving} />}
-  </>;
+  </div>;
 }

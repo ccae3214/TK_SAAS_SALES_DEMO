@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, LogOut, ChevronDown, Check } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
+import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrFilePicker from '@/components/HrFilePicker';
 import HrWorkerProgressLink from '@/components/HrWorkerProgressLink';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
@@ -1145,7 +1146,7 @@ export default function HrMemberPortal({ actor }) {
   }
 
   if (data.role === 'training_center') {
-    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色不會存取仲介、雇主、工作者或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
+    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><HrTrainingCenterWorkspace self /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色不會存取仲介、雇主、工作者或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
   }
 
   const viewedWorker = data.role === 'worker' ? data.workers[0] : null;

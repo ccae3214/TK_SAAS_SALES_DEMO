@@ -41,13 +41,18 @@ function sameOrigin(request) {
   } catch { return false; }
 }
 
-async function adminContext() {
+// 系統管理者可管理所有訓練中心；訓練中心會員只能管理自己（self=true，centerId 固定為自己）。
+async function accessContext() {
   const session = await auth();
   if (!session?.user) return { error: fail('Authentication required', 401) };
   const principal = await getHrPrincipal(session);
-  if (principal?.role !== 'admin') return { error: fail('僅系統管理者可使用訓練中心工作區。', 403) };
-  return { session, principal };
+  if (principal?.role === 'admin') return { session, principal, self: false };
+  if (principal?.role === 'training_center' && principal.id) return { session, principal, self: true, centerId: principal.id };
+  return { error: fail('僅系統管理者或訓練中心會員可使用訓練中心工作區。', 403) };
 }
+const scope = (ctx, centerId) => {
+  if (ctx.self && Number(centerId) !== Number(ctx.centerId)) throw new Refuse('沒有權限操作其他訓練中心的資料。', 403);
+};
 
 const one = async (sql, params) => (await query(sql, params))[0] || null;
 // pg 會把 DATE 欄位轉成本機時間的 Date；統一轉回 YYYY-MM-DD 字串，避免時區造成差一天。
@@ -66,12 +71,14 @@ const owned = async (table, id, centerId) => {
 };
 
 export async function GET(request) {
-  const ctx = await adminContext();
+  const ctx = await accessContext();
   if (ctx.error) return ctx.error;
   try {
     await ensureTrainingCenterSchema();
-    const centers = await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' ORDER BY active DESC, display_name, id");
-    const requested = new URL(request.url).searchParams.get('centerId');
+    const centers = ctx.self
+      ? await query("SELECT id, display_name, email, active FROM hr_members WHERE id=$1 AND role='training_center'", [ctx.centerId])
+      : await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' ORDER BY active DESC, display_name, id");
+    const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });
     const [certifications, teachers, holdings, courses, classes, batches] = await Promise.all([
@@ -172,13 +179,15 @@ function friendly(error) {
   return fail('儲存失敗，請稍後再試。', 500);
 }
 
+// 操作紀錄只記錄系統管理員的操作；訓練中心會員自己維護自己的資料不記在這裡。
 async function audit(ctx, action, resource, row, phrase) {
+  if (ctx.self) return;
   await recordAdminAction({ principal: ctx.principal, session: ctx.session, action, type: `training-${resource}`, id: row?.id, name: nameOf(resource, row || {}), phrase });
 }
 
 export async function POST(request) {
   if (!sameOrigin(request)) return fail('Invalid request origin', 403);
-  const ctx = await adminContext();
+  const ctx = await accessContext();
   if (ctx.error) return ctx.error;
   let body;
   try { body = await request.json(); } catch { return fail('資料格式不正確。'); }
@@ -187,7 +196,7 @@ export async function POST(request) {
     await ensureTrainingCenterSchema();
     // 老師持有證照：新增或更新一筆持證紀錄。
     if (resource === 'teacher-certification') {
-      const center = await requireCenter(body.centerId);
+      const center = await requireCenter(ctx.self ? ctx.centerId : body.centerId);
       const teacher = await owned('hr_tc_teachers', body.teacherId, center.id);
       const certification = await owned('hr_tc_certifications', body.certificationId, center.id);
       if (!teacher || !certification) throw new Refuse('請選擇這個訓練中心的老師與證照。');
@@ -198,7 +207,7 @@ export async function POST(request) {
         VALUES($1,$2,$3,$4,$5) ON CONFLICT(teacher_id,certification_id)
         DO UPDATE SET certificate_no=EXCLUDED.certificate_no, issued_date=EXCLUDED.issued_date, expires_date=EXCLUDED.expires_date RETURNING id`,
         [teacher.id, certification.id, clean(body.certificateNo, 80), issued, expires]);
-      await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '更新', type: 'training-teacher-certification', id: saved.id, name: teacher.name,
+      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '更新', type: 'training-teacher-certification', id: saved.id, name: teacher.name,
         phrase: `登記${center.display_name}的${teacher.name}老師持有${certification.name}證照` });
       return NextResponse.json({ ok: true, id: saved.id });
     }
@@ -207,8 +216,9 @@ export async function POST(request) {
     if (resource === 'batch') {
       const cls = await one('SELECT id, center_id, name FROM hr_tc_classes WHERE id=$1', [validId(body.classId) ? body.classId : 0]);
       if (!cls) throw new Refuse('請選擇班別。');
+      scope(ctx, cls.center_id);
       centerId = cls.center_id;
-    } else centerId = (await requireCenter(body.centerId)).id;
+    } else centerId = (await requireCenter(ctx.self ? ctx.centerId : body.centerId)).id;
     const record = await buildRecord(resource, body, centerId, null);
     const parent = resource === 'batch' ? { class_id: Number(body.classId) } : { center_id: centerId };
     const all = { ...parent, ...record };
@@ -222,7 +232,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   if (!sameOrigin(request)) return fail('Invalid request origin', 403);
-  const ctx = await adminContext();
+  const ctx = await accessContext();
   if (ctx.error) return ctx.error;
   let body;
   try { body = await request.json(); } catch { return fail('資料格式不正確。'); }
@@ -234,6 +244,7 @@ export async function PATCH(request) {
     const existing = await one(`SELECT * FROM ${TABLES[resource]} WHERE id=$1`, [body.id]);
     if (!existing) throw new Refuse('找不到這筆資料。', 404);
     const centerId = resource === 'batch' ? (await one('SELECT center_id FROM hr_tc_classes WHERE id=$1', [existing.class_id])).center_id : existing.center_id;
+    scope(ctx, centerId);
     // 只切換啟用狀態（證照、老師、課程）。
     const record = body.toggleActive && ['certification', 'teacher', 'course'].includes(resource)
       ? { active: !existing.active }
@@ -254,7 +265,7 @@ export async function PATCH(request) {
 
 export async function DELETE(request) {
   if (!sameOrigin(request)) return fail('Invalid request origin', 403);
-  const ctx = await adminContext();
+  const ctx = await accessContext();
   if (ctx.error) return ctx.error;
   const url = new URL(request.url);
   const resource = url.searchParams.get('resource');
@@ -263,19 +274,21 @@ export async function DELETE(request) {
     await ensureTrainingCenterSchema();
     if (!validId(id)) throw new Refuse('資料編號不正確。');
     if (resource === 'teacher-certification') {
-      const row = await one(`SELECT tc.id, tc.teacher_id, tc.certification_id, t.name AS teacher_name, c.name AS certification_name
+      const row = await one(`SELECT tc.id, tc.teacher_id, tc.certification_id, t.center_id, t.name AS teacher_name, c.name AS certification_name
         FROM hr_tc_teacher_certifications tc JOIN hr_tc_teachers t ON t.id=tc.teacher_id JOIN hr_tc_certifications c ON c.id=tc.certification_id WHERE tc.id=$1`, [id]);
       if (!row) throw new Refuse('找不到這筆持證紀錄。', 404);
+      scope(ctx, row.center_id);
       const inUse = await one('SELECT name FROM hr_tc_classes WHERE teacher_id=$1 AND certification_id=$2 LIMIT 1', [row.teacher_id, row.certification_id]);
       if (inUse) throw new Refuse(`${row.teacher_name}老師仍是「${inUse.name}」班的授課老師，請先更換授課老師後再移除證照。`, 409);
       await pool.query('DELETE FROM hr_tc_teacher_certifications WHERE id=$1', [id]);
-      await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-teacher-certification', id: row.id, name: row.teacher_name,
+      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-teacher-certification', id: row.id, name: row.teacher_name,
         phrase: `移除了${row.teacher_name}老師的${row.certification_name}證照` });
       return NextResponse.json({ ok: true });
     }
     if (!TABLES[resource]) throw new Refuse('不支援的項目。');
     const existing = await one(`SELECT * FROM ${TABLES[resource]} WHERE id=$1`, [id]);
     if (!existing) throw new Refuse('找不到這筆資料。', 404);
+    scope(ctx, resource === 'batch' ? (await one('SELECT center_id FROM hr_tc_classes WHERE id=$1', [existing.class_id]))?.center_id : existing.center_id);
     await pool.query(`DELETE FROM ${TABLES[resource]} WHERE id=$1`, [id]);
     await audit(ctx, '刪除', resource, existing, `刪除了${nameOf(resource, existing)}${LABELS[resource]}`);
     return NextResponse.json({ ok: true });
