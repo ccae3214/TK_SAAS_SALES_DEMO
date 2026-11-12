@@ -7,6 +7,7 @@ import { progressText } from '@/lib/hr-worker-progress-text';
 import {
   CASE_STAGE_LABELS, DOCUMENT_STATUS_LABELS, HEALTH_TRAINING_STEP_KEYS, SINGLE_DATE_STEPS, STATUS_LABELS, STEP_DATE_LABELS, allowedNextStatuses,
 } from '@/lib/hr-worker-progress';
+import { OWNER_LABELS, STEP_OWNERS } from '@/lib/hr-case-flow';
 import styles from './HrWorkerProgress.module.css';
 
 const shortDate = value => value ? String(value).slice(0, 10) : '—';
@@ -31,8 +32,14 @@ function StepForm({ step, t, disabled, onSave }) {
   );
 }
 
-function HealthCard({ kind, title, status, gateClosed, step, t, disabled, onStatus, onSaveStep }) {
-  const next = allowedNextStatuses(kind, status);
+// 訓練由訓練中心安排、抵台體檢由台灣仲介安排；沒有權限的角色只能查看。
+const READ_ONLY_NOTES = {
+  training: '訓練由訓練中心安排，這裡僅供查看。',
+  medical: '抵台體檢由台灣仲介安排，這裡僅供查看。',
+};
+
+function HealthCard({ kind, title, status, canUpdate, blockReason, step, t, disabled, onStatus, onSaveStep, canEditStep }) {
+  const next = canUpdate ? allowedNextStatuses(kind, status) : [];
   return (
     <section className={styles.card}>
       <header className={styles.cardHeader}>
@@ -43,12 +50,13 @@ function HealthCard({ kind, title, status, gateClosed, step, t, disabled, onStat
         <div className={styles.actions}>
           <span className={styles.hint}>{t('更新狀態：')}</span>
           {next.map(value => (
-            <button key={value} type="button" disabled={disabled || gateClosed} onClick={() => onStatus(kind, value)}>{t(STATUS_LABELS[kind][value])}</button>
+            <button key={value} type="button" disabled={disabled || Boolean(blockReason)} onClick={() => onStatus(kind, value)}>{t(STATUS_LABELS[kind][value])}</button>
           ))}
         </div>
       )}
-      {gateClosed && status === 'not_scheduled' && <p className={styles.gateNote}>{t('護照資料頁與 PSA 出生證明核准後，才能安排體檢及訓練。')}</p>}
-      <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={disabled} onSave={onSaveStep} />
+      {!canUpdate && <p className={styles.gateNote}>{t(READ_ONLY_NOTES[kind])}</p>}
+      {canUpdate && blockReason && status === 'not_scheduled' && <p className={styles.gateNote}>{t(blockReason)}</p>}
+      {step && <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={disabled || !canEditStep(step.step_key)} onSave={onSaveStep} />}
     </section>
   );
 }
@@ -131,6 +139,7 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
   const approved = documents.filter(doc => doc.applicable && doc.status === 'approved');
   const notApplicable = documents.filter(doc => !doc.applicable);
   const cardProps = { viewer, t, disabled: busy, onReview, onApplicability, onUpload };
+  const canEditStep = key => !viewer.manageable_steps || viewer.manageable_steps.includes(key);
   return (
     <div className={styles.page}>
       <nav className={styles.topBar}>
@@ -180,15 +189,15 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
         <h2>{t('進度安排')}</h2>
         <p className={styles.hint}>{t('這裡的進度屬於工作者本人，尚未有案件也可以先安排；已有案件時會同步更新案件的申請程序。')}</p>
         <div className={styles.twoColumns}>
-          <HealthCard kind="medical" title="體檢" status={health.medical_status} gateClosed={health.gate_closed} step={stepOf('medical')} t={t} disabled={busy} onStatus={onStatus} onSaveStep={onSaveStep} />
-          <HealthCard kind="training" title="訓練" status={health.training_status} gateClosed={health.gate_closed} step={stepOf('training')} t={t} disabled={busy} onStatus={onStatus} onSaveStep={onSaveStep} />
+          <HealthCard kind="training" title="訓練" status={health.training_status} canUpdate={Boolean(viewer.can_update_training)} blockReason={health.training_block_reason} step={stepOf('training')} canEditStep={canEditStep} t={t} disabled={busy} onStatus={onStatus} onSaveStep={onSaveStep} />
+          <HealthCard kind="medical" title="抵台體檢" status={health.medical_status} canUpdate={Boolean(viewer.can_update_medical)} blockReason={health.medical_block_reason} canEditStep={canEditStep} t={t} disabled={busy} onStatus={onStatus} onSaveStep={onSaveStep} />
         </div>
         <div className={styles.group}>
           <h3>{t('赴台申請程序')}</h3>
           {programSteps.map(step => (
             <div key={step.step_key} className={styles.stepRow}>
-              <strong>{t(step.label)}</strong>
-              <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={busy} onSave={onSaveStep} />
+              <strong>{t(step.label)}{STEP_OWNERS[step.step_key] && <small className={styles.hint}> · {t(OWNER_LABELS[STEP_OWNERS[step.step_key]])}{t('辦理')}</small>}</strong>
+              <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={busy || !canEditStep(step.step_key)} onSave={onSaveStep} />
             </div>
           ))}
         </div>
@@ -197,17 +206,17 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
       {cases.length > 0 && (
         <section id="cases" className={styles.section}>
           <h2>{t('案件中的狀態')}</h2>
-          <p className={styles.hint}>{t('案件的體檢與訓練狀態由台灣仲介或管理者維護，這裡僅供參考。')}</p>
+          <p className={styles.hint}>{t('案件的訓練與抵台體檢狀態分別由訓練中心與台灣仲介維護，這裡僅供參考。')}</p>
           <div className={styles.tableWrap}>
             <table>
-              <thead><tr><th>{t('案件編號')}</th><th>{t('雇主')}</th><th>{t('階段')}</th><th>{t('體檢')}</th><th>{t('訓練')}</th></tr></thead>
+              <thead><tr><th>{t('案件編號')}</th><th>{t('雇主')}</th><th>{t('階段')}</th><th>{t('訓練')}</th><th>{t('抵台體檢')}</th></tr></thead>
               <tbody>
                 {cases.map(item => (
                   <tr key={item.id}>
                     <td>{item.case_number}</td><td>{item.employer_name}</td>
                     <td>{t(CASE_STAGE_LABELS[item.stage] || item.stage || '—')}</td>
-                    <td>{t(STATUS_LABELS.medical[item.medical_status] || item.medical_status || '—')}</td>
                     <td>{t(STATUS_LABELS.training[item.training_status] || item.training_status || '—')}</td>
+                    <td>{t(STATUS_LABELS.medical[item.medical_status] || item.medical_status || '—')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -271,7 +280,7 @@ export default function HrWorkerProgress({ workerId }) {
     }), '進度已儲存。', '儲存失敗，請稍後再試。');
   };
   const onStatus = (kind, status) => send(`/api/hr/agency-workers/${workerId}`, patchJson({ type: 'status', workflowType: kind, status }),
-    '體檢與訓練安排已更新。', '儲存失敗，請稍後再試。');
+    '訓練與抵台體檢安排已更新。', '儲存失敗，請稍後再試。');
 
   if (loadError) return <main className={styles.page}><p className={styles.error} role="alert">{t(loadError)}</p><a href="/hr" className={styles.back}>← {t('返回管理介面')}</a></main>;
   if (!data) return <main className={styles.page}><p className={styles.hint}>{t('載入中…')}</p></main>;

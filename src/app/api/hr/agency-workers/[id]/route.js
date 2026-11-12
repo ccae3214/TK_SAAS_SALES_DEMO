@@ -3,10 +3,14 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import {
-  WORKER_PROGRESS_STEPS, allowedNextStatuses, isValidDateText, pickLatestStep, statusSetFor,
+  WORKER_PROGRESS_STEPS, isValidDateText, pickLatestStep, statusSetFor,
 } from '@/lib/hr-worker-progress';
+import {
+  OWNER_LABELS, STEP_OWNERS, WORKFLOW_DENIED_MESSAGES, canManageStep, canTransition, canUpdateWorkflow, workflowBlockReason,
+} from '@/lib/hr-case-flow';
+import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
 
-// 菲律賓仲介（與系統管理者）管理「底下工作者」的文件審核與進度安排。
+// 菲律賓仲介（與系統管理者）管理「底下工作者」的文件審核與進度安排；訓練中心只能更新「訓練」狀態。
 // 文件的審核、適用性切換、上傳與預覽沿用既有 API（/api/hr、/api/hr/documents）；
 // 這裡負責：讀取單一工作者的文件＋進度，以及儲存工作者層級的進度（不需要案件）。
 export const runtime = 'nodejs';
@@ -57,10 +61,11 @@ async function ensureWorkerProgressSchema() {
 }
 
 // 回傳 { worker } 或 { response }（錯誤回應）。
-async function authorize(principal, workerId) {
+async function authorize(principal, workerId, { trainingCenterOk = false } = {}) {
   if (!principal || !principal.role) return { response: NextResponse.json({ error: 'HR membership required' }, { status: 403 }) };
   const isPhilippinesAgency = principal.role === 'agency' && principal.agency_type === 'philippines';
-  if (principal.role !== 'admin' && !isPhilippinesAgency) {
+  const isTrainingCenter = principal.role === 'training_center' && trainingCenterOk;
+  if (principal.role !== 'admin' && !isPhilippinesAgency && !isTrainingCenter) {
     return { response: NextResponse.json({ error: '僅菲律賓仲介與系統管理者可以管理工作者的文件與進度。' }, { status: 403 }) };
   }
   const rows = await query(`SELECT w.id,w.name,w.nationality,w.job_preference,w.status,w.agency_id,
@@ -68,7 +73,7 @@ async function authorize(principal, workerId) {
     FROM hr_workers w LEFT JOIN hr_agencies a ON a.id=w.agency_id WHERE w.id=$1`, [workerId]);
   if (!rows.length) return { response: NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 }) };
   const worker = rows[0];
-  if (principal.role !== 'admin' && Number(worker.agency_id) !== Number(principal.agency_id)) {
+  if (principal.role !== 'admin' && !isTrainingCenter && Number(worker.agency_id) !== Number(principal.agency_id)) {
     return { response: NextResponse.json({ error: '只能管理所屬仲介的工作者。' }, { status: 403 }) };
   }
   return { worker, isAdmin: principal.role === 'admin' };
@@ -86,7 +91,7 @@ export async function GET(request, { params }) {
     const access = await authorize(principal, workerId);
     if (access.response) return access.response;
 
-    const [documents, submissions, workerSteps, caseSteps, health, cases, gate] = await Promise.all([
+    const [documents, submissions, workerSteps, caseSteps, health, cases, gate, docsOpen, arrived] = await Promise.all([
       query('SELECT d.* FROM hr_worker_documents d WHERE d.worker_id=$1 ORDER BY d.id', [workerId]),
       query(`SELECT s.id,s.requirement_id,s.version_number,s.filename,s.note,s.submitted_by,s.created_at,
           v.decision,v.reason AS review_reason,v.reviewer,v.created_at AS reviewed_at,
@@ -104,7 +109,9 @@ export async function GET(request, { params }) {
       query('SELECT medical_status,training_status FROM hr_worker_health_training WHERE worker_id=$1', [workerId]),
       query(`SELECT c.id,c.case_number,c.stage,c.status,c.medical_status,c.training_status,e.name AS employer_name
         FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.worker_id=$1 ORDER BY c.updated_at DESC`, [workerId]),
-      query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.status<>'approved') AS gate_closed`, [workerId]),
+      query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed`, [workerId]),
+      query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]),
+      workerHasArrived(query, workerId),
     ]);
 
     const submissionsByDocument = new Map();
@@ -134,11 +141,21 @@ export async function GET(request, { params }) {
     });
 
     return NextResponse.json({
-      worker: access.worker, documents: documentRows, steps, cases, viewer: { is_admin: access.isAdmin },
+      worker: access.worker, documents: documentRows, steps, cases,
+      viewer: {
+        is_admin: access.isAdmin,
+        can_update_training: canUpdateWorkflow(principal.role, principal.agency_type, 'training'),
+        can_update_medical: canUpdateWorkflow(principal.role, principal.agency_type, 'medical'),
+        manageable_steps: WORKER_PROGRESS_STEPS.map(([key]) => key).filter(key => canManageStep(principal.role, principal.agency_type, key)),
+      },
       health: {
         medical_status: health[0]?.medical_status || 'not_scheduled',
         training_status: health[0]?.training_status || 'not_scheduled',
         gate_closed: Boolean(gate[0]?.gate_closed),
+        documents_open: Boolean(docsOpen[0]?.documents_open),
+        arrived,
+        training_block_reason: workflowBlockReason('training', { gateClosed: Boolean(gate[0]?.gate_closed), documentsOpen: Boolean(docsOpen[0]?.documents_open), arrived }),
+        medical_block_reason: workflowBlockReason('medical', { gateClosed: false, documentsOpen: false, arrived }),
       },
     });
   } catch (error) {
@@ -161,7 +178,8 @@ export async function PATCH(request, { params }) {
   try {
     await ensureWorkerProgressSchema();
     const principal = await getHrPrincipal(session);
-    const access = await authorize(principal, workerId);
+    const trainingOnly = body.type === 'status' && clean(body.workflowType, 20) === 'training';
+    const access = await authorize(principal, workerId, { trainingCenterOk: trainingOnly });
     if (access.response) return access.response;
 
     if (body.type === 'step') {
@@ -169,6 +187,8 @@ export async function PATCH(request, { params }) {
       const step = WORKER_PROGRESS_STEPS.find(([key]) => key === stepKey);
       const startedOn = clean(body.startedOn, 10), completedOn = clean(body.completedOn, 10);
       if (!step || !isValidDateText(startedOn) || !isValidDateText(completedOn)) return NextResponse.json({ error: '申請程序日期或項目不正確。' }, { status: 400 });
+      // OEC、簽證由菲律賓仲介辦理；實際入境、入國通報、加保、居留證由台灣仲介辦理。
+      if (!canManageStep(principal.role, principal.agency_type, stepKey)) return NextResponse.json({ error: `「${step[1]}」由${OWNER_LABELS[STEP_OWNERS[stepKey]] || '指定單位'}辦理。` }, { status: 403 });
       if (startedOn && completedOn && completedOn < startedOn) return NextResponse.json({ error: '完成日不能早於開始日。' }, { status: 400 });
       const note = clean(body.note, 1000);
       const client = await pool.connect();
@@ -189,6 +209,7 @@ export async function PATCH(request, { params }) {
           SELECT c.id,$2,'更新申請程序',$3 FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'`,
         [workerId, actor, `${step[1]} · ${completedOn || startedOn || '更新備註'}`]);
         await client.query('COMMIT');
+        await refreshWorkerCases(query, workerId);
         return NextResponse.json({ ok: true });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -198,34 +219,46 @@ export async function PATCH(request, { params }) {
 
     if (body.type === 'status') {
       const kind = clean(body.workflowType, 20), status = clean(body.status, 30);
+      // 訓練由訓練中心（與管理者）安排；抵台體檢由台灣仲介（與管理者）安排，菲律賓仲介只能查看。
+      if (!canUpdateWorkflow(principal.role, principal.agency_type, kind)) {
+        return NextResponse.json({ error: WORKFLOW_DENIED_MESSAGES[kind] || '訓練或抵台體檢項目不正確。' }, { status: kind === 'training' || kind === 'medical' ? 403 : 400 });
+      }
       const statuses = statusSetFor(kind);
-      if (!statuses.has(status)) return NextResponse.json({ error: '體檢或訓練狀態不正確。' }, { status: 400 });
+      if (!statuses.has(status)) return NextResponse.json({ error: '訓練或抵台體檢狀態不正確。' }, { status: 400 });
       const column = kind === 'medical' ? 'medical_status' : 'training_status';
       const client = await pool.connect();
+      const runInTransaction = async (sql, params) => (await client.query(sql, params)).rows;
       try {
         await client.query('BEGIN');
         await client.query('INSERT INTO hr_worker_health_training(worker_id) VALUES($1) ON CONFLICT(worker_id) DO NOTHING', [workerId]);
         const current = await client.query(`SELECT ${column} AS current_status FROM hr_worker_health_training WHERE worker_id=$1 FOR UPDATE`, [workerId]);
-        const gate = await client.query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.status<>'approved') AS gate_closed`, [workerId]);
+        const flags = await client.query(`SELECT
+          EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed,
+          EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]);
+        const arrived = await workerHasArrived(runInTransaction, workerId);
         const currentStatus = current.rows[0]?.current_status || 'not_scheduled';
-        if (gate.rows[0]?.gate_closed && status !== 'not_scheduled') {
+        const blocked = workflowBlockReason(kind, { gateClosed: flags.rows[0]?.gate_closed, documentsOpen: flags.rows[0]?.documents_open, arrived });
+        if (blocked && status !== 'not_scheduled') {
           await client.query('ROLLBACK');
-          return NextResponse.json({ error: '護照資料頁與 PSA 出生證明核准後，才能安排體檢及訓練。' }, { status: 409 });
+          return NextResponse.json({ error: blocked }, { status: 409 });
         }
-        if (!allowedNextStatuses(kind, currentStatus).includes(status) && currentStatus !== status) {
+        if (!canTransition(kind, currentStatus, status)) {
           await client.query('ROLLBACK');
           return NextResponse.json({ error: '此狀態不能直接跳轉，請依流程逐步更新。' }, { status: 409 });
         }
         await client.query(`UPDATE hr_worker_health_training SET ${column}=$2,updated_by=$3,updated_at=NOW() WHERE worker_id=$1`, [workerId, status, actor]);
+        // 這位工作者尚未結案的案件同步更新，案件階段才會跟著前進。
+        await client.query(`UPDATE hr_cases SET ${column}=$2,updated_at=NOW() WHERE worker_id=$1 AND status<>'closed'`, [workerId, status]);
         await client.query(`INSERT INTO hr_case_activity(case_id,actor_email,action,detail)
           SELECT c.id,$2,$3,$4 FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'`,
-        [workerId, actor, kind === 'medical' ? '更新體檢安排' : '更新訓練安排', status]);
+        [workerId, actor, kind === 'medical' ? '更新抵台體檢安排' : '更新訓練安排', status]);
         await client.query('COMMIT');
-        return NextResponse.json({ ok: true });
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
       } finally { client.release(); }
+      await refreshWorkerCases(query, workerId);
+      return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ error: '更新項目不正確。' }, { status: 400 });
