@@ -39,8 +39,8 @@ jobs:
             "NGINX_CHANGED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
 
-      - name: Build app 映像檔
-        run: docker compose build app
+      - name: Build app 與 accounting-bot 映像檔
+        run: docker compose build app accounting-bot
 
       - name: 重啟服務
         run: docker compose up -d

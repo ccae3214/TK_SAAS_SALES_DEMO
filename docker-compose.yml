@@ -57,6 +57,22 @@ services:
       - "127.0.0.1:8787:8000"
     restart: unless-stopped
 
+  # LINE 記帳機器人（另一個官方帳號）。不對外開埠，由 nginx 轉送
+  # /line/accounting/callback；資料存在自己的 SQLite volume，不使用 postgres。
+  accounting-bot:
+    build:
+      context: ./accounting-bot
+      dockerfile: Dockerfile
+    environment:
+      - LINE_CHANNEL_SECRET=${ACCOUNTING_LINE_CHANNEL_SECRET:-}
+      - LINE_CHANNEL_ACCESS_TOKEN=${ACCOUNTING_LINE_CHANNEL_ACCESS_TOKEN:-}
+      - REMINDER_TIME=${ACCOUNTING_REMINDER_TIME:-08:00}
+      - SEND_EMPTY_REMINDER=${ACCOUNTING_SEND_EMPTY_REMINDER:-0}
+      - ENABLE_SCHEDULER=1
+    volumes:
+      - accounting_data:/data
+    restart: unless-stopped
+
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
     environment:
@@ -81,3 +97,4 @@ services:
 
 volumes:
   postgres_data:
+  accounting_data:

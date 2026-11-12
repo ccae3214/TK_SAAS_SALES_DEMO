@@ -15,5 +15,6 @@ docker-compose.yml
 README.md
 legacy
 line-hr-pilot
+accounting-bot
 certs/
 google-login-fix.patch

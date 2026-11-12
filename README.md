@@ -161,3 +161,10 @@ Fly volume and configuration references:
 - Bot 支援「說明」、「我的案件／案件進度」、「文件／護照／PSA」、「體檢與訓練」、「待辦事項」等查詢；依會員角色限制查詢 PostgreSQL 資料，只支援官方帳號一對一聊天，不在群組回覆個人案件資料。
 - 未綁定會員會收到登入與申請類型說明；尚待審核的會員只會看到審核狀態。Webhook 驗證失敗或資料未設定時不會提供會員資料。
 - 修改 `.env` 後執行 `docker compose up -d --force-recreate app` 套用 Messaging API 設定。
+
+## LINE 記帳機器人（另一個官方帳號）
+
+- 另一個官方帳號的記帳＋每日帳單提醒機器人，是獨立容器 `accounting-bot`（原始碼在 `accounting-bot/`），資料存在自己的 SQLite volume，不使用 HR 的 PostgreSQL。
+- Webhook URL：`https://kolecion.cc/line/accounting/callback`（由 nginx 轉送到容器），在該官方帳號的 Messaging API channel 啟用 Use webhook 並執行 Verify。
+- `.env` 需設定 `ACCOUNTING_LINE_CHANNEL_SECRET` 與 `ACCOUNTING_LINE_CHANNEL_ACCESS_TOKEN`；這是**另一個** Messaging API channel，不可與上面 HR 官方帳號的 `LINE_MESSAGING_*` 混用。
+- 首次部署：`docker compose up -d --build accounting-bot`，再執行 `docker compose up -d --force-recreate nginx`（`nginx.conf` 是單一檔案掛載）。指令與用法見 [accounting-bot/README.md](accounting-bot/README.md)。
