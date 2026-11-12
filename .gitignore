@@ -31,3 +31,5 @@ public.pem
 *.sw?
 .certs
 .certbot_www
+.scripts
+.tests

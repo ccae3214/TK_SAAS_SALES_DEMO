@@ -13,6 +13,7 @@ import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, S
 import { refreshCaseStage as refreshStage, refreshWorkerCases as refreshStagesForWorker } from '@/lib/hr-case-stage';
 import { WITHDRAWAL_MARKER, isWithdrawnRecommendation } from '@/lib/hr-candidate-withdrawal';
 import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
+import { ensureCertificationSchema, isAgencyPairCertified, isRouteCertified, certifiedPhilippinesAgencyIds, assertCaseAgenciesCertified, assertPhilippinesAgenciesCertified } from '@/lib/hr-agency-certification-store';
 import { LinkedRecordError, normalizeRecordEmail, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,6 +100,7 @@ export async function ensureSchema() {
       interview_at TIMESTAMPTZ, notes TEXT NOT NULL DEFAULT '', case_id BIGINT UNIQUE REFERENCES hr_cases(id),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(route_id,worker_id)
     )`);
+    await ensureCertificationSchema(pool);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_chat_rooms (
       id BIGSERIAL PRIMARY KEY, room_type TEXT NOT NULL CHECK(room_type IN ('agency','case')),
       agency_id BIGINT REFERENCES hr_agencies(id) ON DELETE CASCADE,
@@ -378,7 +380,8 @@ export async function GET() {
       cases = ownCases;
       const employerOrderIds = new Set(allJobOrders.filter(row => Number(row.employer_id)===Number(principal.employer_id)).map(row=>Number(row.id)));
       const employerCandidateWorkerIds = new Set(allCandidates.filter(row=>employerOrderIds.has(Number(row.job_order_id))).map(row=>Number(row.worker_id)));
-      const activePhilippinesAgencyIds = new Set(agencies.filter(item=>item.active&&item.agency_type==='philippines').map(item=>Number(item.id)));
+      const certifiedPhilippinesAgencyIdSet = await certifiedPhilippinesAgencyIds(pool, employerAgencyId);
+      const activePhilippinesAgencyIds = new Set(agencies.filter(item=>item.active&&item.agency_type==='philippines'&&certifiedPhilippinesAgencyIdSet.has(Number(item.id))).map(item=>Number(item.id)));
       const workersWithCases = new Set(allCases.map(item=>Number(item.worker_id)));
       employerAvailableWorkers = employerAgencyId ? allWorkers.filter(item=>item.status==='active'&&activePhilippinesAgencyIds.has(Number(item.agency_id))&&!workersWithCases.has(Number(item.id))) : [];
       workers = allWorkers.filter(item => ownWorkerIds.has(Number(item.id)) || employerCandidateWorkerIds.has(Number(item.id)));
@@ -562,6 +565,8 @@ async function handlePost(request) {
         if(!dispatch.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單的台灣仲介指派資料。'},{status:404});}
         const philippines=await client.query("SELECT id,name FROM hr_agencies WHERE id=ANY($1::bigint[]) AND active=TRUE AND agency_type='philippines'",[agencyIds]);
         if(philippines.rowCount!==agencyIds.length){await client.query('ROLLBACK');return NextResponse.json({error:'請選擇有效且啟用中的菲律賓仲介。'},{status:400});}
+        const uncertifiedAgencies=await assertPhilippinesAgenciesCertified(client,orderAgencyId,dispatch.rows[0].taiwan_agency_id,agencyIds);
+        if(uncertifiedAgencies.length){await client.query('ROLLBACK');return NextResponse.json({error:`下列菲律賓仲介尚未與台灣仲介 ${dispatch.rows[0].taiwan_agency_name} 完成相互認證：${uncertifiedAgencies.join('、')}`},{status:409});}
         const removedRoutes=await client.query(`SELECT r.id FROM hr_job_order_routes r
           WHERE r.order_agency_id=$1 AND NOT (r.philippines_agency_id=ANY($2::bigint[]))
             AND EXISTS(SELECT 1 FROM hr_job_order_candidates c WHERE c.route_id=r.id)`,[orderAgencyId,agencyIds]);
@@ -592,8 +597,8 @@ async function handlePost(request) {
       const routeId=Number(body.routeId),workerId=Number(body.workerId);
       if(String(body.notes||'').includes(WITHDRAWAL_MARKER.trim()))return NextResponse.json({error:'推薦說明包含保留的系統標記。'},{status:400});
       if(!validId(routeId)||!validId(workerId))return NextResponse.json({error:'請選擇工作需求與所屬工作者。'},{status:400});
-      const result=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes,proposed_by) SELECT r.id,w.id,$3,$5 FROM hr_job_order_routes r JOIN hr_workers w ON w.id=$2 JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE r.id=$1 AND r.philippines_agency_id=$4 AND w.agency_id=$4 AND o.status='open' AND w.status='active' AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id) ON CONFLICT(route_id,worker_id) DO UPDATE SET notes=EXCLUDED.notes,updated_at=NOW() WHERE hr_job_order_candidates.status='proposed' AND hr_job_order_candidates.interview_at IS NULL AND hr_job_order_candidates.case_id IS NULL RETURNING *`,[routeId,workerId,clean(body.notes,2000),principal.agency_id,principal.id]);
-      if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介且尚未建立任何案件的工作者。'},{status:403});return NextResponse.json(result[0],{status:201});
+      const result=await query(`INSERT INTO hr_job_order_candidates(route_id,worker_id,notes,proposed_by) SELECT r.id,w.id,$3,$5 FROM hr_job_order_routes r JOIN hr_workers w ON w.id=$2 JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE r.id=$1 AND r.philippines_agency_id=$4 AND w.agency_id=$4 AND o.status='open' AND w.status='active' AND EXISTS(SELECT 1 FROM hr_agency_certifications ac WHERE ac.taiwan_agency_id=oa.taiwan_agency_id AND ac.philippines_agency_id=r.philippines_agency_id AND ac.status='certified') AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id) ON CONFLICT(route_id,worker_id) DO UPDATE SET notes=EXCLUDED.notes,updated_at=NOW() WHERE hr_job_order_candidates.status='proposed' AND hr_job_order_candidates.interview_at IS NULL AND hr_job_order_candidates.case_id IS NULL RETURNING *`,[routeId,workerId,clean(body.notes,2000),principal.agency_id,principal.id]);
+      if(!result.length)return NextResponse.json({error:'只能推薦所屬菲律賓仲介、尚未建立任何案件，且已與該台灣仲介完成相互認證的工作者。'},{status:403});return NextResponse.json(result[0],{status:201});
     }
     if (body.type === 'job-order-employer-candidate' && principal.role === 'employer') {
       const orderId=Number(body.orderId),workerId=Number(body.workerId);
@@ -616,6 +621,7 @@ async function handlePost(request) {
             AND NOT EXISTS(SELECT 1 FROM hr_cases c WHERE c.worker_id=w.id)
           FOR UPDATE OF w`,[workerId,orderItem.job_type]);
         if(!worker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'此工作者不符合工作類型、已停用或已建立案件。'},{status:409});}
+        if(!(await isAgencyPairCertified(client,orderItem.agency_id,worker.rows[0].agency_id))){await client.query('ROLLBACK');return NextResponse.json({error:'您的台灣仲介尚未與此工作者所屬的菲律賓仲介完成相互認證，無法挑選。'},{status:403});}
         const selectedRoute=await client.query(`INSERT INTO hr_job_order_routes(order_agency_id,philippines_agency_id,notes)
           VALUES($1,$2,'雇主直接挑選工作者') ON CONFLICT(order_agency_id,philippines_agency_id)
           DO UPDATE SET notes=hr_job_order_routes.notes RETURNING id`,
@@ -783,6 +789,8 @@ async function handlePost(request) {
       const jobType=clean(body.jobType,120);
       if (jobType && !WORKER_JOB_PREFERENCES.has(jobType)) return NextResponse.json({ error: '請選擇有效的職類。' }, { status: 400 });
       const assignedMemberId=body.assignedMemberId?Number(body.assignedMemberId):null;
+      const certificationError=await assertCaseAgenciesCertified(pool,Number(body.employerId),Number(body.workerId));
+      if(certificationError)return NextResponse.json({error:certificationError},{status:409});
       if(assignedMemberId){
         const validAssignee=await query(`SELECT m.id FROM hr_members m JOIN hr_employers e ON e.agency_id=m.agency_id
           WHERE m.id=$1 AND m.role='agency' AND m.active=TRUE AND e.id=$2 AND ($3::text='admin' OR m.agency_id=$4)`,[assignedMemberId,Number(body.employerId),principal.role,principal.agency_id||null]);
@@ -889,6 +897,7 @@ async function handlePatch(request) {
         const candidate=await client.query(`SELECT c.*,r.id route_id,oa.job_order_id,oa.taiwan_agency_id,o.employer_id,o.job_type,o.expected_start_date,o.headcount FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE c.id=$1 AND o.employer_id=$2 FOR UPDATE OF c,o`,[candidateId,principal.employer_id]);
         if(!candidate.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到此工作需求的人選。'},{status:404});}
         const item=candidate.rows[0];let caseId=item.case_id;
+        if(['scheduled','passed'].includes(status)&&!(await isRouteCertified(client,item.route_id))){await client.query('ROLLBACK');return NextResponse.json({error:'台灣仲介與此人選的菲律賓仲介目前沒有有效的相互認證，無法安排面試或錄用。'},{status:409});}
         if(isWithdrawnRecommendation(item)){
           await client.query('ROLLBACK');
           return NextResponse.json({error:'此推薦已撤回，無法安排面試或錄用。'},{status:409});

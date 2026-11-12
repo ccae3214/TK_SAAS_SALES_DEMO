@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { agencySnapshot } from '@/lib/hr-workflow';
+import HrAgencyCertifications from '@/components/HrAgencyCertifications';
 import styles from './HrJourney.module.css';
 
 export default function HrAgencyDirectory({ data, edit, update, navigate }) {
@@ -15,6 +16,7 @@ export default function HrAgencyDirectory({ data, edit, update, navigate }) {
   return <section className={styles.directory} aria-label="仲介關係總覽">
     <p>先找到機構，再確認成員、負責業務與相關需求。以下只整理目前帳號已獲授權的資料。</p>
     <div className={styles.tools}><label>搜尋仲介<input type="search" placeholder="輸入機構名稱" value={search} onChange={event => setSearch(event.target.value)} /></label><label>仲介類型<select value={type} onChange={event => setType(event.target.value)}><option value="all">全部機構</option><option value="taiwan">台灣仲介</option><option value="philippines">菲律賓仲介</option></select></label><span>{visible.length} 間仲介</span></div>
+    <HrAgencyCertifications role="admin" />
     <div className={styles.agencyCards}>{visible.map(agency => {
       const snapshot = agencySnapshot(agency, data);
       return <article key={agency.id} className={styles.agencyCard}><small>{agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'} · {agency.active ? '啟用' : '停用'}</small><h3>{agency.name}</h3><div className={styles.facts}><span>{snapshot.members.length} 位機構成員</span><span>{snapshot.orders.filter(order => order.status === 'open').length} 張進行中需求</span><span>{snapshot.cases.length} 件相關案件</span></div>{snapshot.unassigned > 0 && <p className={styles.notice}>{snapshot.unassigned} 張需求尚未指定負責業務</p>}<div className={styles.actions}><button type="button" aria-expanded={String(selectedId) === String(agency.id)} onClick={() => setSelectedId(agency.id)}>查看機構詳情</button><button type="button" onClick={() => edit(agency)}>編輯</button><button type="button" onClick={() => update({ type: 'agency', id: agency.id, active: !agency.active })}>{agency.active ? '停用' : '啟用'}</button></div></article>;

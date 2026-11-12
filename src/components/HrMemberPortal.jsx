@@ -18,6 +18,7 @@ import { OrderJourney, WorkspaceStart } from '@/components/HrJourney';
 import { orderJourney } from '@/lib/hr-workflow';
 import { recommendationStatus } from '@/lib/hr-candidate-withdrawal';
 import HrRecommendationHistory from '@/components/HrRecommendationHistory';
+import HrAgencyCertifications from '@/components/HrAgencyCertifications';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
 import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
@@ -1210,6 +1211,7 @@ export default function HrMemberPortal({ actor }) {
     {activeWorkspaceTab==='basic'&&data.role!=='worker'&&<section className="hr-member-card"><h2>基本資料</h2><dl className="workspace-basic-fields"><div><dt>姓名</dt><dd>{data.actor?.name||actor.name||'—'}</dd></div><div><dt>Email</dt><dd>{data.actor?.email||actor.email||'—'}</dd></div><div><dt>會員類型</dt><dd>{data.role==='agency'?(data.agencyType==='taiwan'?'台灣仲介業務':'菲律賓仲介 Staff'):data.roleName||'會員'}</dd></div>{data.role==='employer'&&data.employers[0]&&<div><dt>雇主／客戶</dt><dd>{data.employers[0].name}</dd></div>}{data.role==='agency'&&<><div><dt>所屬仲介</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.name||'—'}</dd></div><div><dt>國家／地區</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.country||'尚未填寫，請聯絡系統管理者補齊'}</dd></div></>}</dl></section>}
     {error&&<p className="hr-request-error" role="alert">{error}</p>}
     {operationMessage&&<p className="hr-request-success" role="status">{operationMessage}</p>}
+    {activeWorkspaceTab==='matching'&&['agency','employer'].includes(data.role)&&<HrAgencyCertifications role={data.role} onChanged={refresh}/>}
     {activeWorkspaceTab==='matching'&&data.role==='employer'&&<section className="hr-member-card employer-orders">
       <div className="orders-heading"><div><span className="orders-eyebrow">EMPLOYER PORTAL</span><h2>工作需求單</h2><p>建立需求後即可挑選符合工作類別的未媒合工作者；送出挑選後，系統會直接通知台灣與菲律賓仲介。</p></div><span className="orders-count">{data.jobOrders.length} 張需求單</span></div>
       <form className="worker-form order-form" onSubmit={submitOrder}>
