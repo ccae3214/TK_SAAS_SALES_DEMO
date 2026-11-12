@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './HrManagement.module.css';
 import { useHrDialog } from '@/lib/use-hr-dialog';
+import { useLanguage } from '@/context/LanguageContext';
+import { translateHrText } from '@/lib/hr-translations';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
@@ -66,6 +68,7 @@ function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSub
 }
 
 export default function HrTrainingCenterWorkspace({ self = false }) {
+  const { lang } = useLanguage();
   const [data, setData] = useState(null);
   const [centerId, setCenterId] = useState('');
   const [tab, setTab] = useState('overview');
@@ -97,7 +100,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     finally { setSaving(false); }
   }
   async function remove(resource, id, label) {
-    if (!window.confirm(`確定刪除「${label}」？此操作無法復原。`)) return;
+    if (!window.confirm(translateHrText(`確定刪除「${label}」？此操作無法復原。`, lang))) return;
     setSaving(true);
     try { await request('DELETE', null, `?resource=${resource}&id=${encodeURIComponent(id)}`); await load(centerId); setMessage({ type: 'success', text: `已刪除「${label}」` }); }
     catch (error) { setMessage({ type: 'error', text: error.message }); }
