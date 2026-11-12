@@ -193,6 +193,15 @@ export const TRAINING_CENTER_EN = {
   '入國通報日期': 'Entry notification date',
   '加保日期': 'Insurance enrollment date',
   '居留證核發日期': 'ARC issue date',
+  // 會員註冊審核畫面與工作者履歷編輯器
+  '依工作類型與性別自動編號': 'Auto-numbered by job type and gender',
+  '重新確認審核狀態': 'Check review status again',
+  '履歷照片預覽': 'Resume photo preview',
+  '履歷章節填寫進度': 'Resume section completion progress',
+  '已填寫': 'Completed',
+  '個章節': 'sections',
+  '讀取履歷中…': 'Reading resume…',
+  '讀取照片中…': 'Reading photo…',
 };
 
 const OWNER_EN = { 訓練中心: 'training center', 菲律賓仲介: 'Philippines agency', 台灣仲介: 'Taiwan agency', 指定單位: 'designated party' };
@@ -218,6 +227,7 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^入境 (.+)$/))) return `Entered ${m[1]}`;
   if ((m = text.match(/^(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理$/))) return `Handled by the ${OWNER_EN[m[1]]}`;
   if ((m = text.match(/^「(.+)」由(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理。$/))) return `"${translate(m[1])}" is handled by the ${OWNER_EN[m[2]]}.`;
+  if ((m = text.match(/^送出成功！你的(.*)會員申請已送交管理團隊，審核完成後會開通你的工作區。$/))) return `Submitted! Your ${m[1] ? translate(m[1]) + ' ' : ''}membership application has been sent to the management team. Your workspace will be activated once the review is complete.`;
   return null;
 }
 

@@ -1130,7 +1130,7 @@ export default function HrMemberPortal({ actor }) {
     }
     return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
       {data.requestedRole ? <div className="application-review">
-        {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>送出成功！你的{roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。</p>}
+        {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>{`送出成功！你的${roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。`}</p>}
         <div className="application-review-heading">
           <div className="application-review-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></div>
           <div><span className="application-review-eyebrow">會員申請進度</span><span className="application-review-badge">審核中</span></div>
