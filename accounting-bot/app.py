@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import time as time_mod
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -12,8 +13,10 @@ from flask import Flask, jsonify, request
 from commands import Bot
 from config import Config
 from db import SHARED_LEDGER, Store
+from images import ImageService
 from line_api import LineClient, verify_signature
 from reminders import run_daily_reminders
+from vision import build_extractor
 
 log = logging.getLogger(__name__)
 
@@ -27,12 +30,43 @@ WELCOME_GROUP = (
 )
 
 
-def create_app(config: Config | None = None, store: Store | None = None, line=None) -> Flask:
+def _run_logged(fn, *args) -> None:
+    try:
+        fn(*args)
+    except Exception:
+        log.exception("background job failed")
+
+
+def create_app(
+    config: Config | None = None,
+    store: Store | None = None,
+    line=None,
+    extractor=None,
+    submit=None,
+) -> Flask:
+    """`extractor` and `submit` exist so tests can inject a fake image reader and
+    run background work synchronously."""
     config = config or Config.from_env()
     store = store or Store(config.database_path)
     line = line or LineClient(config.channel_access_token)
     bot = Bot(store)
     tz = ZoneInfo(config.timezone)
+    extractor = extractor or build_extractor(config.anthropic_api_key, config.anthropic_model)
+    images = ImageService(
+        store,
+        line,
+        extractor,
+        allow_groups=config.image_in_groups,
+        max_per_day=config.max_images_per_day,
+    )
+    if submit is None:
+        # Reading an image takes seconds; do it off the request thread so the
+        # webhook answers LINE immediately. Bounded so a flood cannot spawn threads.
+        pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="image")
+
+        def submit(fn, *args):
+            pool.submit(_run_logged, fn, *args)
+
     store.merge_into(SHARED_LEDGER)  # fold old per-user data into the shared ledger
 
     app = Flask(__name__)
@@ -88,6 +122,12 @@ def create_app(config: Config | None = None, store: Store | None = None, line=No
             reply = bot.handle(chat_id, event["message"]["text"], now().date(), is_group)
             if reply:
                 line.reply(reply_token, reply)
+        elif etype == "message" and event.get("message", {}).get("type") == "image":
+            message = event["message"]
+            if message.get("contentProvider", {}).get("type") == "external":
+                return  # not hosted by LINE, nothing for us to download
+            store.add_user(chat_id)
+            submit(images.process, chat_id, message["id"], reply_token, is_group, now().date())
 
     @app.route("/cron/daily-reminder", methods=["GET", "POST"])
     def cron_daily_reminder():
