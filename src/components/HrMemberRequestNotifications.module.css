@@ -1,0 +1,16 @@
+.root { position: relative; }
+@media (max-width: 720px) {
+  .root .panel { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; max-height: calc(100dvh - 88px); }
+}
+.trigger { border: 1px solid #cbd5e1; border-radius: 8px; background: white; padding: 7px 10px; color: #334155; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.trigger span { margin-left: 4px; font-weight: 700; color: #9a3412; }
+.panel { position: absolute; top: calc(100% + 10px); right: 0; z-index: 45; width: min(330px, calc(100vw - 32px)); max-height: 65vh; overflow: auto; background: white; color: #334155; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 12px 35px #0f172a26; padding: 16px; font-size: 13px; line-height: 1.6; }
+.panel header { display: flex; justify-content: space-between; gap: 8px; }
+.panel button { cursor: pointer; }
+.panel button:disabled { cursor: not-allowed; opacity: .6; }
+.panel p { margin: 10px 0; }
+.panel small { display: block; margin-top: 12px; color: #64748b; }
+.item { display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left; padding: 10px 4px; border: none; border-bottom: 1px solid #e2e8f0; background: white; color: #334155; }
+.item strong { overflow-wrap: anywhere; }
+.item span { white-space: nowrap; color: #1d4ed8; }
+.trigger:focus-visible, .panel button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }

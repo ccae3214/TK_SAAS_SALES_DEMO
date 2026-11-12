@@ -33,3 +33,6 @@ public.pem
 .certbot_www
 .scripts
 .tests
+# Local browser artifacts may contain test credentials/session data; never commit.
+playwright-report/
+test-results/

@@ -1,6 +1,18 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前查核快照：main `809259b`，工作分支 `review/admin-notifications`。#18 已合併；本輪只做通知／文件現況查核，不直接寫 main、不實作產品。scripts／tests 已從上游刪除，下方舊測試清單是歷史，不代表目前檔案仍在；現有容器未重建為新 main。
+目前基底 main `809259b`，工作分支 `feature/hr-member-request-notifications`。使用者已批准本輪新增通知表及必要索引、僅在本機隔離 DB 套用 main 既有 schema 與虛構資料測試；先備份／實際驗證還原。不含正式 LINE、secrets、push、合併或部署。
+
+## 本輪新增／恢復：會員送審閉環（實作中，證據待完整重跑）
+
+- src/lib/hr-notifications.js：通知表初始化、送審共同交易、有效 admin 收件、租約／重試與 LINE 安全結果分類。
+- src/app/api/hr/notifications/route.js：全站 admin 專用、同 snapshot 待審摘要。
+- src/components/HrMemberRequestNotifications.jsx、src/components/HrMemberRequestNotifications.module.css：獨立前景輪詢、失敗保留結果與待審入口。
+- src/app/api/hr/member-request/route.js、src/components/HrManagement.jsx：送審入列、通知入口及登入後深連結。
+- scripts/hr-notification-worker.mjs、Dockerfile、compose.review.yaml：預設停用、明確開啟的背景投遞；本機無 LINE token。
+- playwright.config.mjs、scripts/review-browser-proxy.mjs、tests/e2e/：桌機／手機 Chromium 的可重跑流程；proxy 僅測試時維持原本 localhost callback origin。
+- tests/hr-linked-record-store.test.mjs、tests/hr-candidate-withdrawal.test.mjs、tests/hr-workflow.test.mjs、scripts/test-hr-requirements.mjs：從 #18 精確受測 Git 內容恢復原 85 項基線，未削弱斷言；最新 main 上已重跑 85 通過。
+- package.json、package-lock.json：固定 Playwright Test 1.65.0；保留既有跨平台鎖定項，不順帶更新產品依賴。
+- tests/hr-notifications.test.mjs、tests/support/review-fixtures.mjs、scripts/test-notification-store.mjs：新單元、隔離 fixture 與真實 PostgreSQL 失敗／併發驗證（以下實作與完整驗證完成後更新狀態）。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
 

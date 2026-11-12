@@ -37,6 +37,37 @@ services:
     depends_on:
       review-postgres:
         condition: service_healthy
+  notification-worker:
+    image: tk-saas-sales-demo-review:workflow-b
+    profiles: [notifications]
+    container_name: tk-saas-review-notifications
+    command: [node, scripts/hr-notification-worker.mjs]
+    environment:
+      DATABASE_URL: postgresql://review:${REVIEW_DB_PASSWORD:?Use --env-file .env.review.local}@review-postgres:5432/tk_saas_review
+      APP_ORIGIN: http://localhost:8088
+      ADMIN_EMAILS: review.admin@example.invalid
+      LOCAL_REVIEW_ONLY: "1"
+      HR_NOTIFICATION_WORKER_ENABLED: "1"
+      # Intentionally no LINE token / real root LINE IDs in local review.
+    depends_on:
+      review-postgres:
+        condition: service_healthy
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    profiles: [tests]
+    working_dir: /work
+    network_mode: service:app
+    ipc: host
+    volumes:
+      - .:/work
+    environment:
+      E2E_BASE_URL: http://localhost:8088
+      DATABASE_URL: postgresql://review:${REVIEW_DB_PASSWORD:?Use --env-file .env.review.local}@review-postgres:5432/tk_saas_review
+      REVIEW_LOGIN_PASSWORD: ${REVIEW_LOGIN_PASSWORD:?Use --env-file .env.review.local}
+      LOCAL_REVIEW_ONLY: "1"
+    command: [npm, run, test:e2e]
+    depends_on:
+      - app
 volumes:
   review_data:
     name: tk_saas_review_postgres_data

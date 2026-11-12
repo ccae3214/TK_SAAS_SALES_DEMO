@@ -18,3 +18,7 @@ line-hr-pilot
 accounting-bot
 certs/
 google-login-fix.patch
+playwright-report/
+test-results/
+tests/
+playwright.config.mjs
