@@ -495,7 +495,7 @@ export function HrLanguageToggle({ style = {} }) {
   return <button type="button" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 10px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...style }}>{lang === 'en' ? '中文' : 'EN'}</button>;
 }
 
-export function HrLanguageTools() {
+export function HrLanguageTools({ inline = false }) {
   const { lang, setLang } = useLanguage();
   const toggleLanguage = () => {
     const nextLang = lang === 'en' ? 'zh' : 'en';
@@ -587,5 +587,5 @@ export function HrLanguageTools() {
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [lang]);
 
-  return <button type="button" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ position: 'fixed', zIndex: 10000, left: '50%', top: 16, transform: 'translateX(-50%)', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px #0002' }}>{lang === 'en' ? '中文' : 'EN'}</button>;
+  return <button type="button" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ position: inline ? 'static' : 'fixed', zIndex: inline ? undefined : 10000, left: inline ? undefined : '50%', top: inline ? undefined : 16, transform: inline ? undefined : 'translateX(-50%)', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px #0002' }}>{lang === 'en' ? '中文' : 'EN'}</button>;
 }

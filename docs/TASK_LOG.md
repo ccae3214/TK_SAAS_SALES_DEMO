@@ -1,5 +1,17 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 2026-11-13：會員通知與流程回歸，本機交付
+
+- 已取得本輪新通知表／索引、既有 main schema 與虛構 fixture 的本機隔離授權；先 dump、實際還原、7 組關鍵計數一致，未刪 DB／table，未更動 secrets。
+- 起於 809259b，交付前 fetch 並整合最新 main 7093129；保留記帳 Bot／HR 語系更新，解決 gitignore 衝突時僅明確開放 root scripts／tests 追蹤，不回退上游產品。
+- 完成有效全站 admin 站內摘要、5 秒前景輪詢／focus、正確會員入口、編輯草稿保護、同交易入列、收件去重、有限重試／lease 與安全紀錄。Email-only／仲介管理者不發 LINE。
+- Docker Node 20：110 通過；真實 PostgreSQL＋明確受控傳輸：13 通過；桌機／390px Chromium：16 通過，均 0 失敗／跳過。提醒量測 4325ms／4666ms，不是正式或 LINE SLO。
+- 初輪 7 個 E2E 失敗經定位／Origin fixture 修正及手機面板修正後完整重跑；截圖再抓到語言按鈕遮擋，將管理後台語言工具移到側欄頂部，加入 hit-test／語言入口 viewport 檢查再全數通過，沒有弱化斷言。
+- 本機 app 已重建並保留；新增未申請／待審虛構帳號供人工確認，不刪歷史。來源與數據看 MEMBER_NOTIFICATION_REVIEW.md、review/member-notification-results.json。
+- npm production audit exit=1：15 項（3 moderate／8 high／4 critical），未自動升級修復；lint／型別跳過。真實 provider、iPhone、其他完整業務閉環／全站安全與遠端 CI 未驗。
+- 已保存本機 feature commits；未 push、未開 PR、未合併 main、未部署、未發真實 LINE。
+
+
 ## 2026-11-12：權限盤點與可重跑流程測試討論
 
 - 使用者選通知 A 輕量可靠版、確認會員送審觸發，收件人先釐清現有系統管理權限；仍在討論、不執行 schema／產品／LINE 變更。

@@ -1,4 +1,19 @@
-# VERIFICATION_REPORT｜B 三流程整理實際驗收
+# VERIFICATION_REPORT｜目前本機候選與歷史實證
+
+## 2026-11-13：會員送審通知候選（最新）
+
+基底已整合 main 7093129，feature/hr-member-request-notifications。正式審查：[MEMBER_NOTIFICATION_REVIEW.md](MEMBER_NOTIFICATION_REVIEW.md)；機器摘要：[member-notification-results.json](review/member-notification-results.json)。
+
+- Docker Node 20 單元：110 通過／0 失敗／0 跳過（原 85 保留＋新 25）。
+- 真實 PostgreSQL、受控傳輸：13 通過／0 失敗／0 跳過，非真實 LINE round trip。
+- Playwright Test：桌機／390px Chromium 共 16 通過／0 失敗／0 跳過／0 flaky；每例 pageerror=0；前景提醒實測 4325ms／4666ms。
+- Docker build 通過、running image 與候選一致；login 200／匿名通知 401。具體指令見審查報告；原始 HTML／trace 僅留本機忽略目錄。
+- 已批准隔離 DB：先 dump／實還原比對 7 組計數，再加通知表並套 main 既有 schema；catalog 比對新增 4 表（含本輪通知表），沒有移除 table。
+- 初輪 9 通過／7 失敗不隱藏；定位／fixture 與手機面板修正、語言工具遮擋修正後完整重跑至上述最終結果。沒有 skip 或改預期讓結果變綠。
+- npm audit --omit=dev exit=1：15 項（3 moderate／8 high／4 critical），未修復；lint／型別仍跳過、不算通過。
+- 未驗真實 LINE／Google、實體手機／iPhone／WebView、母語校對、完整媒合／文件／訓練與跨租戶安全矩陣；遠端 CI 未跑。下方 85／26／15／20 只屬歷史，不得外推。
+- 未 push／PR／main merge／部署；正式環境未變。本輪人工入口與保留的虛構帳號看 LOCAL_REVIEW。
+
 
 ## 2026-11-12：809259b 現況查核（不是新版驗收）
 

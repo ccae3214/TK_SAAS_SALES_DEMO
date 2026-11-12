@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-11-13T00:12:35.109933+08:00",
+  "branch": "feature/hr-member-request-notifications",
+  "integratedMain": "709312930bc917755552b6f7887dbeceb96a9107",
+  "node20": {
+    "tests": 110,
+    "pass": 110,
+    "fail": 0,
+    "skipped": 0
+  },
+  "realPostgresWithControlledTransport": {
+    "tests": 13,
+    "pass": 13,
+    "fail": 0,
+    "skipped": 0
+  },
+  "playwright": {
+    "startTime": "2026-11-12T16:10:12.452Z",
+    "duration": 67395.705,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "notificationLatency": [
+    {
+      "project": "desktop-chromium",
+      "elapsedMs": 4325,
+      "channel": "foreground-site-notification",
+      "physicalLineReceiptVerified": false
+    },
+    {
+      "project": "mobile-chromium",
+      "elapsedMs": 4666,
+      "channel": "foreground-site-notification",
+      "physicalLineReceiptVerified": false
+    }
+  ],
+  "backup": {
+    "sha256": "55a5f8f5dc4c00fb899bf947745205d28277d78079dcc6771ebea5daa87d2b63",
+    "sourceCounts": {
+      "hr_members": 61,
+      "hr_workers": 89,
+      "hr_employers": 10,
+      "hr_cases": 34,
+      "hr_job_orders": 45,
+      "hr_worker_documents": 1936,
+      "hr_document_submissions": 0
+    },
+    "restoredCounts": {
+      "hr_members": 61,
+      "hr_workers": 89,
+      "hr_employers": 10,
+      "hr_cases": 34,
+      "hr_job_orders": 45,
+      "hr_worker_documents": 1936,
+      "hr_document_submissions": 0
+    },
+    "result": "PASS; source unchanged; no database dropped"
+  },
+  "addedTables": [
+    "hr_agency_certifications",
+    "hr_notification_outbox",
+    "hr_worker_health_training",
+    "hr_worker_progress_steps"
+  ],
+  "removedTables": [],
+  "productionDependencyAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 3,
+    "high": 8,
+    "critical": 4,
+    "total": 15
+  },
+  "lineActualDeliveryVerified": false,
+  "googleActualLoginVerified": false,
+  "physicalIphoneVerified": false,
+  "lintTypecheckPassed": false,
+  "published": false,
+  "manualFixture": {
+    "reviewUrl": "http://localhost:8088/hr/login",
+    "newApplicant": "review-manual-new-e549e921cb814f6a87df0f846465fdaf-0@example.invalid",
+    "pendingApplicant": "review-manual-pending-e549e921cb814f6a87df0f846465fdaf-1@example.invalid",
+    "pendingName": "DEMO manual-pending e549e921",
+    "passwordLocation": ".env.review.local (do not share)",
+    "realLineSent": false
+  }
+}

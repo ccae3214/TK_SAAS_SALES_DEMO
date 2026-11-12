@@ -199,6 +199,22 @@ test('非法類型、跨來源與缺機構拒絕且不產生通知', async ({ pa
 test('通知入口與面板在目前視窗內，保留可讀畫面證據', async ({ page }, testInfo) => {
   await login(page, admin);
   await expect(notificationButton(page)).toBeVisible();
+  const language = page.getByRole('button', { name: '切換為英文', exact: true });
+  if (await page.getByRole('button', { name: '開啟導覽', exact: true }).isVisible()) {
+    await page.getByRole('button', { name: '開啟導覽', exact: true }).click();
+    await expect(language).toBeInViewport({ ratio: 1 });
+    await page.getByRole('button', { name: '關閉導覽', exact: true }).click({ position: { x: page.viewportSize().width - 5, y: 70 } });
+  } else await expect(language).toBeInViewport({ ratio: 1 });
+  await expect(async () => {
+    const unobstructed = await notificationButton(page).evaluate(element => {
+      const r = element.getBoundingClientRect();
+      return [r.left + r.width / 2, r.right - 4].every(x => {
+        const hit = document.elementFromPoint(x, r.top + r.height / 2);
+        return hit === element || element.contains(hit);
+      });
+    });
+    expect(unobstructed).toBeTruthy();
+  }).toPass();
   await notificationButton(page).click();
   await expect(panel(page)).toBeVisible();
   for (const locator of [notificationButton(page), panel(page)]) {

@@ -1,6 +1,8 @@
 # TK SaaS Sales Demo
 
-最新查核（2026-11-12，main `809259b`）：#18 已合併，另新增訓練中心、仲介互貿認證、獨立記帳 Bot。通知與文件差異先看 [NOTIFICATION_DISCOVERY](docs/NOTIFICATION_DISCOVERY.md)。目前 scripts／tests 已被上游刪除，下方 11/11 測試數為歷史，不代表最新 main 通過；舊測試／啟動命令不可直接照用。本機容器尚未重建為最新 main。本輪只做查核，未改程式、DB、LINE 或部署。
+最新本機候選（2026-11-13）：`feature/hr-member-request-notifications` 已整合 main `7093129`，完成會員送審站內通知、可靠 LINE 入列／重試與可重跑會員流程。Node 20：110 通過；真實 PostgreSQL＋受控傳輸：13 通過；桌機／390px Chromium：16 通過，均無失敗／跳過。本機容器已重建並運作，入口 http://localhost:8088/hr/login 。審查與限制：[MEMBER_NOTIFICATION_REVIEW](docs/MEMBER_NOTIFICATION_REVIEW.md)；唯一操作入口：[LOCAL_REVIEW](docs/LOCAL_REVIEW.md)。
+
+本輪 schema／fixture 僅在明確授權的隔離 DB 套用，先備份並實際驗證還原；未發真實 LINE、未改 secrets、未 push／開 PR／部署。`npm audit --omit=dev` 回報 15 項警告（含 critical），未修復、不列通過；lint／型別仍跳過。新 E2E 只代表會員閉環，不是全站驗收。下方 11/11 內容與舊 Python 驗證命令為歷史，只有本輪 LOCAL_REVIEW 的指令是現行操作入口。
 
 最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
 
