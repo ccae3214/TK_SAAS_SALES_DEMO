@@ -1,5 +1,13 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 2026-11-12：權限盤點與可重跑流程測試討論
+
+- 使用者選通知 A 輕量可靠版、確認會員送審觸發，收件人先釐清現有系統管理權限；仍在討論、不執行 schema／產品／LINE 變更。
+- 再 fetch main，仍為 809259b。讀 hr-access、HR API、訓練中心、互貿認證角色關卡，補 NOTIFICATION_DISCOVERY.md 現況矩陣；分清環境 LINE 最高管理者、全站 admin、所屬仲介管理者與一般業務角色。
+- 現況注意：環境白名單優先於 DB active；訓練中心自有課程按 center_id 隔離，但候訓工人名單目前全域符合條件，不能宣稱已按中心分派隔離。未查正式帳號名單或改權限。
+- 本機來源映射＋DB替身探針11通過／0失敗，沒有真實DB／API權限測試。查證Playwright官方Test Agents、CLI skill、API testing、Trace Viewer與axe整合文件；一個舊文件URL404後改正確官方URL取得內容，未安裝或執行第三方套件。
+- 使用者要的是跨角色業務流程自動回歸，不是單純看UI；建議固定E2E＋AI探索協助，預期與測試閘門不可由healer自行放寬。策略尚未選定，未寫新產品計畫或宣稱新版E2E通過。
+
 ## 2026-11-12：最新 main／通知與 UI 測試需求查核
 
 - 明確 fetch main 至 809259b；#18 已合併（31a9dd1）。從該 main 建 review/admin-notifications，只改查核與文件狀態，未實作產品；舊 linked-record store 比對仍一致。

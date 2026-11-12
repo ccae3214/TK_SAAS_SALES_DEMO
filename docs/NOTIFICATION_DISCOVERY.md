@@ -34,7 +34,7 @@
 
 - HR Bot 使用既有 LINE_MESSAGING_*；accounting-bot/README.md 明確要求另一個官方帳號與獨立 SQLite，不得混用憑證或把 HR 通知送進記帳 Bot。
 - Email 管理權限不等於可投遞的 LINE 身分。接收者需沿用伺服器認定的管理角色與有效 LINE 綁定，並確認與 HR 官方帳號的可投遞關係；不在聊天收集 token 或完整 LINE ID。
-- 通知觸發時機、接收者範圍、重複送出／更改申請行為、延遲目標與是否採持久化重試，尚待使用者選定。沒有寫入已批准產品規格或開工計畫。
+- 使用者本輪已選「A 輕量可靠版」（前景待審更新＋可記錄、去重、失敗重試的 LINE 通知），並確認以送出會員類型申請、進入待審為觸發；收件人要求先釐清既有系統管理權限。接收者精確範圍、重複送出／更改申請行為、時效驗收與執行細節仍待確認；方案選定不等於已批准 schema／正式投遞／部署。
 - 若採 outbox，新增 schema、背景重試程序及真實投遞須分別明確批准與驗證；通知失敗不應回滾已成功送審。
 
 ## UI／UX 測試可交付的範圍
@@ -43,4 +43,47 @@
 
 自動化與探索式結果應區分：規格違反／可重現缺陷、業務規則待確認、主觀 UX 建議。無可重現缺陷的建議不自動升為交付阻擋。瀏覽器窄視窗不代表 iPhone／LINE WebView 實機通過；LINE API 成功不代表手機已收到或已讀。
 
-本輪未跑完整產品 E2E、未恢復被刪測試、未更動保護規格或正式設定。通知方案與測試委託方式在對話中討論，待確認後才形成計畫／實作。
+本輪未跑完整產品 E2E、未恢復被刪測試、未更動保護規格或正式設定。通知架構與觸發方向已選；收件範圍與流程測試策略仍在討論，尚未形成實作計畫。
+
+## 權限現況補充（809259b，程式盤點而非正式帳號名單）
+
+權限由 role、admin_scope、所屬機構／本人／中心與環境白名單共同決定。來源：src/lib/hr-access.js、src/app/api/hr/route.js、src/app/api/hr/training-center/route.js、src/lib/hr-agency-certification-store.js。
+
+| 類型 | 現有實作／主要範圍 |
+| --- | --- |
+| 最高管理者 | 使用 HR_ADMIN_LINE_USER_IDS 指定 LINE 身分；具有全站管理，且 isHrRootAdminSession=true，才可建立／指派／管理其他系統管理者 |
+| 系統管理者 | 環境 ADMIN_EMAILS／HR_ADMIN_EMAILS 白名單，或啟用會員的 admin_scope=system；後端 getHrPrincipal 回 role=admin。全站業務管理，但不是最高管理者；新增／授予其他人的系統管理權限須最高管理者，其他帳號操作仍需逐 API 核對保護條件 |
+| 仲介管理者 | role=agency 且 admin_scope=agency；仍是 agency，不是 admin。可管理所屬機構會員資料／啟用狀態，不能藉此變更會員類型或升為全站管理者；可處理自己機構的互貿認證 |
+| 台灣仲介業務 | agency_type=taiwan；所屬雇主、相關案件／需求與台灣端步驟，非全站 |
+| 菲律賓仲介 Staff | agency_type=philippines；所屬工人／文件、推薦與菲律賓端步驟，非全站 |
+| 雇主 | 本人雇主資料、需求、相關候選／案件；可選工人另受台菲互貿認證限制 |
+| 工作者 | 本人履歷、文件與相關案件／結果；非其他工人或全站管理 |
+| 訓練中心 | 自己 center_id 的師資／課程／班別／批次；系統管理者可跨中心管理。HR trainingRoster 另提供全域符合文件／訓練條件的基本工人名單，沒有 center_id 分派篩選 |
+| 待審／未綁角色 | 沒有核准業務角色，只能走申請／待審流程；已登入不等於可以操作全站 |
+
+重要細節：
+- 環境白名單在 getHrPrincipal 中先於 DB active／role 查詢；會員停用不代表能撤銷該環境管理身分。環境變更另需授權，本輪未動。
+- 畫面的 system_admin 名稱不應單獨拿來選通知對象；須依實際伺服器角色判定。合法寫入路徑會同步 role/admin_scope，但不能假設任意歷史資料都一致。
+- 建議的新會員通知收件規則尚未核准：伺服器認定的全站 admin（含最高），有有效 LINE 身分才進 LINE 管道；仲介管理者、停用的一般 DB 會員不納入。Email-only 管理者仍可有站內通知，但不能憑 Email 推 LINE。
+- 訓練中心候訓名單是否也應按分派中心隔離，是待確認業務規則，不在本輪擅自改變。
+
+權限映射探針直接載入目前 hr-access.js，以虛構環境白名單及記憶體 DB 替身執行：11 項通過、0 失敗；沒有呼叫 initializer／實際 DB／真實登入。它只確認來源角色映射，不代表所有 endpoint 或租戶矩陣已通過。
+
+## 流程測試工具查證（未安裝／未建立新測試）
+
+使用者要求減少反覆人工走流程，不只是視覺 UI 評語。可採正式可重跑 E2E 為主、AI 探索／產生案例為輔；業務預期先確認，不能讓 AI 自行改判斷標準。
+
+- Playwright Test：可讓不同 browser contexts 分別扮演申請人、管理者、兩側仲介等，連續跑使用者操作；以 API／DB 檢查持久化結果，而非只截圖。正式 JS/TS @playwright/test 尚未列於專案 package.json；舊版曾用 Python Playwright 驗證，但腳本已被 main 刪除，必須先恢復並依最新互貿／訓練規則調整驗證入口。
+- Playwright Test Agents：官方 planner／generator／healer 可輔助探索與產測試；不授權 healer 刪斷言、改預期、skip 測試或更新基準線來掩蓋缺陷。官方文件列特定 agent 工具初始化方式，不代表已驗證 Hermes 直接相容。
+- Microsoft playwright-cli：提供官方 SKILL.md，涵蓋瀏覽器操作、測試生成、trace 等；可參考或之後評估整合。本輪只是查證，沒有下載執行其指令或安裝 skill。
+- @axe-core/playwright：補標籤、對比與可及性問題，不是業務流程引擎，也不能證明整體 UX 良好。
+- Trace Viewer：保存操作／網路與頁面狀態方便重現；trace 可能含 session、表單與回應，僅用虛構資料並保護產物，不公開真實憑證。
+
+官方參考：
+- https://playwright.dev/docs/test-agents
+- https://github.com/microsoft/playwright-cli
+- https://playwright.dev/docs/api-testing
+- https://playwright.dev/docs/trace-viewer
+- https://playwright.dev/docs/accessibility-testing
+
+仍在討論的委託模式：固定腳本回歸（穩定但需維護）、AI探索＋固定回歸混合（建議）、純AI巡測（彈性但不宜單獨當放行門檻）。候選流程為會員送審／通知／核准、互貿認證／推薦／面試／錄用、文件退件／補件／再審；不是這些新測試已存在或已通過。使用者不需每輪重新手測全部案例，但仍須先確認關鍵業務預期，真實 LINE 接收／實機與正式放行另列驗收界線。
