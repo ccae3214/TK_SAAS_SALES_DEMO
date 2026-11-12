@@ -1,4 +1,5 @@
-import { getHrPrincipal } from '@/lib/hr-access';
+import { getAdminEmails, getHrPrincipal } from '@/lib/hr-access';
+import { LinkedRecordError, updateLinkedRecord } from '@/lib/hr-linked-record-store';
 import { query } from '@/lib/db';
 import pool from '@/lib/db';
 import { insertWorkerDocuments } from '@/lib/hr-requirements';
@@ -302,6 +303,8 @@ const ADMIN_TEXT = {
       nameRequired: () => '名稱不能空白。',
       emailInvalid: () => '請輸入有效 Email。',
       emailRequired: () => '請輸入有效 Email，且不可留空。',
+      emailReserved: () => '此 Email 為受保護的管理者登入帳號，不能設為工作者或雇主的 Email。',
+      emailTaken: () => '這個 Email 已屬於另一個會員，請改用不同的 Email。',
       statusInvalid: () => '狀態請輸入「啟用」或「停用」。',
       agencyTypeInvalid: () => '請輸入 taiwan 或 philippines。',
       genderInvalid: () => '性別請輸入 male、female、男或女。',
@@ -375,6 +378,8 @@ const ADMIN_TEXT = {
       nameRequired: () => 'The name cannot be empty.',
       emailInvalid: () => 'Please enter a valid email address.',
       emailRequired: () => 'Please enter a valid email address; it cannot be empty.',
+      emailReserved: () => 'This email belongs to a protected administrator login and cannot be used for a worker or employer.',
+      emailTaken: () => 'This email already belongs to another member. Please use a different email.',
       statusInvalid: () => 'Status must be "active" or "inactive".',
       agencyTypeInvalid: () => 'Please enter taiwan or philippines.',
       genderInvalid: () => 'Gender must be male or female.',
@@ -448,6 +453,8 @@ const ADMIN_TEXT = {
       nameRequired: () => 'Hindi puwedeng walang laman ang pangalan.',
       emailInvalid: () => 'Maglagay ng wastong email address.',
       emailRequired: () => 'Maglagay ng wastong email address; hindi ito puwedeng walang laman.',
+      emailReserved: () => 'Ang email na ito ay protektadong login ng administrator at hindi magagamit para sa manggagawa o employer.',
+      emailTaken: () => 'Ang email na ito ay pagmamay-ari na ng ibang miyembro. Gumamit ng ibang email.',
       statusInvalid: () => 'Ang katayuan ay dapat "active" o "inactive".',
       agencyTypeInvalid: () => 'Ilagay ang taiwan o philippines.',
       genderInvalid: () => 'Ang kasarian ay dapat male o female.',
@@ -625,6 +632,25 @@ async function adminListReply(type, offset, tx) {
   }), actions);
 }
 
+// 工作者／雇主的 Email 與姓名會同步到所綁定的登入會員，必須走與網頁相同的共用交易
+// （會員先鎖、保留管理者 Email、已綁 Email 登入不可清空、重複 Email 擋下）。
+async function updateLinkedAdminField(type, id, key, value) {
+  const table = ADMIN_DATA_TYPES[type].table;
+  const column = ADMIN_FIELD_COLUMNS[type][key];
+  try {
+    return await updateLinkedRecord(pool, {
+      kind: type, id, fields: { [key]: value }, reservedEmails: getAdminEmails(),
+      update: async (client, fields) => (await client.query(
+        `UPDATE ${table} SET ${column}=$2,updated_at=NOW() WHERE id=$1 RETURNING id`, [id, fields[key]],
+      )).rows[0],
+    });
+  } catch (error) {
+    if (!(error instanceof LinkedRecordError)) throw error;
+    if (error.status === 404) return undefined;
+    throw new AdminInputError(error.status === 403 ? 'emailReserved' : error.status === 409 ? 'emailTaken' : 'emailRequired');
+  }
+}
+
 async function updateAdminRecord(type, id, key, rawValue) {
   if (!ADMIN_DATA_TYPES[type] || !ADMIN_DATA_TYPES[type].fields.includes(key)) throw new AdminInputError('invalidField');
   let value = rawValue;
@@ -682,8 +708,7 @@ async function updateAdminRecord(type, id, key, rawValue) {
   if (key === 'email') {
     const email = value.trim().toLowerCase();
     if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new AdminInputError('emailInvalid');
-    const rows = await query(`UPDATE ${ADMIN_DATA_TYPES[type].table} SET ${column}=$2,updated_at=NOW() WHERE id=$1 RETURNING id`, [id, email]);
-    return rows[0];
+    return updateLinkedAdminField(type, id, 'email', email);
   }
   if (type === 'worker' && key === 'jobPreference' && value.trim()) value = parseJobPreference(value) || value;
   if (type === 'employer' && key === 'employerType') value = value.trim().toLowerCase();
@@ -693,6 +718,7 @@ async function updateAdminRecord(type, id, key, rawValue) {
   if (type === 'employer' && key === 'employerType' && !['home_care', 'factory', 'domestic_helper', 'other'].includes(value)) {
     throw new AdminInputError('employerTypeInvalid');
   }
+  if (key === 'name') return updateLinkedAdminField(type, id, 'name', value.trim());
   const rows = await query(`UPDATE ${ADMIN_DATA_TYPES[type].table} SET ${column}=$2,updated_at=NOW() WHERE id=$1 RETURNING id`, [id, value]);
   return rows[0];
 }
