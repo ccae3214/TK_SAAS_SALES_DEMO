@@ -4,7 +4,7 @@ import unicodedata
 from collections import defaultdict
 from datetime import date
 
-from db import Store
+from db import SHARED_LEDGER, Store
 from reminders import bills_due_on, format_due_message, period_of
 
 MAX_AMOUNT = 10_000_000
@@ -24,7 +24,10 @@ HELP_TEXT = """📒 記帳小助手用法
 • 已付 3　→ 標記本月已付並自動記帳
 • 刪除帳單 3
 
-每天早上 8:00 我會提醒你今天該付的帳單。"""
+【大家一起用】
+把我拉進家人群組，群組和 1 對 1 聊天會共用同一本帳。
+
+每天早上 8:00 我會提醒今天該付的帳單。"""
 
 _RE_ADD_BILL = re.compile(r"^新增帳單\s+(.+?)\s+(\d+)\s+(?:每月)?(\d{1,2})\s*(?:日|號|号)?$")
 _RE_DEL_BILL = re.compile(r"^刪除帳單\s*(\d+)$")
@@ -46,7 +49,11 @@ class Bot:
     def __init__(self, store: Store):
         self.store = store
 
-    def handle(self, user_id: str, text: str, today: date) -> str:
+    def handle(self, chat_id: str, text: str, today: date, is_group: bool = False) -> str | None:
+        """Everyone shares one ledger, so `chat_id` (a user, group or room) does
+        not change which data is used. In groups, text we do not understand
+        gets no reply (None) so ordinary chatter is not answered."""
+        user_id = SHARED_LEDGER
         text = _normalize(text)
 
         if text in {"說明", "help", "?", "指令", "幫助"}:
@@ -73,6 +80,8 @@ class Bot:
         if m := _RE_EXPENSE.match(text):
             return self._add_expense(user_id, m.group(1).strip(), int(m.group(2)), today)
 
+        if is_group:
+            return None
         return "看不懂這個指令 😅\n記帳請輸入像「午餐 120」，輸入「說明」查看所有用法。"
 
     # ---- expenses --------------------------------------------------------

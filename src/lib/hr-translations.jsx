@@ -299,6 +299,8 @@ const EN_MORE = {
   '可由管理者建立並維護這位工作者的完整履歷。': 'An administrator can create and maintain this worker\'s full resume.',
   '尚未建立履歷': 'No resume yet', '已有履歷資料': 'Resume on file', '尚未設定工作意向': 'Job preference not set',
   '履歷照片僅接受 1.5 MB 以下的 JPG 或 PNG。': 'Resume photos must be JPG or PNG files under 1.5 MB.',
+  '履歷照片請使用 JPG 或 PNG 格式（iPhone 請選擇「最相容」格式，或截圖後上傳）。': 'Please use a JPG or PNG resume photo. On iPhone, choose the "Most Compatible" format, or upload a screenshot.',
+  '履歷照片檔案過大，請選擇小於 30 MB 的照片。': 'The resume photo file is too large. Please choose a photo under 30 MB.',
   '清除整份履歷': 'Clear Entire Resume', '無法讀取履歷照片。': 'Unable to load the resume photo.', '移除照片': 'Remove Photo',
   '重新裁切照片': 'Re-crop Photo', '關閉履歷': 'Close resume', '取消編輯': 'Cancel Editing', '家電操作補充': 'Appliance Operation Notes', '語言': 'Languages',
   '移除工人': 'Remove Worker', '移除工人失敗': 'Failed to remove the worker.', '關閉移除確認': 'Close removal confirmation',

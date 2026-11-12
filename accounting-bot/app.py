@@ -11,13 +11,20 @@ from flask import Flask, jsonify, request
 
 from commands import Bot
 from config import Config
-from db import Store
+from db import SHARED_LEDGER, Store
 from line_api import LineClient, verify_signature
 from reminders import run_daily_reminders
 
 log = logging.getLogger(__name__)
 
-WELCOME = "嗨！我是你的記帳小助手 📒\n直接輸入「午餐 120」就能記帳，輸入「說明」查看所有功能。"
+WELCOME = (
+    "嗨！我是你的記帳小助手 📒\n直接輸入「午餐 120」就能記帳，輸入「說明」查看所有功能。\n"
+    "💡 把我拉進家人群組，大家就能一起記同一本帳。"
+)
+WELCOME_GROUP = (
+    "大家好！我是記帳小助手 📒\n這個群組和我的 1 對 1 聊天共用同一本帳。\n"
+    "輸入「午餐 120」就能記帳，輸入「說明」查看所有功能。"
+)
 
 
 def create_app(config: Config | None = None, store: Store | None = None, line=None) -> Flask:
@@ -26,6 +33,7 @@ def create_app(config: Config | None = None, store: Store | None = None, line=No
     line = line or LineClient(config.channel_access_token)
     bot = Bot(store)
     tz = ZoneInfo(config.timezone)
+    store.merge_into(SHARED_LEDGER)  # fold old per-user data into the shared ledger
 
     app = Flask(__name__)
     app.config["BOT_CONFIG"] = config
@@ -61,18 +69,25 @@ def create_app(config: Config | None = None, store: Store | None = None, line=No
 
     def _handle_event(event: dict) -> None:
         source = event.get("source", {})
-        user_id = source.get("userId")
-        if not user_id or source.get("type") != "user":
-            return  # only 1:1 chats; ignore groups/rooms
+        stype = source.get("type")
+        # 1:1 chats, groups and multi-person rooms all share one ledger.
+        chat_id = source.get("groupId") or source.get("roomId") or source.get("userId")
+        if not chat_id or stype not in {"user", "group", "room"}:
+            return
+        is_group = stype != "user"
         etype = event.get("type")
         reply_token = event.get("replyToken")
         if etype == "follow":
-            store.add_user(user_id)
+            store.add_user(chat_id)
             line.reply(reply_token, WELCOME)
+        elif etype == "join":  # the bot was added to a group/room
+            store.add_user(chat_id)
+            line.reply(reply_token, WELCOME_GROUP)
         elif etype == "message" and event.get("message", {}).get("type") == "text":
-            store.add_user(user_id)
-            reply = bot.handle(user_id, event["message"]["text"], now().date())
-            line.reply(reply_token, reply)
+            store.add_user(chat_id)
+            reply = bot.handle(chat_id, event["message"]["text"], now().date(), is_group)
+            if reply:
+                line.reply(reply_token, reply)
 
     @app.route("/cron/daily-reminder", methods=["GET", "POST"])
     def cron_daily_reminder():

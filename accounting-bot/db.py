@@ -5,6 +5,9 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date
 
+# Everyone (every 1:1 chat and every group) reads and writes this one ledger.
+SHARED_LEDGER = "shared"
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     user_id    TEXT PRIMARY KEY,
@@ -86,6 +89,13 @@ class Store:
     def list_users(self) -> list[str]:
         with self._conn() as c:
             return [r["user_id"] for r in c.execute("SELECT user_id FROM users")]
+
+    def merge_into(self, ledger_id: str) -> None:
+        """Move any per-user rows (from before the ledger was shared) into
+        `ledger_id`. Idempotent, so it is safe to run on every start."""
+        with self._conn() as c:
+            c.execute("UPDATE expenses SET user_id=? WHERE user_id<>?", (ledger_id, ledger_id))
+            c.execute("UPDATE bills SET user_id=? WHERE user_id<>?", (ledger_id, ledger_id))
 
     # ---- expenses --------------------------------------------------------
     def add_expense(self, user_id: str, amount: int, note: str, spent_on: date) -> int:

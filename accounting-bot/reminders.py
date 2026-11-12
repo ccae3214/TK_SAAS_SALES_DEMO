@@ -3,7 +3,7 @@ import calendar
 import logging
 from datetime import date, datetime
 
-from db import Store
+from db import SHARED_LEDGER, Store
 
 log = logging.getLogger(__name__)
 
@@ -41,14 +41,23 @@ def format_due_message(day: date, bills: list) -> str:
     return "\n".join(lines)
 
 
+def reminder_targets(store: Store) -> list[str]:
+    """Groups/rooms (LINE ids start with C or R) if the bot is in any, otherwise
+    every 1:1 chat. This avoids sending the same shared reminder twice to
+    people who are in the group and also chat with the bot directly."""
+    chats = store.list_users()
+    groups = [c for c in chats if c[:1] in ("C", "R")]
+    return groups or chats
+
+
 def run_daily_reminders(store: Store, line, now: datetime, send_empty: bool = False) -> dict:
-    """Push today's due bills to every user. Idempotent per (date, user):
+    """Push today's due bills (the shared ledger) to every reminder target. Idempotent per (date, user):
     calling it again the same day will not re-send, but a failed push is
     released so the next call retries it."""
     today = now.date()
     result = {"date": today.isoformat(), "sent": 0, "skipped": 0, "failed": 0}
-    for user_id in store.list_users():
-        due = bills_due_on(store, user_id, today)
+    due = bills_due_on(store, SHARED_LEDGER, today)
+    for user_id in reminder_targets(store):
         if not due and not send_empty:
             result["skipped"] += 1
             continue
