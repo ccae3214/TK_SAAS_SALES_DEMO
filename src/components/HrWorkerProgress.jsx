@@ -196,7 +196,7 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
           <h3>{t('赴台申請程序')}</h3>
           {programSteps.map(step => (
             <div key={step.step_key} className={styles.stepRow}>
-              <strong>{t(step.label)}{STEP_OWNERS[step.step_key] && <small className={styles.hint}> · {t(OWNER_LABELS[STEP_OWNERS[step.step_key]])}{t('辦理')}</small>}</strong>
+              <strong>{t(step.label)}{STEP_OWNERS[step.step_key] && <small className={styles.hint}> · {t(`${OWNER_LABELS[STEP_OWNERS[step.step_key]]}辦理`)}</small>}</strong>
               <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={busy || !canEditStep(step.step_key)} onSave={onSaveStep} />
             </div>
           ))}

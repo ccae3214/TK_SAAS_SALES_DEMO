@@ -18,7 +18,6 @@ database.sqlite
 private.pem
 public.pem
 .next
-.certs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -33,6 +32,15 @@ public.pem
 .certbot_www
 .scripts
 .tests
+certs
+certbot_www
+scripts
+tests
+# Approved repeatable HR suites: keep root runners and tests reviewable in Git.
+!/scripts/
+!/scripts/**
+!/tests/
+!/tests/**
 # Local browser artifacts may contain test credentials/session data; never commit.
 playwright-report/
 test-results/

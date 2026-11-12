@@ -69,6 +69,11 @@ services:
       - REMINDER_TIME=${ACCOUNTING_REMINDER_TIME:-08:00}
       - SEND_EMPTY_REMINDER=${ACCOUNTING_SEND_EMPTY_REMINDER:-0}
       - ENABLE_SCHEDULER=1
+      # 圖片辨識（發票／轉帳截圖／帳單）。沒設金鑰時只會停用這個功能，其他不受影響。
+      - ANTHROPIC_API_KEY=${ACCOUNTING_ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ACCOUNTING_ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      - IMAGE_IN_GROUPS=${ACCOUNTING_IMAGE_IN_GROUPS:-0}
+      - MAX_IMAGES_PER_DAY=${ACCOUNTING_MAX_IMAGES_PER_DAY:-30}
     volumes:
       - accounting_data:/data
     restart: unless-stopped
