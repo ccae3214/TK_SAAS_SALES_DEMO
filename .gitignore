@@ -18,7 +18,6 @@ database.sqlite
 private.pem
 public.pem
 .next
-.certs
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -29,7 +28,7 @@ public.pem
 *.njsproj
 *.sln
 *.sw?
-.certs
-.certbot_www
-.scripts
-.tests
+certs
+certbot_www
+scripts
+tests
