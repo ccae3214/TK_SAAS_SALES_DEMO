@@ -1,6 +1,15 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
-## 2026-11-11：main 基底修正／防退版查核
+## 2026-11-12：最新 main／通知與 UI 測試需求查核
+
+- 明確 fetch main 至 809259b；#18 已合併（31a9dd1）。從該 main 建 review/admin-notifications，只改查核與文件狀態，未實作產品；舊 linked-record store 比對仍一致。
+- 2940321 刪 scripts、f3dcae2 刪 tests；實際工作樹也沒有 .scripts／.tests 替代目錄。node --test tests/hr-linked-record-store.test.mjs 回 exit=1、Could not find；屬驗證入口失效，不是產品斷言失敗。CI 只有網站 build 與記帳 pytest，無 HR 回歸。
+- 閱讀 README、ROADMAP、LOCAL_REVIEW、PROJECT_MAP、VERIFICATION_REPORT、AGENCY_CERTIFICATION 與 accounting-bot README；前述多處仍引用不存在的腳本，已加現況警示，歷史測試不外推。
+- 程式確認 HrReminders 每30秒抓HR／chat，沒有待審會員類型；任一API失敗清空提醒。主會員清單靠載入／手動／focus 更新，10秒只是節流非輪詢。member-request 送審沒有通知管理者的呼叫；現有 LINE push 是核准後通知申請人，記帳 Bot 是另一帳號不可混用。
+- NOTIFICATION_DISCOVERY.md 記錄精確快照、來源位置與界線；未量測正式站延遲、未跑新版UI、未接觸新增DB initializer，現有容器維持原版運作。
+- 使用者正在探討通知與UI／UX測試委託；方案、觸發點、收件人及執行範圍未確認，不先寫產品計畫／程式。未push、開PR、部署、改DB或發LINE。
+
+## 2026-11-11：main 基底修正／防退版查核（歷史）
 
 - #17 已合併，方向 main → wei，head 2d56a90、squash cded102，兩者 tree 相同（diff exit=0）；109 檔是相對舊 wei 累積差異，未發現該同步使 main 退版。最初假設 mergeCommit^2 查詢失敗，查明是 squash 後以精確 tree 比對修正判讀，不臆測人員動機。
 - 新 main=3772bcf（含 4f66df6 自動更新、CSP／nonce），從 origin/main 建 fix/hr-linked-record-consistency；使用者指定之後 PR 目標 main，不在 main 直接寫程式、不再為此同步 wei。

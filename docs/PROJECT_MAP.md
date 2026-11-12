@@ -1,10 +1,19 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前基底：main `3772bcf`，工作分支 `fix/hr-linked-record-consistency`，PR 回 main、不直接修改 main。#12 已合併；#17 是 main → wei 的 squash，同 tree，未發現同步退版。本輪修正帳號／資料一致性及已批准的保留 Email 防護，無新增 schema。責任描述不等於完整正式安全驗收通過。
+目前查核快照：main `809259b`，工作分支 `review/admin-notifications`。#18 已合併；本輪只做通知／文件現況查核，不直接寫 main、不實作產品。scripts／tests 已從上游刪除，下方舊測試清單是歷史，不代表目前檔案仍在；現有容器未重建為新 main。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
 
-## 本輪新增：會員／工人／雇主一致性
+## 本輪新增：現況查核
+
+- docs/NOTIFICATION_DISCOVERY.md：新會員通知的觸發／更新機制、docs 失效路徑、歷史驗證界線，沒有已批准產品決策。
+- src/components/HrReminders.jsx、src/lib/use-auto-refresh.js：既有提醒輪詢與focus節流，本輪未修改。
+- src/app/api/hr/member-request/route.js、src/lib/hr-line-bot.js：既有送審／核准通知，尚無新申請通知管理者，本輪未修改。
+- src/components/HrTrainingCenterWorkspace.jsx、src/app/api/hr/training-center/route.js：main 新增訓練中心入口／API，本輪未驗。
+- src/components/HrAgencyCertifications.jsx、src/app/api/hr/agency-certifications/route.js、src/lib/hr-agency-certification*.js：main 新增互貿認證，規則看 AGENCY_CERTIFICATION.md；測試入口警示見該文件。
+- accounting-bot/、accounting-bot/README.md：另一官方帳號、獨立容器／SQLite 的帳單機器人，不混用 HR 通知。
+
+## 歷史新增：會員／工人／雇主一致性（部分測試檔已被 main 刪除）
 
 - src/lib/hr-linked-record-store.js：正反向共同交易、member-first 鎖定、租戶查核、Email 與保留地址驗證、錯誤 rollback/release。
 - tests/hr-linked-record-store.test.mjs：30 個新增單元／交易替身測試；與既有 55 合計 85。

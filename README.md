@@ -1,5 +1,7 @@
 # TK SaaS Sales Demo
 
+最新查核（2026-11-12，main `809259b`）：#18 已合併，另新增訓練中心、仲介互貿認證、獨立記帳 Bot。通知與文件差異先看 [NOTIFICATION_DISCOVERY](docs/NOTIFICATION_DISCOVERY.md)。目前 scripts／tests 已被上游刪除，下方 11/11 測試數為歷史，不代表最新 main 通過；舊測試／啟動命令不可直接照用。本機容器尚未重建為最新 main。本輪只做查核，未改程式、DB、LINE 或部署。
+
 最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
 
 以下 PR #12 為歷史快照，已合併，不代表目前分支或新版測試狀態。

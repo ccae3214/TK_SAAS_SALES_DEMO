@@ -2,7 +2,15 @@
 
 本文件是唯一計畫主檔；操作看 LOCAL_REVIEW.md、證據看 VERIFICATION_REPORT.md、歷史看 TASK_LOG.md。
 
-## 2026-11-11：main 基底修正與 PR 交付
+## 2026-11-12：通知／UI 驗證現況，方向待確認
+
+- 已查證 #18 合併，最新查核 main=809259b；新訓練中心、互貿認證、記帳 Bot 不在上一輪受測版本。
+- scripts／tests 已從 main 刪除，docs 仍有失效入口；尚未擅自還原測試或把舊數據外推。
+- 已確認提醒 30 秒輪詢、管理資料 focus 更新、新會員待審提醒與管理者 LINE 推播尚未串接；正式站延遲未實測。
+- 現況證據見 NOTIFICATION_DISCOVERY.md；通知觸發點、收件人、時效／重試及測試委託範圍尚待選定，未形成已批准實作計畫。
+- 本輪無產品、schema、認證、LINE 或部署異動。
+
+## 2026-11-11：main 基底修正與 PR 交付（歷史，#18 已合併）
 
 - [x] 查證 #17 是 main → wei 的 squash，同 tree，未發現同步退版；保留 main 後續自動更新與 CSP／nonce。
 - [x] 從最新 main `3772bcf` 建 fix/hr-linked-record-consistency，不直接寫 main，以 main 為 PR 目標。

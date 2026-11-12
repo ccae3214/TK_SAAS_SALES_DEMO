@@ -1,5 +1,7 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
+> 2026-11-12 查核：main `809259b` 已無 scripts／tests 目錄，下方對應命令暫不可用，85／26／15／20 為舊快照。現有容器未重建，不能當成最新 main 驗收；新 main 帶新增資料／流程，未取得本輪 migration 授權前不重啟觸發 initializer。差異與通知行為見 NOTIFICATION_DISCOVERY.md。
+
 ## 2026-11-11：目前候選與驗收
 
 本輪由最新 main `3772bcf` 建立 `fix/hr-linked-record-consistency`，目標 PR 回 main；#17 已以 main → wei 合併，未發現其造成退版。本機隔離 migration／保留管理者 Email 防護已取得本次批准，先備份並驗證還原後套用 main 既有 trigger；沒有新增 DDL。app 已恢復，使用下方 localhost:8088 與既有帳號。

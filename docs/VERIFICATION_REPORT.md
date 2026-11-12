@@ -1,5 +1,12 @@
 # VERIFICATION_REPORT｜B 三流程整理實際驗收
 
+## 2026-11-12：809259b 現況查核（不是新版驗收）
+
+- #18 已合併，但下方 85／26／15／20 為前輪受測結果。main 新增訓練中心／互貿認證等，不能沿用通過宣稱。
+- 實跑 node --test tests/hr-linked-record-store.test.mjs：exit=1，檔案不存在；測試入口失效，沒有可計數的產品測試通過／失敗案例。scripts 與 tests 均不在此快照，也無本機 dot 目錄替代。
+- 本輪只比對 Git、檔案／程式、docs 與容器狀態；正式站通知延遲、真實 LINE／新版 UI／DB 均未驗。現有容器未重建。
+- 查核來源與邊界見 NOTIFICATION_DISCOVERY.md。未放寬門檻或自行宣稱已建立完整測試制度。
+
 ## 2026-11-11：main 3772bcf 一致性修正
 
 合作人完整證據與指令看 [LINKED_RECORD_REVIEW.md](LINKED_RECORD_REVIEW.md)，實際 log 解析摘要 [linked-record-results.json](review/linked-record-results.json)。#17 為 main → wei、squash tree 與當時 main 相同；本輪由最新 main 建 fix branch，保留後續自動更新與 CSP／nonce。
