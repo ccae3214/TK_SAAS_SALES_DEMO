@@ -1,8 +1,18 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前基底：main `e0e5a71`，整合於 `feature/local-review-onboarding`，不直接修改 main。PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。下列描述是目前程式責任，不代表完整權限／正式資料驗收已通過。
+目前基底：main `3772bcf`，工作分支 `fix/hr-linked-record-consistency`，PR 回 main、不直接修改 main。#12 已合併；#17 是 main → wei 的 squash，同 tree，未發現同步退版。本輪修正帳號／資料一致性及已批准的保留 Email 防護，無新增 schema。責任描述不等於完整正式安全驗收通過。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
+
+## 本輪新增：會員／工人／雇主一致性
+
+- src/lib/hr-linked-record-store.js：正反向共同交易、member-first 鎖定、租戶查核、Email 與保留地址驗證、錯誤 rollback/release。
+- tests/hr-linked-record-store.test.mjs：30 個新增單元／交易替身測試；與既有 55 合計 85。
+- scripts/verify-linked-records.py：固定隔離容器／DB，20 項真實 UI／API／PostgreSQL 故障與併發驗證，包含 main 自動更新／CSP 保留檢查。
+- docs/LINKED_RECORD_REVIEW.md：本輪合作人自我審查、merge 方向／tree 查核、完成項目、手動步驟與殘餘風險。
+- docs/review/linked-record-results.json：從實際 log 解析的最終摘要，不含憑證。
+- src/app/api/hr/route.js：本輪 5 個正向編輯與反向 member-profile 接線；既有角色／機構限制、推薦與主流程保留。
+- src/lib/hr-translations.jsx：本輪驗證／保留 Email／作用範圍錯誤的英文對照。
 
 ## 架構與執行環境
 

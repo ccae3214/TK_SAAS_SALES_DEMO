@@ -1,6 +1,17 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
-## 本輪更新：推薦撤回與合作人審查
+## 2026-11-11：main 基底修正／防退版查核
+
+- #17 已合併，方向 main → wei，head 2d56a90、squash cded102，兩者 tree 相同（diff exit=0）；109 檔是相對舊 wei 累積差異，未發現該同步使 main 退版。最初假設 mergeCommit^2 查詢失敗，查明是 squash 後以精確 tree 比對修正判讀，不臆測人員動機。
+- 新 main=3772bcf（含 4f66df6 自動更新、CSP／nonce），從 origin/main 建 fix/hr-linked-record-consistency；使用者指定之後 PR 目標 main，不在 main 直接寫程式、不再為此同步 wei。
+- 使用者本次明確批准僅隔離 tk_saas_review：先備份／實際還原，再套用 main 既有 trigger；另批准一般工人／雇主不可改用保留管理者 Email，不變更既有合法管理者登入。7 組備份／還原計數一致，保留 dump 與驗證 DB；不進 Git。
+- 本次用共同 client／transaction 修正 5 個正向分支及反向 member-profile，保留原角色／機構範圍、LINE-only 與無會員空聯絡資料；移除舊分段 sync helper，補英文錯誤文字。沒有新增 DDL／migration、修改 secrets、部署或碰正式資料。
+- 最終 Node 85／既有 Chromium 26／撤回 15／新整合 20 全通過；真實 PostgreSQL 正反向故障注入皆回滾，兩個並行 HTTP 對同 Email 得 200/409 且無部分寫入；CSP、focus 更新／編輯器跳過更新亦驗。build 成功，image 讀回一致，本機 app 運作中。
+- 中途 fixture Email 同名、漏填既有必填姓氏、重整後錯分頁定位造成失敗，補足測試輸入與真實 PATCH 斷言後完整重跑，未刪斷言。自我審查將 callback 內原驗證移到交易前，補非法 name/type HTTP 無寫入及回傳 id 防護。
+- 合作人入口 LINKED_RECORD_REVIEW.md（自我審查，不是獨立核准）；摘要 review/linked-record-results.json。既有 E2E 自動改寫的大圖另存測試證據後還原，避免混入 PR。精確 PR head／CI 由 PR 讀回，不借用舊 checks。
+- 未驗：真實 LINE／Google、iPhone／WebView、正式資料、真實附件、破壞性刪除、完整安全／壓力矩陣、真實 outage。lint／型別原設定跳過；文件適用性／案件階段 resync 保留既有 commit 後 follow-up。
+
+## 前輪更新：推薦撤回與合作人審查（歷史）
 
 - 已依使用者確認，新增所屬菲律賓仲介在安排面試前撤回推薦；保留工人、履歷、文件與推薦歷史，阻擋跨機構、雇主來源、已面試／錄用、結束需求及過時寫入。
 - 本輪凍結整合基底 main `e0e5a71`，仍在 feature/local-review-onboarding／PR #12；不合併 main、不部署、不新增 schema。本次操作權限範圍已另外確認，不擴充其他角色代撤回權限。

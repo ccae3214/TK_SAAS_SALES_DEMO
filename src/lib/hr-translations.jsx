@@ -291,6 +291,10 @@ const EN_MORE = {
   '選擇仲介': 'Select an agency', '選擇台灣仲介': 'Select a Taiwan agency', '選擇轉交機構': 'Select agencies to forward to', '雇主案件與工作者進度': 'Employer cases and worker progress', '雇主／工作類型': 'Employer / job type', '項已更新': 'items updated', '項文件要求': 'document requirements', '預覽': 'Preview', '類型': 'Type', '階段': 'Stage', '（Staff 作業） · 台灣業務：': '(Staff) · Taiwan representative (Broker): ', '｜合作台灣仲介：': ' · Partner Taiwan agencies: ',
 };
 const FLOW_EN = {
+  '請填寫有效的登入 Email；已綁定 Email 登入的會員不可清空。': 'Enter a valid login email. An account using email login cannot have an empty email.',
+  '此 Email 為受保護的管理者登入帳號，不能透過工作者或雇主資料建立或變更。': 'This email is reserved for an administrator and cannot be assigned through worker or employer records.',
+  '找不到可管理的所屬資料。': 'No record is available within your authorized agency.',
+  '這個 Email 已屬於另一個會員，請改用不同的 Email。': 'This email belongs to another member. Use a different email.',
   '撤回推薦': 'Withdraw recommendation',
   '撤回中…': 'Withdrawing…',
   '已撤回推薦': 'Recommendation withdrawn',

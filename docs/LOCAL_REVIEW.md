@@ -1,6 +1,12 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
-## 現在的候選
+## 2026-11-11：目前候選與驗收
+
+本輪由最新 main `3772bcf` 建立 `fix/hr-linked-record-consistency`，目標 PR 回 main；#17 已以 main → wei 合併，未發現其造成退版。本機隔離 migration／保留管理者 Email 防護已取得本次批准，先備份並驗證還原後套用 main 既有 trigger；沒有新增 DDL。app 已恢復，使用下方 localhost:8088 與既有帳號。
+
+測試：Node 85、既有 Chromium 26、撤回 15、新一致性整合 20 全通過；lint／型別仍跳過。本次流程、檔案與限制見 [LINKED_RECORD_REVIEW.md](LINKED_RECORD_REVIEW.md)。Email 登入不可清空，無登入舊工人／既有 LINE-only 路徑保留；改登入 Email 後請使用新地址重新登入。不要刪除真實資料或 reset volume。
+
+## PR #12 候選（歷史，已合併）
 
 已整合 main `e0e5a71` 到 `feature/local-review-onboarding`；PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。未合併到 main、未部署。Node 55 項／Chromium 既有 26 項＋撤回專項 15 項通過，證據與限制看 VERIFICATION_REPORT.md。
 

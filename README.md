@@ -1,6 +1,10 @@
 # TK SaaS Sales Demo
 
-目前 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `e0e5a71` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 55 項、Chromium 既有回歸 26 項＋撤回專項 15 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
+最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
+
+以下 PR #12 為歷史快照，已合併，不代表目前分支或新版測試狀態。
+
+歷史 PR #12：https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/12 。已在 feature 分支整合 main `e0e5a71` 並解決五個內容衝突；先備份／實際還原查核，再執行已批准的隔離 DB 遷移。Node 55 項、Chromium 既有回歸 26 項＋撤回專項 15 項通過，Docker build 成功。只更新 PR，不合併 main、不部署；最新 CI 以 PR checks 為準。main 已恢復 CI／Deploy workflows，合併可能自動部署。
 
 合作人審查入口：[docs/REVIEW_REPORT.md](docs/REVIEW_REPORT.md)，包含推薦撤回規則、資料／鎖定設計、實測矩陣與未驗風險。推薦錯誤時使用「撤回推薦」，不刪除工作者本人。
 
