@@ -192,7 +192,7 @@ export async function parseResumePdf(file) {
       const languageSection=captureResumeSection(extracted,/\bLANGUAGE\b|語言/i,/COOKING\s+SKILLS|烹飪/i);
       const cookingSection=captureResumeSection(extracted,/COOKING\s+SKILLS|烹飪/i,/HOME\s+ELECTRICAL\s+APPLIANCE\s+OPERATION|家電操作/i);
       const applianceSection=captureResumeSection(extracted,/HOME\s+ELECTRICAL\s+APPLIANCE\s+OPERATION|家電操作/i,/BABY\s+SITTING|嬰兒及兒童護理|嬰幼兒/i);
-      if(educationSection){parsed.education=educationSection;parsed.educationLevels=/graduate|master|post.?graduate|研究所|碩士|博士|college|university|大學|專科/i.test(educationSection)?(/associate|專科/i.test(educationSection)&&!/university|大學/i.test(educationSection)?'專科':'大學'):/high\s*school|secondary|高中/i.test(educationSection)?'高中':/junior\s*high|middle\s*school|國中/i.test(educationSection)?'國中':/elementary|primary|小學/i.test(educationSection)?'小學':/vocational|職業培訓/i.test(educationSection)?'高中':'';}
+      if(educationSection){parsed.education=educationSection;parsed.educationLevels=/doctor|\bph\.?\s?d\b|\bed\.?\s?d\b|博士/i.test(educationSection)?'博士學位':/master|\bmba\b|post.?graduate|研究所|碩士/i.test(educationSection)?'碩士學位':/associate|專科|副學士/i.test(educationSection)&&!/university|bachelor|大學|學士/i.test(educationSection)?'副學士 / 專科學位':/college|university|bachelor|大學|學士/i.test(educationSection)?'學士學位（大學畢業）':/senior\s*high|high\s*school|secondary|高中|vocational|職業培訓/i.test(educationSection)?'高中畢業':'';}
       if(languageSection){
         const languageNames=[['English','English|英語'],['Tagalog','Tagalog|Filipino|菲語|塔加洛語'],['Cantonese','Cantonese|廣東話|粵語'],['Mandarin','Mandarin|Chinese|國語|中文']];
         parsed.languageOptions=languageNames.filter(([,pattern])=>new RegExp(pattern,'i').test(languageSection)).map(([name])=>name);
