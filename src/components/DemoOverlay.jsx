@@ -34,7 +34,7 @@ export function DemoOverlay({ title }) {
       boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
     }}>
       <button 
-        onClick={() => router.push('/')}
+        onClick={() => router.push('/demo')}
         style={{
           background: '#f1f5f9',
           border: 'none',

@@ -26,9 +26,9 @@
 | 路徑 | 程式／責任 |
 | --- | --- |
 | /hr/login | src/app/hr/login/page.jsx、login.module.css：沿用 main 新登入 UI，僅顯示已設定 provider |
-| /hr | src/app/hr/page.jsx：依身分分流管理端／會員端 |
+| / 與 /hr | src/app/page.jsx（首頁）重用 src/app/hr/page.jsx：依身分分流管理端／會員端 |
 | /hr/workers/[id] | src/app/hr/workers/[id]/page.jsx：main 的工作者進度入口 |
-| / | src/app/page.jsx：品牌與產品展示 |
+| /demo | src/app/demo/page.jsx：品牌與產品展示（原首頁） |
 | /admin、/notes、/checkout、/demo/* | 原有商店／筆記／展示，非本輪 HR 驗收範圍 |
 
 ## 本輪新增檔案：推薦撤回

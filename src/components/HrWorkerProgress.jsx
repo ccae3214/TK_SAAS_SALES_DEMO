@@ -143,7 +143,7 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
   return (
     <div className={styles.page}>
       <nav className={styles.topBar}>
-        <a href="/hr" className={styles.back}>← {t('返回管理介面')}</a>
+        <a href="/" className={styles.back}>← {t('返回管理介面')}</a>
         <HrLanguageTools />
       </nav>
       <header className={styles.hero}>
@@ -282,7 +282,7 @@ export default function HrWorkerProgress({ workerId }) {
   const onStatus = (kind, status) => send(`/api/hr/agency-workers/${workerId}`, patchJson({ type: 'status', workflowType: kind, status }),
     '訓練與抵台體檢安排已更新。', '儲存失敗，請稍後再試。');
 
-  if (loadError) return <main className={styles.page}><p className={styles.error} role="alert">{t(loadError)}</p><a href="/hr" className={styles.back}>← {t('返回管理介面')}</a></main>;
+  if (loadError) return <main className={styles.page}><p className={styles.error} role="alert">{t(loadError)}</p><a href="/" className={styles.back}>← {t('返回管理介面')}</a></main>;
   if (!data) return <main className={styles.page}><p className={styles.hint}>{t('載入中…')}</p></main>;
   return <main><WorkerProgressView data={data} message={message} busy={busy} t={t} onReview={onReview} onApplicability={onApplicability} onUpload={onUpload} onSaveStep={onSaveStep} onStatus={onStatus} /></main>;
 }
