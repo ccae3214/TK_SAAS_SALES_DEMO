@@ -15,6 +15,13 @@ def _parse_hhmm(value: str) -> time:
     return time(int(hour), int(minute))
 
 
+def _int(value: str | None, default: int) -> int:
+    try:
+        return int(value) if value not in (None, "") else default
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class Config:
     channel_secret: str = ""
@@ -25,6 +32,11 @@ class Config:
     enable_scheduler: bool = False
     send_empty_reminder: bool = False
     cron_token: str = ""
+    # Image recognition (receipts / transfer screenshots / bills). Off without a key.
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-5-5"
+    image_in_groups: bool = False
+    max_images_per_day: int = 30
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -38,4 +50,8 @@ class Config:
             enable_scheduler=_bool(env.get("ENABLE_SCHEDULER"), False),
             send_empty_reminder=_bool(env.get("SEND_EMPTY_REMINDER"), False),
             cron_token=env.get("CRON_TOKEN", ""),
+            anthropic_api_key=env.get("ANTHROPIC_API_KEY", ""),
+            anthropic_model=env.get("ANTHROPIC_MODEL") or "claude-sonnet-5-5",
+            image_in_groups=_bool(env.get("IMAGE_IN_GROUPS"), False),
+            max_images_per_day=_int(env.get("MAX_IMAGES_PER_DAY"), 30),
         )

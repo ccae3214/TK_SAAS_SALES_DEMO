@@ -172,3 +172,4 @@ Fly volume and configuration references:
 - Webhook URL：`https://kolecion.cc/line/accounting/callback`（由 nginx 轉送到容器），在該官方帳號的 Messaging API channel 啟用 Use webhook 並執行 Verify。
 - `.env` 需設定 `ACCOUNTING_LINE_CHANNEL_SECRET` 與 `ACCOUNTING_LINE_CHANNEL_ACCESS_TOKEN`；這是**另一個** Messaging API channel，不可與上面 HR 官方帳號的 `LINE_MESSAGING_*` 混用。
 - 首次部署：`docker compose up -d --build accounting-bot`，再執行 `docker compose up -d --force-recreate nginx`（`nginx.conf` 是單一檔案掛載）。指令與用法見 [accounting-bot/README.md](accounting-bot/README.md)。
+- 圖片記帳（傳發票／轉帳截圖／帳單照片自動辨識，確認後入帳）需要在 `.env` 設定 `ACCOUNTING_ANTHROPIC_API_KEY`（Anthropic API 金鑰，按用量計費）；沒設定時只停用這個功能，其他不受影響。群組預設不辨識圖片，可用 `ACCOUNTING_IMAGE_IN_GROUPS=1` 開啟。詳見 [accounting-bot/README.md](accounting-bot/README.md)。

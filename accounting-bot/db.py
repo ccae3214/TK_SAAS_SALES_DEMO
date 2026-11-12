@@ -47,6 +47,23 @@ CREATE TABLE IF NOT EXISTS reminder_log (
     user_id  TEXT NOT NULL,
     PRIMARY KEY (run_date, user_id)
 );
+
+-- Entries read from uploaded images, waiting for the user to confirm.
+-- Only the extracted fields are kept; the image itself is never stored.
+CREATE TABLE IF NOT EXISTS pending_receipts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id    TEXT NOT NULL,              -- the 1:1 chat / group it was sent in
+    message_id TEXT NOT NULL UNIQUE,       -- LINE message id (de-duplicates redeliveries)
+    status     TEXT NOT NULL DEFAULT 'processing',
+                                           -- processing|pending|done|cancelled|skipped|failed
+    kind       TEXT,                       -- invoice|transfer|bill
+    amount     INTEGER,
+    note       TEXT,
+    spent_on   TEXT,                       -- YYYY-MM-DD
+    due_day    INTEGER,                    -- bills: day of month the payment is due
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pending_chat ON pending_receipts(chat_id, status);
 """
 
 
@@ -186,3 +203,79 @@ class Store:
                 "DELETE FROM reminder_log WHERE run_date=? AND user_id=?",
                 (run_date.isoformat(), user_id),
             )
+
+    # ---- image receipts (pending confirmation) --------------------------
+    def claim_image(self, chat_id: str, message_id: str) -> int | None:
+        """Reserve an uploaded image. None if this LINE message was already seen."""
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT OR IGNORE INTO pending_receipts(chat_id, message_id) VALUES (?,?)",
+                (chat_id, message_id),
+            )
+            return cur.lastrowid if cur.rowcount > 0 else None
+
+    def count_images_since(self, chat_id: str, hours: int = 24) -> int:
+        with self._conn() as c:
+            return c.execute(
+                "SELECT COUNT(*) FROM pending_receipts WHERE chat_id=? "
+                "AND created_at >= datetime('now', ?)",
+                (chat_id, f"-{int(hours)} hours"),
+            ).fetchone()[0]
+
+    def fill_pending(
+        self, pid: int, kind: str, amount: int, note: str, spent_on: date, due_day: int | None
+    ) -> None:
+        with self._conn() as c:
+            c.execute(
+                "UPDATE pending_receipts SET kind=?, amount=?, note=?, spent_on=?, due_day=?, "
+                "status='pending' WHERE id=?",
+                (kind, amount, note, spent_on.isoformat(), due_day, pid),
+            )
+
+    def get_pending(self, chat_id: str, pid: int | None = None) -> sqlite3.Row | None:
+        """The given (or, without `pid`, the latest) entry of this chat that is still
+        waiting for confirmation and younger than 24 hours."""
+        sql = (
+            "SELECT * FROM pending_receipts WHERE chat_id=? AND status='pending' "
+            "AND created_at >= datetime('now', '-1 day')"
+        )
+        args: list = [chat_id]
+        if pid is not None:
+            sql += " AND id=?"
+            args.append(pid)
+        with self._conn() as c:
+            return c.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
+
+    def update_pending(self, pid: int, amount: int | None = None, note: str | None = None) -> None:
+        sets, args = [], []
+        if amount is not None:
+            sets.append("amount=?")
+            args.append(amount)
+        if note is not None:
+            sets.append("note=?")
+            args.append(note)
+        if not sets:
+            return
+        with self._conn() as c:
+            c.execute(
+                f"UPDATE pending_receipts SET {', '.join(sets)} WHERE id=? AND status='pending'",
+                (*args, pid),
+            )
+
+    def set_pending_status(self, pid: int, status: str, expect: str = "pending") -> bool:
+        """Atomic transition; False if the entry was not in the `expect` state
+        (e.g. a double tap on 「確認」 only records once)."""
+        with self._conn() as c:
+            cur = c.execute(
+                "UPDATE pending_receipts SET status=? WHERE id=? AND status=?",
+                (status, pid, expect),
+            )
+            return cur.rowcount > 0
+
+    def find_duplicate_expense(self, user_id: str, amount: int, spent_on: date) -> sqlite3.Row | None:
+        with self._conn() as c:
+            return c.execute(
+                "SELECT * FROM expenses WHERE user_id=? AND amount=? AND spent_on=? "
+                "ORDER BY id DESC LIMIT 1",
+                (user_id, amount, spent_on.isoformat()),
+            ).fetchone()

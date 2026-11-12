@@ -5,7 +5,9 @@ from collections import defaultdict
 from datetime import date
 
 from db import SHARED_LEDGER, Store
+from images import format_pending
 from reminders import bills_due_on, format_due_message, period_of
+from vision import clean_note
 
 MAX_AMOUNT = 10_000_000
 
@@ -24,6 +26,11 @@ HELP_TEXT = """📒 記帳小助手用法
 • 已付 3　→ 標記本月已付並自動記帳
 • 刪除帳單 3
 
+【圖片記帳】
+• 直接傳發票、轉帳截圖或帳單的照片給我
+• 我會讀出金額和日期，你回「確認」才會記帳
+• 讀錯了：「改金額 360」「改名稱 午餐」；不要了：「取消」
+
 【大家一起用】
 把我拉進家人群組，群組和 1 對 1 聊天會共用同一本帳。
 
@@ -34,6 +41,11 @@ _RE_DEL_BILL = re.compile(r"^刪除帳單\s*(\d+)$")
 _RE_PAID = re.compile(r"^已付\s*(\d+)$")
 _RE_DEL_EXPENSE = re.compile(r"^刪除記帳\s*(\d+)$")
 _RE_EXPENSE = re.compile(r"^(?:記帳|記)?\s*(.*?\D)\s*(\d+)\s*元?$")
+# Replies to a recognised image (see images.py). Must be matched before _RE_EXPENSE,
+# which would otherwise read 「改金額 360」 as an expense called 改金額.
+_RE_PENDING = re.compile(r"^(確認|取消|加入帳單)\s*(\d+)?$")
+_RE_EDIT_AMOUNT = re.compile(r"^改金額\s*(\d+)$")
+_RE_EDIT_NOTE = re.compile(r"^改名稱\s*(.+)$")
 
 
 def _normalize(text: str) -> str:
@@ -67,6 +79,13 @@ class Bot:
         if text in {"本月", "月報", "本月統計"}:
             return self._month(user_id, today)
 
+        if m := _RE_PENDING.match(text):
+            return self._pending_action(chat_id, m.group(1), m.group(2), is_group)
+        if m := _RE_EDIT_AMOUNT.match(text):
+            return self._pending_edit(chat_id, is_group, amount=int(m.group(1)))
+        if m := _RE_EDIT_NOTE.match(text):
+            return self._pending_edit(chat_id, is_group, note=m.group(1))
+
         if m := _RE_ADD_BILL.match(text):
             return self._add_bill(user_id, m.group(1), int(m.group(2)), int(m.group(3)))
         if m := _RE_DEL_BILL.match(text):
@@ -83,6 +102,71 @@ class Bot:
         if is_group:
             return None
         return "看不懂這個指令 😅\n記帳請輸入像「午餐 120」，輸入「說明」查看所有用法。"
+
+    # ---- image entries waiting for confirmation ------------------------------
+    def _no_pending(self, pid: int | None, is_group: bool) -> str | None:
+        if is_group:
+            return None  # stay quiet: 「取消」/「確認」 are also ordinary words in a chat
+        if pid is None:
+            return "目前沒有待確認的圖片記帳。傳發票、轉帳截圖或帳單的照片給我試試。"
+        return "找不到這筆待確認的圖片記帳（可能已處理過，或超過 24 小時了）。"
+
+    def _pending_action(self, chat_id: str, action: str, pid_text: str | None, is_group: bool) -> str | None:
+        pid = int(pid_text) if pid_text else None
+        row = self.store.get_pending(chat_id, pid)
+        if row is None:
+            return self._no_pending(pid, is_group)
+
+        if action == "取消":
+            if not self.store.set_pending_status(row["id"], "cancelled"):
+                return self._no_pending(pid, is_group)
+            return "🗑️ 已取消這張圖片的記帳"
+
+        if action == "加入帳單":
+            if row["kind"] != "bill" or not row["due_day"]:
+                return "這張看不出繳費期限，沒辦法存成固定帳單。要記帳請回「確認」。"
+            if not self.store.set_pending_status(row["id"], "done"):
+                return self._no_pending(pid, is_group)
+            bill_id = self.store.add_bill(SHARED_LEDGER, row["note"], row["amount"], row["due_day"])
+            return (
+                f"📌 已新增帳單 #{bill_id}\n{row['note']}  {_money(row['amount'])}\n"
+                f"每月 {row['due_day']} 號\n付完回「已付 {bill_id}」就會記帳並停止提醒。"
+            )
+
+        # 確認
+        spent_on = date.fromisoformat(row["spent_on"])
+        duplicate = self.store.find_duplicate_expense(SHARED_LEDGER, row["amount"], spent_on)
+        if not self.store.set_pending_status(row["id"], "done"):
+            return self._no_pending(pid, is_group)
+        expense_id = self.store.add_expense(SHARED_LEDGER, row["amount"], row["note"], spent_on)
+        lines = [
+            f"✅ 已記帳 #{expense_id}",
+            f"{row['note']}  {_money(row['amount'])}",
+            f"📅 {spent_on.month}/{spent_on.day}",
+        ]
+        if duplicate is not None:
+            lines.append(
+                f"⚠️ 和 #{duplicate['id']}「{duplicate['note']}」金額、日期相同；"
+                f"如果重複了請回「刪除記帳 {expense_id}」"
+            )
+        return "\n".join(lines)
+
+    def _pending_edit(
+        self, chat_id: str, is_group: bool, amount: int | None = None, note: str | None = None
+    ) -> str | None:
+        row = self.store.get_pending(chat_id)
+        if row is None:
+            return self._no_pending(None, is_group)
+        if amount is not None and not 0 < amount <= MAX_AMOUNT:
+            return "金額需要是 1 ～ 10,000,000 之間的整數。"
+        if note is not None:
+            note = clean_note(note, row["kind"])
+        self.store.update_pending(row["id"], amount=amount, note=note)
+        fresh = self.store.get_pending(chat_id, row["id"])
+        duplicate = self.store.find_duplicate_expense(
+            SHARED_LEDGER, fresh["amount"], date.fromisoformat(fresh["spent_on"])
+        )
+        return "✏️ 已修改\n" + format_pending(fresh, duplicate=duplicate)
 
     # ---- expenses --------------------------------------------------------
     def _add_expense(self, user_id: str, note: str, amount: int, today: date) -> str:
