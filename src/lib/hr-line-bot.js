@@ -7,8 +7,8 @@ import path from 'node:path';
 
 const STAGE_LABELS = {
   intake: '需求受理', matching: '媒合中', documents: '文件處理',
-  medical_training: '體檢與訓練', application: '申請辦理',
-  arrangement: '後續安排', completed: '完成',
+  medical_training: '訓練', application: 'OEC 與簽證',
+  arrangement: '抵台體檢與在台文件', completed: '完成',
 };
 const STATUS_LABELS = { open: '進行中', on_hold: '暫停', closed: '結案' };
 const TASK_LABELS = { todo: '待處理', in_progress: '處理中', blocked: '受阻', done: '完成' };
@@ -1049,8 +1049,8 @@ async function visibleTasks(principal) {
 function caseReply(cases, principal, language) {
   const labels = {
     zh: { empty: '目前沒有與此會員帳號關聯的案件。', admin: '人力系統案件：', member: '與你帳號相關的案件：', status: STATUS_LABELS, stage: STAGE_LABELS },
-    en: { empty: 'There are no cases linked to this account.', admin: 'HR cases:', member: 'Cases linked to your account:', status: {open:'In progress',on_hold:'On hold',closed:'Closed'}, stage: {intake:'Intake',matching:'Matching',documents:'Document processing',medical_training:'Medical & training',application:'Application',arrangement:'Placement',completed:'Completed'} },
-    tl: { empty: 'Walang kasong naka-link sa account na ito.', admin: 'Mga kaso sa HR:', member: 'Mga kasong naka-link sa iyong account:', status: {open:'Isinasagawa',on_hold:'Naka-hold',closed:'Sarado'}, stage: {intake:'Pagtanggap ng kahilingan',matching:'Pagtutugma',documents:'Pagproseso ng dokumento',medical_training:'Medical at pagsasanay',application:'Aplikasyon',arrangement:'Paghahanda',completed:'Kumpleto'} },
+    en: { empty: 'There are no cases linked to this account.', admin: 'HR cases:', member: 'Cases linked to your account:', status: {open:'In progress',on_hold:'On hold',closed:'Closed'}, stage: {intake:'Intake',matching:'Matching',documents:'Document processing',medical_training:'Training',application:'OEC & visa',arrangement:'Arrival medical & documents',completed:'Completed'} },
+    tl: { empty: 'Walang kasong naka-link sa account na ito.', admin: 'Mga kaso sa HR:', member: 'Mga kasong naka-link sa iyong account:', status: {open:'Isinasagawa',on_hold:'Naka-hold',closed:'Sarado'}, stage: {intake:'Pagtanggap ng kahilingan',matching:'Pagtutugma',documents:'Pagproseso ng dokumento',medical_training:'Pagsasanay',application:'OEC at visa',arrangement:'Medical at dokumento pagdating sa Taiwan',completed:'Kumpleto'} },
   }[language];
   if (!cases.length) return labels.empty;
   const header = principal.role === 'admin' ? labels.admin : labels.member;
@@ -1327,8 +1327,8 @@ export async function replyForHrLineEvent(event) {
   if (/體檢|訓練|medical|training|kalusugan|pagsasanay/.test(lower)) {
     const cases = await visibleCases(principal);
     if (!cases.length) return activeLanguage === 'en' ? 'There is no medical or training progress available.' : activeLanguage === 'tl' ? 'Walang available na progreso ng medical o pagsasanay.' : '目前沒有可查看的體檢或訓練進度。';
-    const header = activeLanguage === 'en' ? 'Medical and training progress:' : activeLanguage === 'tl' ? 'Progreso ng medical at pagsasanay:' : '體檢與訓練進度：';
-    const medical = activeLanguage === 'en' ? 'Medical' : activeLanguage === 'tl' ? 'Medical' : '體檢';
+    const header = activeLanguage === 'en' ? 'Training and arrival documents progress:' : activeLanguage === 'tl' ? 'Progreso ng pagsasanay at mga dokumento pagdating sa Taiwan:' : '訓練與來台文件進度：';
+    const medical = activeLanguage === 'en' ? 'Arrival medical' : activeLanguage === 'tl' ? 'Medical pagdating' : '抵台體檢';
     const training = activeLanguage === 'en' ? 'Training' : activeLanguage === 'tl' ? 'Pagsasanay' : '訓練';
     const notScheduled = activeLanguage === 'en' ? 'Not scheduled' : activeLanguage === 'tl' ? 'Hindi nakaiskedyul' : '未安排';
     const workflowLabels = activeLanguage === 'en'
@@ -1336,7 +1336,7 @@ export async function replyForHrLineEvent(event) {
       : activeLanguage === 'tl'
         ? { not_scheduled: notScheduled, scheduled: 'Naka iskedyul', in_progress: 'Isinasagawa', passed: 'Pumasa', retest: 'Ulit na pagsusuri', failed: 'Hindi pumasa', completed: 'Kumpleto' }
         : { not_scheduled: notScheduled, scheduled: '已安排', in_progress: '處理中', passed: '合格', retest: '複檢', failed: '未通過', completed: '已完成' };
-    return [header, ...cases.map(item => `${item.case_number}｜${medical}: ${workflowLabels[item.medical_status] || item.medical_status || notScheduled}｜${training}: ${workflowLabels[item.training_status] || item.training_status || notScheduled}`)].join('\n');
+    return [header, ...cases.map(item => `${item.case_number}｜${training}: ${workflowLabels[item.training_status] || item.training_status || notScheduled}｜${medical}: ${workflowLabels[item.medical_status] || item.medical_status || notScheduled}`)].join('\n');
   }
   if (/仲介|雇主|案件|進度|狀態|我的工作者|agency|employer|case|progress|status|worker|ahensya|employer|manggagawa|kaso/.test(lower)) {
     return caseReply(await visibleCases(principal), principal, activeLanguage);
