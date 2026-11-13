@@ -1346,26 +1346,40 @@ async function handlePatch(request) {
       const statuses = workflowType === 'medical' ? MEDICAL_STATUSES : TRAINING_STATUSES;
       if (!validId(caseId) || !statuses.has(status)) return NextResponse.json({ error: '訓練或抵台體檢狀態不正確。' }, { status: 400 });
       const column = workflowType === 'medical' ? 'medical_status' : 'training_status';
-      const previous = await query(`SELECT c.${column} AS current_status,c.worker_id,e.agency_id AS employer_agency_id,
-        (e.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$2)) AS agency_can_manage,
-        EXISTS(SELECT 1 FROM hr_worker_documents r WHERE r.worker_id=c.worker_id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed,
-        EXISTS(SELECT 1 FROM hr_worker_documents r WHERE r.worker_id=c.worker_id AND r.required AND r.applicable AND r.status<>'approved') AS documents_open,
-        EXISTS(SELECT 1 FROM hr_application_steps s WHERE s.case_id=c.id AND s.step_key='actual_entry' AND s.completed_on IS NOT NULL) AS arrived
-        FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.id=$1`, [caseId,principal.agency_id||null]);
-      if (!previous.length) return NextResponse.json({ error: '找不到案件。' }, { status: 404 });
-      if (principal.role === 'agency' && !previous[0].agency_can_manage) return NextResponse.json({ error: '無權管理其他台灣仲介的案件。' }, { status: 403 });
-      const blocked = workflowBlockReason(workflowType, { gateClosed: previous[0].gate_closed, documentsOpen: previous[0].documents_open, arrived: previous[0].arrived });
-      if (blocked && status !== 'not_scheduled') return NextResponse.json({ error: blocked }, { status: 409 });
-      if (!canTransition(workflowType, previous[0].current_status, status)) {
-        return NextResponse.json({ error: '此狀態不能直接跳轉，請依流程逐步更新。' }, { status: 409 });
-      }
-      await query(`UPDATE hr_cases SET ${column}=$2,updated_at=NOW() WHERE id=$1`, [caseId,status]);
-      // 工人層級（尚未建案也能記錄）的同一項狀態一併更新，兩邊看到的進度才會一致。
-      await query(`INSERT INTO hr_worker_health_training(worker_id,${column},updated_by) VALUES($1,$2,$3)
-        ON CONFLICT(worker_id) DO UPDATE SET ${column}=EXCLUDED.${column},updated_by=EXCLUDED.updated_by,updated_at=NOW()`, [previous[0].worker_id,status,actor]);
-      await recordActivity(caseId,actor,workflowType==='medical'?'更新抵台體檢進度':'更新訓練進度',status);
-      await refreshCaseStage(caseId);
-      return NextResponse.json({ ok: true });
+      const client = await pool.connect();
+      const runInTransaction = async (sql, params) => (await client.query(sql, params)).rows;
+      try {
+        await client.query('BEGIN');
+        // Serialize both case and worker entry points on the same worker row.
+        await client.query('SELECT w.id FROM hr_workers w JOIN hr_cases c ON c.worker_id=w.id WHERE c.id=$1 FOR UPDATE OF w', [caseId]);
+        const result = await (async () => {
+          const previous = await runInTransaction(`SELECT c.${column} AS current_status,c.worker_id,e.agency_id AS employer_agency_id,
+            (e.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$2)) AS agency_can_manage,
+            EXISTS(SELECT 1 FROM hr_worker_documents r WHERE r.worker_id=c.worker_id AND r.entry_gate AND r.applicable AND r.status<>'approved') AS gate_closed,
+            EXISTS(SELECT 1 FROM hr_worker_documents r WHERE r.worker_id=c.worker_id AND r.required AND r.applicable AND r.status<>'approved') AS documents_open,
+            EXISTS(SELECT 1 FROM hr_application_steps s WHERE s.case_id=c.id AND s.step_key='actual_entry' AND s.completed_on IS NOT NULL) AS arrived
+            FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.id=$1`, [caseId,principal.agency_id||null]);
+          if (!previous.length) return NextResponse.json({ error: '找不到案件。' }, { status: 404 });
+          if (principal.role === 'agency' && !previous[0].agency_can_manage) return NextResponse.json({ error: '無權管理其他台灣仲介的案件。' }, { status: 403 });
+          const blocked = workflowBlockReason(workflowType, { gateClosed: previous[0].gate_closed, documentsOpen: previous[0].documents_open, arrived: previous[0].arrived });
+          if (blocked && status !== 'not_scheduled') return NextResponse.json({ error: blocked }, { status: 409 });
+          if (!canTransition(workflowType, previous[0].current_status, status)) {
+            return NextResponse.json({ error: '此狀態不能直接跳轉，請依流程逐步更新。' }, { status: 409 });
+          }
+          await runInTransaction(`UPDATE hr_cases SET ${column}=$2,updated_at=NOW() WHERE id=$1`, [caseId,status]);
+          // 工人層級（尚未建案也能記錄）的同一項狀態一併更新，兩邊看到的進度才會一致。
+          await runInTransaction(`INSERT INTO hr_worker_health_training(worker_id,${column},updated_by) VALUES($1,$2,$3)
+            ON CONFLICT(worker_id) DO UPDATE SET ${column}=EXCLUDED.${column},updated_by=EXCLUDED.updated_by,updated_at=NOW()`, [previous[0].worker_id,status,actor]);
+          await runInTransaction('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) VALUES($1,$2,$3,$4)', [caseId,actor,workflowType==='medical'?'更新抵台體檢進度':'更新訓練進度',status]);
+          await refreshStage(runInTransaction, caseId);
+          return NextResponse.json({ ok: true });
+        })();
+        await client.query(result.status >= 400 ? 'ROLLBACK' : 'COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally { client.release(); }
     }
     if (!validId(body.id)) return NextResponse.json({ error: '資料編號不正確。' }, { status: 400 });
     if (body.type === 'case') {

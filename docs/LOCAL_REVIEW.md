@@ -1,5 +1,11 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
+## 本輪：fix/merged-pr-review
+
+本機目前是基於 main 52b0d7c 的部分修復候選，不是未合併 #22 的通知候選。Windows 瀏覽器仍開 http://localhost:8088/hr/login ，密碼僅讀既有本機忽略檔。無 schema 或正式環境變更。
+
+唯一現行測試命令與 fixture 前置條件見 [MERGED_PR_REVIEW.md](MERGED_PR_REVIEW.md)；Node 104／Python3.12 93／隔離 PostgreSQL 8／登入 HTTP 3 通過，未重跑下方歷史 Python UI。測試保留虛構歷史、不重設 volume；F4 文字重送與 audit critical 未解，不能正式放行。
+
 ## 2026-11-11：目前候選與驗收
 
 本輪由最新 main `3772bcf` 建立 `fix/hr-linked-record-consistency`，目標 PR 回 main；#17 已以 main → wei 合併，未發現其造成退版。本機隔離 migration／保留管理者 Email 防護已取得本次批准，先備份並驗證還原後套用 main 既有 trigger；沒有新增 DDL。app 已恢復，使用下方 localhost:8088 與既有帳號。

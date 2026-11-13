@@ -1,5 +1,20 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
+## 目前候選：已合併 PR 部分修復
+
+基底 main 52b0d7c；fix/merged-pr-review。詳細 finding 與可重跑入口：MERGED_PR_REVIEW.md。下方 3772bcf、B／推薦撤回為歷史來源，不是目前測試總數。
+
+- accounting-bot/db.py、commands.py：圖片待確認／入帳同交易、付款／記帳同交易，不改現有 schema 與共用帳本規則。
+- accounting-bot/test_atomic_writes.py（新）：6 項真實暫存 SQLite 失敗回滾／並行／舊值回歸。
+- src/app/api/hr/route.js、agency-workers/[id]/route.js：workflow 共用 client transaction、worker row lock、stage 重算在提交前。
+- tests/hr-workflow-atomic.test.mjs（新）：10 項來源分支／DB double／既有拒絕規則。
+- tests/hr-workflow-atomic.postgres.mjs（新）：8 項真實 PostgreSQL 故障／提交／兩入口並行；只允許既有虛構 review DB。
+- tests/hr-workflow-atomic.http.mjs（新）：3 項登入後 HTTP＋DB；不是 UI E2E。
+- tests/hr-candidate-withdrawal.test.mjs、hr-linked-record-store.test.mjs、hr-workflow.test.mjs、scripts/test-hr-requirements.mjs（恢復）：已合併 31a9dd1 的原 85 項基線；scripts/test-hr-case-flow.mjs（恢復）：已合併 6ca46d3 的9項。
+- package.json、.github/workflows/ci.yml：HR 單元入口與 CI；.gitignore／.dockerignore：排除可能含測試憑證的舊 browser artifacts。
+- docs/MERGED_PR_REVIEW.md（新）：F1-F4、自我審查、修復／未修分界、完整重跑指令、角色與資料限制。
+- docs/review/merged-pr-review-results.json（新）：安全聚合測試與 finding 摘要，不含 raw trace／密碼／連線字串。
+
 目前基底：main `3772bcf`，工作分支 `fix/hr-linked-record-consistency`，PR 回 main、不直接修改 main。#12 已合併；#17 是 main → wei 的 squash，同 tree，未發現同步退版。本輪修正帳號／資料一致性及已批准的保留 Email 防護，無新增 schema。責任描述不等於完整正式安全驗收通過。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。

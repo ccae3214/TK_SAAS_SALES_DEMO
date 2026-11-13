@@ -32,3 +32,7 @@ certs
 certbot_www
 .scripts
 .tests
+# Browser artifacts may contain credentials/cookies; never publish them.
+playwright-report/
+test-results/
+**/.auth/

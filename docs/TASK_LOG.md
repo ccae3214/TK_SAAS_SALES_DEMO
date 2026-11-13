@@ -1,5 +1,14 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 已合併 PR 審查與部分修復（目前候選）
+
+- 基底 main `52b0d7c`，單一分支 `fix/merged-pr-review`；依使用者要求先驗證再修復並開 PR，不合併 main／部署。#22 仍是另一條 OPEN／Draft，未混入。
+- 確認並修復 F1 圖片確認狀態與入帳分段提交、F2 固定帳單付款重複／半套資料、F3 HR case／worker／stage 交易缺口。F4 文字 webhook 相同事件重送仍會重複入帳，已實際重現但未擅加持久去重 schema。完整 finding、來源、重跑與限制見 MERGED_PR_REVIEW.md。
+- 先驗證再修改：SQLite 新回歸原 5 失敗／1 通過，HR 核心交易原 0 通過／5 失敗（DB double）。修復後 Docker Node20 104、Docker Python3.12 93、真實隔離 PostgreSQL 8、實際登入 HTTP＋DB 3 最終全通過，均 0 失敗／0 跳過。不是瀏覽器 UI E2E 或全站安全核准。
+- 從已合併 commit 原樣恢復 HR 85 項基線與 PR20 的 9 項流程測試，另加 10 項交易測試及 CI test:hr，不弱化／刪斷言。PostgreSQL 故障用 SELECT 1/0，無 schema／trigger 新增；SQLite 故障 trigger 僅限 pytest 暫存 DB。隔離 fixture 結束停用／結案保留，不刪正式資料。
+- app 與 accounting-bot Docker build 通過；僅隔離 app 重建，執行 image 核對一致；bot image 的 /healthz smoke 200，不啟動真實 bot／scheduler。公開 Python image 初次 pull 遇 credential helper 失敗，獨立暫存 config 後成功，未改既有 credentials。
+- 實跑 production npm audit exit1：15 項（3 moderate／8 high／4 critical），next／next-auth 直接依賴未升級；build 的全依賴 27 包含 dev，不能混為一談。lint／型別仍跳過，真實 LINE／Anthropic、iPhone、全部 PR UI 與完整租戶矩陣未驗。精確發布 head／CI 看 PR 讀回。
+
 ## 2026-11-11：main 基底修正／防退版查核
 
 - #17 已合併，方向 main → wei，head 2d56a90、squash cded102，兩者 tree 相同（diff exit=0）；109 檔是相對舊 wei 累積差異，未發現該同步使 main 退版。最初假設 mergeCommit^2 查詢失敗，查明是 squash 後以精確 tree 比對修正判讀，不臆測人員動機。
