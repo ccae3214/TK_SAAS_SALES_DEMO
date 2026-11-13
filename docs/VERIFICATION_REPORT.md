@@ -1,5 +1,19 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+## PR 發佈候選與上游差異
+
+- 使用者已授權提交本輪驗證紀錄、push `feature/hr-member-request-notifications` 並建立以 `main` 為目標的 PR；不授權 main 合併或部署。
+- 發佈前明確 fetch `refs/heads/main:refs/remotes/origin/main`，最新上游為 `52b0d7c`，已超過受測整合基底 `7093129`。包含首頁搬移、新手導覽、履歷欄位與翻譯等更新；本輪不在發佈流程混入整合或程式修改。
+- 以 Draft PR 交付受測候選與可重跑流程；與最新 main 的整合、合併可行性及精確 head CI 須由 GitHub PR 實際狀態確認。下方「未 push／PR」描述的是各輪驗證當時狀態，不是發佈後的即時狀態。
+
+## 重開機後接續驗證（候選 1f3d22c）
+
+- 本輪確認工作分支 `feature/hr-member-request-notifications`、起始工作區乾淨；未修改產品程式，也未 fetch／整合新的 main。
+- app／PostgreSQL 原為 exited，使用既有 Compose `start --wait review-postgres app` 恢復，沒有重建 image、重設 volume、變更 secrets 或新增 schema。原 app image 與候選 image 一致，啟動後讀回兩個服務運作中、DB healthy。
+- 實際重跑：Docker Node 20 `npm run test:hr` 為 110 通過；`node --test scripts/test-notification-store.mjs` 真實隔離 PostgreSQL＋受控傳輸 13 通過；`npm run test:e2e` 桌機／手機 Chromium 16 通過。三組均 0 失敗、0 跳過；E2E 約 58.7 秒。只建立／處理虛構測試資料，不發真實 LINE。
+- HTTP 讀回 `/hr/login` 200、匿名 `/api/hr/notifications` 401；`git diff --check` 通過。原始 Playwright 產物只留本機忽略目錄，既有版控截圖／機器摘要未被重寫。
+- 未重新 build、audit、驗證遠端 CI／真實 LINE／iPhone／WebView；歷史依賴警告與 lint／型別跳過限制不變。未 push、開 PR、合併或部署；人工入口仍為 `http://localhost:8088/hr/login`。
+
 ## 2026-11-13：會員送審通知候選（最新）
 
 基底已整合 main 7093129，feature/hr-member-request-notifications。正式審查：[MEMBER_NOTIFICATION_REVIEW.md](MEMBER_NOTIFICATION_REVIEW.md)；機器摘要：[member-notification-results.json](review/member-notification-results.json)。
