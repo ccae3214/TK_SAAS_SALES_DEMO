@@ -11,6 +11,7 @@ import HrFilePicker from '@/components/HrFilePicker';
 import HrWorkerProgressLink from '@/components/HrWorkerProgressLink';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
 import HrChat from '@/components/HrChat';
+import HrOnboardingTour from '@/components/HrOnboardingTour';
 import HrReminders from '@/components/HrReminders';
 import HrDocumentReviewList from '@/components/HrDocumentReviewList';
 import PersonNameFields from '@/components/PersonNameFields';
@@ -1129,7 +1130,7 @@ export default function HrMemberPortal({ actor }) {
       } catch (err) { setError(err.message); }
       finally { setRequesting(false); }
     }
-    return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
+    return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles />{!data.requestedRole&&<HrOnboardingTour tourId="pending" />}<header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
       {data.requestedRole ? <div className="application-review">
         {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>{`送出成功！你的${roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。`}</p>}
         <div className="application-review-heading">
@@ -1160,7 +1161,7 @@ export default function HrMemberPortal({ actor }) {
         </div>
         <form className="application-form" onSubmit={requestMembership}>
           <div className="application-form-section-title"><span>01</span><div><h3>選擇會員類型</h3><p>請選擇你要申請的身分</p></div></div>
-          <label>申請類型
+          <label data-tour="apply-role">申請類型
             <select value={requestedRole} onChange={event => { setRequestedRole(event.target.value); setRequestedAgencyId(''); if(event.target.value==='worker')setRequestedAgencyType('philippines');else setRequestedAgencyType('taiwan'); }}>
               <option value="worker">工作者</option><option value="employer">雇主</option><option value="agency">仲介</option><option value="training_center">訓練中心</option>
             </select>
@@ -1169,12 +1170,12 @@ export default function HrMemberPortal({ actor }) {
             <select value={requestedAgencyType} onChange={event=>{setRequestedAgencyType(event.target.value);setRequestedAgencyId('');}}><option value="taiwan">台灣仲介</option><option value="philippines">菲律賓仲介</option></select>
           </label>}
           {needsAgency&&<div className="application-form-section-title application-form-agency-title"><span>02</span><div><h3>選擇所屬仲介</h3><p>你的申請將送交所選仲介確認</p></div></div>}
-          {needsAgency&&<label>{requestedRole==='worker'?'所屬菲律賓仲介':requestedRole==='employer'?'所屬台灣仲介':'所屬仲介'}
+          {needsAgency&&<label data-tour="apply-agency">{requestedRole==='worker'?'所屬菲律賓仲介':requestedRole==='employer'?'所屬台灣仲介':'所屬仲介'}
             <select required value={requestedAgencyId} onChange={event=>setRequestedAgencyId(event.target.value)}><option value="">請選擇仲介</option>{requestedAgencies.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
           </label>}
           {requestedAgencies.length===0&&needsAgency&&<p role="status" className="application-form-empty">目前沒有可選的啟用仲介，請聯絡管理者。</p>}
           <div className="application-form-notice"><span aria-hidden="true">i</span><p>送出申請後，管理者會審核你的身分。核准前不會開放案件或會員資料。</p></div>
-          <button className="application-form-submit" disabled={requesting||(needsAgency&&!requestedAgencyId)}>{requesting ? '送出中…' : '送出審核申請'}<span aria-hidden="true">→</span></button>
+          <button data-tour="apply-submit" className="application-form-submit" disabled={requesting||(needsAgency&&!requestedAgencyId)}>{requesting ? '送出中…' : '送出審核申請'}<span aria-hidden="true">→</span></button>
         </form>
       </div>}
       {error && <p role="alert" className="hr-request-error">{error}</p>}
@@ -1182,7 +1183,7 @@ export default function HrMemberPortal({ actor }) {
   }
 
   if (data.role === 'training_center') {
-    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><HrTrainingCenterWorkspace self /><TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
+    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><HrOnboardingTour tourId="training_center" /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><HrTrainingCenterWorkspace self /><TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
   }
 
   const viewedWorker = data.role === 'worker' ? data.workers[0] : null;
@@ -1202,10 +1203,10 @@ export default function HrMemberPortal({ actor }) {
   const renderCompactDocument = item => renderDocumentItem(item, undefined, true);
   const canUpdateCertification = data.role === 'agency' || data.role === 'admin';
   const activeTaiwanAgencies=data.agencies.filter(item=>item.active&&item.agency_type==='taiwan');
-  return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><HrLanguageTools /><PortalStyles />
+  return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><HrLanguageTools /><PortalStyles />{['worker','employer','agency'].includes(data.role)&&<HrOnboardingTour tourId={data.role} />}
     <header className="hr-member-header"><div className="hr-member-header-main"><span className="hr-member-avatar" aria-hidden="true">{String(actor.name||'?').trim().charAt(0)||'?'}</span><div><span>克雷迅人力管理</span><h1>{data.role==='agency'?(data.agencyType==='taiwan'?'業務':'Staff'):(labels[data.role] || data.roleName)}工作區</h1><p>{actor.name}</p></div></div><button onClick={() => signOut({ callbackUrl: '/' })}><LogOut size={16} aria-hidden="true" />登出</button></header>
     <HrReminders onOpenChat={roomId=>{setActiveWorkspaceTab('chat');window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}}));}} onOpenProgress={workerId=>{const worker=data.workers.find(item=>Number(item.id)===Number(workerId));if(worker)setProgressWorker(worker);}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker&&(data.role==='worker'||Number(worker.agency_id)===Number(data.agencyId)))void beginWorkerEdit(worker);}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer&&(data.role==='employer'||Number(employer.agency_id)===Number(data.agencyId)))beginEmployerEdit(employer);}else if(item.type==='agency'){setActiveWorkspaceTab('basic');}}} />
-    <nav className="workspace-tabs" aria-label="工作區分頁">{[['start','工作起點',LayoutDashboard],['home','工作摘要',LayoutDashboard],...(['agency','employer'].includes(data.role)?[['matching','需求與配對',Building2]]:[]),['basic','基本資料',UserRound],['agencyEmployer','仲介／雇主資料',Building2],['documents','必要文件',FileText],['process','來台程序',Route],['chat','聊天室',MessagesSquare]].map(([tab,label,Icon])=><button key={tab} type="button" className={activeWorkspaceTab===tab?'active':''} aria-current={activeWorkspaceTab===tab?'page':undefined} onClick={()=>setActiveWorkspaceTab(tab)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
+    <nav className="workspace-tabs" aria-label="工作區分頁">{[['start','工作起點',LayoutDashboard],['home','工作摘要',LayoutDashboard],...(['agency','employer'].includes(data.role)?[['matching','需求與配對',Building2]]:[]),['basic','基本資料',UserRound],['agencyEmployer','仲介／雇主資料',Building2],['documents','必要文件',FileText],['process','來台程序',Route],['chat','聊天室',MessagesSquare]].map(([tab,label,Icon])=><button key={tab} type="button" data-tour={`tab-${tab}`} className={activeWorkspaceTab===tab?'active':''} aria-current={activeWorkspaceTab===tab?'page':undefined} onClick={()=>setActiveWorkspaceTab(tab)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
     {activeWorkspaceTab==='start'&&<WorkspaceStart data={data} onNavigate={setActiveWorkspaceTab}/>}
     {activeWorkspaceTab==='home'&&<MemberRoleHome data={data} cases={workerCases} requirements={workerRequirements} openTab={setActiveWorkspaceTab}/>}
     {activeWorkspaceTab==='basic'&&data.role!=='worker'&&<section className="hr-member-card"><h2>基本資料</h2><dl className="workspace-basic-fields"><div><dt>姓名</dt><dd>{data.actor?.name||actor.name||'—'}</dd></div><div><dt>Email</dt><dd>{data.actor?.email||actor.email||'—'}</dd></div><div><dt>會員類型</dt><dd>{data.role==='agency'?(data.agencyType==='taiwan'?'台灣仲介業務':'菲律賓仲介 Staff'):data.roleName||'會員'}</dd></div>{data.role==='employer'&&data.employers[0]&&<div><dt>雇主／客戶</dt><dd>{data.employers[0].name}</dd></div>}{data.role==='agency'&&<><div><dt>所屬仲介</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.name||'—'}</dd></div><div><dt>國家／地區</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.country||'尚未填寫，請聯絡系統管理者補齊'}</dd></div></>}</dl></section>}
