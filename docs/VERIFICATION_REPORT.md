@@ -1,4 +1,69 @@
-# VERIFICATION_REPORT｜B 三流程整理實際驗收
+# VERIFICATION_REPORT｜目前本機候選與歷史實證
+
+## PR #22：遵循 main 的衝突整合與驗證（目前候選）
+
+- 本輪依使用者「遵循 main」確認，整合 main `52b0d7cfda4aaf378c8232c4fcec62d34f49d789`，僅更新 feature／同一 Draft PR；不合併 main、不部署。
+- 衝突解法：`.gitignore` 保留測試與私密產物排除；`HrManagement.jsx` 保留 main 新手導覽／導航標記與通知功能，語言入口仍在側欄避免遮擋；`hr-translations.jsx` 同時保留 inline 模式與 `data-tour`。首頁 `/`、展示 `/demo`、新版履歷選項與上游其他行為照 main，不還原舊版。
+- 先停止 app、`pg_dump -Fc`，實際 `createdb`／`pg_restore --exit-on-error` 至獨立驗證 DB。7 組備份／還原計數相符：會員 250、工人 97、雇主 10、仲介 12、案件 34、需求 45、文件 2134。dump SHA-256：`6b797099570c41ea9925c78501a8c5c01088c6f8bfcc952783f8e2c049c5d28c`；dump／還原 DB 均保留、不進 Git。
+- 經本次授權啟動 main 初始化後，與備份的 public 全欄位 catalog 比對僅新增 `hr_members.onboarding_seen`（jsonb、NOT NULL、default `{}`），無移除／改變欄位；教育程度既有資料轉換 SQL 未執行。沒有調整認證、權限或 secrets。
+- Docker build 成功；重建僅 app，running image 與候選 tag 均為 `sha256:f430c77ec85644f48aaf2c6dca13dbffd408c9594eec1f7a72ed6ede192c82e4`。build 仍跳過 lint／型別，Browserslist 警告未修。
+- 實跑：Docker Node 20 `npm run test:hr` 110 通過；真實隔離 PostgreSQL＋受控傳輸 `node --test scripts/test-notification-store.mjs` 13 通過；完整 `npm run test:e2e` 桌機／390px Chromium 16 通過。三組最終均 0 失敗／0 跳過；Playwright `.last-run.json` 為 passed、failedTests 空。
+- 保留失敗紀錄：初次單一 E2E 1 失敗（登入舊預期 `/hr`，main 已改 `/`）；調整後完整 14 通過／2 失敗（錯將菲律賓仲介導覽當成中文 admin 導覽）。依實際角色與 main 中英導覽調整 fixture helper，正常 UI 點略過並驗證 POST／伺服器 seen 紀錄，再完整 16 通過。原通知／取消／核准／拒絕／去重／編輯保護斷言皆保留，沒有停用導覽或改驗收門檻。
+- HTTP：匿名 `/` 307（前往登入）、`/demo` 200、匿名通知 401。`git diff --check` 工作區及相對最新 main 的本次修改通過；合併前 `git diff --cached --check` exit 2，僅列上游 `src/app/demo/page.jsx` 搬移的既有尾端空白，保留原檔、不冒稱全 staged diff 通過。
+- 精確合併 commit／push／GitHub 可合併性與 CI 以 PR #22 發佈後讀回為準。真實 LINE／Google、iPhone／WebView、正式 migration 與完整新手導覽／其他業務矩陣未驗；audit 既有 15 項警告未重新稽核或修復。以下較早未整合／等待授權／未發佈狀態均為歷史。
+
+## PR #22 衝突整合中（尚未提交／推送）
+
+- 已 fetch main `52b0d7c`，於 feature 分支執行 `git merge --no-commit --no-ff origin/main`；三個衝突已在本機解決並 stage：`.gitignore` 保留測試／私密產物排除；`HrManagement.jsx` 保留新版新手導覽及通知修復的側欄語言入口；`hr-translations.jsx` 合併 inline 模式與 `data-tour`。
+- `git diff --name-only --diff-filter=U` 已無未解衝突；Docker Node 20 `npm run test:hr` 實跑 110 通過／0 失敗／0 跳過。
+- `git diff --check` 工作區通過；`git diff --cached --check` exit 2，指出上游 `src/app/demo/page.jsx` 搬移內容既有尾端空白，未擅自修改上游頁面來掩蓋結果。
+- 啟動前比對 initializer：main 新增 `hr_members.onboarding_seen JSONB NOT NULL DEFAULT '{}'::jsonb`；隔離 DB catalog 唯讀確認目前無此欄位。新 app 尚未建置／啟動，避免自動 schema 異動。等待使用者批准先備份／驗證還原，再只對 `tk_saas_review` 套用此 main 既有新增欄位。
+- 尚未重跑整合後 DB／E2E／CI、未提交 merge、未 push 更新 PR；原已驗證 app 仍運作，非整合後新版。正式環境、權限與 secrets 未變；教育程度資料轉換腳本未執行。
+
+## PR 發佈候選與上游差異
+
+- 使用者已授權提交本輪驗證紀錄、push `feature/hr-member-request-notifications` 並建立以 `main` 為目標的 PR；不授權 main 合併或部署。
+- 發佈前明確 fetch `refs/heads/main:refs/remotes/origin/main`，最新上游為 `52b0d7c`，已超過受測整合基底 `7093129`。包含首頁搬移、新手導覽、履歷欄位與翻譯等更新；本輪不在發佈流程混入整合或程式修改。
+- 以 Draft PR 交付受測候選與可重跑流程；與最新 main 的整合、合併可行性及精確 head CI 須由 GitHub PR 實際狀態確認。下方「未 push／PR」描述的是各輪驗證當時狀態，不是發佈後的即時狀態。
+
+## 重開機後接續驗證（候選 1f3d22c）
+
+- 本輪確認工作分支 `feature/hr-member-request-notifications`、起始工作區乾淨；未修改產品程式，也未 fetch／整合新的 main。
+- app／PostgreSQL 原為 exited，使用既有 Compose `start --wait review-postgres app` 恢復，沒有重建 image、重設 volume、變更 secrets 或新增 schema。原 app image 與候選 image 一致，啟動後讀回兩個服務運作中、DB healthy。
+- 實際重跑：Docker Node 20 `npm run test:hr` 為 110 通過；`node --test scripts/test-notification-store.mjs` 真實隔離 PostgreSQL＋受控傳輸 13 通過；`npm run test:e2e` 桌機／手機 Chromium 16 通過。三組均 0 失敗、0 跳過；E2E 約 58.7 秒。只建立／處理虛構測試資料，不發真實 LINE。
+- HTTP 讀回 `/hr/login` 200、匿名 `/api/hr/notifications` 401；`git diff --check` 通過。原始 Playwright 產物只留本機忽略目錄，既有版控截圖／機器摘要未被重寫。
+- 未重新 build、audit、驗證遠端 CI／真實 LINE／iPhone／WebView；歷史依賴警告與 lint／型別跳過限制不變。未 push、開 PR、合併或部署；人工入口仍為 `http://localhost:8088/hr/login`。
+
+## 2026-11-13：會員送審通知候選（最新）
+
+基底已整合 main 7093129，feature/hr-member-request-notifications。正式審查：[MEMBER_NOTIFICATION_REVIEW.md](MEMBER_NOTIFICATION_REVIEW.md)；機器摘要：[member-notification-results.json](review/member-notification-results.json)。
+
+- Docker Node 20 單元：110 通過／0 失敗／0 跳過（原 85 保留＋新 25）。
+- 真實 PostgreSQL、受控傳輸：13 通過／0 失敗／0 跳過，非真實 LINE round trip。
+- Playwright Test：桌機／390px Chromium 共 16 通過／0 失敗／0 跳過／0 flaky；每例 pageerror=0；前景提醒實測 4325ms／4666ms。
+- Docker build 通過、running image 與候選一致；login 200／匿名通知 401。具體指令見審查報告；原始 HTML／trace 僅留本機忽略目錄。
+- 已批准隔離 DB：先 dump／實還原比對 7 組計數，再加通知表並套 main 既有 schema；catalog 比對新增 4 表（含本輪通知表），沒有移除 table。
+- 初輪 9 通過／7 失敗不隱藏；定位／fixture 與手機面板修正、語言工具遮擋修正後完整重跑至上述最終結果。沒有 skip 或改預期讓結果變綠。
+- npm audit --omit=dev exit=1：15 項（3 moderate／8 high／4 critical），未修復；lint／型別仍跳過、不算通過。
+- 未驗真實 LINE／Google、實體手機／iPhone／WebView、母語校對、完整媒合／文件／訓練與跨租戶安全矩陣；遠端 CI 未跑。下方 85／26／15／20 只屬歷史，不得外推。
+- 未 push／PR／main merge／部署；正式環境未變。本輪人工入口與保留的虛構帳號看 LOCAL_REVIEW。
+
+
+## 2026-11-12：809259b 現況查核（不是新版驗收）
+
+- #18 已合併，但下方 85／26／15／20 為前輪受測結果。main 新增訓練中心／互貿認證等，不能沿用通過宣稱。
+- 實跑 node --test tests/hr-linked-record-store.test.mjs：exit=1，檔案不存在；測試入口失效，沒有可計數的產品測試通過／失敗案例。scripts 與 tests 均不在此快照，也無本機 dot 目錄替代。
+- 本輪只比對 Git、檔案／程式、docs 與容器狀態；正式站通知延遲、真實 LINE／新版 UI／DB 均未驗。現有容器未重建。
+- 查核來源與邊界見 NOTIFICATION_DISCOVERY.md。未放寬門檻或自行宣稱已建立完整測試制度。
+
+## 已合併 PR 審查與部分修復（目前候選）
+
+- 基底 main `52b0d7c`，單一分支 `fix/merged-pr-review`；依使用者要求先驗證再修復並開 PR，不合併 main／部署。#22 仍是另一條 OPEN／Draft，未混入。
+- 確認並修復 F1 圖片確認狀態與入帳分段提交、F2 固定帳單付款重複／半套資料、F3 HR case／worker／stage 交易缺口。F4 文字 webhook 相同事件重送仍會重複入帳，已實際重現但未擅加持久去重 schema。完整 finding、來源、重跑與限制見 MERGED_PR_REVIEW.md。
+- 先驗證再修改：SQLite 新回歸原 5 失敗／1 通過，HR 核心交易原 0 通過／5 失敗（DB double）。修復後 Docker Node20 104、Docker Python3.12 93、真實隔離 PostgreSQL 8、實際登入 HTTP＋DB 3 最終全通過，均 0 失敗／0 跳過。不是瀏覽器 UI E2E 或全站安全核准。
+- 從已合併 commit 原樣恢復 HR 85 項基線與 PR20 的 9 項流程測試，另加 10 項交易測試及 CI test:hr，不弱化／刪斷言。PostgreSQL 故障用 SELECT 1/0，無 schema／trigger 新增；SQLite 故障 trigger 僅限 pytest 暫存 DB。隔離 fixture 結束停用／結案保留，不刪正式資料。
+- app 與 accounting-bot Docker build 通過；僅隔離 app 重建，執行 image 核對一致；bot image 的 /healthz smoke 200，不啟動真實 bot／scheduler。公開 Python image 初次 pull 遇 credential helper 失敗，獨立暫存 config 後成功，未改既有 credentials。
+- 實跑 production npm audit exit1：15 項（3 moderate／8 high／4 critical），next／next-auth 直接依賴未升級；build 的全依賴 27 包含 dev，不能混為一談。lint／型別仍跳過，真實 LINE／Anthropic、iPhone、全部 PR UI 與完整租戶矩陣未驗。精確發布 head／CI 看 PR 讀回。
 
 ## 2026-11-11：main 3772bcf 一致性修正
 

@@ -13,5 +13,5 @@ export function OrderJourney({ order, data }) {
 
 export function WorkspaceStart({ data, onNavigate }) {
   const task = workspaceTasks(data);
-  return <section className={styles.start} aria-label="工作起點"><div><span className={styles.eyebrow}>下一步</span><h2>{task.title}</h2><p>{task.hint}</p></div><div className={styles.nextAction}><strong>{task.count} <small>{data.role === 'worker' ? '項待準備文件' : '張進行中需求'}</small></strong><button type="button" onClick={() => onNavigate(task.tab)}>{task.action}</button>{data.role === 'worker' && <button type="button" onClick={() => onNavigate('basic')}>完善本人履歷</button>}</div></section>;
+  return <section className={styles.start} data-tour="start-card" aria-label="工作起點"><div><span className={styles.eyebrow}>下一步</span><h2>{task.title}</h2><p>{task.hint}</p></div><div className={styles.nextAction}><strong>{task.count} <small>{data.role === 'worker' ? '項待準備文件' : '張進行中需求'}</small></strong><button type="button" onClick={() => onNavigate(task.tab)}>{task.action}</button>{data.role === 'worker' && <button type="button" onClick={() => onNavigate('basic')}>完善本人履歷</button>}</div></section>;
 }

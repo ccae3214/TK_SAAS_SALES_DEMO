@@ -1,0 +1,97 @@
+{
+  "review_base": "52b0d7cfda4aaf378c8232c4fcec62d34f49d789",
+  "branch": "fix/merged-pr-review",
+  "merged_pr_inventory_count": 19,
+  "full_review_of_every_pr": false,
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P1",
+      "prs": [
+        21
+      ],
+      "status": "fixed",
+      "issue": "pending receipt consumption and ledger write not atomic"
+    },
+    {
+      "id": "F2",
+      "priority": "P1",
+      "prs": [
+        19,
+        21
+      ],
+      "status": "fixed",
+      "issue": "bill payment marker and expense not atomic"
+    },
+    {
+      "id": "F3",
+      "priority": "P1",
+      "prs": [
+        20
+      ],
+      "status": "fixed",
+      "issue": "workflow mirror and case stage partially committed"
+    },
+    {
+      "id": "F4",
+      "priority": "P1",
+      "prs": [
+        19
+      ],
+      "status": "confirmed_deferred_schema_design",
+      "issue": "identical text webhook records twice",
+      "observed_expenses": 2,
+      "expected_expenses": 1
+    }
+  ],
+  "before_fix": {
+    "sqlite_new_regressions": {
+      "pass": 1,
+      "fail": 5
+    },
+    "hr_core_db_double": {
+      "pass": 0,
+      "fail": 5
+    }
+  },
+  "final_local": {
+    "node20_hr": {
+      "pass": 104,
+      "fail": 0,
+      "skip": 0
+    },
+    "python312_accounting": {
+      "pass": 93,
+      "fail": 0,
+      "skip": 0
+    },
+    "real_postgres_handler_branches": {
+      "pass": 8,
+      "fail": 0,
+      "skip": 0
+    },
+    "authenticated_http_with_db": {
+      "pass": 3,
+      "fail": 0,
+      "skip": 0
+    },
+    "app_build": "passed",
+    "bot_build": "passed",
+    "bot_image_healthz": 200
+  },
+  "production_audit": {
+    "exit_code": 1,
+    "moderate": 3,
+    "high": 8,
+    "critical": 4,
+    "total": 15
+  },
+  "schema_changed": false,
+  "real_line_sent": false,
+  "deployed": false,
+  "ui_e2e_run": false,
+  "lint_and_types": "skipped_existing_build_config",
+  "ci": "read PR exact head; not predeclared",
+  "app_image": "sha256:591d0918492a096cafb6faa5ff4fdeeb9d7fe894936826e2bee7ee93c26786a3",
+  "bot_image": "sha256:f3ae7d8c4007b4153170d55d27365d9e94643e2cdeb1ba8d4a6c50ca49e1fe76"
+}

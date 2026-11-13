@@ -1,10 +1,43 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-目前基底：main `3772bcf`，工作分支 `fix/hr-linked-record-consistency`，PR 回 main、不直接修改 main。#12 已合併；#17 是 main → wei 的 squash，同 tree，未發現同步退版。本輪修正帳號／資料一致性及已批准的保留 Email 防護，無新增 schema。責任描述不等於完整正式安全驗收通過。
+起始基底 main `809259b`，已整合／驗證 main `52b0d7c`，工作分支 `feature/hr-member-request-notifications`。使用者已批准本輪新增通知表及必要索引、僅在本機隔離 DB 套用 main 既有 schema 與虛構資料測試；先備份／實際驗證還原。已另外授權 push／更新 Draft PR #22，不含正式 LINE、secrets、main 合併或部署。
+
+## main 52b0d7c 整合保留
+
+- src/components/HrOnboardingTour.jsx、HrOnboardingTour.module.css、src/lib/hr-onboarding.js、src/app/api/hr/onboarding/route.js：上游新手導覽與 seen 紀錄；src/lib/hr-access.js 由 main 增加 onboarding_seen，僅於本次批准的隔離 DB 套用。
+- src/app/page.jsx、src/app/demo/page.jsx：首頁改為 HR，展示移到 /demo；保留 main 原始內容，不為修空白重寫展示頁。
+- scripts/migrate-education-levels.sql、src/lib/hr-resume-fields.js、hr-resume-import.js：main 的教育選項與可選舊資料轉換；SQL 本輪未執行。
+- tests/e2e/member-notifications.spec.mjs：登入預期精確改為 main 的 /；依角色正常操作中英導覽並檢查持久化，保留原 8×2 通知案例。
+- 上游新增的 PDF 由 main 原樣整合，未做內容校對；不作本輪產品／合規驗收依據。
+
+## 本輪新增／恢復：會員送審閉環（Draft PR #22）
+
+- src/lib/hr-notifications.js：通知表初始化、送審共同交易、有效 admin 收件、租約／重試與 LINE 安全結果分類。
+- src/app/api/hr/notifications/route.js：全站 admin 專用、同 snapshot 待審摘要。
+- src/components/HrMemberRequestNotifications.jsx、src/components/HrMemberRequestNotifications.module.css：獨立前景輪詢、失敗保留結果與待審入口。
+- src/app/api/hr/member-request/route.js、src/components/HrManagement.jsx：送審入列、通知入口及登入後深連結。
+- scripts/hr-notification-worker.mjs、Dockerfile、compose.review.yaml：預設停用、明確開啟的背景投遞；本機無 LINE token。
+- playwright.config.mjs、scripts/review-browser-proxy.mjs、tests/e2e/：桌機／手機 Chromium 的可重跑流程；proxy 僅測試時維持原本 localhost callback origin。
+- tests/hr-linked-record-store.test.mjs、tests/hr-candidate-withdrawal.test.mjs、tests/hr-workflow.test.mjs、scripts/test-hr-requirements.mjs：從 #18 精確受測 Git 內容恢復原 85 項基線，未削弱斷言；最新 main 上已重跑 85 通過。
+- package.json、package-lock.json：固定 Playwright Test 1.65.0；保留既有跨平台鎖定項，不順帶更新產品依賴。
+- tests/hr-notifications.test.mjs、tests/support/review-fixtures.mjs、scripts/test-notification-store.mjs：新單元、隔離 fixture 與真實 PostgreSQL 失敗／併發驗證；110 項單元、13 項真實 DB、16 項桌機／手機 E2E 均通過。
+- scripts/prepare-notification-review.mjs：保留 fresh／pending 虛構帳號，不重設既有資料。
+- src/lib/hr-translations.jsx：可選 inline 語言工具，僅管理後台改為側欄頂部，避免遮擋通知；其他頁預設不變。
+- docs/MEMBER_NOTIFICATION_REVIEW.md、docs/review/member-notification-results.json、docs/review/member-notifications-desktop.png、docs/review/member-notifications-mobile.png：本輪自我審查與安全證據。
+- .github/workflows/ci.yml：加 HR 單元執行，未把尚未執行的遠端 CI 稱為通過。
 
 唯一操作入口：LOCAL_REVIEW.md；計畫：ROADMAP.md；進度：TASK_LOG.md；實證：VERIFICATION_REPORT.md。COMPARISON_WITH_LINE_HR_PILOT.md 是 ed3c2ab 的歷史快照，不能當最新功能或安全現況。
 
-## 本輪新增：會員／工人／雇主一致性
+## 本輪新增：現況查核
+
+- docs/NOTIFICATION_DISCOVERY.md：新會員通知的觸發／更新機制、docs 失效路徑、歷史驗證界線，沒有已批准產品決策。
+- src/components/HrReminders.jsx、src/lib/use-auto-refresh.js：既有提醒輪詢與focus節流，本輪未修改。
+- src/app/api/hr/member-request/route.js、src/lib/hr-line-bot.js：既有送審／核准通知，尚無新申請通知管理者，本輪未修改。
+- src/components/HrTrainingCenterWorkspace.jsx、src/app/api/hr/training-center/route.js：main 新增訓練中心入口／API，本輪未驗。
+- src/components/HrAgencyCertifications.jsx、src/app/api/hr/agency-certifications/route.js、src/lib/hr-agency-certification*.js：main 新增互貿認證，規則看 AGENCY_CERTIFICATION.md；測試入口警示見該文件。
+- accounting-bot/、accounting-bot/README.md：另一官方帳號、獨立容器／SQLite 的帳單機器人，不混用 HR 通知。
+
+## 歷史新增：會員／工人／雇主一致性（部分測試檔已被 main 刪除）
 
 - src/lib/hr-linked-record-store.js：正反向共同交易、member-first 鎖定、租戶查核、Email 與保留地址驗證、錯誤 rollback/release。
 - tests/hr-linked-record-store.test.mjs：30 個新增單元／交易替身測試；與既有 55 合計 85。
@@ -26,9 +59,9 @@
 | 路徑 | 程式／責任 |
 | --- | --- |
 | /hr/login | src/app/hr/login/page.jsx、login.module.css：沿用 main 新登入 UI，僅顯示已設定 provider |
-| /hr | src/app/hr/page.jsx：依身分分流管理端／會員端 |
+| / 與 /hr | src/app/page.jsx（首頁）重用 src/app/hr/page.jsx：依身分分流管理端／會員端 |
 | /hr/workers/[id] | src/app/hr/workers/[id]/page.jsx：main 的工作者進度入口 |
-| / | src/app/page.jsx：品牌與產品展示 |
+| /demo | src/app/demo/page.jsx：品牌與產品展示（原首頁） |
 | /admin、/notes、/checkout、/demo/* | 原有商店／筆記／展示，非本輪 HR 驗收範圍 |
 
 ## 本輪新增檔案：推薦撤回

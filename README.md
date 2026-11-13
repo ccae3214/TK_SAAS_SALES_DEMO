@@ -1,5 +1,9 @@
 # TK SaaS Sales Demo
 
+最新本機候選（2026-11-13）：`feature/hr-member-request-notifications` 已整合 main `52b0d7c` 並解決 PR #22 衝突，完成會員送審站內通知、可靠 LINE 入列／重試與可重跑會員流程。Node 20：110 通過；真實 PostgreSQL＋受控傳輸：13 通過；桌機／390px Chromium：16 通過，均無失敗／跳過。本機容器已重建並運作，入口 http://localhost:8088/hr/login 。審查與限制：[MEMBER_NOTIFICATION_REVIEW](docs/MEMBER_NOTIFICATION_REVIEW.md)；唯一操作入口：[LOCAL_REVIEW](docs/LOCAL_REVIEW.md)。
+
+本輪 schema／fixture 僅在明確授權的隔離 DB 套用，先備份並實際驗證還原；未發真實 LINE、未改 secrets；已授權更新 Draft PR [#22](https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/22)，不合併 main／部署。CI 與可合併性以精確 PR head 讀回為準。`npm audit --omit=dev` 回報 15 項警告（含 critical），未修復、不列通過；lint／型別仍跳過。新 E2E 只代表會員閉環，不是全站驗收。本次另先備份／實際還原後套用 main 的 onboarding_seen 欄位；測試保留新版首頁與首次導覽。下方 11/11 內容與舊 Python 驗證命令為歷史，只有本輪 LOCAL_REVIEW 的指令是現行操作入口。
+
 最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
 
 以下 PR #12 為歷史快照，已合併，不代表目前分支或新版測試狀態。
@@ -18,7 +22,7 @@
 
 ## 克雷迅人力管理
 
-`/hr` 是克雷迅人力仲介管理系統，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。必要文件屬於工作者、不屬於案件：工作者一建立就會有 22 項文件清單（含上傳、審核、補件紀錄），之後不論配到哪個雇主、有幾個案件都共用同一份，不必重傳。其中「新護照」與「PSA出生證明（附收據）」是前置文件，兩者核准後才能安排體檢及訓練；其餘文件（含體檢 Medical）與體檢、訓練同步追蹤。7 項條件式文件（PSA 結婚證明、子女 PSA 出生證明、CENOMAR、ARC、Health Card、DMW Info Sheet、出生逾 10 年補登證明）會依工作者履歷（婚姻狀況、子女人數、海外／台灣工作經歷）自動判斷是否適用；履歷資訊不足或無法推導的（如補登證明）預設不適用，由仲介覆核。仲介手動調整過的適用狀態不會被自動覆寫，履歷更新時只會重新套用尚未收件、且未經手動調整的文件。案件只會依職類多出「必備證照」（例如家庭看護、機構看護工需要 Caregiving NC2），工作者還沒有證照時，用「未開始→訓練中→考照中→已取得」追蹤取證進度，證照取得前案件不會進入完成階段。
+`/`（首頁，亦可由 `/hr` 進入）是克雷迅人力仲介管理系統；原產品展示首頁已移到 `/demo`，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。必要文件屬於工作者、不屬於案件：工作者一建立就會有 22 項文件清單（含上傳、審核、補件紀錄），之後不論配到哪個雇主、有幾個案件都共用同一份，不必重傳。其中「新護照」與「PSA出生證明（附收據）」是前置文件，兩者核准後才能安排體檢及訓練；其餘文件（含體檢 Medical）與體檢、訓練同步追蹤。7 項條件式文件（PSA 結婚證明、子女 PSA 出生證明、CENOMAR、ARC、Health Card、DMW Info Sheet、出生逾 10 年補登證明）會依工作者履歷（婚姻狀況、子女人數、海外／台灣工作經歷）自動判斷是否適用；履歷資訊不足或無法推導的（如補登證明）預設不適用，由仲介覆核。仲介手動調整過的適用狀態不會被自動覆寫，履歷更新時只會重新套用尚未收件、且未經手動調整的文件。案件只會依職類多出「必備證照」（例如家庭看護、機構看護工需要 Caregiving NC2），工作者還沒有證照時，用「未開始→訓練中→考照中→已取得」追蹤取證進度，證照取得前案件不會進入完成階段。
 
 ## Docker Deploy Verify
 

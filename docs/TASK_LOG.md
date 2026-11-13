@@ -1,6 +1,69 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
-## 2026-11-11：main 基底修正／防退版查核
+## PR #22：遵循 main 的衝突整合與驗證（目前候選）
+
+- 本輪依使用者「遵循 main」確認，整合 main `52b0d7cfda4aaf378c8232c4fcec62d34f49d789`，僅更新 feature／同一 Draft PR；不合併 main、不部署。
+- 衝突解法：`.gitignore` 保留測試與私密產物排除；`HrManagement.jsx` 保留 main 新手導覽／導航標記與通知功能，語言入口仍在側欄避免遮擋；`hr-translations.jsx` 同時保留 inline 模式與 `data-tour`。首頁 `/`、展示 `/demo`、新版履歷選項與上游其他行為照 main，不還原舊版。
+- 先停止 app、`pg_dump -Fc`，實際 `createdb`／`pg_restore --exit-on-error` 至獨立驗證 DB。7 組備份／還原計數相符：會員 250、工人 97、雇主 10、仲介 12、案件 34、需求 45、文件 2134。dump SHA-256：`6b797099570c41ea9925c78501a8c5c01088c6f8bfcc952783f8e2c049c5d28c`；dump／還原 DB 均保留、不進 Git。
+- 經本次授權啟動 main 初始化後，與備份的 public 全欄位 catalog 比對僅新增 `hr_members.onboarding_seen`（jsonb、NOT NULL、default `{}`），無移除／改變欄位；教育程度既有資料轉換 SQL 未執行。沒有調整認證、權限或 secrets。
+- Docker build 成功；重建僅 app，running image 與候選 tag 均為 `sha256:f430c77ec85644f48aaf2c6dca13dbffd408c9594eec1f7a72ed6ede192c82e4`。build 仍跳過 lint／型別，Browserslist 警告未修。
+- 實跑：Docker Node 20 `npm run test:hr` 110 通過；真實隔離 PostgreSQL＋受控傳輸 `node --test scripts/test-notification-store.mjs` 13 通過；完整 `npm run test:e2e` 桌機／390px Chromium 16 通過。三組最終均 0 失敗／0 跳過；Playwright `.last-run.json` 為 passed、failedTests 空。
+- 保留失敗紀錄：初次單一 E2E 1 失敗（登入舊預期 `/hr`，main 已改 `/`）；調整後完整 14 通過／2 失敗（錯將菲律賓仲介導覽當成中文 admin 導覽）。依實際角色與 main 中英導覽調整 fixture helper，正常 UI 點略過並驗證 POST／伺服器 seen 紀錄，再完整 16 通過。原通知／取消／核准／拒絕／去重／編輯保護斷言皆保留，沒有停用導覽或改驗收門檻。
+- HTTP：匿名 `/` 307（前往登入）、`/demo` 200、匿名通知 401。`git diff --check` 工作區及相對最新 main 的本次修改通過；合併前 `git diff --cached --check` exit 2，僅列上游 `src/app/demo/page.jsx` 搬移的既有尾端空白，保留原檔、不冒稱全 staged diff 通過。
+- 精確合併 commit／push／GitHub 可合併性與 CI 以 PR #22 發佈後讀回為準。真實 LINE／Google、iPhone／WebView、正式 migration 與完整新手導覽／其他業務矩陣未驗；audit 既有 15 項警告未重新稽核或修復。以下較早未整合／等待授權／未發佈狀態均為歷史。
+
+## PR #22 衝突整合中（尚未提交／推送）
+
+- 已 fetch main `52b0d7c`，於 feature 分支執行 `git merge --no-commit --no-ff origin/main`；三個衝突已在本機解決並 stage：`.gitignore` 保留測試／私密產物排除；`HrManagement.jsx` 保留新版新手導覽及通知修復的側欄語言入口；`hr-translations.jsx` 合併 inline 模式與 `data-tour`。
+- `git diff --name-only --diff-filter=U` 已無未解衝突；Docker Node 20 `npm run test:hr` 實跑 110 通過／0 失敗／0 跳過。
+- `git diff --check` 工作區通過；`git diff --cached --check` exit 2，指出上游 `src/app/demo/page.jsx` 搬移內容既有尾端空白，未擅自修改上游頁面來掩蓋結果。
+- 啟動前比對 initializer：main 新增 `hr_members.onboarding_seen JSONB NOT NULL DEFAULT '{}'::jsonb`；隔離 DB catalog 唯讀確認目前無此欄位。新 app 尚未建置／啟動，避免自動 schema 異動。等待使用者批准先備份／驗證還原，再只對 `tk_saas_review` 套用此 main 既有新增欄位。
+- 尚未重跑整合後 DB／E2E／CI、未提交 merge、未 push 更新 PR；原已驗證 app 仍運作，非整合後新版。正式環境、權限與 secrets 未變；教育程度資料轉換腳本未執行。
+
+## PR 發佈候選與上游差異
+
+- 使用者已授權提交本輪驗證紀錄、push `feature/hr-member-request-notifications` 並建立以 `main` 為目標的 PR；不授權 main 合併或部署。
+- 發佈前明確 fetch `refs/heads/main:refs/remotes/origin/main`，最新上游為 `52b0d7c`，已超過受測整合基底 `7093129`。包含首頁搬移、新手導覽、履歷欄位與翻譯等更新；本輪不在發佈流程混入整合或程式修改。
+- 以 Draft PR 交付受測候選與可重跑流程；與最新 main 的整合、合併可行性及精確 head CI 須由 GitHub PR 實際狀態確認。下方「未 push／PR」描述的是各輪驗證當時狀態，不是發佈後的即時狀態。
+
+## 重開機後接續驗證（候選 1f3d22c）
+
+- 本輪確認工作分支 `feature/hr-member-request-notifications`、起始工作區乾淨；未修改產品程式，也未 fetch／整合新的 main。
+- app／PostgreSQL 原為 exited，使用既有 Compose `start --wait review-postgres app` 恢復，沒有重建 image、重設 volume、變更 secrets 或新增 schema。原 app image 與候選 image 一致，啟動後讀回兩個服務運作中、DB healthy。
+- 實際重跑：Docker Node 20 `npm run test:hr` 為 110 通過；`node --test scripts/test-notification-store.mjs` 真實隔離 PostgreSQL＋受控傳輸 13 通過；`npm run test:e2e` 桌機／手機 Chromium 16 通過。三組均 0 失敗、0 跳過；E2E 約 58.7 秒。只建立／處理虛構測試資料，不發真實 LINE。
+- HTTP 讀回 `/hr/login` 200、匿名 `/api/hr/notifications` 401；`git diff --check` 通過。原始 Playwright 產物只留本機忽略目錄，既有版控截圖／機器摘要未被重寫。
+- 未重新 build、audit、驗證遠端 CI／真實 LINE／iPhone／WebView；歷史依賴警告與 lint／型別跳過限制不變。未 push、開 PR、合併或部署；人工入口仍為 `http://localhost:8088/hr/login`。
+
+## 2026-11-13：會員通知與流程回歸，本機交付
+
+- 已取得本輪新通知表／索引、既有 main schema 與虛構 fixture 的本機隔離授權；先 dump、實際還原、7 組關鍵計數一致，未刪 DB／table，未更動 secrets。
+- 起於 809259b，交付前 fetch 並整合最新 main 7093129；保留記帳 Bot／HR 語系更新，解決 gitignore 衝突時僅明確開放 root scripts／tests 追蹤，不回退上游產品。
+- 完成有效全站 admin 站內摘要、5 秒前景輪詢／focus、正確會員入口、編輯草稿保護、同交易入列、收件去重、有限重試／lease 與安全紀錄。Email-only／仲介管理者不發 LINE。
+- Docker Node 20：110 通過；真實 PostgreSQL＋明確受控傳輸：13 通過；桌機／390px Chromium：16 通過，均 0 失敗／跳過。提醒量測 4325ms／4666ms，不是正式或 LINE SLO。
+- 初輪 7 個 E2E 失敗經定位／Origin fixture 修正及手機面板修正後完整重跑；截圖再抓到語言按鈕遮擋，將管理後台語言工具移到側欄頂部，加入 hit-test／語言入口 viewport 檢查再全數通過，沒有弱化斷言。
+- 本機 app 已重建並保留；新增未申請／待審虛構帳號供人工確認，不刪歷史。來源與數據看 MEMBER_NOTIFICATION_REVIEW.md、review/member-notification-results.json。
+- npm production audit exit=1：15 項（3 moderate／8 high／4 critical），未自動升級修復；lint／型別跳過。真實 provider、iPhone、其他完整業務閉環／全站安全與遠端 CI 未驗。
+- 已保存本機 feature commits；未 push、未開 PR、未合併 main、未部署、未發真實 LINE。
+
+
+## 2026-11-12：權限盤點與可重跑流程測試討論
+
+- 使用者選通知 A 輕量可靠版、確認會員送審觸發，收件人先釐清現有系統管理權限；仍在討論、不執行 schema／產品／LINE 變更。
+- 再 fetch main，仍為 809259b。讀 hr-access、HR API、訓練中心、互貿認證角色關卡，補 NOTIFICATION_DISCOVERY.md 現況矩陣；分清環境 LINE 最高管理者、全站 admin、所屬仲介管理者與一般業務角色。
+- 現況注意：環境白名單優先於 DB active；訓練中心自有課程按 center_id 隔離，但候訓工人名單目前全域符合條件，不能宣稱已按中心分派隔離。未查正式帳號名單或改權限。
+- 本機來源映射＋DB替身探針11通過／0失敗，沒有真實DB／API權限測試。查證Playwright官方Test Agents、CLI skill、API testing、Trace Viewer與axe整合文件；一個舊文件URL404後改正確官方URL取得內容，未安裝或執行第三方套件。
+- 使用者要的是跨角色業務流程自動回歸，不是單純看UI；建議固定E2E＋AI探索協助，預期與測試閘門不可由healer自行放寬。策略尚未選定，未寫新產品計畫或宣稱新版E2E通過。
+
+## 2026-11-12：最新 main／通知與 UI 測試需求查核
+
+- 明確 fetch main 至 809259b；#18 已合併（31a9dd1）。從該 main 建 review/admin-notifications，只改查核與文件狀態，未實作產品；舊 linked-record store 比對仍一致。
+- 2940321 刪 scripts、f3dcae2 刪 tests；實際工作樹也沒有 .scripts／.tests 替代目錄。node --test tests/hr-linked-record-store.test.mjs 回 exit=1、Could not find；屬驗證入口失效，不是產品斷言失敗。CI 只有網站 build 與記帳 pytest，無 HR 回歸。
+- 閱讀 README、ROADMAP、LOCAL_REVIEW、PROJECT_MAP、VERIFICATION_REPORT、AGENCY_CERTIFICATION 與 accounting-bot README；前述多處仍引用不存在的腳本，已加現況警示，歷史測試不外推。
+- 程式確認 HrReminders 每30秒抓HR／chat，沒有待審會員類型；任一API失敗清空提醒。主會員清單靠載入／手動／focus 更新，10秒只是節流非輪詢。member-request 送審沒有通知管理者的呼叫；現有 LINE push 是核准後通知申請人，記帳 Bot 是另一帳號不可混用。
+- NOTIFICATION_DISCOVERY.md 記錄精確快照、來源位置與界線；未量測正式站延遲、未跑新版UI、未接觸新增DB initializer，現有容器維持原版運作。
+- 使用者正在探討通知與UI／UX測試委託；方案、觸發點、收件人及執行範圍未確認，不先寫產品計畫／程式。未push、開PR、部署、改DB或發LINE。
+
+## 2026-11-11：main 基底修正／防退版查核（歷史）
 
 - #17 已合併，方向 main → wei，head 2d56a90、squash cded102，兩者 tree 相同（diff exit=0）；109 檔是相對舊 wei 累積差異，未發現該同步使 main 退版。最初假設 mergeCommit^2 查詢失敗，查明是 squash 後以精確 tree 比對修正判讀，不臆測人員動機。
 - 新 main=3772bcf（含 4f66df6 自動更新、CSP／nonce），從 origin/main 建 fix/hr-linked-record-consistency；使用者指定之後 PR 目標 main，不在 main 直接寫程式、不再為此同步 wei。

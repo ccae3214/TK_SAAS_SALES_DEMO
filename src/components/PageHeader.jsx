@@ -8,7 +8,7 @@ export function PageHeader({ title = '' }) {
   const router = useRouter();
   const pathname = usePathname();
   const { lang, setLang } = useLanguage();
-  const isHome = pathname === '/';
+  const isHome = pathname === '/demo';
 
   return (
     <div style={{
@@ -30,7 +30,7 @@ export function PageHeader({ title = '' }) {
       {/* 回首頁按鈕 */}
       {!isHome && (
         <button 
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/demo')}
           style={{
             background: '#f1f5f9',
             border: 'none',

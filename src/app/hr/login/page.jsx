@@ -36,7 +36,7 @@ export default function HrLoginPage() {
 
   // LINE 預設用自動登入（跳到 LINE App 認證）。自動登入失敗時，改用「關閉自動登入」重試，
   // 這是 LINE 官方建議的處理方式。
-  const retryLineWithoutAutoLogin = () => signIn('line', { callbackUrl: '/hr' }, { disable_auto_login: 'true' });
+  const retryLineWithoutAutoLogin = () => signIn('line', { callbackUrl: '/' }, { disable_auto_login: 'true' });
 
   async function submit(event) {
     event.preventDefault();
@@ -46,9 +46,9 @@ export default function HrLoginPage() {
         email,
         password,
         redirect: false,
-        callbackUrl: '/hr',
+        callbackUrl: '/',
       });
-      if (result?.ok) router.replace('/hr');
+      if (result?.ok) router.replace('/');
       else setLoginErrorOpen(true);
     } catch {
       setLoginErrorOpen(true);
@@ -76,7 +76,7 @@ export default function HrLoginPage() {
       </aside>
       <div className={styles.formSide}>
       <section className={styles.card}>
-        <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />返回首頁</Link>
+        <Link href="/demo" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />返回首頁</Link>
         <p className={styles.eyebrow}>KOLECION HR</p>
         <h1>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
         <p className={styles.lead}>{registerMode ? '使用 LINE 確認身分，登入後選擇工作者、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>
@@ -90,10 +90,10 @@ export default function HrLoginPage() {
             </button>
           </div>
         )}
-        {providers.line && <button type="button" className={`${styles.btn} ${styles.line}`} onClick={() => signIn('line', { callbackUrl: '/hr' })}>
+        {providers.line && <button type="button" className={`${styles.btn} ${styles.line}`} onClick={() => signIn('line', { callbackUrl: '/' })}>
           <MessageCircle size={20} aria-hidden="true" />{registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
         </button>}
-        {!registerMode && providers.google && <button type="button" className={`${styles.btn} ${styles.google}`} onClick={() => signIn('google', { callbackUrl: '/hr' })}>{googleIcon}使用 Google 登入</button>}
+        {!registerMode && providers.google && <button type="button" className={`${styles.btn} ${styles.google}`} onClick={() => signIn('google', { callbackUrl: '/' })}>{googleIcon}使用 Google 登入</button>}
 
         {providerLoading && <p role="status">正在確認可用的登入方式…</p>}
         {providerError && <p role="alert">暫時無法讀取登入方式，請重新整理頁面再試。</p>}

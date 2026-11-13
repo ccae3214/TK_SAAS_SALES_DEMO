@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { auth } from '@/auth';
-import { ensureHrIdentitySchema, getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
-import { query } from '@/lib/db';
+import { getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
+import pool, { query } from '@/lib/db';
+import { ensureSchema } from '@/app/api/hr/route';
+import { ensureNotificationSchema, submitMemberRequest, MemberRequestConflict, notificationAuthority, dispatchNotifications } from '@/lib/hr-notifications';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,7 +29,8 @@ export async function POST(request) {
   if (!session?.user) return NextResponse.json({ error: '請先登入。' }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
   try {
-    await ensureHrIdentitySchema();
+    await ensureSchema();
+    await ensureNotificationSchema(pool);
     const body = await request.json();
     const requestedRole = String(body?.requestedRole || '');
     if (!HR_ROLES.has(requestedRole)) return NextResponse.json({ error: '請選擇工作者、雇主、仲介或訓練中心類型。' }, { status: 400 });
@@ -48,15 +51,17 @@ export async function POST(request) {
     const lineUserId = session.user.lineUserId || null;
     if (!email && !lineUserId) return NextResponse.json({ error: '登入服務未提供可識別的帳號資料。' }, { status: 400 });
     const displayName = String(session.user.name || email?.split('@')[0] || 'LINE 會員').trim().slice(0, 160);
-    const existing = principal;
-    const result = existing
-      ? await query(`UPDATE hr_members SET requested_role=$2,requested_agency_id=$3,updated_at=NOW()
-          WHERE id=$1 AND role IS NULL RETURNING id,requested_role,requested_agency_id`, [existing.id, requestedRole,requestedAgencyId])
-      : await query(`INSERT INTO hr_members(email,line_user_id,display_name,role,requested_role,requested_agency_id,active)
-          VALUES($1,$2,$3,NULL,$4,$5,TRUE) RETURNING id,requested_role,requested_agency_id`, [email,lineUserId,displayName,requestedRole,requestedAgencyId]);
-    if (!result.length) return NextResponse.json({ error: '此帳號已完成會員類型指派。' }, { status: 409 });
-    return NextResponse.json({ pendingApproval: true, requestedRole: result[0].requested_role, requestedAgencyId: result[0].requested_agency_id }, { status: 201 });
+    const { member, notificationIds } = await submitMemberRequest(pool,
+      { email, lineUserId, displayName, requestedRole, requestedAgencyId }, notificationAuthority());
+    if (notificationIds.length && process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN) {
+      after(async () => {
+        try { await dispatchNotifications(pool, { ids: notificationIds }); }
+        catch { console.error('hr_notification_dispatch_deferred'); }
+      });
+    }
+    return NextResponse.json({ pendingApproval: true, requestedRole: member.requested_role, requestedAgencyId: member.requested_agency_id }, { status: 201 });
   } catch (error) {
+    if (error instanceof MemberRequestConflict) return NextResponse.json({ error: '會員或機構狀態已變更，請重新確認申請。' }, { status: 409 });
     if (error instanceof SyntaxError) return NextResponse.json({ error: '申請資料格式不正確。' }, { status: 400 });
     if (error?.code === '23505') return NextResponse.json({ error: '此 Email 或 LINE 帳號已綁定其他會員。' }, { status: 409 });
     console.error('hr_member_request_failed', error?.name || 'Error');

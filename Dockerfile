@@ -38,6 +38,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/hr-notifications.js ./src/lib/hr-notifications.js
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/hr-notification-worker.mjs ./scripts/hr-notification-worker.mjs
 
 USER nextjs
 

@@ -178,6 +178,22 @@ class Store:
             )
             return cur.rowcount > 0
 
+    def pay_bill_once(self, user_id: str, bill_id: int, period: str, spent_on: date) -> dict | None:
+        """Record the expense and payment marker atomically across connections."""
+        with self._conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            bill = c.execute("SELECT * FROM bills WHERE id=? AND user_id=?", (bill_id, user_id)).fetchone()
+            if bill is None:
+                return None
+            if c.execute("SELECT 1 FROM bill_payments WHERE bill_id=? AND period=?", (bill_id, period)).fetchone():
+                return {"bill": dict(bill), "already_paid": True}
+            expense = c.execute(
+                "INSERT INTO expenses(user_id,amount,note,spent_on) VALUES (?,?,?,?)",
+                (user_id, bill["amount"], bill["name"], spent_on.isoformat()),
+            )
+            c.execute("INSERT INTO bill_payments(bill_id,period,expense_id) VALUES (?,?,?)", (bill_id, period, expense.lastrowid))
+            return {"bill": dict(bill), "already_paid": False, "expense_id": expense.lastrowid}
+
     def paid_bill_ids(self, user_id: str, period: str) -> set[int]:
         with self._conn() as c:
             rows = c.execute(
@@ -245,6 +261,25 @@ class Store:
             args.append(pid)
         with self._conn() as c:
             return c.execute(sql + " ORDER BY id DESC LIMIT 1", args).fetchone()
+
+    def record_pending(self, chat_id: str, pid: int, *, as_bill: bool = False) -> dict | None:
+        """Re-read current values under the write lock; consume only on commit."""
+        with self._conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT * FROM pending_receipts WHERE id=? AND chat_id=? AND status='pending' "
+                "AND created_at >= datetime('now', '-1 day')", (pid, chat_id),
+            ).fetchone()
+            if row is None or (as_bill and (row["kind"] != "bill" or not row["due_day"])):
+                return None
+            if as_bill:
+                saved = c.execute("INSERT INTO bills(user_id,name,amount,due_day) VALUES (?,?,?,?)",
+                                  (SHARED_LEDGER, row["note"], row["amount"], row["due_day"]))
+            else:
+                saved = c.execute("INSERT INTO expenses(user_id,amount,note,spent_on) VALUES (?,?,?,?)",
+                                  (SHARED_LEDGER, row["amount"], row["note"], row["spent_on"]))
+            c.execute("UPDATE pending_receipts SET status='done' WHERE id=?", (pid,))
+            return {**dict(row), "entry_id": saved.lastrowid}
 
     def update_pending(self, pid: int, amount: int | None = None, note: str | None = None) -> None:
         sets, args = [], []

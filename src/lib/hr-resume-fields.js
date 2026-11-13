@@ -12,6 +12,10 @@ export const WORKER_RESUME_LANGUAGES = ['English','Tagalog','Cantonese','Mandari
 
 export const WORKER_RESUME_LANGUAGE_LEVELS = [['basic','基礎'],['medium','中等'],['native','本地']];
 
+// 教育程度：菲律賓高中以上。值存中文，英文介面與 PDF 由翻譯表轉成英文全名與縮寫。
+// 舊資料的「小學／國中／高中／專科／大學」仍可顯示，可用 scripts/migrate-education-levels.sql 一次轉換。
+export const EDUCATION_LEVEL_OPTIONS = ['高中畢業','副學士 / 專科學位','學士學位（大學畢業）','碩士學位','博士學位'];
+
 export const WORKER_RESUME_SELECTS = {
   height:['145以下',...Array.from({length:36},(_,index)=>String(index+145)),'181以上'],
   weight:['39以下',...Array.from({length:31},(_,index)=>String(index+40)),'71以上'],
@@ -19,7 +23,7 @@ export const WORKER_RESUME_SELECTS = {
   numberOfChildren:Array.from({length:11},(_,index)=>String(index)),
   brotherCount:Array.from({length:11},(_,index)=>String(index)),
   sisterCount:Array.from({length:11},(_,index)=>String(index)),
-  educationLevels:['小學','國中','高中','專科','大學'],
+  educationLevels:EDUCATION_LEVEL_OPTIONS,
 };
 
 export const WORKER_RESUME_SKIN_COMPLEXIONS = ['白','黃','黑'];
