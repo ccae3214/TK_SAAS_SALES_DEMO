@@ -25,7 +25,7 @@ import HrRecommendationHistory from '@/components/HrRecommendationHistory';
 import HrAgencyCertifications from '@/components/HrAgencyCertifications';
 import HrEmployerDocuments from '@/components/HrEmployerDocuments';
 import { useHrDialog } from '@/lib/use-hr-dialog';
-import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
+import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
 import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
 import { SINGLE_DATE_STEPS, STEP_DATE_LABELS } from '@/lib/hr-worker-progress';
 import { OWNER_LABELS, STEP_OWNERS, canManageStep } from '@/lib/hr-case-flow';
@@ -245,7 +245,14 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
   // 一次只展開一個階段；使用者沒操作過時，預設展開「剛進入畫面時」的目前階段，之後不會因為資料更新自動換階段。
   const [openKey, setOpenKey] = useState(null);
   const [busyKey, setBusyKey] = useState('');
+  // 狀態篩選（與雇主／仲介的文件審核清單相同）：篩選時只列出符合的文件，並展開有符合文件的階段。
+  const [filter, setFilter] = useState('all');
+  const [closedInFilter, setClosedInFilter] = useState({});
   const confirmed = new Map(acknowledgments.map(item => [item.ack_key, item.confirmed_at]));
+  const statusCounts = { submitted: 0, returned: 0, missing: 0, approved: 0 };
+  requirements.forEach(item => { const group = documentGroup(item); if (group in statusCounts) statusCounts[group] += 1; });
+  const filtered = filter !== 'all';
+  const matchesFilter = item => !filtered || documentGroup(item) === filter;
   const rows = WORKER_STAGES.map(stage => {
     const documents = requirements.filter(item => stageOfRequirement(item.name) === stage.key);
     const known = stage.steps.map(key => steps.find(item => item.step_key === key)).filter(Boolean);
@@ -262,6 +269,12 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
   const currentKey = (rows.find(row => row.total > 0 && row.done < row.total) || {}).stage?.key || '';
   const [initialKey] = useState(currentKey);
   const activeKey = openKey === null ? initialKey : openKey;
+  const visibleRows = filtered ? rows.filter(row => row.documents.some(matchesFilter)) : rows;
+  function changeFilter(key) { setFilter(key); setClosedInFilter({}); }
+  function toggleStage(key) {
+    if (filtered) setClosedInFilter(current => ({ ...current, [key]: !current[key] }));
+    else setOpenKey(activeKey === key ? '' : key);
+  }
   async function act(key, value) {
     if (!caseItem) return;
     setBusyKey(key);
@@ -270,12 +283,21 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
   return <div className="worker-case">
     <h3>{caseItem ? `${caseItem.case_number} · ${caseItem.employer_name}` : workerName}</h3>
     <div className="stage-overall"><div><strong>整體進度</strong><span>{doneAll}/{totalAll}</span></div><progress value={doneAll} max={totalAll || 1} /></div>
+    {requirements.length > 0&&<div className="doc-filter-bar" role="group" aria-label="文件狀態篩選">
+      {DOCUMENT_STATUS_FILTERS.map(([key, label]) => <button type="button" key={key}
+        className={`doc-filter${filter === key ? ' is-active' : ''}`}
+        aria-pressed={filter === key} onClick={() => changeFilter(key)}>
+        <span>{label}</span>{key !== 'all'&&<b>{statusCounts[key]}</b>}
+      </button>)}
+    </div>}
+    {filtered && visibleRows.length === 0&&<p className="doc-review-empty">目前沒有符合的文件。</p>}
     <div className="stage-list">
-      {rows.map(({ stage, documents, stageSteps, acks, total, done }) => {
-        const isOpen = stage.key === activeKey;
+      {visibleRows.map(({ stage, documents: allDocuments, stageSteps, acks, total, done }) => {
+        const documents = allDocuments.filter(matchesFilter);
+        const isOpen = filtered ? !closedInFilter[stage.key] : stage.key === activeKey;
         const isCurrent = stage.key === currentKey;
         return <section key={stage.key} className={`stage-card${isCurrent ? ' stage-current' : ''}${total > 0 && done === total ? ' stage-done' : ''}`}>
-          <button type="button" className="stage-toggle" aria-expanded={isOpen} onClick={() => setOpenKey(isOpen ? '' : stage.key)}>
+          <button type="button" className="stage-toggle" aria-expanded={isOpen} onClick={() => toggleStage(stage.key)}>
             <span className="stage-badge">{stage.key}</span>
             <span className="stage-heading"><strong>{stage.title}</strong>{stage.duration&&<small>{stage.duration}</small>}</span>
             {isCurrent&&<span className="stage-current-tag">目前階段</span>}
@@ -285,12 +307,12 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
           {isOpen&&<div className="stage-body">
             <p className="stage-summary">{stage.summary}</p>
             {documents.length > 0&&<div className="stage-section"><h4>文件</h4>{documents.map(item => renderDocumentItem(item, DOCUMENT_GUIDE[item.name]))}</div>}
-            {stageSteps.length > 0&&<div className="stage-section"><h4>辦理進度</h4>{stageSteps.map(step => <div className="stage-step" key={step.step_key}>
+            {!filtered && stageSteps.length > 0&&<div className="stage-section"><h4>辦理進度</h4>{stageSteps.map(step => <div className="stage-step" key={step.step_key}>
               <div><strong>{step.label}</strong>{step.note&&<small>{step.note}</small>}</div>
               {step.completed_on&&<time>{String(step.completed_on).slice(0, 10)}</time>}
               <span className={`doc-status ${step.completed_on ? 'doc-approved' : step.started_on ? 'doc-submitted' : 'doc-missing'}`}>{step.completed_on ? '已完成' : step.started_on ? '進行中' : '尚未開始'}</span>
             </div>)}</div>}
-            {acks.length > 0&&<div className="stage-section"><h4>請你確認</h4>{!caseItem&&<p className="stage-empty">建立案件後才能確認以下項目。</p>}{acks.map(ack => {
+            {!filtered && acks.length > 0&&<div className="stage-section"><h4>請你確認</h4>{!caseItem&&<p className="stage-empty">建立案件後才能確認以下項目。</p>}{acks.map(ack => {
               const when = confirmed.get(ack.key);
               return <div key={ack.key} className={`stage-ack${when ? ' is-confirmed' : ''}`}>
                 <p>{ack.text}</p>
@@ -298,9 +320,9 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
                   : <button type="button" disabled={!caseItem || busyKey === ack.key} onClick={() => act(ack.key, true)}>我已確認</button>}
               </div>;
             })}</div>}
-            {(stage.tips || []).length > 0&&<div className="stage-section"><h4>注意事項</h4><ul className="stage-tips">{stage.tips.map((tip, index) => <li key={index}><span>{tip.text}</span><GuideTag tag={tip.tag} /></li>)}</ul></div>}
-            {(stage.info || []).length > 0&&<div className="stage-section"><h4>須知</h4>{stage.info.map((info, index) => <div className="stage-info" key={index}>{info.title&&<strong>{info.title}</strong>}<p>{info.text}</p><GuideTag tag={info.tag} /></div>)}</div>}
-            {total === 0 && !(stage.info || []).length && !(stage.tips || []).length&&<p className="stage-empty">此階段沒有需要你處理的項目。</p>}
+            {!filtered && (stage.tips || []).length > 0&&<div className="stage-section"><h4>注意事項</h4><ul className="stage-tips">{stage.tips.map((tip, index) => <li key={index}><span>{tip.text}</span><GuideTag tag={tip.tag} /></li>)}</ul></div>}
+            {!filtered && (stage.info || []).length > 0&&<div className="stage-section"><h4>須知</h4>{stage.info.map((info, index) => <div className="stage-info" key={index}>{info.title&&<strong>{info.title}</strong>}<p>{info.text}</p><GuideTag tag={info.tag} /></div>)}</div>}
+            {!filtered && total === 0 && !(stage.info || []).length && !(stage.tips || []).length&&<p className="stage-empty">此階段沒有需要你處理的項目。</p>}
           </div>}
         </section>;
       })}
@@ -699,6 +721,16 @@ function PortalStyles() {
 .hr-member-shell .doc-group>summary{display:flex;align-items:center;gap:8px;min-height:42px;padding:6px 2px;color:var(--ink-2);font-size:13px;font-weight:800;cursor:pointer;list-style:none}
 .hr-member-shell .doc-group>summary svg{margin-left:auto;transition:transform .2s}
 .hr-member-shell .doc-group[open]>summary svg{transform:rotate(180deg)}
+.hr-member-shell .doc-stage{margin-top:12px;border:1px solid var(--line-soft);border-radius:12px;background:#fff;overflow:hidden}
+.hr-member-shell button.doc-stage-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:8px 12px;border:0;border-radius:0;background:var(--g-50);color:var(--ink-2);font:inherit;font-size:13.5px;font-weight:800;text-align:left;box-shadow:none}
+.hr-member-shell button.doc-stage-toggle:hover:not(:disabled){background:var(--g-100);transform:none;box-shadow:none;filter:none}
+.hr-member-shell .doc-stage-toggle .stage-badge{width:28px;height:28px;border-radius:9px;font-size:13px}
+.hr-member-shell .doc-stage-done .stage-badge{background:var(--g-700);color:#fff}
+.hr-member-shell .doc-stage-title{flex:1;min-width:0}
+.hr-member-shell .doc-stage-count{flex:none;color:var(--ink-3);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.hr-member-shell .doc-stage-chevron{flex:none;color:var(--ink-3);transition:transform .2s}
+.hr-member-shell button.doc-stage-toggle[aria-expanded=true] .doc-stage-chevron{transform:rotate(180deg)}
+.hr-member-shell .doc-stage-body{padding:0 10px 12px}
 .hr-member-shell .doc-review-empty{margin:8px 0 0;padding:20px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--ink-3);font-size:14px}
 .hr-member-shell .process-row,.hr-member-shell .progress-step{display:grid;grid-template-columns:minmax(140px,1.2fr) repeat(2,minmax(130px,1fr)) minmax(120px,1fr) auto;align-items:end;gap:10px;padding:13px 15px;margin-top:10px;border:1px solid var(--line-soft);border-radius:14px;background:#fcfdfc}
 .hr-member-shell .process-row strong,.hr-member-shell .progress-step strong{align-self:center;color:var(--ink);font-size:14px}
