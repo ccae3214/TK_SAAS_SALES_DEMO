@@ -329,6 +329,22 @@ const EN_MORE = {
   '管理者可設定台灣仲介、業務與轉交的菲律賓仲介': 'Administrators can assign Taiwan agencies, representatives, and Philippines agencies to forward orders to', '菲律賓仲介機構：': 'Philippines agency: ', '菲律賓仲介：': 'Philippines agency: ', '菲律賓轉介': 'Philippines referrals', '所屬仲介案件與配工工作者': 'Agency cases and placed workers', '資料僅供授權帳號查閱。': 'Data is available to authorized accounts only.',
   '護照資料頁與 PSA 出生證明是預設前置文件。這裡新增的文件可與體檢、訓練同步辦理。': 'Passport bio page and PSA birth certificate are prerequisite documents. Other documents added here can be processed alongside medical checks and training.', '護照資料頁與 PSA 出生證明核准後，才能安排體檢與訓練。': 'Medical checks and training can be scheduled after the passport bio page and PSA birth certificate are approved.',
   '選擇仲介': 'Select an agency', '選擇台灣仲介': 'Select a Taiwan agency', '選擇轉交機構': 'Select agencies to forward to', '雇主案件與工作者進度': 'Employer cases and worker progress', '雇主／工作類型': 'Employer / job type', '項已更新': 'items updated', '項文件要求': 'document requirements', '預覽': 'Preview', '類型': 'Type', '階段': 'Stage', '（Staff 作業） · 台灣業務：': '(Staff) · Taiwan representative (Broker): ', '｜合作台灣仲介：': ' · Partner Taiwan agencies: ',
+  // 登入頁（/hr/login）
+  '跨國人力仲介，': 'Cross-border recruitment,',
+  '從申辦到入境一次掌握': 'every step from application to arrival in one place',
+  '工作者、雇主與仲介在同一個平台協作，案件進度、文件審核與聊天溝通全部即時同步。': 'Workers, employers and agencies collaborate on one platform. Case progress, document review and chat stay in sync in real time.',
+  '案件進度透明，每個階段都看得到': 'Transparent case progress, visible at every stage',
+  '必要文件線上上傳、審核與補件': 'Upload, review and resubmit required documents online',
+  'LINE 通知與站內聊天室即時溝通': 'Real-time communication through LINE notifications and in-app chat',
+  '© 克雷迅人力管理系統': '© Kolecion HR Management System',
+  '登入沒有完成。如果你剛剛是從 LINE App 跳回來，可能是瀏覽器不同或隱私模式造成的，請按下方按鈕，改用 LINE 帳號密碼登入再試一次。': 'Sign-in was not completed. If you were just sent back from the LINE app, a different browser or private mode may be the cause. Tap the button below to sign in with your LINE email and password and try again.',
+  '改用 LINE 帳號密碼登入': 'Sign in with LINE email and password',
+  '正在確認可用的登入方式…': 'Checking available sign-in methods…',
+  '暫時無法讀取登入方式，請重新整理頁面再試。': 'Unable to load the sign-in methods right now. Please refresh the page and try again.',
+  '目前使用會員帳號登入；LINE 與 Google 登入尚未開放。': 'Please sign in with a member account. LINE and Google sign-in are not available yet.',
+  '返回會員帳號登入': 'Back to member account sign-in',
+  '請重新檢查帳號密碼。若帳號尚未啟用，請洽官方 LINE@ 管理員。': 'Please check your email and password. If your account is not activated yet, contact the official LINE@ administrator.',
+  '我知道了': 'Got it',
 };
 const FLOW_EN = {
   '請填寫有效的登入 Email；已綁定 Email 登入的會員不可清空。': 'Enter a valid login email. An account using email login cannot have an empty email.',
