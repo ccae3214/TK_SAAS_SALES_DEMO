@@ -13,9 +13,9 @@
 .btn{min-height:38px;padding:0 14px;border-radius:9px;border:1px solid #cfdcd5;background:#fff;color:#14231d;font:inherit;font-weight:700;cursor:pointer}
 .primary{background:#176b54;border-color:#176b54;color:#fff}
 .skip{margin-top:10px;padding:0;border:0;background:transparent;color:#6b7c73;font:inherit;font-size:13px;text-decoration:underline;cursor:pointer}
-.help{position:fixed;right:18px;bottom:18px;z-index:9980;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #b9d3c8;background:#fff;color:#176b54;font:inherit;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(8,24,18,.18);cursor:pointer}
+.help{position:fixed;left:18px;bottom:18px;z-index:9980;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #b9d3c8;background:#fff;color:#176b54;font:inherit;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(8,24,18,.18);cursor:pointer}
 @media (max-width:640px){
   .card{left:12px;right:12px;bottom:12px;top:auto;width:auto;transform:none}
-  .help{right:12px;bottom:12px}
+  .help{left:12px;bottom:12px}
 }
 @media (prefers-reduced-motion:reduce){.spot{transition:none}}
