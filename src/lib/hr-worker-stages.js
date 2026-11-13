@@ -23,7 +23,7 @@ export const WORKER_STAGES = [
       'Voter ID／Voter Certificate', '體檢 Medical', 'LCR Form 1-A', 'Health Card', 'BOI旅行紀錄（單身及已婚）',
       '出生逾10年補登證明（洗禮證明；未受洗提供學校紀錄）', 'TIN ID',
     ],
-    steps: ['passport', 'document_arrival', 'personal_documents', 'medical', 'training', 'umid'],
+    steps: ['passport', 'document_arrival', 'personal_documents', 'medical', 'medical_expiry', 'training', 'umid'],
     acks: [{ key: 'passport_valid', text: '我已確認護照效期涵蓋合約期，且至少還有 6 個月以上。' }],
     tips: [{ text: '體檢報告在簽證申請時需為 3 個月內。', tag: 'verified' }],
     fallback: true, // 清單以外（例如管理者自訂）的文件預設歸到這個階段
@@ -31,8 +31,8 @@ export const WORKER_STAGES = [
   {
     key: 'C', title: '契約與簽證', duration: '約 2–4 週（多由仲介辦理，你要審閱並簽名）',
     summary: '勞動契約與工資切結書要經 MECO 認證、DMW 審核；簽證由雇主或仲介申請。',
-    documents: [],
-    steps: ['accr_in', 'accr_out', 'visa'],
+    documents: ['合約 Contract（掃描檔）', '簽證 Visa'],
+    steps: ['accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'visa'],
     acks: [
       { key: 'contract_reviewed', text: '我已審閱勞動契約與工資切結書，兩份文件的薪資與費用數字一致，並在簽名前自己對照過一次。' },
       { key: 'passport_custody', text: '我知道護照不應長期交給仲介或雇主；若必須暫借，一定要有書面與收據。' },
@@ -42,8 +42,8 @@ export const WORKER_STAGES = [
   {
     key: 'D', title: '出境前', duration: '約 1–2 週',
     summary: 'OWWA、PDOS、OEC 與社會保險登記。',
-    documents: ['SSS contribution'],
-    steps: ['pdos', 'owwa', 'oec', 'expected_entry'],
+    documents: ['SSS contribution', 'OEC 出國認證'],
+    steps: ['pdos', 'owwa', 'oec', 'ticket', 'expected_entry'],
     acks: [{ key: 'ticket_payer', text: '我已確認機票由誰負擔，且與合約內容一致。' }],
     tips: [
       { text: 'OWWA 會員每份合約繳一次，約 USD 25。', tag: 'estimate' },
@@ -92,7 +92,7 @@ export const DOCUMENT_GUIDE = {
   'PSA結婚證明（附收據）': { agency: 'PSA', time: '約 1–2 週', cost: '約 ₱155–365', tag: 'estimate' },
   'NBI（確認有效期限）': { agency: 'NBI', time: '預約後數日', cost: '約 ₱130–200', tag: 'estimate' },
   '照片（2x2 16張及護照尺寸2張）': { agency: '照相館', time: '當天', cost: '數十至百餘披索', tag: 'estimate' },
-  'CAV／NC2 TESDA': { agency: 'TESDA', time: '視情況', cost: 'NC 測驗約 ₱1,500–3,000', tag: 'estimate' },
+  'CAV／NC2 TESDA': { agency: 'TESDA', time: '視情況', cost: 'NC 測驗約 ₱1,500–3,000', tag: 'estimate', note: '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。' },
   '體檢 Medical': { agency: 'DMW 或台灣認可醫院', time: '3–5 天', cost: '約 ₱3,400–7,000', tag: 'estimate', note: '簽證申請時需為 3 個月內的報告。' },
   'SSS contribution': { cost: 'OFW 通常要登記或繳款', tag: 'estimate' },
 };
@@ -157,6 +157,18 @@ export const WORKER_STAGE_EN = {
   'OFW 通常要登記或繳款': 'OFWs usually need to register or pay contributions',
   [`費用與時間多為估計，實際以主管機關公告與你的合約為準；製造與漁撈類的海外招募費、機票等費用，未來可能改由雇主負擔。以上資訊不是法律意見。`]: 'Costs and timings are mostly estimates; the competent authorities\' announcements and your contract prevail. Overseas recruitment fees, plane tickets and similar costs for manufacturing and fishing may shift to employers in future. This information is not legal advice.',
   '遇到問題：台灣勞動部 1955 勞工諮詢申訴專線；菲律賓 OWWA 24 小時專線 1348。紅旗：要求先付大筆現金、不給收據、扣留護照、承諾保證出國時間、要你簽空白文件。': 'If you run into problems: Taiwan\'s Ministry of Labor 1955 hotline; OWWA 24-hour hotline 1348 in the Philippines. Red flags: demands for large upfront cash, no receipts, passport withheld, guaranteed departure dates, or being asked to sign blank documents.',
+  // 新增的文件欄位、步驟與欄位名稱
+  '合約 Contract（掃描檔）': 'Contract (scan)', '簽證 Visa': 'Visa', 'OEC 出國認證': 'OEC (overseas employment certificate)',
+  '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。': 'Only care-related jobs (home caregiver, institutional caregiver, domestic helper) need this; other job types do not.',
+  '看護相關職業（家庭看護、機構看護工、家庭幫傭）': 'Care-related jobs (home caregiver, institutional caregiver, domestic helper)',
+  'PDOS 台灣文化講習（1 日）': 'PDOS Taiwan culture seminar (1 day)', '體檢過期日': 'Medical exam expiry date', '合約到達菲律賓': 'Contract arrived in the Philippines',
+  '核准函（合約）發函日': 'Approval letter (contract) issue date', '來華工資切結書認證': 'Wage affidavit attestation',
+  '訓練（60 日；中文 A1 共 240 小時）': 'Training (60 days; Chinese A1 course, 240 study hours in total)', 'OEC（當日可領）': 'OEC (same-day release)', '機票／出境': 'Air ticket / departure',
+  'PDOS 講習日': 'PDOS seminar date', '體檢過期日期': 'Medical exam expiry date', '到達菲律賓日期': 'Date arrived in the Philippines', '核准函發函日期': 'Approval letter issue date',
+  '認證領出日期': 'Attestation release date', '實際出境日期': 'Actual departure date',
+  '送件日期': 'Submission date', '取得日期': 'Date obtained', '開課日期': 'Course start date', '結業日期': 'Course completion date',
+  '簽證類型': 'Visa type', '一般件（5 個工作天）': 'Regular (5 working days)', '加急件（3 個工作天）': 'Expedited (3 working days)',
+  '雇主': 'Employer', '機票資訊（航班／備註）': 'Ticket information (flight / notes)', '尚未選擇': 'Not selected',
   // 介面文字
   '整體進度': 'Overall progress', '目前階段': 'Current stage', '請你確認': 'Please confirm', '辦理進度': 'Progress', '注意事項': 'Things to note', '須知': 'Good to know',
   '我已確認': 'I confirm', '取消確認': 'Undo confirmation', '已確認': 'Confirmed', '辦理單位': 'Handled by', '預估時間': 'Estimated time', '費用': 'Cost',

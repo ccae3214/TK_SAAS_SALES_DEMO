@@ -5,7 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools } from '@/lib/hr-translations';
 import { progressText } from '@/lib/hr-worker-progress-text';
 import {
-  CASE_STAGE_LABELS, DOCUMENT_STATUS_LABELS, HEALTH_TRAINING_STEP_KEYS, SINGLE_DATE_STEPS, STATUS_LABELS, STEP_DATE_LABELS, allowedNextStatuses,
+  CASE_STAGE_LABELS, DOCUMENT_STATUS_LABELS, HEALTH_TRAINING_STEP_KEYS, SINGLE_DATE_STEPS, STATUS_LABELS, STEP_DATE_LABELS, STEP_DETAILS, STEP_PAIR_LABELS, allowedNextStatuses,
 } from '@/lib/hr-worker-progress';
 import { OWNER_LABELS, STEP_OWNERS } from '@/lib/hr-case-flow';
 import styles from './HrWorkerProgress.module.css';
@@ -16,15 +16,27 @@ const STATUS_TONES = { passed: 'ok', completed: 'ok', failed: 'danger', retest: 
 
 function StepForm({ step, t, disabled, onSave }) {
   const single = SINGLE_DATE_STEPS.has(step.step_key);
+  const detail = STEP_DETAILS[step.step_key];
+  const [startLabel, endLabel] = STEP_PAIR_LABELS[step.step_key] || ['開始日期', '完成日期'];
   return (
     <form className={styles.stepForm} onSubmit={event => onSave(event, step)}>
       {single ? (
         <label>{t(STEP_DATE_LABELS[step.step_key] || '辦理日期')}<input type="date" name="completedOn" defaultValue={step.completed_on || ''} disabled={disabled} /></label>
       ) : (
         <>
-          <label>{t('開始日期')}<input type="date" name="startedOn" defaultValue={step.started_on || ''} disabled={disabled} /></label>
-          <label>{t('完成日期')}<input type="date" name="completedOn" defaultValue={step.completed_on || ''} disabled={disabled} /></label>
+          <label>{t(startLabel)}<input type="date" name="startedOn" defaultValue={step.started_on || ''} disabled={disabled} /></label>
+          <label>{t(endLabel)}<input type="date" name="completedOn" defaultValue={step.completed_on || ''} disabled={disabled} /></label>
         </>
+      )}
+      {detail && (
+        <label>{t(detail.label)}
+          {detail.type === 'select' ? (
+            <select name="detail" defaultValue={step.detail || ''} disabled={disabled}>
+              <option value="">{t('尚未選擇')}</option>
+              {detail.options.map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}
+            </select>
+          ) : <input name="detail" maxLength={detail.maxLength} defaultValue={step.detail || ''} disabled={disabled} />}
+        </label>
       )}
       <label className={styles.noteField}>{t('備註')}<input name="note" maxLength={1000} defaultValue={step.note || ''} disabled={disabled} /></label>
       <button type="submit" className={styles.primary} disabled={disabled}>{t('儲存')}</button>
@@ -72,7 +84,7 @@ function DocumentCard({ doc, viewer, t, disabled, onReview, onApplicability, onU
       <header className={styles.docHeader}>
         <div>
           <strong>{t(doc.name)}</strong>
-          {doc.entry_gate && <span className={styles.gate}>{t('前置文件')}</span>}
+          {doc.entry_gate && <span className={styles.gate}>{t('初審文件')}</span>}
           {doc.applicability && <small>{t(doc.applicability)}</small>}
         </div>
         <span className={`${styles.pill} ${styles[`tone_${TONES[state] || 'muted'}`]}`}>{t(state === 'na' ? '不適用' : DOCUMENT_STATUS_LABELS[doc.status] || doc.status)}</span>
@@ -277,6 +289,7 @@ export default function HrWorkerProgress({ workerId }) {
     const form = new FormData(event.currentTarget);
     return send(`/api/hr/agency-workers/${workerId}`, patchJson({
       type: 'step', stepKey: step.step_key, startedOn: form.get('startedOn') || '', completedOn: form.get('completedOn') || '', note: form.get('note') || '',
+      detail: form.get('detail') || '',
     }), '進度已儲存。', '儲存失敗，請稍後再試。');
   };
   const onStatus = (kind, status) => send(`/api/hr/agency-workers/${workerId}`, patchJson({ type: 'status', workflowType: kind, status }),

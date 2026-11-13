@@ -46,7 +46,7 @@ details.group > summary { cursor: pointer; }
   padding: 6px 14px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #111827; font: inherit; cursor: pointer;
 }
 .actions button:hover:not(:disabled), .uploadRow button:hover:not(:disabled) { background: #f3f4f6; }
-.page button:disabled, .page input:disabled { opacity: 0.55; cursor: not-allowed; }
+.page button:disabled, .page input:disabled, .page select:disabled { opacity: 0.55; cursor: not-allowed; }
 .page .primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .page .primary:hover:not(:disabled) { background: #1e40af; }
 .page .danger { background: #fff; border-color: #dc2626; color: #b91c1c; }
@@ -62,7 +62,7 @@ details.group > summary { cursor: pointer; }
 .twoColumns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 8px; }
 .stepRow { padding: 10px 0; border-top: 1px solid #f3f4f6; }
 .stepForm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 8px; }
-.stepForm input { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; }
+.stepForm input, .stepForm select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; background: #fff; }
 .noteField { flex: 1 1 200px; }
 .noteField input { width: 100%; }
 

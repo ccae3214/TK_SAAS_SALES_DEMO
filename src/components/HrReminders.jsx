@@ -143,6 +143,7 @@ function collectDateReminders(data) {
 export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
   const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
+  const [expiryReminders, setExpiryReminders] = useState([]);
   const [profileReminders, setProfileReminders] = useState([]);
   const [unreadRooms, setUnreadRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +160,7 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile,
         if (!hrResponse.ok || !chatResponse.ok) throw new Error('提醒暫時無法載入');
         if (!active) return;
         setDateReminders(collectDateReminders(hr));
+        setExpiryReminders(hr.expiryReminders || []);
         setProfileReminders(collectProfileReminders(hr));
         setTrainingReminders(hr.role === 'worker' ? collectTrainingReminders(hr.trainingCourses) : []);
         setUnreadRooms((chat.rooms || []).filter(room => Number(room.unreadCount) > 0));

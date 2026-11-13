@@ -164,7 +164,7 @@ export const TRAINING_CENTER_EN = {
   '這門課程已有班別，無法更換證照。': 'This course already has classes, so its certification cannot be changed.',
 
   // 訓練與來台文件流程（工人訓練安排）的規則訊息
-  '必要文件全部核准後，才能安排訓練。': 'Training can be scheduled only after all required documents are approved.',
+  '初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）通過後，才能安排訓練。': 'Training can be scheduled once the initial document review is passed (any two of LCR Form 1-A, PSA birth certificate and passport are approved).',
   '訓練狀態由訓練中心或管理者管理。': 'Training status is managed by the training center or an administrator.',
   '抵台體檢狀態由台灣仲介或管理者管理。': 'Arrival medical exam status is managed by the Taiwan agency or an administrator.',
   '請先由台灣仲介登錄實際入境日期，才能安排抵台體檢。': 'The Taiwan agency must record the actual entry date before the arrival medical exam can be scheduled.',

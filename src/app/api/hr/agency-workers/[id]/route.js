@@ -3,12 +3,13 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import {
-  WORKER_PROGRESS_STEPS, isValidDateText, pickLatestStep, statusSetFor,
+  WORKER_PROGRESS_STEPS, cleanStepDetail, isValidDateText, pickLatestStep, statusSetFor,
 } from '@/lib/hr-worker-progress';
 import {
   OWNER_LABELS, STEP_OWNERS, WORKFLOW_DENIED_MESSAGES, canManageStep, canTransition, canUpdateWorkflow, workflowBlockReason,
 } from '@/lib/hr-case-flow';
 import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
+import { entryGateClosedSql } from '@/lib/hr-requirements';
 
 // 菲律賓仲介（與系統管理者）管理「底下工作者」的文件審核與進度安排；訓練中心只能更新「訓練」狀態。
 // 文件的審核、適用性切換、上傳與預覽沿用既有 API（/api/hr、/api/hr/documents）；
@@ -50,6 +51,7 @@ async function ensureWorkerProgressSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (worker_id, step_key)
     )`);
+    await pool.query("ALTER TABLE hr_worker_progress_steps ADD COLUMN IF NOT EXISTS detail TEXT NOT NULL DEFAULT ''");
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_worker_health_training (
       worker_id BIGINT PRIMARY KEY REFERENCES hr_workers(id) ON DELETE CASCADE,
       medical_status TEXT NOT NULL DEFAULT 'not_scheduled',
@@ -100,16 +102,16 @@ export async function GET(request, { params }) {
         LEFT JOIN hr_document_reviews v ON v.submission_id=s.id LEFT JOIN hr_document_files f ON f.submission_id=s.id
         WHERE d.worker_id=$1 ORDER BY s.requirement_id,s.version_number DESC`, [workerId]),
       query(`SELECT step_key,to_char(started_on,'YYYY-MM-DD') AS started_on,to_char(completed_on,'YYYY-MM-DD') AS completed_on,
-          note,updated_by,updated_at FROM hr_worker_progress_steps WHERE worker_id=$1`, [workerId]),
+          note,detail,updated_by,updated_at FROM hr_worker_progress_steps WHERE worker_id=$1`, [workerId]),
       query(`SELECT DISTINCT ON (s.step_key) s.step_key,to_char(s.started_on,'YYYY-MM-DD') AS started_on,
-          to_char(s.completed_on,'YYYY-MM-DD') AS completed_on,s.note,s.updated_by,s.updated_at
+          to_char(s.completed_on,'YYYY-MM-DD') AS completed_on,s.note,s.detail,s.updated_by,s.updated_at
         FROM hr_application_steps s JOIN hr_cases c ON c.id=s.case_id
         WHERE c.worker_id=$1 AND (s.started_on IS NOT NULL OR s.completed_on IS NOT NULL OR s.note<>'')
         ORDER BY s.step_key,s.updated_at DESC`, [workerId]),
       query('SELECT medical_status,training_status FROM hr_worker_health_training WHERE worker_id=$1', [workerId]),
       query(`SELECT c.id,c.case_number,c.stage,c.status,c.medical_status,c.training_status,e.name AS employer_name
         FROM hr_cases c JOIN hr_employers e ON e.id=c.employer_id WHERE c.worker_id=$1 ORDER BY c.updated_at DESC`, [workerId]),
-      query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed`, [workerId]),
+      query(`SELECT ${entryGateClosedSql('$1')} AS gate_closed`, [workerId]),
       query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]),
       workerHasArrived(query, workerId),
     ]);
@@ -134,7 +136,7 @@ export async function GET(request, { params }) {
       const picked = pickLatestStep(workerStepMap.get(stepKey), caseStepMap.get(stepKey));
       return {
         step_key: stepKey, label,
-        started_on: picked?.started_on || '', completed_on: picked?.completed_on || '', note: picked?.note || '',
+        started_on: picked?.started_on || '', completed_on: picked?.completed_on || '', note: picked?.note || '', detail: picked?.detail || '',
         updated_at: picked?.updated_at || null, source: picked?.source || null,
         updated_by: access.isAdmin ? (picked?.updated_by || '') : undefined,
       };
@@ -191,6 +193,9 @@ export async function PATCH(request, { params }) {
       if (!canManageStep(principal.role, principal.agency_type, stepKey)) return NextResponse.json({ error: `「${step[1]}」由${OWNER_LABELS[STEP_OWNERS[stepKey]] || '指定單位'}辦理。` }, { status: 403 });
       if (startedOn && completedOn && completedOn < startedOn) return NextResponse.json({ error: '完成日不能早於開始日。' }, { status: 400 });
       const note = clean(body.note, 1000);
+      // 簽證類型、OWWA 雇主、機票資訊：只有這幾個項目有額外欄位，其他項目一律存空字串。
+      const detail = cleanStepDetail(stepKey, body.detail);
+      if (!detail.ok) return NextResponse.json({ error: '欄位內容不正確。' }, { status: 400 });
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
@@ -198,14 +203,14 @@ export async function PATCH(request, { params }) {
         await client.query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,updated_by,updated_at)
           VALUES($1,$2,$3::date,$4::date,$5,$6,NOW())
           ON CONFLICT(worker_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
-            note=EXCLUDED.note,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
-        [workerId, stepKey, startedOn || null, completedOn || null, note, actor]);
+            note=EXCLUDED.note,detail=EXCLUDED.detail,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
+        [workerId, stepKey, startedOn || null, completedOn || null, note, actor, detail.value]);
         // 同步到這位工作者尚未結案的案件，讓案件頁（台灣仲介、雇主、工作者）看到同一份進度。
-        await client.query(`INSERT INTO hr_application_steps(case_id,step_key,label,started_on,completed_on,note,updated_by,updated_at)
-          SELECT c.id,$2,$3,$4::date,$5::date,$6,$7,NOW() FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'
+        await client.query(`INSERT INTO hr_application_steps(case_id,step_key,label,started_on,completed_on,note,detail,updated_by,updated_at)
+          SELECT c.id,$2,$3,$4::date,$5::date,$6,$8,$7,NOW() FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'
           ON CONFLICT(case_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
-            note=EXCLUDED.note,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
-        [workerId, stepKey, step[1], startedOn || null, completedOn || null, note, actor]);
+            note=EXCLUDED.note,detail=EXCLUDED.detail,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
+        [workerId, stepKey, step[1], startedOn || null, completedOn || null, note, actor, detail.value]);
         await client.query(`INSERT INTO hr_case_activity(case_id,actor_email,action,detail)
           SELECT c.id,$2,'更新申請程序',$3 FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'`,
         [workerId, actor, `${step[1]} · ${completedOn || startedOn || '更新備註'}`]);
@@ -235,7 +240,7 @@ export async function PATCH(request, { params }) {
         await client.query('INSERT INTO hr_worker_health_training(worker_id) VALUES($1) ON CONFLICT(worker_id) DO NOTHING', [workerId]);
         const current = await client.query(`SELECT ${column} AS current_status FROM hr_worker_health_training WHERE worker_id=$1 FOR UPDATE`, [workerId]);
         const flags = await client.query(`SELECT
-          EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed,
+          ${entryGateClosedSql('$1')} AS gate_closed,
           EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]);
         const arrived = await workerHasArrived(runInTransaction, workerId);
         const currentStatus = current.rows[0]?.current_status || 'not_scheduled';

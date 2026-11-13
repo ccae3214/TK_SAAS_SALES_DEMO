@@ -4,7 +4,7 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getAdminEmails, getAdminLineUserIds, getHrPrincipal, isHrRootAdminSession, HR_MEMBER_ROLES } from '@/lib/hr-access';
 import { hashPassword } from '@/lib/passwords';
-import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
+import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, entryGateClosedSql, insertWorkerDocuments, insertCaseCertifications, syncWorkerDocuments } from '@/lib/hr-requirements';
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
@@ -26,13 +26,8 @@ const TASK_CATEGORIES = new Set(['document', 'medical', 'training', 'other']);
 const TASK_STATUSES = new Set(['todo', 'in_progress', 'done', 'blocked']);
 const MEDICAL_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'passed', 'retest', 'failed']);
 const TRAINING_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'completed']);
-const APPLICATION_STEPS = [
-  ['match_date','配工／雇主面試日期'],['passport','護照確認'],['document_arrival','文件到達 D/C'],
-  ['personal_documents','個人文件和證件 P/D'],['pdos','PDOS 簽立文件'],['medical','體檢 MED'],
-  ['accr_in','ACCR 引進權入件'],['accr_out','ACCR 引進權出件'],['umid','UMID'],['training','訓練（60 日）'],
-  ['owwa','OWWA（7 日）'],['visa','VISA（7 日）'],['oec','OEC（4 日）'],['expected_entry','預定入境'],['actual_entry','實際入境'],
-  ['entry_notification','入國通報（3 日內）'],['insurance','勞健保加保（3 日內）'],['arc','居留證 ARC'],
-];
+// 申請程序清單與工作者層級進度共用同一份定義（hr-worker-progress.js），避免兩邊不同步。
+const APPLICATION_STEPS = WORKER_PROGRESS_STEPS;
 let schemaPromise;
 
 export async function ensureSchema() {
@@ -173,6 +168,9 @@ export async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (worker_id, step_key)
     )`);
+    // 簽證類型、OWWA 雇主、機票資訊等「日期以外的欄位」。
+    await pool.query("ALTER TABLE hr_application_steps ADD COLUMN IF NOT EXISTS detail TEXT NOT NULL DEFAULT ''");
+    await pool.query("ALTER TABLE hr_worker_progress_steps ADD COLUMN IF NOT EXISTS detail TEXT NOT NULL DEFAULT ''");
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_worker_health_training (
       worker_id BIGINT PRIMARY KEY REFERENCES hr_workers(id) ON DELETE CASCADE,
       medical_status TEXT NOT NULL DEFAULT 'not_scheduled',
@@ -456,14 +454,13 @@ export async function GET() {
         orderCandidates = allCandidates.filter(row => routeIds.has(Number(row.route_id)));
       }
     } else if (principal.role === 'training_center') {
-      // 訓練中心只看得到「必要文件全部核准、可以排訓練」或已在訓練中的工人，且只有排訓練需要的基本欄位。
+      // 訓練中心只看得到「初步文件審核通過、可以排訓練」或已在訓練中的工人，且只有排訓練需要的基本欄位。
       trainingRoster = await query(`SELECT w.id,w.name,w.nationality,w.job_preference,a.name AS agency_name,
           COALESCE(h.training_status,'not_scheduled') AS training_status,
-          NOT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable AND d.status<>'approved') AS documents_ready
+          NOT ${entryGateClosedSql('w.id')} AS documents_ready
         FROM hr_workers w LEFT JOIN hr_agencies a ON a.id=w.agency_id LEFT JOIN hr_worker_health_training h ON h.worker_id=w.id
-        WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable)
-          AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled'
-            OR NOT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable AND d.status<>'approved'))
+        WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.entry_gate AND d.applicable)
+          AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')})
         ORDER BY (COALESCE(h.training_status,'not_scheduled')='completed'),w.name`);
       employers = [];
       workers = [];
@@ -1168,13 +1165,16 @@ async function handlePatch(request) {
       if (!validId(caseId)||!step||!validDate(body.startedOn)||!validDate(body.completedOn)) return NextResponse.json({error:'申請程序日期或項目不正確。'},{status:400});
       // OEC、簽證由菲律賓仲介辦理；實際入境、入國通報、加保、居留證由台灣仲介辦理。
       if (!canManageStep(principal.role, principal.agency_type, stepKey)) return NextResponse.json({error:`「${step[1]}」由${OWNER_LABELS[STEP_OWNERS[stepKey]]||'指定單位'}辦理。`},{status:403});
-      const saved=await query(`INSERT INTO hr_application_steps(case_id,step_key,label,started_on,completed_on,note,updated_by,updated_at)
-        SELECT c.id,$2,$3,$4,$5,$6,$7,NOW() FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
+      // detail（簽證類型、OWWA 雇主、機票資訊）沒傳就保留原值；有傳才依該項目的規則檢查後儲存。
+      const hasDetail=body.detail!==undefined, detail=cleanStepDetail(stepKey,body.detail);
+      if (hasDetail&&!detail.ok) return NextResponse.json({error:'欄位內容不正確。'},{status:400});
+      const saved=await query(`INSERT INTO hr_application_steps(case_id,step_key,label,started_on,completed_on,note,detail,updated_by,updated_at)
+        SELECT c.id,$2,$3,$4,$5,$6,$11,$7,NOW() FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id
         JOIN hr_employers e ON e.id=c.employer_id
         WHERE c.id=$1 AND ($8::text='admin' OR ($8::text='agency' AND (($10::text='philippines' AND w.agency_id=$9) OR ($10::text='taiwan' AND (e.agency_id=$9 OR EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$9))))))
         ON CONFLICT(case_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
-          note=EXCLUDED.note,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING *`,
-        [caseId,stepKey,step[1],body.startedOn||null,body.completedOn||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null]);
+          note=EXCLUDED.note,detail=CASE WHEN $12::boolean THEN EXCLUDED.detail ELSE hr_application_steps.detail END,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING *`,
+        [caseId,stepKey,step[1],body.startedOn||null,body.completedOn||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null,detail.value,hasDetail]);
       if (!saved.length) return NextResponse.json({error:'找不到可管理的所屬工作者案件。'},{status:404});
       await recordActivity(caseId,actor,'更新申請程序',`${step[1]} · ${body.completedOn||body.startedOn||'更新備註'}`);
       await refreshCaseStage(caseId);
