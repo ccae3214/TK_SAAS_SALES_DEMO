@@ -1,6 +1,6 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
-> 2026-11-13 現行入口：feature/hr-member-request-notifications 已整合 main 7093129，隔離 app 已重建並運作。本輪先備份／實還原，再依明確授權套用通知表與 main 既有 schema。Node 20 110／真實 DB 13／桌機與手機 E2E 16 通過，均無失敗／跳過；LINE 使用受控測試，沒有真實投遞。完整限制見 MEMBER_NOTIFICATION_REVIEW.md。未 push／PR／部署。
+> 2026-11-13 現行入口：feature/hr-member-request-notifications 已整合 main 52b0d7c 並解決本機衝突，隔離 app 已重建並運作。本輪先備份／實還原，再依明確授權套用通知表與 main 既有 schema。Node 20 110／真實 DB 13／桌機與手機 E2E 16 通過，均無失敗／跳過；LINE 使用受控測試，沒有真實投遞。本次先備份／實際還原，再由 main 新增 onboarding_seen 欄位；登入後進 `/` 並有首次導覽，測試透過 UI 正常略過並確認伺服器紀錄。完整限制見 MEMBER_NOTIFICATION_REVIEW.md；更新同一 Draft PR #22，不合併 main／部署，GitHub 狀態以 PR 讀回為準。
 
 ## 本輪怎麼驗：會員送審通知
 

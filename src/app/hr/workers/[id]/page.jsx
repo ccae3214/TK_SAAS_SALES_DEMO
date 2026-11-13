@@ -16,6 +16,6 @@ export default async function HrWorkerProgressPage({ params }) {
   if (!session?.user) redirect('/hr/login');
   const principal = await getHrPrincipal(session);
   const isPhilippinesAgency = principal?.role === 'agency' && principal.agency_type === 'philippines';
-  if (principal?.role !== 'admin' && !isPhilippinesAgency) redirect('/hr');
+  if (principal?.role !== 'admin' && !isPhilippinesAgency) redirect('/');
   return <HrWorkerProgress workerId={workerId} />;
 }

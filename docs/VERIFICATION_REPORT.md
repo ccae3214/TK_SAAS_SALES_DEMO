@@ -1,5 +1,25 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+## PR #22：遵循 main 的衝突整合與驗證（目前候選）
+
+- 本輪依使用者「遵循 main」確認，整合 main `52b0d7cfda4aaf378c8232c4fcec62d34f49d789`，僅更新 feature／同一 Draft PR；不合併 main、不部署。
+- 衝突解法：`.gitignore` 保留測試與私密產物排除；`HrManagement.jsx` 保留 main 新手導覽／導航標記與通知功能，語言入口仍在側欄避免遮擋；`hr-translations.jsx` 同時保留 inline 模式與 `data-tour`。首頁 `/`、展示 `/demo`、新版履歷選項與上游其他行為照 main，不還原舊版。
+- 先停止 app、`pg_dump -Fc`，實際 `createdb`／`pg_restore --exit-on-error` 至獨立驗證 DB。7 組備份／還原計數相符：會員 250、工人 97、雇主 10、仲介 12、案件 34、需求 45、文件 2134。dump SHA-256：`6b797099570c41ea9925c78501a8c5c01088c6f8bfcc952783f8e2c049c5d28c`；dump／還原 DB 均保留、不進 Git。
+- 經本次授權啟動 main 初始化後，與備份的 public 全欄位 catalog 比對僅新增 `hr_members.onboarding_seen`（jsonb、NOT NULL、default `{}`），無移除／改變欄位；教育程度既有資料轉換 SQL 未執行。沒有調整認證、權限或 secrets。
+- Docker build 成功；重建僅 app，running image 與候選 tag 均為 `sha256:f430c77ec85644f48aaf2c6dca13dbffd408c9594eec1f7a72ed6ede192c82e4`。build 仍跳過 lint／型別，Browserslist 警告未修。
+- 實跑：Docker Node 20 `npm run test:hr` 110 通過；真實隔離 PostgreSQL＋受控傳輸 `node --test scripts/test-notification-store.mjs` 13 通過；完整 `npm run test:e2e` 桌機／390px Chromium 16 通過。三組最終均 0 失敗／0 跳過；Playwright `.last-run.json` 為 passed、failedTests 空。
+- 保留失敗紀錄：初次單一 E2E 1 失敗（登入舊預期 `/hr`，main 已改 `/`）；調整後完整 14 通過／2 失敗（錯將菲律賓仲介導覽當成中文 admin 導覽）。依實際角色與 main 中英導覽調整 fixture helper，正常 UI 點略過並驗證 POST／伺服器 seen 紀錄，再完整 16 通過。原通知／取消／核准／拒絕／去重／編輯保護斷言皆保留，沒有停用導覽或改驗收門檻。
+- HTTP：匿名 `/` 307（前往登入）、`/demo` 200、匿名通知 401。`git diff --check` 工作區及相對最新 main 的本次修改通過；合併前 `git diff --cached --check` exit 2，僅列上游 `src/app/demo/page.jsx` 搬移的既有尾端空白，保留原檔、不冒稱全 staged diff 通過。
+- 精確合併 commit／push／GitHub 可合併性與 CI 以 PR #22 發佈後讀回為準。真實 LINE／Google、iPhone／WebView、正式 migration 與完整新手導覽／其他業務矩陣未驗；audit 既有 15 項警告未重新稽核或修復。以下較早未整合／等待授權／未發佈狀態均為歷史。
+
+## PR #22 衝突整合中（尚未提交／推送）
+
+- 已 fetch main `52b0d7c`，於 feature 分支執行 `git merge --no-commit --no-ff origin/main`；三個衝突已在本機解決並 stage：`.gitignore` 保留測試／私密產物排除；`HrManagement.jsx` 保留新版新手導覽及通知修復的側欄語言入口；`hr-translations.jsx` 合併 inline 模式與 `data-tour`。
+- `git diff --name-only --diff-filter=U` 已無未解衝突；Docker Node 20 `npm run test:hr` 實跑 110 通過／0 失敗／0 跳過。
+- `git diff --check` 工作區通過；`git diff --cached --check` exit 2，指出上游 `src/app/demo/page.jsx` 搬移內容既有尾端空白，未擅自修改上游頁面來掩蓋結果。
+- 啟動前比對 initializer：main 新增 `hr_members.onboarding_seen JSONB NOT NULL DEFAULT '{}'::jsonb`；隔離 DB catalog 唯讀確認目前無此欄位。新 app 尚未建置／啟動，避免自動 schema 異動。等待使用者批准先備份／驗證還原，再只對 `tk_saas_review` 套用此 main 既有新增欄位。
+- 尚未重跑整合後 DB／E2E／CI、未提交 merge、未 push 更新 PR；原已驗證 app 仍運作，非整合後新版。正式環境、權限與 secrets 未變；教育程度資料轉換腳本未執行。
+
 ## PR 發佈候選與上游差異
 
 - 使用者已授權提交本輪驗證紀錄、push `feature/hr-member-request-notifications` 並建立以 `main` 為目標的 PR；不授權 main 合併或部署。

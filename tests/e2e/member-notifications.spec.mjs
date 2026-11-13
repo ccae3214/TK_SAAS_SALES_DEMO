@@ -18,12 +18,27 @@ async function apiLogin(context, email) {
 }
 async function login(page, member) {
   page.on('pageerror', error => errors.push(error.message));
+  const tourId = member.role === 'system_admin' || member.admin_scope === 'system' ? 'admin' : member.role || 'pending';
+  const { onboarding_seen: seen } = (await pool.query('SELECT onboarding_seen FROM hr_members WHERE id=$1', [member.id])).rows[0];
   await page.goto('/hr/login');
   await page.getByLabel('Email', { exact: true }).fill(member.email);
   await page.getByLabel('密碼', { exact: true }).fill(fixture.password);
   await page.getByRole('button', { name: '登入人力管理系統', exact: true }).click();
-  await expect(page).toHaveURL(/\/hr$/);
+  // Latest main intentionally makes / the authenticated HR home, not /hr.
+  await expect(page).toHaveURL(`${baseURL}/`);
   await expect(page.getByRole('heading', { name: '克雷迅人力仲介', exact: true })).toHaveCount(0);
+  if (!seen?.[tourId]) {
+    const tour = page.getByRole('dialog', { name: /^(新手導覽|Quick tour)$/ });
+    await expect(tour).toBeVisible();
+    const saved = page.waitForResponse(r => r.url().endsWith('/api/hr/onboarding') && r.request().method() === 'POST');
+    await tour.getByRole('button', { name: /^(略過導覽|Skip tour)$/ }).click();
+    expect((await saved).status()).toBe(200);
+    await expect(tour).toHaveCount(0);
+    const persisted = await (await page.request.get('/api/hr/onboarding')).json();
+    expect(persisted.persist).toBe('server');
+    expect(persisted.seen[tourId]).toBe(1);
+  }
+  await expect(page.getByRole('button', { name: /^(使用導覽|Quick tour)$/ })).toBeVisible();
 }
 async function applicantPage(browser, page, kind = 'applicant') {
   const member = await fixture.member(kind);

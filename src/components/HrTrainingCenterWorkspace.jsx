@@ -190,7 +190,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
-        {TABS.map(([id, label]) => <button key={id} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{label}</button>)}
+        {TABS.map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{label}</button>)}
       </div>
     </section>
 

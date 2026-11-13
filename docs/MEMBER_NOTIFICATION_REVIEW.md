@@ -1,6 +1,16 @@
 # 會員送審通知與流程測試｜實作者自我審查
 
-## 結論與有效入口
+## main 52b0d7c 整合增補（目前候選）
+
+本輪依使用者「遵循 main」，保留上游新版首頁、新手導覽、履歷與翻譯；三個衝突合併雙方必要行為，不覆蓋為單側版本。僅更新同一 Draft PR #22，不合併 main／部署。下文 7093129、延遲量測與舊截圖為首次交付紀錄，不能當成新版畫面或精確 CI。
+
+- 本次先停 app、備份、實際還原且 7 組資料計數一致，再由 main 新增 hr_members.onboarding_seen；catalog 比對只多該欄，無欄位移除／修改。教育程度資料轉換未執行。
+- 衝突：.gitignore 保留排除；HrManagement 保留 HrOnboardingTour、data-tour 導航與會員通知，語言工具仍 inline 在側欄；hr-translations 保留 data-tour 與 inline 兩種需求。
+- build 成功並核對執行 image。單元 110、真實隔離 DB 13、桌機／手機 E2E 16 最終皆通過，均 0 失敗／跳過。build 仍跳過 lint／型別。
+- 測試先遇登入路徑舊預期（1 失敗），再遇菲律賓仲介的英文 agency 導覽與 helper 假設不符（完整 14 通過／2 失敗）；改成 main 精確 / 路徑、實際角色／中英導覽 UI 操作及 POST／seen 持久化檢查，完整重跑 16 通過。原業務斷言不刪除／放寬。
+- 合併前 staged diff check 指出上游搬移 demo/page.jsx 的既有空白，未擅改；工作區與相對最新 main 的本輪 diff check 通過。CI／可合併性依 PR 精確 head 讀回；詳細命令與備份 checksum 見 VERIFICATION_REPORT 最新段落。
+
+## 結論與有效入口（首次交付歷史）
 
 2026-11-13 本機候選已完成：會員送審 → 全站 admin 站內提醒 → 正確會員審核 → 申請人重新確認核准結果。基底起於 main `809259b`，交付前已整合 main `709312930bc917755552b6f7887dbeceb96a9107` 並重新建置／驗證。工作分支 `feature/hr-member-request-notifications`，未 push、未開 PR、未合併 main、未部署。
 

@@ -4,7 +4,7 @@
 
 ## 本輪實作計畫：會員送審通知與可重跑流程驗證
 
-起始基底 main `809259b`，交付前已整合 main `7093129` 並重建／重測；工作分支 `feature/hr-member-request-notifications`。使用者已確認 A 輕量可靠版、送出申請觸發、全站 admin 收件（含最高、不含仲介管理者），以及固定流程回歸＋AI 輔助探索。
+起始基底 main `809259b`，後續依使用者「遵循 main」整合 `52b0d7c`、解衝突並重建／重測；工作分支 `feature/hr-member-request-notifications`。使用者已確認 A 輕量可靠版、送出申請觸發、全站 admin 收件（含最高、不含仲介管理者），以及固定流程回歸＋AI 輔助探索。
 
 ### 範圍與驗收
 
@@ -24,7 +24,8 @@
 - [x] 恢復基線與新增單元（110 通過），完成同交易入列、角色限定摘要、安全投遞與可重跑腳本。
 - [x] 最新候選 Docker build、真實 PostgreSQL 13／桌機與手機 E2E 16 通過；語言入口與通知遮擋亦檢查，其他完整業務矩陣未冒稱通過。
 - [x] 同步 README／操作／地圖／紀錄與 MEMBER_NOTIFICATION_REVIEW、機器證據；只交付本機 feature branch。
-- [ ] 下一個授權 gate：push／開 PR、main 合併、正式 schema／worker／LINE 發送與部署。既有依賴 audit 15 項另案評估，不擅自升級。
+- [x] 已授權更新 Draft PR #22；依 main 解三個衝突，先備份／實際還原再於隔離 DB 套用 onboarding_seen 欄位。測試配合新版首頁／導覽，110／13／16 最終均通過；GitHub 精確 head／CI 與獨立 review 仍以 PR 為準。
+- [ ] main 合併、正式 schema／worker／LINE 發送與部署仍須另行批准；不因本機整合通過自動放行。既有依賴 audit 15 項另案評估，不擅自升級。
 
 ## 2026-11-12：通知／UI 驗證現況（前輪查核）
 

@@ -1,8 +1,16 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-起始基底 main `809259b`，已整合／驗證 main `7093129`，工作分支 `feature/hr-member-request-notifications`。使用者已批准本輪新增通知表及必要索引、僅在本機隔離 DB 套用 main 既有 schema 與虛構資料測試；先備份／實際驗證還原。不含正式 LINE、secrets、push、合併或部署。
+起始基底 main `809259b`，已整合／驗證 main `52b0d7c`，工作分支 `feature/hr-member-request-notifications`。使用者已批准本輪新增通知表及必要索引、僅在本機隔離 DB 套用 main 既有 schema 與虛構資料測試；先備份／實際驗證還原。已另外授權 push／更新 Draft PR #22，不含正式 LINE、secrets、main 合併或部署。
 
-## 本輪新增／恢復：會員送審閉環（本機已驗，未發布）
+## main 52b0d7c 整合保留
+
+- src/components/HrOnboardingTour.jsx、HrOnboardingTour.module.css、src/lib/hr-onboarding.js、src/app/api/hr/onboarding/route.js：上游新手導覽與 seen 紀錄；src/lib/hr-access.js 由 main 增加 onboarding_seen，僅於本次批准的隔離 DB 套用。
+- src/app/page.jsx、src/app/demo/page.jsx：首頁改為 HR，展示移到 /demo；保留 main 原始內容，不為修空白重寫展示頁。
+- scripts/migrate-education-levels.sql、src/lib/hr-resume-fields.js、hr-resume-import.js：main 的教育選項與可選舊資料轉換；SQL 本輪未執行。
+- tests/e2e/member-notifications.spec.mjs：登入預期精確改為 main 的 /；依角色正常操作中英導覽並檢查持久化，保留原 8×2 通知案例。
+- 上游新增的 PDF 由 main 原樣整合，未做內容校對；不作本輪產品／合規驗收依據。
+
+## 本輪新增／恢復：會員送審閉環（Draft PR #22）
 
 - src/lib/hr-notifications.js：通知表初始化、送審共同交易、有效 admin 收件、租約／重試與 LINE 安全結果分類。
 - src/app/api/hr/notifications/route.js：全站 admin 專用、同 snapshot 待審摘要。
@@ -51,9 +59,9 @@
 | 路徑 | 程式／責任 |
 | --- | --- |
 | /hr/login | src/app/hr/login/page.jsx、login.module.css：沿用 main 新登入 UI，僅顯示已設定 provider |
-| /hr | src/app/hr/page.jsx：依身分分流管理端／會員端 |
+| / 與 /hr | src/app/page.jsx（首頁）重用 src/app/hr/page.jsx：依身分分流管理端／會員端 |
 | /hr/workers/[id] | src/app/hr/workers/[id]/page.jsx：main 的工作者進度入口 |
-| / | src/app/page.jsx：品牌與產品展示 |
+| /demo | src/app/demo/page.jsx：品牌與產品展示（原首頁） |
 | /admin、/notes、/checkout、/demo/* | 原有商店／筆記／展示，非本輪 HR 驗收範圍 |
 
 ## 本輪新增檔案：推薦撤回

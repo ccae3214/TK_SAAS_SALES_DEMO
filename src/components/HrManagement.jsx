@@ -10,6 +10,7 @@ import HrFilePicker from '@/components/HrFilePicker';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
 import PersonNameFields from '@/components/PersonNameFields';
 import HrChat from '@/components/HrChat';
+import HrOnboardingTour from '@/components/HrOnboardingTour';
 import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrReminders from '@/components/HrReminders';
 import HrMemberRequestNotifications from '@/components/HrMemberRequestNotifications';
@@ -214,11 +215,11 @@ export default function HrManagement({ actor }) {
   const filteredWorkflow = useMemo(() => active !== 'workflow' ? [] : (data?.cases || []).filter(item => matchesSearch([item.case_number, item.worker_name, item.employer_name, stageLabel(item.stage), statusLabel(item.medical_status || 'not_scheduled', MEDICAL_STATUSES), statusLabel(item.training_status || 'not_scheduled', TRAINING_STATUSES)], search)), [data,search,active]);
   const activeLabel = NAV.find(item => item.id === active)?.label || '總覽';
 
-  return <div className={styles.app} data-hr-translatable-root>
+  return <div className={styles.app} data-hr-translatable-root><HrOnboardingTour tourId="admin" />
     <aside className={`${styles.sidebar} ${mobileNav ? styles.sidebarOpen : ''}`}>
       <div className={styles.brand}><span className={styles.brandMark}>K</span><span>克雷迅<strong>人力管理</strong></span><HrLanguageTools inline /></div>
       <div className={styles.workspaceLabel}>工作區</div>
-      <nav className={styles.nav}>{NAV.filter(item=>!(data?.role==='agency'&&data.isAgencyAdmin&&['agencies','activity'].includes(item.id))&&!(item.id==='training'&&data?.role!=='admin')).map(({id,label,icon:Icon}) => <button key={id} className={active===id?styles.navActive:''} onClick={()=>{setActive(id);setQuickFilter('');setMobileNav(false);setSearch('');}}><Icon size={18}/><span>{label}</span>{active===id&&<ChevronRight size={15} className={styles.navArrow}/>}</button>)}</nav>
+      <nav className={styles.nav}>{NAV.filter(item=>!(data?.role==='agency'&&data.isAgencyAdmin&&['agencies','activity'].includes(item.id))&&!(item.id==='training'&&data?.role!=='admin')).map(({id,label,icon:Icon}) => <button key={id} data-tour={`nav-${id}`} className={active===id?styles.navActive:''} onClick={()=>{setActive(id);setQuickFilter('');setMobileNav(false);setSearch('');}}><Icon size={18}/><span>{label}</span>{active===id&&<ChevronRight size={15} className={styles.navArrow}/>}</button>)}</nav>
       <div className={styles.sidebarBottom}><div className={styles.signedIn}><span className={styles.avatar}>{(actor.name||'管').slice(0,1)}</span><span><strong>{actor.name}</strong><small>{actor.email}</small>{(data?.role==='admin'||data?.isAgencyAdmin)&&<span className={styles.adminBadge}><ShieldCheck size={13}/>{data.roleName}</span>}</span></div><button className={styles.signout} onClick={()=>signOut({callbackUrl:'/'})}><LogOut size={17}/>登出</button></div>
     </aside>
     {mobileNav&&<button aria-label="關閉導覽" className={styles.scrim} onClick={()=>setMobileNav(false)}/>}
