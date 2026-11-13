@@ -64,6 +64,9 @@ const dateLabel = value => value ? new Date(value).toLocaleDateString('zh-TW') :
 const matchesSearch = (values, term) => { const query = String(term || '').trim().toLowerCase(); return !query || values.some(value => String(value ?? '').toLowerCase().includes(query)); };
 const MEMBER_ROLE_NAMES = { worker: '工作者', employer: '雇主', agency: '仲介機構員工', training_center: '訓練中心', system_admin: '系統管理者' };
 const memberTypeLabel = row => row.admin_scope === 'system' || row.role === 'system_admin' ? '系統管理者' : row.admin_scope === 'agency' ? '仲介管理者' : row.role === 'agency' ? (row.agency_type === 'taiwan' ? '台灣仲介業務' : row.agency_type === 'philippines' ? '菲律賓仲介 Staff' : '仲介機構員工') : MEMBER_ROLE_NAMES[row.role] || '待管理者指派';
+const MEMBER_ROLE_SEARCH_ALIASES = { worker: 'worker 工人 工作者 移工', employer: 'employer 雇主 客戶', agency: 'agency staff 仲介 業務', training_center: 'training center 訓練中心', system_admin: 'system admin 系統管理者' };
+// 會員搜尋用的字串：包含中文標籤、英文別名與原始角色代碼，讓 worker／employer 等英文關鍵字也找得到（含待審核、角色已指派但申請類型不同的會員）。
+const memberSearchValues = row => [row.role, row.requested_role, row.admin_scope, MEMBER_ROLE_SEARCH_ALIASES[row.role], MEMBER_ROLE_SEARCH_ALIASES[row.requested_role], row.admin_scope === 'agency' ? 'agency admin' : '', row.admin_scope === 'system' ? 'system admin' : ''];
 const memberStatusLabel = row => !row.role ? '待審核' : row.active ? '啟用' : '停用';
 const memberUnitLabel = row => {
   if (row.role === 'system_admin' || row.admin_scope === 'system') return '不需所屬仲介 · 全站最高權限';
@@ -213,7 +216,7 @@ export default function HrManagement({ actor }) {
   const filteredEmployers = useMemo(() => (data?.employers || []).filter(item => [item.name,item.contact_name,item.phone,item.email].some(value => String(value || '').toLowerCase().includes(search.toLowerCase()))), [data,search]);
   const filteredWorkers = useMemo(() => (data?.workers || []).filter(item => [item.name,item.nationality,item.phone,item.email,item.job_preference].some(value => String(value || '').toLowerCase().includes(search.toLowerCase()))), [data,search]);
   const filteredTasks = useMemo(() => (data?.tasks || []).filter(item => [item.title,item.case_number,item.worker_name,item.notes].some(value => String(value || '').toLowerCase().includes(search.toLowerCase()))), [data,search]);
-  const filteredMembers = useMemo(() => active !== 'members' ? [] : (data?.members || []).filter(item => matchesSearch([item.display_name, item.email || 'LINE 登入', MEMBER_ROLE_NAMES[item.requested_role], memberTypeLabel(item), memberUnitLabel(item), memberStatusLabel(item)], search)), [data,search,active]);
+  const filteredMembers = useMemo(() => active !== 'members' ? [] : (data?.members || []).filter(item => matchesSearch([item.display_name, item.email || 'LINE 登入', MEMBER_ROLE_NAMES[item.requested_role], memberTypeLabel(item), memberUnitLabel(item), memberStatusLabel(item), ...memberSearchValues(item)], search)), [data,search,active]);
   const filteredAgencies = useMemo(() => active !== 'agencies' ? [] : (data?.agencies || []).filter(item => matchesSearch([item.name, item.country, item.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介', item.active ? '啟用' : '停用'], search)), [data,search,active]);
   const filteredWorkflow = useMemo(() => active !== 'workflow' ? [] : (data?.cases || []).filter(item => matchesSearch([item.case_number, item.worker_name, item.employer_name, stageLabel(item.stage), statusLabel(item.medical_status || 'not_scheduled', MEDICAL_STATUSES), statusLabel(item.training_status || 'not_scheduled', TRAINING_STATUSES)], search)), [data,search,active]);
   const activeLabel = NAV.find(item => item.id === active)?.label || '總覽';
