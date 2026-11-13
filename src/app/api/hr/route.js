@@ -14,6 +14,7 @@ import { refreshCaseStage as refreshStage, refreshWorkerCases as refreshStagesFo
 import { WITHDRAWAL_MARKER, isWithdrawnRecommendation } from '@/lib/hr-candidate-withdrawal';
 import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
 import { ensureCertificationSchema, isAgencyPairCertified, isRouteCertified, certifiedPhilippinesAgencyIds, assertCaseAgenciesCertified, assertPhilippinesAgenciesCertified } from '@/lib/hr-agency-certification-store';
+import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { LinkedRecordError, normalizeRecordEmail, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
 import { cleanCareRecipient, cleanEmployerProfile, employerRecordError, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
 export const runtime = 'nodejs';
@@ -373,11 +374,24 @@ export async function GET() {
     let employerPrivateCaseIds = null;
     let employerAvailableWorkers = [];
     let trainingRoster = [];
+    let trainingCourses = [];
     if (principal.role === 'worker') {
       cases = allCases.filter(item => Number(item.worker_id) === Number(principal.worker_id));
       const employerIds = new Set(cases.map(item => Number(item.employer_id)));
       workers = allWorkers.filter(item => Number(item.id) === Number(principal.worker_id));
       employers = allEmployers.filter(item => employerIds.has(Number(item.id)));
+      // 工人報名的訓練班別：訓練／考證／取證日期，以及該班別最新證照批次的辦件日期與狀態。
+      try {
+        await ensureTrainingCenterSchema();
+        trainingCourses = await query(`SELECT e.id, cl.name AS class_name, c.name AS certification_name, co.name AS course_name, co.hours, ctr.display_name AS center_name,
+            to_char(cl.training_start_date,'YYYY-MM-DD') AS training_start_date, to_char(cl.training_end_date,'YYYY-MM-DD') AS training_end_date,
+            to_char(cl.exam_date,'YYYY-MM-DD') AS exam_date, cl.exam_location, to_char(cl.certificate_issue_date,'YYYY-MM-DD') AS certificate_issue_date,
+            to_char(b.applied_date,'YYYY-MM-DD') AS batch_applied_date, b.status AS batch_status
+          FROM hr_tc_enrollments e JOIN hr_tc_classes cl ON cl.id=e.class_id JOIN hr_tc_certifications c ON c.id=cl.certification_id
+          JOIN hr_tc_courses co ON co.id=cl.course_id JOIN hr_members ctr ON ctr.id=cl.center_id
+          LEFT JOIN LATERAL (SELECT applied_date,status FROM hr_tc_batches WHERE class_id=cl.id ORDER BY applied_date DESC NULLS LAST, id DESC LIMIT 1) b ON TRUE
+          WHERE e.worker_id=$1 ORDER BY cl.training_start_date, e.id`, [principal.worker_id]);
+      } catch (error) { console.error('hr_worker_training_read_failed', error?.code || error?.name || 'Error'); trainingCourses = []; }
       visibleAgencies = agencies.filter(item => Number(item.id) === Number(workers[0]?.agency_id));
       visibleMembers = [];
       jobOrders = [];
@@ -499,7 +513,7 @@ export async function GET() {
       (['system','agency'].includes(member.admin_scope) || member.role === 'system_admin') && !isRootAdmin
       ||getAdminEmails().includes(String(member.email||'').trim().toLowerCase())
       ||getAdminLineUserIds().includes(member.line_user_id)}));
-    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, trainingCourses, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });

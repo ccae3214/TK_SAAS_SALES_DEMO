@@ -8,7 +8,7 @@ import { translateHrText } from '@/lib/hr-translations';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
-const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次']];
+const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名']];
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
 const dateText = value => value ? String(value).slice(0, 10) : '—';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -111,11 +111,17 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   if (!data) return <section className={styles.panel}><Empty title="讀取中" text="正在載入訓練中心資料。" /></section>;
   if (!data.center) return <section className={styles.panel} style={THEME}><div className={styles.panelHeader}><div><h2>訓練中心工作區</h2></div></div>{message && <p className={`${styles.message} ${styles.messageError}`}>{message.text}</p>}<Empty title="尚無訓練中心" text="請先到「會員帳號」把會員類型設為訓練中心，再回來管理老師、課程與班別。" /></section>;
 
-  const { center, certifications, teachers, holdings, courses, classes, batches } = data;
+  const { center, certifications, teachers, holdings, courses, classes, batches, enrollments = [], students = [] } = data;
   const activeCerts = certifications.filter(item => item.active);
   const certOptions = activeCerts.map(item => [item.id, item.name]);
   const holdingsOf = teacherId => holdings.filter(item => Number(item.teacher_id) === Number(teacherId));
 
+  const enrollModal = cls => setModal({
+    title: `報名到「${cls.name}」`, hint: '只列出必要文件已核准或已進入訓練的工人；報名後工人頁面會顯示課程日期與證照辦件日期提醒。',
+    fields: [{ name: 'workerId', label: '工人', type: 'select', required: true, options: students.filter(item => !enrollments.some(row => Number(row.class_id) === Number(cls.id) && Number(row.worker_id) === Number(item.id))).map(item => [item.id, item.name]) }],
+    initial: { workerId: '' },
+    submit: values => save('POST', { resource: 'enrollment', classId: cls.id, workerId: values.workerId }, '已報名工人'),
+  });
   const certModal = record => setModal({
     title: record ? '編輯證照' : '新增證照', fields: [{ name: 'name', label: '證照名稱', required: true }, { name: 'description', label: '說明', type: 'textarea' }],
     initial: { name: record?.name || '', description: record?.description || '' },
@@ -246,6 +252,12 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     {tab === 'batches' && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>證照批次</h2><p>班別辦理證照的批次與辦理狀態；刪除班別時，該班別的批次會一併刪除。</p></div><button className={styles.primaryButton} disabled={!classes.length} onClick={() => batchModal(null)}>新增批次</button></div>
       {batches.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>批次</th><th>辦理日期</th><th>人數</th><th>狀態</th><th>備註</th><th>操作</th></tr></thead><tbody>{batches.map(row => <tr key={row.id}><td>{row.class_name}</td><td><strong>{row.batch_no}</strong></td><td>{dateText(row.applied_date)}</td><td>{row.student_count ?? '—'}</td><td><Pill tone={row.status === 'issued' ? 'open' : row.status === 'submitted' ? 'warn' : 'neutral'}>{(BATCH_STATUSES.find(([value]) => value === row.status) || [])[1] || row.status}</Pill></td><td>{row.note || '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => batchModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('batch', row.id, `${row.class_name} ${row.batch_no}`)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無證照批次" text={classes.length ? '為班別新增辦理證照的批次。' : '請先到「開班與日期」建立班別。'} />}
+    </section>}
+
+    {tab === 'students' && <section className={styles.panel}>
+      <div className={styles.panelHeader}><div><h2>學員報名</h2><p>把工人排進班別；工人頁面會顯示該班的訓練、考證、取證與證照辦件日期，並在日期接近時提醒。</p></div></div>
+      {classes.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>訓練日期</th><th>報名人數</th><th>學員</th><th>操作</th></tr></thead><tbody>{classes.map(row => { const list = enrollments.filter(item => Number(item.class_id) === Number(row.id)); return <tr key={row.id}><td><strong>{row.name}</strong><br />{row.certification_name}</td><td>{dateText(row.training_start_date)} ~ {dateText(row.training_end_date)}</td><td>{list.length}{row.capacity ? ` / ${row.capacity}` : ''}</td><td>{list.length ? list.map(item => <span key={item.id} style={{ display: 'inline-block', marginRight: 8 }}>{item.worker_name} <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => remove('enrollment', item.id, `${item.worker_name}的報名`)}>取消</button></span>) : '—'}</td><td><button type="button" className={styles.primaryButton} disabled={saving || !students.length} onClick={() => enrollModal(row)}>報名工人</button></td></tr>; })}</tbody></table></div>
+        : <Empty title="還沒有班別" text="請先到「開班與日期」建立班別，再報名工人。" />}
     </section>}
 
     {modal && <FormModal key={modal.title} title={modal.title} hint={modal.hint} fields={modal.fields} initial={modal.initial} onSubmit={modal.submit} close={() => setModal(null)} saving={saving} />}

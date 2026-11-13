@@ -81,6 +81,15 @@ export function ensureTrainingCenterSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(class_id, batch_no)
     )`);
+    // 工人報名班別：工人頁面的訓練課程與日期提醒由此關聯產生。
+    await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_enrollments (
+      id BIGSERIAL PRIMARY KEY,
+      class_id BIGINT NOT NULL REFERENCES hr_tc_classes(id) ON DELETE CASCADE,
+      worker_id BIGINT NOT NULL REFERENCES hr_workers(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(class_id, worker_id)
+    )`);
+    await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_enrollments_worker ON hr_tc_enrollments(worker_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_classes_center ON hr_tc_classes(center_id, training_start_date)');
   })().catch(error => { schemaPromise = null; throw error; });
   return schemaPromise;

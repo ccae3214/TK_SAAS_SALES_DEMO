@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import styles from './HrReminders.module.css';
 import { employerMissingLabels } from '@/lib/hr-employer-profile';
+import { collectTrainingReminders, whenLabel } from '@/lib/hr-worker-training';
 
 const DAYS_AHEAD = 7;
 const WORKER_RESUME_FIELDS = [
@@ -139,7 +140,8 @@ function collectDateReminders(data) {
   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
 }
 
-export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile }) {
+export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
+  const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
   const [profileReminders, setProfileReminders] = useState([]);
   const [unreadRooms, setUnreadRooms] = useState([]);
@@ -158,11 +160,13 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile 
         if (!active) return;
         setDateReminders(collectDateReminders(hr));
         setProfileReminders(collectProfileReminders(hr));
+        setTrainingReminders(hr.role === 'worker' ? collectTrainingReminders(hr.trainingCourses) : []);
         setUnreadRooms((chat.rooms || []).filter(room => Number(room.unreadCount) > 0));
       } catch {
         if (active) {
           setDateReminders([]);
           setProfileReminders([]);
+          setTrainingReminders([]);
           setUnreadRooms([]);
         }
       } finally {
@@ -175,11 +179,12 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile 
   }, []);
 
   const unreadCount = unreadRooms.reduce((sum, room) => sum + Number(room.unreadCount || 0), 0);
-  const reminderCount = unreadCount + dateReminders.length + profileReminders.length;
+  const reminderCount = unreadCount + dateReminders.length + trainingReminders.length + profileReminders.length;
   return <section className={styles.panel} aria-label="提醒">
     <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div><strong>{loading ? '…' : reminderCount}</strong></header>
     {!loading && reminderCount === 0 && <p className={styles.empty}>目前沒有未讀訊息、近期重要日期或待補資料。</p>}
     {unreadRooms.length > 0 && <div className={styles.group}><h3>聊天室未讀</h3>{unreadRooms.map(room => <button type="button" className={styles.item} key={room.id} onClick={() => onOpenChat?.(Number(room.id))}><span className={styles.dotChat}/><span className={styles.itemText}><strong>{room.title}</strong><small>{room.lastMessage || '有新訊息'}</small></span><b>{room.unreadCount}</b></button>)}</div>}
+    {trainingReminders.length > 0 && <div className={styles.group}><h3>訓練課程與證照日期</h3>{trainingReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenTraining?.()}><span className={styles.dotDate}/><span className={styles.itemText}><strong>{whenLabel(item.days)} · {item.title}</strong><small>{item.course} · {item.className} · {item.date}</small></span></button>)}</div>}
     {dateReminders.length > 0 && <div className={styles.group}><h3>近期案件日期</h3>{dateReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.days < 0 ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{item.days < 0 ? `逾期 ${Math.abs(item.days)} 天` : item.days === 0 ? '今天' : `${item.days} 天後`} · {item.step}</strong><small>{item.worker} · {item.caseNumber} · {item.date}</small></span></button>)}</div>}
     {profileReminders.length > 0 && <div className={styles.group}><h3>基本資料待補</h3>{profileReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenProfile?.(item)}><span className={styles.dotProfile}/><span className={styles.itemText}><strong>{item.title}</strong><small>{item.detail}</small></span><b>補資料</b></button>)}</div>}
   </section>;

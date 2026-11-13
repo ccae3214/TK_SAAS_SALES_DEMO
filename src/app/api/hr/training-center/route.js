@@ -54,6 +54,13 @@ const scope = (ctx, centerId) => {
   if (ctx.self && Number(centerId) !== Number(ctx.centerId)) throw new Refuse('沒有權限操作其他訓練中心的資料。', 403);
 };
 
+// 可報名的工人：必要文件全部核准，或已進入訓練（與訓練中心名單同一規則）。
+const ELIGIBLE_WORKERS_SQL = `SELECT w.id, w.name FROM hr_workers w LEFT JOIN hr_worker_health_training h ON h.worker_id=w.id
+  WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable)
+    AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled'
+      OR NOT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable AND d.status<>'approved'))
+  ORDER BY w.name, w.id`;
+
 const one = async (sql, params) => (await query(sql, params))[0] || null;
 // pg 會把 DATE 欄位轉成本機時間的 Date；統一轉回 YYYY-MM-DD 字串，避免時區造成差一天。
 const fmtDate = value => value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}` : value;
@@ -81,7 +88,7 @@ export async function GET(request) {
     const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });
-    const [certifications, teachers, holdings, courses, classes, batches] = await Promise.all([
+    const [certifications, teachers, holdings, courses, classes, batches, enrollments, students] = await Promise.all([
       query('SELECT * FROM hr_tc_certifications WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query('SELECT * FROM hr_tc_teachers WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query(`SELECT tc.*, c.name AS certification_name FROM hr_tc_teacher_certifications tc
@@ -95,9 +102,13 @@ export async function GET(request) {
              WHERE cl.center_id=$1 ORDER BY cl.training_start_date DESC, cl.id DESC`, [center.id]),
       query(`SELECT b.*, cl.name AS class_name FROM hr_tc_batches b JOIN hr_tc_classes cl ON cl.id=b.class_id
              WHERE cl.center_id=$1 ORDER BY b.applied_date DESC NULLS LAST, b.id DESC`, [center.id]),
+      query(`SELECT e.id, e.class_id, e.worker_id, w.name AS worker_name FROM hr_tc_enrollments e
+             JOIN hr_tc_classes cl ON cl.id=e.class_id JOIN hr_workers w ON w.id=e.worker_id
+             WHERE cl.center_id=$1 ORDER BY w.name, e.id`, [center.id]),
+      query(ELIGIBLE_WORKERS_SQL),
     ]);
     return NextResponse.json({
-      centers, center, certifications, teachers, courses,
+      centers, center, certifications, teachers, courses, enrollments, students,
       holdings: withDates(holdings, ['issued_date', 'expires_date']),
       classes: withDates(classes, ['training_start_date', 'training_end_date', 'exam_date', 'certificate_issue_date']),
       batches: withDates(batches, ['applied_date']),
@@ -211,6 +222,21 @@ export async function POST(request) {
         phrase: `登記${center.display_name}的${teacher.name}老師持有${certification.name}證照` });
       return NextResponse.json({ ok: true, id: saved.id });
     }
+    if (resource === 'enrollment') {
+      const cls = await one('SELECT id, center_id, name, capacity FROM hr_tc_classes WHERE id=$1', [validId(body.classId) ? body.classId : 0]);
+      if (!cls) throw new Refuse('請選擇班別。');
+      scope(ctx, cls.center_id);
+      if (!validId(body.workerId)) throw new Refuse('請選擇工人。');
+      const worker = (await query(ELIGIBLE_WORKERS_SQL)).find(item => Number(item.id) === Number(body.workerId));
+      if (!worker) throw new Refuse('這位工人尚未完成必要文件，暫時不能報名班別。');
+      if (cls.capacity) {
+        const used = await one('SELECT COUNT(*)::int AS n FROM hr_tc_enrollments WHERE class_id=$1', [cls.id]);
+        if (used.n >= cls.capacity) throw new Refuse('這個班別已額滿。', 409);
+      }
+      const saved = await one('INSERT INTO hr_tc_enrollments(class_id, worker_id) VALUES($1,$2) ON CONFLICT(class_id, worker_id) DO NOTHING RETURNING id', [cls.id, worker.id]);
+      if (saved && !ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '新增', type: 'training-enrollment', id: saved.id, name: worker.name, phrase: `將${worker.name}報名到${cls.name}班` });
+      return NextResponse.json({ ok: true, id: saved?.id || null });
+    }
     if (!TABLES[resource]) throw new Refuse('不支援的項目。');
     let centerId;
     if (resource === 'batch') {
@@ -283,6 +309,15 @@ export async function DELETE(request) {
       await pool.query('DELETE FROM hr_tc_teacher_certifications WHERE id=$1', [id]);
       if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-teacher-certification', id: row.id, name: row.teacher_name,
         phrase: `移除了${row.teacher_name}老師的${row.certification_name}證照` });
+      return NextResponse.json({ ok: true });
+    }
+    if (resource === 'enrollment') {
+      const row = await one(`SELECT e.id, cl.center_id, cl.name AS class_name, w.name AS worker_name FROM hr_tc_enrollments e
+        JOIN hr_tc_classes cl ON cl.id=e.class_id JOIN hr_workers w ON w.id=e.worker_id WHERE e.id=$1`, [id]);
+      if (!row) throw new Refuse('找不到這筆報名。', 404);
+      scope(ctx, row.center_id);
+      await pool.query('DELETE FROM hr_tc_enrollments WHERE id=$1', [id]);
+      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-enrollment', id: row.id, name: row.worker_name, phrase: `取消${row.worker_name}在${row.class_name}班的報名` });
       return NextResponse.json({ ok: true });
     }
     if (!TABLES[resource]) throw new Refuse('不支援的項目。');
