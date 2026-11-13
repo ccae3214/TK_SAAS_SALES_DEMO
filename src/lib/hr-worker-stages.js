@@ -109,6 +109,17 @@ const stepStage = new Map();
 WORKER_STAGES.forEach(stage => stage.steps.forEach(key => stepStage.set(key, stage.key)));
 const FALLBACK_STAGE = WORKER_STAGES.find(stage => stage.fallback).key;
 
+// 必要文件的狀態篩選（工人頁與雇主／仲介的文件審核清單共用）。
+export const DOCUMENT_STATUS_FILTERS = [
+  ['submitted', '待審核'],
+  ['returned', '被退回'],
+  ['missing', '待上傳'],
+  ['approved', '已核准'],
+  ['all', '全部'],
+];
+// 不適用的文件獨立成一組，其餘直接用審核狀態。
+export const documentGroup = item => (!item.applicable ? 'na' : item.status);
+
 export function stageOfRequirement(name) { return documentStage.get(name) || FALLBACK_STAGE; }
 export function stageOfStep(key) { return stepStage.get(key) || FALLBACK_STAGE; }
 
