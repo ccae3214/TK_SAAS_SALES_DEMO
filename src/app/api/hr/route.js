@@ -15,6 +15,8 @@ import { WITHDRAWAL_MARKER, isWithdrawnRecommendation } from '@/lib/hr-candidate
 import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
 import { ensureCertificationSchema, isAgencyPairCertified, isRouteCertified, certifiedPhilippinesAgencyIds, assertCaseAgenciesCertified, assertPhilippinesAgenciesCertified } from '@/lib/hr-agency-certification-store';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
+import { WORKER_PROGRESS_STEPS, cleanStepDetail } from '@/lib/hr-worker-progress';
+import { collectExpiryReminders, reminderKindsForRole } from '@/lib/hr-expiry-reminders-store';
 import { LinkedRecordError, normalizeRecordEmail, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
 import { cleanCareRecipient, cleanEmployerProfile, employerRecordError, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
 export const runtime = 'nodejs';
@@ -510,7 +512,12 @@ export async function GET() {
       (['system','agency'].includes(member.admin_scope) || member.role === 'system_admin') && !isRootAdmin
       ||getAdminEmails().includes(String(member.email||'').trim().toLowerCase())
       ||getAdminLineUserIds().includes(member.line_user_id)}));
-    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, trainingCourses, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    let expiryReminders = [];
+    const reminderKinds = reminderKindsForRole(principal.role);
+    if (reminderKinds) {
+      try { expiryReminders = await collectExpiryReminders(query, { workerIds: workers.map(item => Number(item.id)), kinds: reminderKinds }); } catch (error) { console.error('hr_expiry_reminders_load_failed', error?.code || 'error'); }
+    }
+    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, expiryReminders, trainingCourses, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
