@@ -2,10 +2,11 @@
 // 交給 hr-case-flow.js 的 computeCaseStage 計算，再寫回 hr_cases.stage。
 // run(sql, params) 要回傳資料列陣列；在交易中請傳入 async (sql, params) => (await client.query(sql, params)).rows。
 import { computeCaseStage, summarizeSteps } from '@/lib/hr-case-flow';
+import { entryGateClosedSql } from '@/lib/hr-requirements';
 
 export async function refreshCaseStage(run, caseId) {
   const [state] = await run(`SELECT c.medical_status,c.training_status,
-    EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.entry_gate AND d.applicable AND d.status<>'approved') AS gate_closed,
+    ${entryGateClosedSql('c.worker_id')} AS gate_closed,
     EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.required AND d.applicable AND d.status<>'approved') AS documents_open,
     EXISTS(SELECT 1 FROM hr_case_certifications k WHERE k.case_id=c.id AND k.status<>'obtained') AS certification_open
     FROM hr_cases c WHERE c.id=$1`, [caseId]);

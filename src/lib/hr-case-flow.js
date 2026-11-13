@@ -1,6 +1,6 @@
 // 「訓練與來台文件」流程（依「菲律賓移工來台工作：五方實務指南」）。純函式，不碰資料庫，方便單獨測試。
 //
-//   1. 必要文件備齊（全部核准）→ 由「訓練中心」安排訓練
+//   1. 初步文件審核通過（LCR Form 1-A、PSA 出生證明、護照三取二）→ 由「訓練中心」安排訓練；其他文件可同時繼續備齊
 //   2. 訓練完成後           → 由「菲律賓仲介」辦理 OEC 與簽證
 //   3. 抵台後               → 由「台灣仲介」安排入國後體檢，並辦理在台文件
 //                              （入國通報、勞健保加保、居留證 ARC）
@@ -48,10 +48,11 @@ export const WORKFLOW_DENIED_MESSAGES = {
   medical: '抵台體檢狀態由台灣仲介或管理者管理。',
 };
 
-// 訓練需要「必要文件全部核准」；抵台體檢需要已登錄實際入境日期。
-// 回傳 null 代表可以安排，否則回傳不能安排的原因。
-export function workflowBlockReason(workflowType, { gateClosed, documentsOpen, arrived }) {
-  if (workflowType === 'training' && (gateClosed || documentsOpen)) return '必要文件全部核准後，才能安排訓練。';
+// 訓練需要「初步文件審核通過」（不必等全部文件核准）；抵台體檢需要已登錄實際入境日期。
+// 回傳 null 代表可以安排，否則回傳不能安排的原因。documentsOpen 保留給舊呼叫端，訓練不再使用它。
+export const TRAINING_GATE_MESSAGE = '初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）通過後，才能安排訓練。';
+export function workflowBlockReason(workflowType, { gateClosed, arrived }) {
+  if (workflowType === 'training' && gateClosed) return TRAINING_GATE_MESSAGE;
   if (workflowType === 'medical' && !arrived) return '請先由台灣仲介登錄實際入境日期，才能安排抵台體檢。';
   return null;
 }

@@ -5,7 +5,7 @@
 //
 // 整個流程包在一個 transaction 裡，可重複執行（每次啟動都會跑，已遷移過就什麼都不做）。
 import {
-  ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENT_NAMES, backfillWorkerDocuments, backfillCaseCertifications, syncWorkerDocuments,
+  ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENTS, WORKER_DOCUMENT_NAMES, backfillWorkerDocuments, backfillCaseCertifications, syncWorkerDocuments,
 } from './hr-requirements.js';
 
 const STATUS_RANK = { approved: 3, submitted: 2, returned: 1, missing: 0 };
@@ -104,7 +104,18 @@ export async function migrateWorkerDocuments(pool) {
       for (const row of workers.rows) await syncWorkerDocuments(client, row.id);
     }
 
-    // 前置文件只有「新護照」與「PSA出生證明（附收據）」。舊版把所有無條件文件（含體檢 Medical）都設成前置。
+    // CAV／NC2 TESDA 改為只有看護相關職業才需要：舊資料補上適用條件文字，
+    // 尚未收件的舊列改回「自動判斷」，讓它依工作意向決定是否適用；已經有上傳紀錄的列只補文字，不改適用狀態。
+    const [cavName, cavApplicability] = WORKER_DOCUMENTS.find(([name]) => name === 'CAV／NC2 TESDA');
+    const cavAuto = await client.query(`UPDATE hr_worker_documents SET applicability=$1,applicability_source='auto',updated_at=NOW()
+      WHERE name=$2 AND applicability='' AND status='missing' RETURNING worker_id`, [cavApplicability, cavName]);
+    await client.query("UPDATE hr_worker_documents SET applicability=$1 WHERE name=$2 AND applicability=''", [cavApplicability, cavName]);
+    for (const row of cavAuto.rows) {
+      if (await syncWorkerDocuments(client, row.worker_id)) affected.add(Number(row.worker_id));
+    }
+
+    // 初審文件（三取二）是「LCR Form 1-A」「PSA出生證明（附收據）」「新護照」。舊版曾把所有無條件文件（含體檢 Medical）都設成前置，
+    // 之後又只留護照與 PSA；這裡把旗標統一成現行清單。
     const fixed = await client.query(`UPDATE hr_worker_documents SET entry_gate=(required AND applicable AND name=ANY($1::text[])),updated_at=NOW()
       WHERE name=ANY($2::text[]) AND entry_gate IS DISTINCT FROM (required AND applicable AND name=ANY($1::text[])) RETURNING worker_id`,
     [ENTRY_GATE_DOCUMENTS, WORKER_DOCUMENT_NAMES]);
