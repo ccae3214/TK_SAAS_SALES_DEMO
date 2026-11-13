@@ -1,12 +1,50 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
-## 本輪：fix/merged-pr-review
+> 2026-11-13 現行入口：feature/hr-member-request-notifications 已整合 main 52b0d7c 並解決本機衝突，隔離 app 已重建並運作。本輪先備份／實還原，再依明確授權套用通知表與 main 既有 schema。Node 20 110／真實 DB 13／桌機與手機 E2E 16 通過，均無失敗／跳過；LINE 使用受控測試，沒有真實投遞。本次先備份／實際還原，再由 main 新增 onboarding_seen 欄位；登入後進 `/` 並有首次導覽，測試透過 UI 正常略過並確認伺服器紀錄。完整限制見 MEMBER_NOTIFICATION_REVIEW.md；更新同一 Draft PR #22，不合併 main／部署，GitHub 狀態以 PR 讀回為準。
 
-本機目前是基於 main 52b0d7c 的部分修復候選，不是未合併 #22 的通知候選。Windows 瀏覽器仍開 http://localhost:8088/hr/login ，密碼僅讀既有本機忽略檔。無 schema 或正式環境變更。
+## 本輪怎麼驗：會員送審通知
 
-唯一現行測試命令與 fixture 前置條件見 [MERGED_PR_REVIEW.md](MERGED_PR_REVIEW.md)；Node 104／Python3.12 93／隔離 PostgreSQL 8／登入 HTTP 3 通過，未重跑下方歷史 Python UI。測試保留虛構歷史、不重設 volume；F4 文字重送與 audit critical 未解，不能正式放行。
+【Windows】瀏覽器開啟 http://localhost:8088/hr/login 。管理者帳號 review.admin@example.invalid，密碼只讀本機 repository root 的 .env.review.local → REVIEW_LOGIN_PASSWORD，請勿貼聊天或提交 Git。
 
-## 2026-11-11：目前候選與驗收
+1. 點上方「待審會員」，開啟本輪保留的「DEMO manual-pending e549e921」。審核視窗須顯示這位會員，取消不能改資料；再開啟、核准為工作者／所屬菲律賓仲介。
+2. 使用另一個瀏覽器 profile 登入申請者，點「重新確認審核狀態」，確認轉為工作者工作區。不同一般分頁會共用 cookie，不能當成兩個角色。
+3. 新增／待審虛構帳號如下，只適用這次本機 DB；其他電腦須使用 prepare runner 產生自己的資料，不要期待固定 ID。
+   - 未申請：review-manual-new-e549e921cb814f6a87df0f846465fdaf-0@example.invalid
+   - 待審：review-manual-pending-e549e921cb814f6a87df0f846465fdaf-1@example.invalid
+4. 手機版通知面板應完整留在視窗內；管理後台語言切換在側欄頂部，手機先開導覽。其他頁語言位置不變。
+
+## 本輪可重跑指令（唯一現行流程）
+
+需要既有已授權的 .env.review.local、已初始化的 tk_saas_review DB，以及 npm ci 的鎖定依賴。不是空 DB bootstrap，不要使用舊的 reseed／reset volume 指令。以下已實際執行，日後也可直接交由 Agent 重跑，不必你逐條操作。
+
+【WSL】repository root
+```bash
+docker compose --env-file .env.review.local -f compose.review.yaml build app
+docker compose --env-file .env.review.local -f compose.review.yaml up -d app
+docker run --rm --network none -v "$PWD:/work:ro" -w /work node:20-alpine npm run test:hr
+docker compose --env-file .env.review.local -f compose.review.yaml run --rm --no-deps e2e node --test scripts/test-notification-store.mjs
+docker compose --env-file .env.review.local -f compose.review.yaml run --rm --no-deps e2e
+```
+
+預期分別是 Node 110、真實 PostgreSQL 13、Playwright Test 16；以每次實際輸出為準，失敗就保留證據，不 skip／改預期。原始 HTML 在 playwright-report、失敗 trace／截圖在 test-results，可能含測試密碼／cookie，僅留本機忽略目錄，不能直接公開。
+
+若手動 fixture 已消耗，這個 runner 只建立新的虛構帳號，不修改舊會員／密碼或刪資料：
+
+【WSL】repository root
+```bash
+docker compose --env-file .env.review.local -f compose.review.yaml run --rm --no-deps e2e node scripts/prepare-notification-review.mjs --prepare
+```
+
+LINE worker 是 notifications profile，預設不啟動。本機沒 token，以下只驗證入口回報 configurationMissing、claimed=0，不代表 LINE 成功；正式設定／啟動與投遞需要另行批准。
+
+【WSL】repository root
+```bash
+docker compose --env-file .env.review.local -f compose.review.yaml run --rm --no-deps notification-worker node scripts/hr-notification-worker.mjs --once
+```
+
+npm audit --omit=dev 回報 15 項（3 moderate／8 high／4 critical），未修復；build 跳過 lint／型別，遠端 CI 尚未跑。未驗真實 LINE／Google、iPhone／WebView、母語與其他完整業務流程。以下 11/11 舊 Python 26／15／20 與舊啟動命令只供歷史查考，不能當成本輪通過或重跑入口。
+
+## 2026-11-11：歷史候選與驗收（已合併）
 
 本輪由最新 main `3772bcf` 建立 `fix/hr-linked-record-consistency`，目標 PR 回 main；#17 已以 main → wei 合併，未發現其造成退版。本機隔離 migration／保留管理者 Email 防護已取得本次批准，先備份並驗證還原後套用 main 既有 trigger；沒有新增 DDL。app 已恢復，使用下方 localhost:8088 與既有帳號。
 

@@ -1,5 +1,7 @@
 # 台灣／菲律賓仲介相互認證
 
+> 2026-11-12 查核警示：main 809259b 的現行程式已接線，但下方「套用」提到的 scripts/apply-agency-certification-wiring.mjs 與 tests/hr-agency-certification.test.mjs 均不存在，不能當目前可執行操作。此警示不變更下列業務規則；驗證入口待釐清，見 NOTIFICATION_DISCOVERY.md。
+
 規則：同一組（台灣仲介 A、菲律賓仲介 B）必須**雙方都確認**，才算認證完成。
 未認證時：A 的雇主看不到 B 的工人、不能挑選；B 不能向 A 的需求單推薦人選；雙方不能安排面試／錄用／建案。
 

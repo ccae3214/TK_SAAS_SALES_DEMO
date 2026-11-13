@@ -1,6 +1,8 @@
 # TK SaaS Sales Demo
 
-目前審查候選：`fix/merged-pr-review`，基底 main `52b0d7c`。先驗證再修復已合併 #19／#20／#21 的三組資料一致性缺陷；Node 104、Python 3.12 93、真實 PostgreSQL 8、登入 HTTP 3 全通過。完整重大風險、重現與限制見 [MERGED_PR_REVIEW](docs/MERGED_PR_REVIEW.md)；F4 文字 webhook 重送與 production audit 15 項仍未修，不能當作正式放行。#22 尚未合併、未納入這條分支；不合併 main、不部署、不改 schema／認證／權限。以下 11/11 為歷史結果，不代表本輪重跑其 UI E2E。
+最新本機候選（2026-11-13）：`feature/hr-member-request-notifications` 已整合 main `52b0d7c` 並解決 PR #22 衝突，完成會員送審站內通知、可靠 LINE 入列／重試與可重跑會員流程。Node 20：110 通過；真實 PostgreSQL＋受控傳輸：13 通過；桌機／390px Chromium：16 通過，均無失敗／跳過。本機容器已重建並運作，入口 http://localhost:8088/hr/login 。審查與限制：[MEMBER_NOTIFICATION_REVIEW](docs/MEMBER_NOTIFICATION_REVIEW.md)；唯一操作入口：[LOCAL_REVIEW](docs/LOCAL_REVIEW.md)。
+
+本輪 schema／fixture 僅在明確授權的隔離 DB 套用，先備份並實際驗證還原；未發真實 LINE、未改 secrets；已授權更新 Draft PR [#22](https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/22)，不合併 main／部署。CI 與可合併性以精確 PR head 讀回為準。`npm audit --omit=dev` 回報 15 項警告（含 critical），未修復、不列通過；lint／型別仍跳過。新 E2E 只代表會員閉環，不是全站驗收。本次另先備份／實際還原後套用 main 的 onboarding_seen 欄位；測試保留新版首頁與首次導覽。下方 11/11 內容與舊 Python 驗證命令為歷史，只有本輪 LOCAL_REVIEW 的指令是現行操作入口。
 
 最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
 

@@ -18,7 +18,7 @@ line-hr-pilot
 accounting-bot
 certs/
 google-login-fix.patch
-# Browser traces can contain test credentials or cookies.
 playwright-report/
 test-results/
-**/.auth/
+tests/
+playwright.config.mjs
