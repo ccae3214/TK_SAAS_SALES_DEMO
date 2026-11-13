@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useEffect } from 'react';
 import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
 import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
+import { EMPLOYER_PROFILE_EN, translateEmployerPattern } from '@/lib/hr-translations-employer';
 
 const EN = {
   '克雷迅人力管理': 'Kolecion HR', '克雷迅人力仲介管理系統': 'Kolecion Employment Agency Management',
@@ -415,7 +416,7 @@ const HR_TEXT_ORIGINALS = new WeakMap();
 export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
-  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed];
+  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;
@@ -478,6 +479,7 @@ export function translateHrText(value, lang = 'zh') {
   if (!translated && trimmed.includes('待辦受阻或逾期')) translated = 'Blocked or overdue tasks will appear here.';
   if (!translated && trimmed.includes('家庭看護') && trimmed.includes('測試')) translated = 'Home care test employer';
   if (!translated) translated = translateTrainingCenterPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
+  if (!translated) translated = translateEmployerPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
   if (!translated) return value;
   const leading = value.match(/^\s*/)?.[0] || '';
   const trailing = value.match(/\s*$/)?.[0] || '';

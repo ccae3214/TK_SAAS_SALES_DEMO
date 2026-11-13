@@ -15,6 +15,7 @@ import { WITHDRAWAL_MARKER, isWithdrawnRecommendation } from '@/lib/hr-candidate
 import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
 import { ensureCertificationSchema, isAgencyPairCertified, isRouteCertified, certifiedPhilippinesAgencyIds, assertCaseAgenciesCertified, assertPhilippinesAgenciesCertified } from '@/lib/hr-agency-certification-store';
 import { LinkedRecordError, normalizeRecordEmail, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
+import { cleanCareRecipient, cleanEmployerProfile, employerRecordError, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +89,10 @@ export async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(job_order_id,taiwan_agency_id)
     )`);
     await pool.query('ALTER TABLE hr_job_order_agencies ADD COLUMN IF NOT EXISTS broker_member_id BIGINT REFERENCES hr_members(id) ON DELETE SET NULL');
+    // 雇主補充資料（性別、年齡、家庭成員、公司資料）與需求單的被照顧人、月薪。只新增欄位，不改動既有資料。
+    await pool.query("ALTER TABLE hr_employers ADD COLUMN IF NOT EXISTS employer_profile JSONB NOT NULL DEFAULT '{}'::jsonb");
+    await pool.query("ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS care_recipient JSONB NOT NULL DEFAULT '{}'::jsonb");
+    await pool.query('ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS monthly_salary INTEGER');
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_job_order_routes (
       id BIGSERIAL PRIMARY KEY, order_agency_id BIGINT NOT NULL REFERENCES hr_job_order_agencies(id) ON DELETE CASCADE,
       philippines_agency_id BIGINT NOT NULL REFERENCES hr_agencies(id), notes TEXT NOT NULL DEFAULT '',
@@ -232,6 +237,13 @@ function workerProfileWithReference(value, jobPreference, workerId) {
   return profile;
 }
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
+// 雇主補充資料：client 沒送 employerProfile 時回傳 { profile: null }（保留資料庫原值）；有送就驗證並整理後轉成 JSON。
+function employerProfileFromBody(body) {
+  if (body.employerProfile === undefined) return { profile: null };
+  const error = employerRecordError({ employerType: body.employerType, phone: clean(body.phone, 50), address: clean(body.address, 300), profile: body.employerProfile });
+  if (error) return { error };
+  return { profile: JSON.stringify(cleanEmployerProfile(body.employerProfile)) };
+}
 const validDate = value => {
   if (!value) return true;
   const text = String(value);
@@ -450,6 +462,10 @@ export async function GET() {
       orderCandidates = [];
       agencyContacts = [];
     }
+    // 雇主年齡、性別與家庭成員只提供雇主本人、台灣仲介與管理者；工作者與菲律賓仲介看不到。
+    if (principal.role === 'worker' || (principal.role === 'agency' && principal.agency_type !== 'taiwan')) {
+      employers = employers.map(item => ({ ...item, employer_profile: {} }));
+    }
     const caseIds = new Set(cases.map(item => Number(item.id)));
     const privateCaseIds = employerPrivateCaseIds || caseIds;
     const tasks = allTasks.filter(item => privateCaseIds.has(Number(item.case_id)));
@@ -515,6 +531,10 @@ async function handlePost(request) {
       const agencyIds = [...new Set(agencyAssignments.map(item=>item.agencyId))];
       const headcount = Number(body.headcount), jobType = clean(body.jobType,120);
       if (!validId(employerId) || agencyAssignments.length!==1 || !agencyIds.length || !agencyIds.every(validId) || !Number.isInteger(headcount) || headcount < 1 || headcount > 100 || !jobType || !validDate(body.expectedStartDate)) return NextResponse.json({error:'工作需求單只能指定一家所屬台灣仲介，並請填寫工作類型與需求人數。'},{status:400});
+      const orderSalary=parseMonthlySalary(body.monthlySalary);
+      const orderCare=needsCareRecipient(jobType)?cleanCareRecipient(body.careRecipient):{};
+      const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,careRecipient:orderCare});
+      if(orderExtrasError)return NextResponse.json({error:orderExtrasError},{status:400});
       if (agencyAssignments.some(item=>item.brokerMemberId!==null&&!validId(item.brokerMemberId))) return NextResponse.json({error:'業務資料格式不正確。'},{status:400});
       const employerRecord=await query('SELECT id,agency_id,status FROM hr_employers WHERE id=$1',[employerId]);
       if(!employerRecord.length)return NextResponse.json({error:'找不到雇主資料，請聯絡管理者確認會員指派。'},{status:404});
@@ -534,7 +554,7 @@ async function handlePost(request) {
         if(!employer.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到雇主資料。'},{status:404});}
         if(employer.rows[0].status!=='active'){await client.query('ROLLBACK');return NextResponse.json({error:'雇主資料目前已停用，請聯絡管理者啟用後再建立工作需求單。'},{status:409});}
         if(Number(employer.rows[0].agency_id)!==agencyIds[0]){await client.query('ROLLBACK');return NextResponse.json({error:'雇主所屬仲介已變更，請重新整理後再建立需求單。'},{status:409});}
-        const order=await client.query(`INSERT INTO hr_job_orders(employer_id,job_type,headcount,description,expected_start_date) VALUES($1,$2,$3,$4,$5) RETURNING *`,[employerId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null]);
+        const order=await client.query(`INSERT INTO hr_job_orders(employer_id,job_type,headcount,description,expected_start_date,monthly_salary,care_recipient) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING *`,[employerId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare)]);
         for(const assignment of agencyAssignments) await client.query('INSERT INTO hr_job_order_agencies(job_order_id,taiwan_agency_id,broker_member_id) VALUES($1,$2,$3)',[order.rows[0].id,assignment.agencyId,assignment.brokerMemberId]);
         await client.query('COMMIT'); return NextResponse.json(order.rows[0],{status:201});
       } catch(error){await client.query('ROLLBACK');throw error;} finally{client.release();}
@@ -740,6 +760,11 @@ async function handlePost(request) {
       if (password.length < 10) return NextResponse.json({ error: '初始密碼至少需要 10 個字元。' }, { status: 400 });
       const agencyId = body.agencyId && validId(body.agencyId) ? Number(body.agencyId) : null;
       if (isEmployer && !EMPLOYER_TYPES.has(body.employerType)) return NextResponse.json({ error: '請選擇有效的雇主類型。' }, { status: 400 });
+      let employerExtra = { profile: null };
+      if (isEmployer) {
+        employerExtra = employerProfileFromBody(body);
+        if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
+      }
       let workerProfile = null, jobPreference = '';
       if (!isEmployer) {
         workerProfile = cleanWorkerResumeProfile(body.resumeProfile);
@@ -755,8 +780,8 @@ async function handlePost(request) {
         await client.query('BEGIN');
         let record;
         if (isEmployer) {
-          record = (await client.query(`INSERT INTO hr_employers(name,contact_name,phone,email,address,notes,employer_type,agency_id)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`, [name, clean(body.contactName,120), clean(body.phone,50), email, clean(body.address,300), clean(body.notes,2000), body.employerType, agencyId])).rows[0];
+          record = (await client.query(`INSERT INTO hr_employers(name,contact_name,phone,email,address,notes,employer_type,agency_id,employer_profile)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9::jsonb,'{}'::jsonb)) RETURNING *`, [name, clean(body.contactName,120), clean(body.phone,50), email, clean(body.address,300), clean(body.notes,2000), body.employerType, agencyId, employerExtra.profile])).rows[0];
         } else {
           const created = (await client.query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,resume_profile,agency_id)
             VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name, clean(body.nationality,80), clean(body.phone,50), email, jobPreference, clean(body.notes,2000), JSON.stringify(workerProfile), agencyId])).rows[0];
@@ -864,6 +889,10 @@ async function handlePatch(request) {
     if(body.type==='job-order-update'&&principal.role==='employer'){
       const orderId=Number(body.id),jobType=clean(body.jobType,120),headcount=Number(body.headcount),brokerMemberId=body.brokerMemberId?Number(body.brokerMemberId):null;
       if(!validId(orderId)||!jobType||!Number.isInteger(headcount)||headcount<1||headcount>100||!validDate(body.expectedStartDate)||(brokerMemberId!==null&&!validId(brokerMemberId)))return NextResponse.json({error:'工作類型、需求人數或日期格式不正確。'},{status:400});
+      const orderSalary=parseMonthlySalary(body.monthlySalary);
+      const orderCare=needsCareRecipient(jobType)?cleanCareRecipient(body.careRecipient):{};
+      const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,careRecipient:orderCare});
+      if(orderExtrasError)return NextResponse.json({error:orderExtrasError},{status:400});
       const client=await pool.connect();
       try{
         await client.query('BEGIN');
@@ -878,7 +907,7 @@ async function handlePatch(request) {
           const broker=await client.query("SELECT id FROM hr_members WHERE id=$1 AND role='agency' AND agency_id=$2 AND active=TRUE",[brokerMemberId,order.rows[0].agency_id]);
           if(!broker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'指定業務必須是所屬仲介的有效會員。'},{status:400});}
         }
-        const updated=await client.query(`UPDATE hr_job_orders SET job_type=$2,headcount=$3,description=$4,expected_start_date=$5,updated_at=NOW() WHERE id=$1 RETURNING *`,[orderId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null]);
+        const updated=await client.query(`UPDATE hr_job_orders SET job_type=$2,headcount=$3,description=$4,expected_start_date=$5,monthly_salary=$6,care_recipient=$7::jsonb,updated_at=NOW() WHERE id=$1 RETURNING *`,[orderId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare)]);
         const assignment=await client.query('UPDATE hr_job_order_agencies SET broker_member_id=$3 WHERE job_order_id=$1 AND taiwan_agency_id=$2 RETURNING id',[orderId,order.rows[0].agency_id,brokerMemberId]);
         if(!assignment.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'需求單的仲介資料已變更，請重新整理後再試。'},{status:409});}
         await client.query('COMMIT');
@@ -951,9 +980,11 @@ async function handlePatch(request) {
       if (!validId(id) || id !== Number(principal.employer_id)) return NextResponse.json({ error: '只能編輯自己的雇主資料。' }, { status: 403 });
       const name = clean(body.name,160);
       if (!name || !EMPLOYER_TYPES.has(body.employerType)) return NextResponse.json({ error: '請填寫雇主／客戶名稱並選擇有效類型。' }, { status: 400 });
+      const employerExtra = employerProfileFromBody(body);
+      if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
       const edited = await editLinkedRecord('employer', id, { name, email: clean(body.email,254) }, async (client, fields) =>
-        (await client.query(`UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,updated_at=NOW()
-          WHERE id=$1 RETURNING *`,[id,name,clean(body.contactName,120),clean(body.phone,50),fields.email,clean(body.address,300),clean(body.notes,2000),body.employerType])).rows[0]);
+        (await client.query(`UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,employer_profile=COALESCE($9::jsonb,employer_profile),updated_at=NOW()
+          WHERE id=$1 RETURNING *`,[id,name,clean(body.contactName,120),clean(body.phone,50),fields.email,clean(body.address,300),clean(body.notes,2000),body.employerType,employerExtra.profile])).rows[0]);
       return NextResponse.json(edited);
     }
     if (principal.role === 'employer') return NextResponse.json({ error: '雇主帳號無權執行此項更新。' }, { status: 403 });
@@ -986,9 +1017,11 @@ async function handlePatch(request) {
       if (!validId(id)) return NextResponse.json({ error: '雇主編號不正確。' }, { status: 400 });
       if (body.name === undefined || body.active !== undefined) return NextResponse.json({ error: '仲介只能編輯所屬雇主資料，無權新增或變更雇主啟用狀態。' }, { status: 403 });
       if (!clean(body.name,160) || !EMPLOYER_TYPES.has(body.employerType)) return NextResponse.json({ error: '請填寫名稱並選擇有效的雇主類型。' }, { status: 400 });
+      const employerExtra = employerProfileFromBody(body);
+      if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
       const edited = await editLinkedRecord('employer', id, { name: clean(body.name,160), email: clean(body.email,254) }, async (client, fields) =>
-        (await client.query(`UPDATE hr_employers SET name=$3,contact_name=$4,phone=$5,email=$6,address=$7,notes=$8,employer_type=$9,updated_at=NOW()
-          WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,fields.name,clean(body.contactName,120),clean(body.phone,50),fields.email,clean(body.address,300),clean(body.notes,2000),body.employerType])).rows[0], principal.agency_id);
+        (await client.query(`UPDATE hr_employers SET name=$3,contact_name=$4,phone=$5,email=$6,address=$7,notes=$8,employer_type=$9,employer_profile=COALESCE($10::jsonb,employer_profile),updated_at=NOW()
+          WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,fields.name,clean(body.contactName,120),clean(body.phone,50),fields.email,clean(body.address,300),clean(body.notes,2000),body.employerType,employerExtra.profile])).rows[0], principal.agency_id);
       return NextResponse.json(edited);
     }
     if (body.type === 'member-admin-scope') {
@@ -1415,12 +1448,14 @@ async function handlePatch(request) {
       if (!validId(id)) return NextResponse.json({ error: '資料編號不正確。' }, { status: 400 });
       if (body.name !== undefined && !clean(body.name,160)) return NextResponse.json({ error: '名稱不能空白。' }, { status: 400 });
       if (body.name !== undefined && body.type === 'employer' && !EMPLOYER_TYPES.has(body.employerType)) return NextResponse.json({ error: '請選擇有效的雇主類型。' }, { status: 400 });
+      const employerExtra = body.type === 'employer' && body.name !== undefined ? employerProfileFromBody(body) : { profile: null };
+      if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
       const fields = body.name !== undefined ? { name: clean(body.name,160), email: clean(body.email,254) } : { active: body.status !== 'inactive' };
       const saved = await editLinkedRecord(body.type, id, fields, async (client, normalized) => {
         let result;
         if (body.name !== undefined) {
           result = body.type === 'employer'
-            ? await client.query('UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),normalized.email,clean(body.address,300),clean(body.notes,2000),body.employerType,body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null])
+            ? await client.query('UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,agency_id=$9,employer_profile=COALESCE($10::jsonb,employer_profile),updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),normalized.email,clean(body.address,300),clean(body.notes,2000),body.employerType,body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null,employerExtra.profile])
             : await client.query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id)),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
         } else {
           const status = body.status === 'inactive' ? 'inactive' : 'active';

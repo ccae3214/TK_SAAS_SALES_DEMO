@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import styles from './HrReminders.module.css';
+import { employerMissingLabels } from '@/lib/hr-employer-profile';
 
 const DAYS_AHEAD = 7;
 const WORKER_RESUME_FIELDS = [
@@ -79,7 +80,7 @@ function collectProfileReminders(data) {
         ? (data.employers || []).filter(employer => Number(employer.agency_id) === Number(data.agencyId))
         : [];
   employers.filter(employer => employer.status === 'active').forEach(employer => {
-    const missing = EMPLOYER_FIELDS.filter(([field]) => !isFilled(employer[field])).map(([, label]) => label);
+    const missing = [...EMPLOYER_FIELDS.filter(([field]) => !isFilled(employer[field])).map(([, label]) => label), ...employerMissingLabels(employer)];
     if (missing.length) reminders.push({
       id: `employer:${employer.id}`,
       type: 'employer',
