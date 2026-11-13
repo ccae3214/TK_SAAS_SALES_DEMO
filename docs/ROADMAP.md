@@ -2,7 +2,16 @@
 
 本文件是唯一計畫主檔；操作看 LOCAL_REVIEW.md、證據看 VERIFICATION_REPORT.md、歷史看 TASK_LOG.md。
 
-## 2026-11-11：main 基底修正與 PR 交付
+## 本輪：已合併 PR 審查與部分修復
+
+- [x] 基於 main 52b0d7c 建單一 fix/merged-pr-review；列冊 19 筆 main 已合併 PR，按資料一致性與權限風險優先審查，不冒稱全面 E2E。
+- [x] 先以失敗回歸確認 #19／#21 記帳與 #20 HR 交易問題，僅修 F1／F2／F3，不改 schema、認證或角色政策。
+- [x] Node104／Python3.12 93／真實 PostgreSQL8／登入 HTTP3 通過；app／bot build 與本機 smoke 完成，文件地圖同步。
+- [ ] 同分支發佈 PR、讀回精確 head CI 並交由獨立 reviewer；不合併 main、不部署。動態狀態以 PR 為準。
+- [ ] F4 文字 webhook 重送持久去重需另確認設計／schema；既有 production audit15（含4 critical）另案修補，不擅自更新認證依賴。
+- [ ] 未驗真實 provider、iPhone／WebView、所有 PR 的 UI／附件／租戶／壓力矩陣；歷史 UI 結果不得外推本輪。
+
+## 2026-11-11：main 基底修正與 PR 交付（歷史）
 
 - [x] 查證 #17 是 main → wei 的 squash，同 tree，未發現同步退版；保留 main 後續自動更新與 CSP／nonce。
 - [x] 從最新 main `3772bcf` 建 fix/hr-linked-record-consistency，不直接寫 main，以 main 為 PR 目標。

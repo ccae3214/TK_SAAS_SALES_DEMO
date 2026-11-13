@@ -1,5 +1,7 @@
 # TK SaaS Sales Demo
 
+目前審查候選：`fix/merged-pr-review`，基底 main `52b0d7c`。先驗證再修復已合併 #19／#20／#21 的三組資料一致性缺陷；Node 104、Python 3.12 93、真實 PostgreSQL 8、登入 HTTP 3 全通過。完整重大風險、重現與限制見 [MERGED_PR_REVIEW](docs/MERGED_PR_REVIEW.md)；F4 文字 webhook 重送與 production audit 15 項仍未修，不能當作正式放行。#22 尚未合併、未納入這條分支；不合併 main、不部署、不改 schema／認證／權限。以下 11/11 為歷史結果，不代表本輪重跑其 UI E2E。
+
 最新進度（2026-11-11）：已查證 #17 是 main → wei，squash 後 tree 與當時 main 相同，未發現該同步造成退版。之後均從最新 main 建 feature/fix branch，PR 回 main，不直接寫 main。本輪基底 `3772bcf`，修正工人／雇主與會員資料一致性及已批准的保留管理者 Email 防護；Node 85、既有 Chromium 26／撤回 15／新整合 20 通過，無失敗。本機 app 已恢復 http://localhost:8088/hr/login；未合併 main、未部署。本次合作人入口：[LINKED_RECORD_REVIEW](docs/LINKED_RECORD_REVIEW.md)。
 
 以下 PR #12 為歷史快照，已合併，不代表目前分支或新版測試狀態。

@@ -125,9 +125,10 @@ class Bot:
         if action == "加入帳單":
             if row["kind"] != "bill" or not row["due_day"]:
                 return "這張看不出繳費期限，沒辦法存成固定帳單。要記帳請回「確認」。"
-            if not self.store.set_pending_status(row["id"], "done"):
+            row = self.store.record_pending(chat_id, row["id"], as_bill=True)
+            if row is None:
                 return self._no_pending(pid, is_group)
-            bill_id = self.store.add_bill(SHARED_LEDGER, row["note"], row["amount"], row["due_day"])
+            bill_id = row["entry_id"]
             return (
                 f"📌 已新增帳單 #{bill_id}\n{row['note']}  {_money(row['amount'])}\n"
                 f"每月 {row['due_day']} 號\n付完回「已付 {bill_id}」就會記帳並停止提醒。"
@@ -136,9 +137,14 @@ class Bot:
         # 確認
         spent_on = date.fromisoformat(row["spent_on"])
         duplicate = self.store.find_duplicate_expense(SHARED_LEDGER, row["amount"], spent_on)
-        if not self.store.set_pending_status(row["id"], "done"):
+        row = self.store.record_pending(chat_id, row["id"])
+        if row is None:
             return self._no_pending(pid, is_group)
-        expense_id = self.store.add_expense(SHARED_LEDGER, row["amount"], row["note"], spent_on)
+        spent_on = date.fromisoformat(row["spent_on"])
+        expense_id = row["entry_id"]
+        # An edit may have won the write lock after our initial preview read.
+        if duplicate is not None and (duplicate["amount"] != row["amount"] or duplicate["spent_on"] != row["spent_on"]):
+            duplicate = None
         lines = [
             f"✅ 已記帳 #{expense_id}",
             f"{row['note']}  {_money(row['amount'])}",
@@ -233,10 +239,13 @@ class Bot:
         if not bill:
             return "找不到這筆帳單，輸入「帳單」查看編號。"
         period = period_of(today)
-        if bill_id in self.store.paid_bill_ids(user_id, period):
+        result = self.store.pay_bill_once(user_id, bill_id, period, today)
+        if result is None:
+            return "找不到這筆帳單，輸入「帳單」查看編號。"
+        bill = result["bill"]
+        if result["already_paid"]:
             return f"{bill['name']} 本月已經標記為已付了。"
-        expense_id = self.store.add_expense(user_id, bill["amount"], bill["name"], today)
-        self.store.mark_paid(bill_id, period, expense_id)
+        expense_id = result["expense_id"]
         return (
             f"✅ 已付 {bill['name']}  {_money(bill['amount'])}\n"
             f"已自動記帳 #{expense_id}，本月不會再提醒。"

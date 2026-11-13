@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
+    "test:hr": "node --test tests/*.test.mjs scripts/test-hr-requirements.mjs scripts/test-hr-case-flow.mjs",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-verify.ps1"

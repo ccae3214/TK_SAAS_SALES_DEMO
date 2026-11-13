@@ -194,6 +194,7 @@ export async function PATCH(request, { params }) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        await client.query('SELECT id FROM hr_workers WHERE id=$1 FOR UPDATE', [workerId]);
         await client.query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,updated_by,updated_at)
           VALUES($1,$2,$3::date,$4::date,$5,$6,NOW())
           ON CONFLICT(worker_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
@@ -208,8 +209,8 @@ export async function PATCH(request, { params }) {
         await client.query(`INSERT INTO hr_case_activity(case_id,actor_email,action,detail)
           SELECT c.id,$2,'更新申請程序',$3 FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'`,
         [workerId, actor, `${step[1]} · ${completedOn || startedOn || '更新備註'}`]);
+        await refreshWorkerCases(async (sql, params) => (await client.query(sql, params)).rows, workerId);
         await client.query('COMMIT');
-        await refreshWorkerCases(query, workerId);
         return NextResponse.json({ ok: true });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -230,6 +231,7 @@ export async function PATCH(request, { params }) {
       const runInTransaction = async (sql, params) => (await client.query(sql, params)).rows;
       try {
         await client.query('BEGIN');
+        await client.query('SELECT id FROM hr_workers WHERE id=$1 FOR UPDATE', [workerId]);
         await client.query('INSERT INTO hr_worker_health_training(worker_id) VALUES($1) ON CONFLICT(worker_id) DO NOTHING', [workerId]);
         const current = await client.query(`SELECT ${column} AS current_status FROM hr_worker_health_training WHERE worker_id=$1 FOR UPDATE`, [workerId]);
         const flags = await client.query(`SELECT
@@ -252,12 +254,12 @@ export async function PATCH(request, { params }) {
         await client.query(`INSERT INTO hr_case_activity(case_id,actor_email,action,detail)
           SELECT c.id,$2,$3,$4 FROM hr_cases c WHERE c.worker_id=$1 AND c.status<>'closed'`,
         [workerId, actor, kind === 'medical' ? '更新抵台體檢安排' : '更新訓練安排', status]);
+        await refreshWorkerCases(runInTransaction, workerId);
         await client.query('COMMIT');
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
       } finally { client.release(); }
-      await refreshWorkerCases(query, workerId);
       return NextResponse.json({ ok: true });
     }
 
