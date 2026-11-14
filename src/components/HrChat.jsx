@@ -5,10 +5,11 @@ import { MessageCircle, RefreshCw, Send, Users } from 'lucide-react';
 import styles from './HrChat.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
+import { readJson } from '@/lib/hr-read-json';
 
 export default function HrChat() {
   const {lang}=useLanguage();
-  const localizeError=message=>lang==='en'?translateHrText(message,'en'):message;
+  const localizeError=error=>lang==='en'?(error.en||translateHrText(error.message,'en')):error.message;
   const [rooms,setRooms]=useState([]);
   const [selectedRoomId,setSelectedRoomId]=useState(null);
   const [messages,setMessages]=useState([]);
@@ -23,16 +24,18 @@ export default function HrChat() {
   const pendingRoomRef=useRef(null);
 
   async function loadRooms() {
-    const response=await fetch('/api/hr/chat',{cache:'no-store'}),body=await response.json();
+    const response=await fetch('/api/hr/chat',{cache:'no-store'}),body=await readJson(response);
     if(!response.ok)throw new Error(body.error||'無法載入聊天室');
+    setError('');
     setRooms(body.rooms||[]);
     const pending=pendingRoomRef.current;
     setSelectedRoomId(current=>pending&&body.rooms.some(room=>room.id===pending)?pending:(current&&body.rooms.some(room=>room.id===current)?current:(body.rooms[0]?.id||null)));
     if(pending&&body.rooms.some(room=>room.id===pending)){pendingRoomRef.current=null;void markRoomRead(pending);}
   }
   async function loadMessages(roomId) {
-    const response=await fetch(`/api/hr/chat?roomId=${roomId}`,{cache:'no-store'}),body=await response.json();
+    const response=await fetch(`/api/hr/chat?roomId=${roomId}`,{cache:'no-store'}),body=await readJson(response);
     if(!response.ok)throw new Error(body.error||'無法載入訊息');
+    setError('');
     setMessages(body.messages||[]);
     setMembers(body.members||[]);
     setRooms(current=>current.map(room=>room.id===roomId?{...room,lastMessage:body.room?.lastMessage||room.lastMessage,lastMessageAt:body.room?.lastMessageAt||room.lastMessageAt}:room));
@@ -46,17 +49,17 @@ export default function HrChat() {
     } catch {}
   }
 
-  useEffect(()=>{let active=true;(async()=>{try{await loadRooms();}catch(err){if(active)setError(localizeError(err.message));}finally{if(active)setLoading(false);}})();const timer=setInterval(()=>{loadRooms().catch(err=>{if(active)setError(localizeError(err.message));});},30000);return()=>{active=false;clearInterval(timer);};},[lang]);
+  useEffect(()=>{let active=true;(async()=>{try{await loadRooms();}catch(err){if(active)setError(localizeError(err));}finally{if(active)setLoading(false);}})();const timer=setInterval(()=>{loadRooms().catch(err=>{if(active)setError(localizeError(err));});},30000);return()=>{active=false;clearInterval(timer);};},[lang]);
   useEffect(()=>{const openRoom=event=>{const roomId=Number(event.detail?.roomId);if(!Number.isSafeInteger(roomId)||roomId<1)return;pendingRoomRef.current=roomId;setSelectedRoomId(roomId);void markRoomRead(roomId);};window.addEventListener('hr:open-chat-room',openRoom);return()=>window.removeEventListener('hr:open-chat-room',openRoom);},[]);
-  useEffect(()=>{if(!selectedRoomId)return;let active=true;const refresh=()=>loadMessages(selectedRoomId).catch(err=>{if(active)setError(localizeError(err.message));});refresh();const timer=setInterval(refresh,8000);return()=>{active=false;clearInterval(timer);};},[selectedRoomId,lang]);
+  useEffect(()=>{if(!selectedRoomId)return;let active=true;const refresh=()=>loadMessages(selectedRoomId).catch(err=>{if(active)setError(localizeError(err));});refresh();const timer=setInterval(refresh,8000);return()=>{active=false;clearInterval(timer);};},[selectedRoomId,lang]);
   useEffect(()=>{followLatestRef.current=true;},[selectedRoomId]);
   useEffect(()=>{const panel=messageListRef.current;if(panel&&followLatestRef.current)panel.scrollTop=panel.scrollHeight;},[messages,selectedRoomId]);
 
   async function send(event){
     event.preventDefault();const message=draft.trim();if(!message||!selectedRoomId||sending)return;
     setSending(true);setError('');
-    try{const response=await fetch('/api/hr/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roomId:selectedRoomId,message})});const body=await response.json();if(!response.ok)throw new Error(body.error||'訊息送出失敗');setDraft('');await Promise.all([loadMessages(selectedRoomId),loadRooms()]);}
-    catch(err){setError(localizeError(err.message));}finally{setSending(false);}
+    try{const response=await fetch('/api/hr/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({roomId:selectedRoomId,message})});const body=await readJson(response);if(!response.ok)throw new Error(body.error||'訊息送出失敗');setDraft('');await Promise.all([loadMessages(selectedRoomId),loadRooms()]);}
+    catch(err){setError(localizeError(err));}finally{setSending(false);}
   }
 
   async function openDirectChat(memberId){
@@ -64,9 +67,9 @@ export default function HrChat() {
     setError('');
     try{
       const response=await fetch('/api/hr/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'direct',roomId:selectedRoomId,targetMemberId:memberId})});
-      const body=await response.json();if(!response.ok)throw new Error(body.error||'無法開啟私訊');
+      const body=await readJson(response);if(!response.ok)throw new Error(body.error||'無法開啟私訊');
       pendingRoomRef.current=body.roomId;setShowMembers(false);await loadRooms();setSelectedRoomId(body.roomId);void markRoomRead(body.roomId);
-    }catch(err){setError(localizeError(err.message));}
+    }catch(err){setError(localizeError(err));}
   }
 
   const selectedRoom=rooms.find(room=>room.id===selectedRoomId);
@@ -75,7 +78,7 @@ export default function HrChat() {
   }:{label:'會員聊天室',title:'機構群組與案件群組',description:'開啟群組可查看群組會員，點選會員即可開始單獨聊天。',refresh:'重新整理',loading:'正在載入聊天室…',none:'目前沒有可參與的聊天室。',list:'聊天室清單',agency:'機構群組',case:'案件群組',agencySubtitle:'機構內部聊天室',caseSubtitle:'案件對話',recent:'最近 200 則訊息',empty:'尚無訊息，送出第一則訊息開始討論。',placeholder:'輸入訊息…',send:'送出',sending:'送出中',notFound:'聊天室',members:'群組會員',privateChat:'單獨聊天',direct:'私訊'};
   function displayRoomTitle(room){return room?.roomType==='agency'?`${room.agencyName} · ${text.agency}`:room?.roomType==='direct'?(room.title||text.direct):room?.caseNumber?`${room.caseNumber} · ${room.workerName} / ${room.employerName}`:text.notFound;}
   return <section id="hr-chat-section" className={styles.chatCard}>
-    <header className={styles.heading}><div><span><MessageCircle size={17}/> {text.label}</span><h2>{text.title}</h2><p>{text.description}</p></div><button type="button" className={styles.refresh} onClick={()=>{setError('');loadRooms().then(()=>selectedRoomId&&loadMessages(selectedRoomId)).catch(err=>setError(localizeError(err.message)));}} aria-label={text.refresh}><RefreshCw size={17}/></button></header>
+    <header className={styles.heading}><div><span><MessageCircle size={17}/> {text.label}</span><h2>{text.title}</h2><p>{text.description}</p></div><button type="button" className={styles.refresh} onClick={()=>{setError('');loadRooms().then(()=>selectedRoomId&&loadMessages(selectedRoomId)).catch(err=>setError(localizeError(err)));}} aria-label={text.refresh}><RefreshCw size={17}/></button></header>
     {error&&<p className={styles.error} role="alert">{error}</p>}
     {loading?<div className={styles.empty}>{text.loading}</div>:rooms.length===0?<div className={styles.empty}>{text.none}</div>:
       <div className={styles.layout}>
