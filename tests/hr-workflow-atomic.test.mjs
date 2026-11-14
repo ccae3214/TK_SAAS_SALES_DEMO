@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { canUpdateWorkflow, canTransition, workflowBlockReason } from '../src/lib/hr-case-flow.js';
+import { entryGateClosedSql } from '../src/lib/hr-requirements.js';
+import { cleanStepDetail } from '../src/lib/hr-worker-progress.js';
 
 // Execute the actual handler branch with explicit DB/transport doubles. No auth
 // bypass endpoint or artificial production response is added to the application.
@@ -59,6 +61,8 @@ function fixture(fault = '', flags = {}) {
     workerHasArrived: async run => { await run('TEST_ARRIVED'); return true; },
     WORKER_PROGRESS_STEPS: [['visa', '簽證']], isValidDateText: () => true,
     canManageStep: () => true, OWNER_LABELS: {}, STEP_OWNERS: {},
+    // route 直接用到的純函式，用真正的實作（不碰資料庫）。
+    entryGateClosedSql, cleanStepDetail,
   };
   const run = branch => new AsyncFunction('env', `const {${Object.keys(env).join(',')}} = env; ${branch}`)(env);
   return { run, env, events, state: () => state };
@@ -92,7 +96,8 @@ test('worker step stage failure rolls back both levels and activity', async () =
 for (const [name, principal, flags, code] of [
   ['worker role denied', { role: 'worker' }, {}, 403],
   ['cross agency denied', { role: 'agency', agency_type: 'taiwan' }, { agency_can_manage: false }, 403],
-  ['unapproved documents blocked', { role: 'admin' }, { documents_open: true }, 409],
+  // 訓練的前置條件是「初審（三取二）通過」，不是全部必要文件核准。
+  ['preliminary review not passed blocked', { role: 'admin' }, { gate_closed: true }, 409],
   ['completed cannot regress', { role: 'admin' }, { current_status: 'completed' }, 409],
 ]) {
   test(`case workflow ${name} retains data`, async () => {
@@ -104,6 +109,11 @@ for (const [name, principal, flags, code] of [
     assert.deepEqual(f.state(), before);
   });
 }
+test('case workflow training is not blocked by other unapproved documents once preliminary review passed', async () => {
+  const f = fixture('', { documents_open: true, gate_closed: false });
+  assert.equal((await f.run(mainBranch)).status, 200);
+  assert.equal(f.state().caseStatus, 'completed');
+});
 test('both workflow entry points lock the worker before mutating status', () => {
   for (const branch of [mainBranch, workerBranch]) {
     const lock = branch.indexOf('FOR UPDATE');

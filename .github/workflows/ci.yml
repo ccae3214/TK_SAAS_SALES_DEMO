@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# 同一個 PR 又推了新的 commit 時，取消還在跑的舊檢查，不用等它跑完，也不會疊一堆在跑。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: build
@@ -20,8 +25,17 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # --no-audit --no-fund：安裝時不去查安全公告與贊助訊息，只裝套件。
+      - run: npm ci --no-audit --no-fund
       - run: npm run test:hr
+      # Next.js 的 build 快取：程式沒大改時，build 可以重用上次的編譯結果。
+      # 快取只在同一個 PR 的第二次以後推送（或重跑）才會命中；套件或原始碼改了就自動換新的。
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'next.config.js', 'tailwind.config.cjs', 'postcss.config.cjs', 'jsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - run: npm run build
         env:
           NEXTAUTH_SECRET: ci-only-secret
