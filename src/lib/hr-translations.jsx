@@ -293,6 +293,7 @@ const EN_EXTRA = {
   '碩士學位': "Master's Degree (M.A. / M.S. / MBA)", '博士學位': 'Doctoral Degree / PhD (Ph.D. / Ed.D.)',
 };
 const EN_MORE = {
+  '雇主資料': 'Employer records',
   '尚未填寫，請由仲介管理者在下方「仲介機構資料」補上': 'Not provided yet. An agency administrator can add it under “Agency profile” below.',
   '前置': 'Prep', '入境': 'Arrival', '前置作業': 'Preparation', 'VISA 路線（簽證）': 'VISA route', 'OEC 路線（出境許可）': 'OEC route (exit clearance)', '入境與在台文件': 'Arrival & Taiwan documents',
   '配工、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。': 'Matching, passport and personal documents, and the medical exam; used by both the VISA and OEC routes.',
