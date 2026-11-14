@@ -1,0 +1,31 @@
+/* 版面細節；卡片、按鈕與輸入框的基本樣式來自 HrMemberPortal 的 .hr-member-shell .hr-member-card。 */
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
+.field{display:grid;gap:6px;min-width:0;font-size:13px;font-weight:600;color:var(--ink-2,#425449)}
+.field input:disabled,.field select:disabled{opacity:.75;cursor:not-allowed}
+.wide{grid-column:1 / -1}
+.formActions{display:flex;justify-content:flex-end;margin-top:18px}
+.notice{margin:0 0 16px;padding:10px 14px;border:1px solid #f0e2b6;border-radius:12px;background:#fff8e1;color:#7a5b00 !important;font-size:13.5px;line-height:1.6}
+
+.list{display:grid;gap:10px;margin:0 0 18px;padding:0;list-style:none}
+.item{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;padding:12px 16px;border:1px solid var(--line-soft,#edf2ee);border-radius:12px;background:var(--g-50,#f2f9f5)}
+.itemMain{display:grid;gap:4px;min-width:0;flex:1 1 260px}
+.itemMain strong{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;min-width:0;font-size:14.5px;line-height:1.45;overflow-wrap:anywhere}
+.itemMain small{color:var(--ink-3,#72837a);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere}
+.badge{display:inline-flex;align-items:center;flex:none;padding:2px 10px;border-radius:999px;background:#dcf3e5;color:#14532d;font-size:12px;font-weight:700;line-height:1.5;white-space:nowrap}
+.badgeWarn{background:#fdecea;color:#8a1c10}
+.actions{display:flex;flex:none;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
+.actions a{display:inline-flex;align-items:center;justify-content:center;min-width:64px;min-height:36px;padding:6px 14px;border:1px solid #cfdad4;border-radius:10px;background:#fff;color:var(--ink,#14231d);font-size:13.5px;font-weight:600;line-height:1.2;text-decoration:none;white-space:nowrap}
+.actions a:hover{background:var(--g-100,#e4f3ec);border-color:#b6dac8}
+/* 刪除鈕：蓋過 .hr-member-card button 的綠色實心樣式，改成紅字白底。 */
+:global(.hr-member-shell) .actions button.danger{min-width:64px;min-height:36px;padding:6px 14px;border:1px solid #f0cdc9;background:#fff;color:#b42318;font-size:13.5px;font-weight:600;box-shadow:none}
+:global(.hr-member-shell) .actions button.danger:hover:not(:disabled){background:#fdecea;border-color:#f1a9a0;box-shadow:none;transform:none}
+
+.upload{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;padding:16px;border:1px dashed #b6d4c6;border-radius:12px;background:var(--g-50,#f2f9f5)}
+.uploadRow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+
+@media (max-width:720px){
+  .grid,.upload{grid-template-columns:minmax(0,1fr)}
+  .item{flex-direction:column;align-items:stretch}
+  .actions{justify-content:flex-start}
+  .uploadRow{flex-direction:column;align-items:stretch}
+}
