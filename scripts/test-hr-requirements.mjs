@@ -13,11 +13,23 @@ test('前置文件只有新護照與 PSA 出生證明，體檢文件不是前置
   assert.equal(rows['體檢 Medical'].applicable, true);
 });
 
-test('空履歷：條件式文件維持不適用，其餘 15 項適用', () => {
+test('空履歷：條件式文件維持不適用（CAV 在工作意向未填時例外），其餘必要文件適用', () => {
   const rows = buildRequirementRows({});
   assert.equal(rows.length, WORKER_DOCUMENTS.length);
-  assert.equal(rows.filter(row => row.applicability && row.applicable).length, 0);
-  assert.equal(rows.filter(row => !row.applicability && row.applicable).length, 15);
+  // CAV／NC2 TESDA：工作意向未填時維持適用，避免漏收文件。
+  assert.deepEqual(rows.filter(row => row.applicability && row.applicable).map(row => row.name), ['CAV／NC2 TESDA']);
+  assert.equal(rows.filter(row => row.required && !row.applicability && row.applicable).length, 14);
+  // 合約掃描檔、簽證、OEC 是選填：可上傳存檔，但不列入必要文件進度。
+  const optional = rows.filter(row => !row.required);
+  assert.equal(optional.length, 3);
+  assert.ok(optional.every(row => row.applicable && !row.entryGate));
+});
+
+test('CAV／NC2 TESDA 只有看護相關職業適用，工作意向未填時維持適用', () => {
+  const applies = job => buildRequirementRows({}, job).find(row => row.name === 'CAV／NC2 TESDA').applicable;
+  for (const job of ['家庭看護', '機構看護工', '家庭幫傭']) assert.equal(applies(job), true, job);
+  for (const job of ['工廠技術工', '農工']) assert.equal(applies(job), false, job);
+  assert.equal(applies(''), true);
 });
 
 test('已婚 + 有子女 → 結婚證明與子女出生證明', () => {
