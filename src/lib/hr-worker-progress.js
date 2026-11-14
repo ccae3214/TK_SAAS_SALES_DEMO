@@ -3,7 +3,9 @@
 // hr_worker_health_training。此檔只放常數與純函式，前端與後端都可以匯入。
 
 export const WORKER_PROGRESS_STEPS = [
-  ['match_date', '配工／雇主面試日期'], ['passport', '護照確認'], ['document_arrival', '文件到達 D/C'],
+  ['match_date', '配工／雇主面試日期'],
+  ['employer_approval_submit', '雇主核准函送件'], ['employer_approval_received', '收到雇主核准函'], ['approval_mailed_ph', '核准函寄送菲律賓（寄件日）'],
+  ['passport', '護照確認'], ['document_arrival', '文件到達 D/C'],
   ['personal_documents', '個人文件和證件 P/D'], ['pdos', 'PDOS 台灣文化講習（1 日）'], ['medical', '體檢 MED'], ['medical_expiry', '體檢過期日'],
   ['accr_in', 'ACCR 引進權入件'], ['accr_out', 'ACCR 引進權出件'],
   ['contract_arrival', '合約到達菲律賓'], ['contract_issue', '核准函（合約）發函日'], ['wage_attestation', '來華工資切結書認證'],
@@ -16,8 +18,8 @@ export const WORKER_PROGRESS_STEPS = [
 // 申請程序依「簽證（VISA）」與「OEC（出境許可）」兩條路線分組；前面有共同的前置作業，最後是入境後的在台文件。
 // 兩條路線可以同時進行；沒有列在任何路線的項目（例如管理者自訂）歸到 fallback 的前置作業。
 export const PROCESS_ROUTES = [
-  { key: 'prep', badge: '前置', title: '前置作業', summary: '配工、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。', fallback: true,
-    steps: ['match_date', 'passport', 'document_arrival', 'personal_documents', 'medical', 'medical_expiry', 'umid'] },
+  { key: 'prep', badge: '前置', title: '前置作業', summary: '配工、雇主核准函（送件、收到、寄送菲律賓）、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。', fallback: true,
+    steps: ['match_date', 'employer_approval_submit', 'employer_approval_received', 'approval_mailed_ph', 'passport', 'document_arrival', 'personal_documents', 'medical', 'medical_expiry', 'umid'] },
   { key: 'visa', badge: 'VISA', title: 'VISA 路線（簽證）', summary: 'ACCR 引進權、核准函與合約、工資切結書認證，以及簽證。',
     steps: ['accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'visa'] },
   { key: 'oec', badge: 'OEC', title: 'OEC 路線（出境許可）', summary: 'OEC 路線的項目：訓練、PDOS、OWWA、OEC，以及機票與出境。',
@@ -30,13 +32,14 @@ export const routeOfStep = stepKey => ROUTE_OF_STEP.get(stepKey) || PROCESS_ROUT
 
 // 只需要一個日期的項目；其餘項目有「開始日／完成日」兩個日期。
 export const SINGLE_DATE_STEPS = new Set([
-  'match_date', 'passport', 'document_arrival', 'personal_documents', 'pdos', 'medical', 'medical_expiry',
+  'match_date', 'employer_approval_submit', 'employer_approval_received', 'approval_mailed_ph',
+  'passport', 'document_arrival', 'personal_documents', 'pdos', 'medical', 'medical_expiry',
   'accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'umid', 'ticket', 'expected_entry', 'actual_entry',
   'entry_notification', 'insurance', 'arc',
 ]);
 
 export const STEP_DATE_LABELS = {
-  match_date: '配工／面試日期', passport: '護照確認日期', document_arrival: '文件到達日期',
+  match_date: '配工／面試日期', employer_approval_submit: '核准函送件日期', employer_approval_received: '收到核准函日期', approval_mailed_ph: '核准函寄件日期', passport: '護照確認日期', document_arrival: '文件到達日期',
   personal_documents: '個人文件確認日期', pdos: 'PDOS 講習日', medical: '體檢日期', medical_expiry: '體檢過期日期', accr_in: '入件日期',
   accr_out: '出件日期', contract_arrival: '到達菲律賓日期', contract_issue: '核准函發函日期', wage_attestation: '認證領出日期',
   ticket: '實際出境日期', expected_entry: '預定入境日期', actual_entry: '實際入境日期',

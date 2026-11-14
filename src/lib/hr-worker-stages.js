@@ -32,7 +32,7 @@ export const WORKER_STAGES = [
     key: 'C', title: '契約與簽證', duration: '約 2–4 週（多由仲介辦理，你要審閱並簽名）',
     summary: '勞動契約與工資切結書要經 MECO 認證、DMW 審核；簽證由雇主或仲介申請。',
     documents: ['合約 Contract（掃描檔）', '簽證 Visa'],
-    steps: ['accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'visa'],
+    steps: ['employer_approval_submit', 'employer_approval_received', 'approval_mailed_ph', 'accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'visa'],
     acks: [
       { key: 'contract_reviewed', text: '我已審閱勞動契約與工資切結書，兩份文件的薪資與費用數字一致，並在簽名前自己對照過一次。' },
       { key: 'passport_custody', text: '我知道護照不應長期交給仲介或雇主；若必須暫借，一定要有書面與收據。' },
@@ -177,6 +177,8 @@ export const WORKER_STAGE_EN = {
   '訓練（60 日；中文 A1 共 240 小時）': 'Training (60 days; Chinese A1 course, 240 study hours in total)', 'OEC（當日可領）': 'OEC (same-day release)', '機票／出境': 'Air ticket / departure',
   'PDOS 講習日': 'PDOS seminar date', '體檢過期日期': 'Medical exam expiry date', '到達菲律賓日期': 'Date arrived in the Philippines', '核准函發函日期': 'Approval letter issue date',
   '認證領出日期': 'Attestation release date', '實際出境日期': 'Actual departure date',
+  '雇主核准函送件': 'Employer approval letter submitted', '收到雇主核准函': 'Employer approval letter received', '核准函寄送菲律賓（寄件日）': 'Approval letter sent to the Philippines (mailing date)',
+  '核准函送件日期': 'Approval letter submission date', '收到核准函日期': 'Approval letter received date', '核准函寄件日期': 'Approval letter mailing date',
   '送件日期': 'Submission date', '取得日期': 'Date obtained', '開課日期': 'Course start date', '結業日期': 'Course completion date',
   '簽證類型': 'Visa type', '一般件（5 個工作天）': 'Regular (5 working days)', '加急件（3 個工作天）': 'Expedited (3 working days)',
   '雇主': 'Employer', '機票資訊（航班／備註）': 'Ticket information (flight / notes)', '尚未選擇': 'Not selected',

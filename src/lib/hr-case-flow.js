@@ -11,6 +11,9 @@ export const MEDICAL_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'p
 
 // 這些申請程序有固定的負責單位；其他程序（配工日期、護照、文件到達…）維持兩種仲介都能編輯。
 export const STEP_OWNERS = {
+  employer_approval_submit: 'taiwan',
+  employer_approval_received: 'taiwan',
+  approval_mailed_ph: 'taiwan',
   visa: 'philippines',
   oec: 'philippines',
   actual_entry: 'taiwan',

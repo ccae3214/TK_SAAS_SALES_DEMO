@@ -28,6 +28,9 @@ export function ensureEmployerDocumentsSchema() {
       uploaded_by_role TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    // 核准日期與文號：新上傳的核准函一定要填；舊資料沒有這兩個欄位，所以資料庫端允許空值。
+    await pool.query('ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_date DATE');
+    await pool.query("ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_number TEXT NOT NULL DEFAULT ''");
     await pool.query('CREATE INDEX IF NOT EXISTS hr_employer_documents_employer ON hr_employer_documents(employer_id, created_at DESC)');
   })().catch(error => { schemaPromise = null; throw error; });
   return schemaPromise;

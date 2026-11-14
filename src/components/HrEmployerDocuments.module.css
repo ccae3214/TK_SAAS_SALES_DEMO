@@ -30,16 +30,19 @@
 
 .empty{margin:0 0 16px;color:var(--ink-3,#667085);font-size:14px}
 
-.upload{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;align-items:end;gap:12px 16px;padding:16px;border:1px dashed #b6d4c6;border-radius:12px;background:var(--g-50,#f8fafb)}
+.upload{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:12px 16px;padding:16px;border:1px dashed #b6d4c6;border-radius:12px;background:var(--g-50,#f8fafb)}
 .upload label{display:grid;gap:6px;min-width:0;font-size:13px;font-weight:600;color:var(--ink-2,#334155)}
-.upload input[type="text"]{width:100%;min-width:0;min-height:42px;padding:9px 12px;border:1px solid #d3dfd8;border-radius:11px;background:#fbfdfc;color:var(--ink,#1f2933);font:inherit;font-size:14px;font-weight:500;outline:none;transition:border-color .16s,box-shadow .16s}
-.upload input[type="text"]:focus{border-color:var(--g-600,#1f8366);box-shadow:0 0 0 3px rgba(31,131,102,.18)}
-.upload input[type="text"]:disabled{opacity:.6}
+.upload input[type="text"],.upload input[type="date"]{width:100%;min-width:0;min-height:42px;padding:9px 12px;border:1px solid #d3dfd8;border-radius:11px;background:#fbfdfc;color:var(--ink,#1f2933);font:inherit;font-size:14px;font-weight:500;outline:none;transition:border-color .16s,box-shadow .16s}
+.upload input[type="text"]:focus,.upload input[type="date"]:focus{border-color:var(--g-600,#1f8366);box-shadow:0 0 0 3px rgba(31,131,102,.18)}
+.upload input[type="text"]:disabled,.upload input[type="date"]:disabled{opacity:.6}
 .upload button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 20px;border:1px solid transparent;border-radius:11px;font:inherit;font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;cursor:pointer}
 .upload .primary{background:linear-gradient(135deg,var(--g-700,#176b54),var(--g-600,#1f8366));color:#fff;box-shadow:0 4px 12px rgba(23,107,84,.22)}
 .upload .primary:hover:not(:disabled){filter:brightness(1.05)}
 .upload button:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
 .upload button:focus-visible{outline:3px solid rgba(31,131,102,.35);outline-offset:2px}
+.noteField{grid-column:span 2}
+.req{margin-left:6px;color:#b42318;font-size:12px;font-weight:700}
+.itemMain small.warn{color:#b42318}
 .hint{grid-column:1 / -1;margin:0;color:var(--ink-3,#667085);font-size:12.5px;line-height:1.55}
 
 .error,.success{margin:0 0 16px;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:600;line-height:1.6}
@@ -51,5 +54,6 @@
   .item{flex-direction:column;align-items:stretch}
   .actions{justify-content:flex-start}
   .upload{grid-template-columns:minmax(0,1fr)}
+  .noteField{grid-column:auto}
   .upload .primary{justify-self:stretch}
 }

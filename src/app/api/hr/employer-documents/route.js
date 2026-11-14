@@ -8,12 +8,13 @@ import {
   EMPLOYER_DOCUMENT_LIMIT_PER_EMPLOYER, EMPLOYER_DOCUMENT_MAX_SIZE, EMPLOYER_DOCUMENT_TYPES, canManageEmployerDocuments,
   detectContentType, documentKey, ensureEmployerDocumentsSchema, requestIsSameOrigin,
 } from '@/lib/hr-employer-documents';
+import { APPROVAL_MESSAGES, validateApprovalFields } from '@/lib/hr-employer-approval';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
-const fail = (message, status = 400) => NextResponse.json({ error: message }, { status });
+const fail = (message, status = 400, code) => NextResponse.json(code ? { error: message, code } : { error: message }, { status });
 
 async function context() {
   const session = await auth();
@@ -40,7 +41,7 @@ export async function GET(request) {
       params.push(employerId); where.push(`d.employer_id=$${params.length}`);
     }
     const rows = await query(`SELECT d.id, d.employer_id, d.doc_type, d.original_filename, d.content_type, d.size_bytes, d.note,
-        d.uploaded_by, d.uploaded_by_role, d.created_at, e.name AS employer_name
+        d.uploaded_by, d.uploaded_by_role, d.created_at, to_char(d.approval_date,'YYYY-MM-DD') AS approval_date, d.approval_number, e.name AS employer_name
       FROM hr_employer_documents d JOIN hr_employers e ON e.id=d.employer_id
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY d.created_at DESC, d.id DESC`, params);
     return NextResponse.json({ rows });
@@ -63,8 +64,11 @@ export async function POST(request) {
   const docType = clean(form.get('docType'), 40) || 'approval_letter';
   const file = form.get('file');
   const note = clean(form.get('note'));
+  const approval = validateApprovalFields({ approvalDate: form.get('approvalDate'), approvalNumber: form.get('approvalNumber') });
   if (!Number.isSafeInteger(employerId) || employerId <= 0 || !file || typeof file.arrayBuffer !== 'function') return fail('請選擇雇主並選擇要上傳的文件。');
   if (!EMPLOYER_DOCUMENT_TYPES[docType]) return fail('不支援的文件類型。');
+  // 核准日期與文號為必填。
+  if (!approval.ok) return fail(APPROVAL_MESSAGES[approval.code].zh, 400, approval.code);
   if (file.size <= 0 || file.size > EMPLOYER_DOCUMENT_MAX_SIZE) return fail('文件大小需介於 1 byte 到 10 MB。');
   const plain = Buffer.from(await file.arrayBuffer());
   const contentType = detectContentType(plain);
@@ -83,12 +87,12 @@ export async function POST(request) {
     const authTag = cipher.getAuthTag();
     const sha256 = createHash('sha256').update(plain).digest('hex');
     const actor = clean(session.user?.name || session.user?.email || session.user?.lineUserId || 'LINE 登入', 254);
-    const inserted = await pool.query(`INSERT INTO hr_employer_documents(employer_id,doc_type,original_filename,content_type,size_bytes,sha256,iv,auth_tag,encrypted_data,note,uploaded_by,uploaded_by_role)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
-      [employerId, docType, filename, contentType, plain.length, sha256, iv, authTag, encrypted, note, actor, principal.role === 'agency' ? 'taiwan_agency' : principal.role]);
+    const inserted = await pool.query(`INSERT INTO hr_employer_documents(employer_id,doc_type,original_filename,content_type,size_bytes,sha256,iv,auth_tag,encrypted_data,note,uploaded_by,uploaded_by_role,approval_date,approval_number)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::date,$14) RETURNING id`,
+      [employerId, docType, filename, contentType, plain.length, sha256, iv, authTag, encrypted, note, actor, principal.role === 'agency' ? 'taiwan_agency' : principal.role, approval.date, approval.number]);
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '新增', type: 'employer-document', id: inserted.rows[0].id, name: employer.name,
-        phrase: `為${employer.name}雇主上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}` });
+        phrase: `為${employer.name}雇主上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}（文號 ${approval.number}）` });
     }
     return NextResponse.json({ ok: true, id: inserted.rows[0].id }, { status: 201 });
   } catch (error) {

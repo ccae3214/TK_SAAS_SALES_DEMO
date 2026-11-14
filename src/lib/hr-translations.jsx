@@ -296,7 +296,7 @@ const EN_MORE = {
   '雇主資料': 'Employer records',
   '尚未填寫，請由仲介管理者在下方「仲介機構資料」補上': 'Not provided yet. An agency administrator can add it under “Agency profile” below.',
   '前置': 'Prep', '入境': 'Arrival', '前置作業': 'Preparation', 'VISA 路線（簽證）': 'VISA route', 'OEC 路線（出境許可）': 'OEC route (exit clearance)', '入境與在台文件': 'Arrival & Taiwan documents',
-  '配工、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。': 'Matching, passport and personal documents, and the medical exam; used by both the VISA and OEC routes.',
+  '配工、雇主核准函（送件、收到、寄送菲律賓）、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。': 'Matching, the employer approval letter (submission, receipt, mailing to the Philippines), passport and personal documents, and the medical exam; used by both the VISA and OEC routes.',
   'ACCR 引進權、核准函與合約、工資切結書認證，以及簽證。': 'ACCR work permit, approval letter and contract, wage affidavit attestation, and the visa.',
   'OEC 路線的項目：訓練、PDOS、OWWA、OEC，以及機票與出境。': 'OEC route items: training, PDOS, OWWA, OEC, and the air ticket and departure.',
   '預定與實際入境日期，以及入國通報、勞健保加保與居留證。': 'Expected and actual entry dates, entry notification, labor and health insurance enrollment, and the residence permit.',
