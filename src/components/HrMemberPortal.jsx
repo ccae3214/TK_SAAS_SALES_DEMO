@@ -27,7 +27,7 @@ import HrEmployerDocuments from '@/components/HrEmployerDocuments';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
 import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
-import { SINGLE_DATE_STEPS, STEP_DATE_LABELS } from '@/lib/hr-worker-progress';
+import { SINGLE_DATE_STEPS, STEP_DATE_LABELS, PROCESS_ROUTES, routeOfStep } from '@/lib/hr-worker-progress';
 import { OWNER_LABELS, STEP_OWNERS, canManageStep } from '@/lib/hr-case-flow';
 import { WORKER_RESUME_CHOICES, WORKER_RESUME_LANGUAGES, WORKER_RESUME_SELECTS, readLanguageLevels, resumeChoiceList } from '@/lib/hr-resume-fields';
 
@@ -336,6 +336,34 @@ function ApplicationStepRow({ step, canEdit, saving, onSave }) {
       <input className="step-compact-note-input" name="note" placeholder="狀態／備註" defaultValue={step.note||''} disabled={!canEdit}/>
       {canEdit&&<button disabled={saving}>{saving?'儲存中…':'儲存'}</button>}
     </form>}
+  </div>;
+}
+
+// 申請程序依 VISA／OEC 兩條路線分組（前置與入境後各一組）；預設只展開目前進行到的那一組，其餘收合並顯示完成進度。
+function ProcessRoutes({ steps, canEditStep, stepSaving, onSave }) {
+  const groups = PROCESS_ROUTES.map(route => {
+    const items = steps.filter(step => routeOfStep(step.step_key) === route.key);
+    return { route, items, done: items.filter(step => step.completed_on).length };
+  }).filter(group => group.items.length);
+  const currentKey = (groups.find(group => group.done < group.items.length) || {}).route?.key || '';
+  const [initialKey] = useState(currentKey);
+  const [toggled, setToggled] = useState({});
+  return <div className="route-list">
+    {groups.map(({ route, items, done }) => {
+      const isOpen = route.key in toggled ? toggled[route.key] : route.key === initialKey;
+      return <section key={route.key} className={`route-card route-${route.key}${done === items.length ? ' route-done' : ''}`}>
+        <button type="button" className="route-toggle" aria-expanded={isOpen} onClick={() => setToggled(current => ({ ...current, [route.key]: !isOpen }))}>
+          <span className="route-badge">{route.badge}</span>
+          <strong className="route-heading">{route.title}</strong>
+          <span className="route-count" title="已完成">{done}/{items.length}</span>
+          <ChevronDown size={16} aria-hidden="true" className="route-chevron" />
+        </button>
+        {isOpen&&<div className="route-body">
+          <p className="route-summary">{route.summary}</p>
+          {items.map(step => <ApplicationStepRow key={step.id} step={step} canEdit={canEditStep(step)} saving={stepSaving === `${step.case_id}:${step.step_key}`} onSave={event => onSave(event, step)} />)}
+        </div>}
+      </section>;
+    })}
   </div>;
 }
 
@@ -734,6 +762,20 @@ function PortalStyles() {
 .hr-member-shell .process-row,.hr-member-shell .progress-step{display:grid;grid-template-columns:minmax(140px,1.2fr) repeat(2,minmax(130px,1fr)) minmax(120px,1fr) auto;align-items:end;gap:10px;padding:13px 15px;margin-top:10px;border:1px solid var(--line-soft);border-radius:14px;background:#fcfdfc}
 .hr-member-shell .process-case h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
 .hr-member-shell .process-case-count{flex:none;padding:1px 9px;border-radius:999px;background:var(--g-100);color:var(--g-700);font-size:12px;font-variant-numeric:tabular-nums}
+.hr-member-shell .route-list{display:grid;gap:8px}
+.hr-member-shell .route-card{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.hr-member-shell button.route-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:8px 12px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none}
+.hr-member-shell button.route-toggle:hover:not(:disabled){background:var(--g-50);transform:none;box-shadow:none;filter:none}
+.hr-member-shell .route-badge{flex:none;min-width:46px;padding:3px 8px;border-radius:8px;background:var(--g-100);color:var(--g-700);font-size:12px;font-weight:800;text-align:center}
+.hr-member-shell .route-visa .route-badge{background:#e6eefb;color:#2c5aa0}
+.hr-member-shell .route-oec .route-badge{background:var(--amber-bg);color:var(--amber)}
+.hr-member-shell .route-done .route-badge{background:var(--g-700);color:#fff}
+.hr-member-shell .route-heading{flex:1;min-width:0;font-size:14px;font-weight:800}
+.hr-member-shell .route-count{flex:none;color:var(--ink-3);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.hr-member-shell .route-chevron{flex:none;color:var(--ink-3);transition:transform .2s}
+.hr-member-shell button.route-toggle[aria-expanded=true] .route-chevron{transform:rotate(180deg)}
+.hr-member-shell .route-body{border-top:1px solid var(--line-soft)}
+.hr-member-shell .route-summary{margin:0;padding:8px 12px;color:var(--ink-3);font-size:12.5px;line-height:1.5}
 .hr-member-shell .step-compact-list{border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;background:#fff}
 .hr-member-shell .step-compact+.step-compact{border-top:1px solid var(--line-soft)}
 .hr-member-shell button.step-compact-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:6px 12px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;font-weight:700;text-align:left;box-shadow:none}
@@ -1304,7 +1346,7 @@ export default function HrMemberPortal({ actor }) {
     {activeWorkspaceTab==='documents'&&(data.role==='employer'||isTaiwanOperator)&&<HrEmployerDocuments employers={data.role==='employer'?data.employers:data.employers.filter(item=>Number(item.agency_id)===Number(data.agencyId))}/>}
     {activeWorkspaceTab==='documents'&&<section className="hr-member-card"><h2>必要文件與審核</h2>{data.role==='worker'?(documentWorkers.length?documentWorkers.map(person=>{const personCases=workerCases.filter(item=>Number(item.worker_id)===Number(person.id));const stageCase=personCases.find(item=>item.status!=='closed')||personCases[0]||null;return <WorkerStageDocuments key={person.id} workerName={person.name} caseItem={stageCase} requirements={data.requirements.filter(item=>Number(item.worker_id)===Number(person.id))} steps={stageCase?(data.applicationSteps||[]).filter(item=>Number(item.case_id)===Number(stageCase.id)):[]} acknowledgments={stageCase?(data.acknowledgments||[]).filter(item=>Number(item.case_id)===Number(stageCase.id)):[]} renderDocumentItem={renderDocumentItem} onAcknowledge={acknowledge} />;}):<p>目前沒有必要文件項目。</p>):(documentWorkers.length?<HrDocumentReviewList workers={documentWorkers} requirements={data.requirements} renderItem={renderCompactDocument} />:<p>目前沒有必要文件項目。</p>)}{workerCases.some(caseItem=>(data.certifications||[]).some(cert=>Number(cert.case_id)===Number(caseItem.id)))&&<div className="worker-case"><h3>案件必備證照與取證進度</h3>{workerCases.map(caseItem=>{const certs=(data.certifications||[]).filter(cert=>Number(cert.case_id)===Number(caseItem.id));return certs.length?<div key={caseItem.id}><h4>{caseItem.case_number} · {caseItem.worker_name}（{caseItem.job_type}）</h4>{certs.map(cert=><div className="document-item" key={cert.id}><div className="document-heading"><div><strong>{cert.name}</strong>{cert.target_date&&<small>預計取得：{String(cert.target_date).slice(0,10)}</small>}</div><span className={`doc-status doc-${cert.status==='obtained'?'approved':'missing'}`}>{CERTIFICATION_LABELS[cert.status]||cert.status}</span></div>{canUpdateCertification&&<div className="document-actions"><select value={cert.status} onChange={event=>updateCertification(cert,event.target.value)} aria-label={`${cert.name} 取證進度`}>{Object.entries(CERTIFICATION_LABELS).map(([value,text])=><option key={value} value={value}>{text}</option>)}</select></div>}</div>)}</div>:null})}</div>}{data.role==='worker'&&<div className="stage-footnotes"><p className="stage-notice">{STAGE_NOTICE}</p><h3>遇到問題怎麼辦</h3><p className="stage-notice">{STAGE_HELP}</p></div>}</section>}
     {activeWorkspaceTab==='training'&&data.role==='worker'&&<HrWorkerTraining courses={data.trainingCourses||[]}/>}
-    {activeWorkspaceTab==='process'&&<section className="hr-member-card"><h2>赴台申請程序</h2>{workerCases.length?workerCases.map(caseItem=>{const caseSteps=data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id));const doneCount=caseSteps.filter(step=>step.completed_on).length;return <div className="worker-case process-case" key={caseItem.id}><h3><span>{caseItem.case_number} · {caseItem.employer_name}</span><b className="process-case-count" title="已完成">{doneCount}/{caseSteps.length}</b></h3><div className="step-compact-list">{caseSteps.map(step=><ApplicationStepRow key={step.id} step={step} canEdit={canManageCaseProgress&&canManageStep('agency',data.agencyType,step.step_key)} saving={stepSaving===`${step.case_id}:${step.step_key}`} onSave={event=>saveApplicationStep(event,step)}/>)}</div></div>}):<p>目前沒有來台申請程序。</p>}</section>}
+    {activeWorkspaceTab==='process'&&<section className="hr-member-card"><h2>赴台申請程序</h2>{workerCases.length?workerCases.map(caseItem=>{const caseSteps=data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id));const doneCount=caseSteps.filter(step=>step.completed_on).length;return <div className="worker-case process-case" key={caseItem.id}><h3><span>{caseItem.case_number} · {caseItem.employer_name}</span><b className="process-case-count" title="已完成">{doneCount}/{caseSteps.length}</b></h3><ProcessRoutes steps={caseSteps} canEditStep={step=>canManageCaseProgress&&canManageStep('agency',data.agencyType,step.step_key)} stepSaving={stepSaving} onSave={saveApplicationStep}/></div>}):<p>目前沒有來台申請程序。</p>}</section>}
     {activeWorkspaceTab==='agencyEmployer'&&data.role==='worker'&&!!data.employers.length && <section className="hr-member-card"><h2>我的雇主</h2><div className="hr-member-table-wrap"><table><thead><tr><th>雇主／客戶</th><th>類型</th><th>聯絡人</th><th>狀態</th></tr></thead><tbody>{data.employers.map(item => <tr key={item.id}><td>{item.name}</td><td>{{home_care:'家庭看護',factory:'工廠',domestic_helper:'家庭幫傭',other:'其他'}[item.employer_type] || '其他'}</td><td>{item.contact_name || '—'}</td><td>{item.status === 'active' ? '啟用' : '停用'}</td></tr>)}</tbody></table></div></section>}
     {activeWorkspaceTab==='agencyEmployer'&&!!data.agencies.length && data.role === 'worker' && <section className="hr-member-card"><h2>所屬仲介</h2><ul>{data.agencies.map(item => <li key={item.id}>{item.name}（{item.country || (item.agency_type === 'taiwan' ? '台灣' : '菲律賓')}）</li>)}</ul></section>}
     {profileWorker && <div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setProfileWorker(null)}}><section ref={profileDialogRef} tabIndex={-1} onKeyDown={handleProfileKeyDown} className="progress-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title"><header className="progress-modal-header"><div><span>工作者資料</span><h2 id="profile-modal-title">{profileWorker.name}</h2></div><div className="profile-modal-actions"><button type="button" className="profile-edit-action" disabled={resumePdfLoading} onClick={()=>void downloadWorkerResume(profileWorker)}>{resumePdfLoading?'產生中…':'下載履歷 PDF'}</button>{isPhilippinesOperator&&Number(profileWorker.agency_id)===Number(data.agencyId)&&<button type="button" className="profile-edit-action" onClick={()=>{setProfileWorker(null);beginWorkerEdit(profileWorker)}}>編輯資料</button>}<button type="button" className="progress-modal-close" aria-label="關閉工作者資料" onClick={()=>setProfileWorker(null)}>×</button></div></header><div className="progress-modal-body"><div className="worker-detail"><p>姓名：{profileWorker.name}</p><p>國籍：{profileWorker.nationality||'—'}</p><p>電話：{profileWorker.phone||'—'}</p><p>Email：{profileWorker.email||'—'}</p><p>工作意向：{profileWorker.job_preference||'—'}</p><p>狀態：{profileWorker.status==='active'?'啟用':'停用'}</p></div>{resumeViewPhoto&&<img className="resume-profile-photo" src={resumeViewPhoto} alt="履歷照片"/>}<WorkerResumeSections profile={profileWorker.resume_profile}/>{profileWorker.notes&&<div className="profile-notes"><strong>備註</strong><p>{profileWorker.notes}</p></div>}</div></section></div>}
