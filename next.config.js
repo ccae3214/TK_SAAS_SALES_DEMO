@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone', 
+  // CI 只檢查 build 會不會壞，不需要 Docker 用的 standalone 打包（省約 15 秒）。
+  ...(process.env.SKIP_STANDALONE ? {} : { output: 'standalone' }),
   eslint: {
     ignoreDuringBuilds: true,
   },

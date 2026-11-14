@@ -39,6 +39,8 @@ jobs:
       - run: npm run build
         env:
           NEXTAUTH_SECRET: ci-only-secret
+          # 跳過 Docker 部署用的 standalone 打包，build 少約 15 秒；正式部署（Dockerfile）不受影響。
+          SKIP_STANDALONE: '1'
 
   accounting-bot:
     name: accounting-bot tests
