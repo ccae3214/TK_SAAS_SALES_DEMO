@@ -11,6 +11,20 @@ import { WORKER_STAGES, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequireme
 
 const STATUS_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3, na: 4 };
 
+// 排序用的快照：工作者與文件的先後順序只在畫面開啟、或使用者切換篩選時決定一次。
+// 如果跟著資料即時排序，上傳／審核後那位工作者會因為「待審數增加」被排到最上面、
+// 該文件也會被移到階段最前面，使用者正在看的位置就被推走。
+// 顯示的數字與狀態仍然是即時的，只有順序被固定。
+function takeOrderSnapshot(summaries) {
+  const workers = new Map();
+  const items = new Map();
+  for (const { person, rows, counts } of summaries) {
+    workers.set(person.id, [counts.submitted, counts.returned, counts.missing]);
+    for (const item of rows) items.set(item.id, STATUS_ORDER[documentGroup(item)]);
+  }
+  return { workers, items };
+}
+
 function StageGroup({ stage, items, approved, applicable, pending, defaultOpen, renderItem }) {
   const [open, setOpen] = useState(defaultOpen);
   return <section className={`doc-stage${pending === 0 ? ' doc-stage-done' : ''}`}>
@@ -34,10 +48,20 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
     const counts = { submitted: 0, returned: 0, missing: 0, approved: 0, na: 0 };
     for (const item of rows) counts[documentGroup(item)] = (counts[documentGroup(item)] || 0) + 1;
     return { person, rows, counts, applicable: rows.length - counts.na };
-  }).sort((a, b) => b.counts.submitted - a.counts.submitted
-    || b.counts.returned - a.counts.returned
-    || b.counts.missing - a.counts.missing
-    || String(a.person.name || '').localeCompare(String(b.person.name || ''), 'zh-Hant')), [workers, requirements]);
+  }), [workers, requirements]);
+
+  // 依「需要處理」排序（待審多的在前），順序用快照固定，見 takeOrderSnapshot。
+  const [order, setOrder] = useState(() => takeOrderSnapshot(summaries));
+  const sortedSummaries = useMemo(() => {
+    const rank = row => order.workers.get(row.person.id) || [row.counts.submitted, row.counts.returned, row.counts.missing];
+    return [...summaries].sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      return rb[0] - ra[0] || rb[1] - ra[1] || rb[2] - ra[2]
+        || String(a.person.name || '').localeCompare(String(b.person.name || ''), 'zh-Hant');
+    });
+  }, [summaries, order]);
+  const itemRank = item => order.items.get(item.id) ?? STATUS_ORDER[documentGroup(item)];
+  function changeFilter(key) { setFilter(key); setOrder(takeOrderSnapshot(summaries)); }
 
   const totals = summaries.reduce((sum, row) => ({
     submitted: sum.submitted + row.counts.submitted,
@@ -47,9 +71,13 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
   }), { submitted: 0, returned: 0, missing: 0, approved: 0 });
 
   // 預設：有待審文件就先看待審，否則看全部。
-  const activeFilter = filter ?? (totals.submitted > 0 ? 'submitted' : 'all');
+  // 只在畫面剛開啟時決定一次，不能跟著資料即時重算：上傳文件後待審數會從 0 變 1，
+  // 預設若跟著從「全部」換成「待審核」，清單會瞬間縮成只剩有待審文件的工作者，
+  // 各階段也會被重新建立，畫面就像跳回最上面。使用者按了篩選才會改變。
+  const [initialFilter] = useState(() => (totals.submitted > 0 ? 'submitted' : 'all'));
+  const activeFilter = filter ?? initialFilter;
   const needle = query.trim().toLowerCase();
-  const visible = summaries.filter(row =>
+  const visible = sortedSummaries.filter(row =>
     (activeFilter === 'all' || row.counts[activeFilter] > 0)
     && (!needle || String(row.person.name || '').toLowerCase().includes(needle)));
   const matchesFilter = item => activeFilter === 'all' || documentGroup(item) === activeFilter;
@@ -58,7 +86,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
     <div className="doc-filter-bar" role="group" aria-label="文件狀態篩選">
       {DOCUMENT_STATUS_FILTERS.map(([key, label]) => <button type="button" key={key}
         className={`doc-filter${activeFilter === key ? ' is-active' : ''}`}
-        aria-pressed={activeFilter === key} onClick={() => setFilter(key)}>
+        aria-pressed={activeFilter === key} onClick={() => changeFilter(key)}>
         <span>{label}</span>{key !== 'all'&&<b>{totals[key]}</b>}
       </button>)}
     </div>
@@ -74,7 +102,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
           const stageDocs = rows.filter(item => stageOfRequirement(item.name) === stage.key);
           const stageApplicable = stageDocs.filter(item => item.applicable);
           const items = stageDocs.filter(matchesFilter)
-            .sort((x, y) => STATUS_ORDER[documentGroup(x)] - STATUS_ORDER[documentGroup(y)] || Number(y.entry_gate) - Number(x.entry_gate));
+            .sort((x, y) => itemRank(x) - itemRank(y) || Number(y.entry_gate) - Number(x.entry_gate));
           return {
             stage, items, applicable: stageApplicable.length,
             approved: stageApplicable.filter(item => item.status === 'approved').length,
