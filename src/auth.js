@@ -64,6 +64,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
   },
+  events: {
+    // 會員審核通過後「第一次登入」時，用 LINE 發一則歡迎訊息（只發一次；失敗不影響登入）。
+    async signIn({ user, account, profile }) {
+      try {
+        const lineUserId = account?.provider === "line" ? (profile?.sub || account.providerAccountId || null) : null;
+        const { welcomeAfterFirstLogin } = await import('@/lib/hr-first-login');
+        void welcomeAfterFirstLogin({ lineUserId, email: user?.email || null })
+          .catch((error) => console.error('hr_first_login_welcome_failed', error?.message || 'Error'));
+      } catch (error) {
+        console.error('hr_first_login_welcome_failed', error?.message || 'Error');
+      }
+    },
+  },
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account?.provider === "line") {
