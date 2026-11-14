@@ -308,6 +308,37 @@ function WorkerStageDocuments({ workerName, caseItem, requirements, steps, ackno
   </div>;
 }
 
+// 赴台申請程序的單一步驟：預設只顯示一行（步驟、備註、日期、狀態），點開才出現日期與備註的編輯欄位。
+function ApplicationStepRow({ step, canEdit, saving, onSave }) {
+  const [open, setOpen] = useState(false);
+  const singleDate = SINGLE_DATE_STEPS.has(step.step_key);
+  const day = value => (value ? String(value).slice(0, 10) : '');
+  const state = step.completed_on ? 'approved' : step.started_on ? 'submitted' : 'missing';
+  const statusText = step.completed_on ? '已完成' : step.started_on ? '進行中' : '尚未開始';
+  const when = day(step.completed_on) || day(step.started_on);
+  const owner = STEP_OWNERS[step.step_key];
+  const training = step.step_key === 'training';
+  return <div className={`step-compact${open ? ' is-open' : ''}`}>
+    <button type="button" className="step-compact-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <span className="step-compact-name">{step.label}{owner&&<small> · {`${OWNER_LABELS[owner]}辦理`}</small>}</span>
+      {step.note&&<span className="step-compact-note">{step.note}</span>}
+      {when&&<time>{when}</time>}
+      <span className={`doc-status doc-${state}`}>{statusText}</span>
+      <ChevronDown size={16} aria-hidden="true" className="step-compact-chevron" />
+    </button>
+    {open&&<form className="step-compact-form" onSubmit={onSave}>
+      {singleDate
+        ? <label>{STEP_DATE_LABELS[step.step_key]||'辦理日期'}<input type="date" name="completedOn" defaultValue={day(step.completed_on)} disabled={!canEdit}/></label>
+        : <>
+          <label>{training?'訓練開始日':'辦件／開始日'}<input type="date" name="startedOn" defaultValue={day(step.started_on)} disabled={!canEdit}/></label>
+          <label>{training?'訓練完成日':'完成／出件日'}<input type="date" name="completedOn" defaultValue={day(step.completed_on)} disabled={!canEdit}/></label>
+        </>}
+      <input className="step-compact-note-input" name="note" placeholder="狀態／備註" defaultValue={step.note||''} disabled={!canEdit}/>
+      {canEdit&&<button disabled={saving}>{saving?'儲存中…':'儲存'}</button>}
+    </form>}
+  </div>;
+}
+
 function PortalStyles() {
   return <style jsx global>{`
 .hr-member-shell .hr-member-pending{max-width:600px;margin:30px auto}
@@ -701,6 +732,24 @@ function PortalStyles() {
 .hr-member-shell .doc-group[open]>summary svg{transform:rotate(180deg)}
 .hr-member-shell .doc-review-empty{margin:8px 0 0;padding:20px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--ink-3);font-size:14px}
 .hr-member-shell .process-row,.hr-member-shell .progress-step{display:grid;grid-template-columns:minmax(140px,1.2fr) repeat(2,minmax(130px,1fr)) minmax(120px,1fr) auto;align-items:end;gap:10px;padding:13px 15px;margin-top:10px;border:1px solid var(--line-soft);border-radius:14px;background:#fcfdfc}
+.hr-member-shell .process-case h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.hr-member-shell .process-case-count{flex:none;padding:1px 9px;border-radius:999px;background:var(--g-100);color:var(--g-700);font-size:12px;font-variant-numeric:tabular-nums}
+.hr-member-shell .step-compact-list{border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;background:#fff}
+.hr-member-shell .step-compact+.step-compact{border-top:1px solid var(--line-soft)}
+.hr-member-shell button.step-compact-toggle{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:6px 12px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;font-weight:700;text-align:left;box-shadow:none}
+.hr-member-shell button.step-compact-toggle:hover:not(:disabled){background:var(--g-50);transform:none;box-shadow:none;filter:none}
+.hr-member-shell .step-compact-name{flex:1 1 auto;min-width:0}
+.hr-member-shell .step-compact-name small{color:var(--ink-3);font-weight:600}
+.hr-member-shell .step-compact-note{flex:0 1 220px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-3);font-size:12px;font-weight:500}
+.hr-member-shell .step-compact-toggle time{flex:none;color:var(--ink-3);font-size:12px;font-variant-numeric:tabular-nums}
+.hr-member-shell .step-compact-toggle .doc-status{padding:3px 9px;font-size:11.5px}
+.hr-member-shell .step-compact-chevron{flex:none;color:var(--ink-3);transition:transform .2s}
+.hr-member-shell button.step-compact-toggle[aria-expanded=true] .step-compact-chevron{transform:rotate(180deg)}
+.hr-member-shell .step-compact-form{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr)) minmax(120px,1.4fr) auto;align-items:end;gap:8px;padding:4px 12px 12px;background:var(--g-50)}
+.hr-member-shell .step-compact-form>*{min-width:0}
+.hr-member-shell .step-compact-form label{display:grid;gap:4px;color:var(--ink-3);font-size:12px;font-weight:700}
+.hr-member-shell .step-compact-form input{min-height:36px;padding:6px 10px;font-size:13px}
+.hr-member-shell .step-compact-form button{min-height:36px;padding:6px 14px}
 .hr-member-shell .process-row strong,.hr-member-shell .progress-step strong{align-self:center;color:var(--ink);font-size:14px}
 .hr-member-shell .process-row label,.hr-member-shell .progress-step label{font-size:12px;font-weight:700}
 .hr-member-shell .process-row button,.hr-member-shell .progress-step button{min-height:42px;padding:9px 16px}
@@ -756,6 +805,9 @@ function PortalStyles() {
 .hr-member-shell .job-order-facts{grid-template-columns:1fr;gap:8px}
 .hr-member-shell .order-form{padding:14px}
 .hr-member-shell .process-row strong,.hr-member-shell .progress-step strong{padding-top:6px}
+.hr-member-shell .step-compact-note,.hr-member-shell .step-compact-toggle time{display:none}
+.hr-member-shell .step-compact-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hr-member-shell .step-compact-form .step-compact-note-input,.hr-member-shell .step-compact-form button{grid-column:1/-1}
 .hr-member-shell .progress-modal-backdrop{padding:0;align-items:end}
 .hr-member-shell .progress-modal{width:100%;max-height:93vh;border-radius:22px 22px 0 0}
 .hr-member-shell .progress-modal-header,.hr-member-shell .progress-modal-body{padding-left:18px;padding-right:18px}
@@ -1252,7 +1304,7 @@ export default function HrMemberPortal({ actor }) {
     {activeWorkspaceTab==='documents'&&(data.role==='employer'||isTaiwanOperator)&&<HrEmployerDocuments employers={data.role==='employer'?data.employers:data.employers.filter(item=>Number(item.agency_id)===Number(data.agencyId))}/>}
     {activeWorkspaceTab==='documents'&&<section className="hr-member-card"><h2>必要文件與審核</h2>{data.role==='worker'?(documentWorkers.length?documentWorkers.map(person=>{const personCases=workerCases.filter(item=>Number(item.worker_id)===Number(person.id));const stageCase=personCases.find(item=>item.status!=='closed')||personCases[0]||null;return <WorkerStageDocuments key={person.id} workerName={person.name} caseItem={stageCase} requirements={data.requirements.filter(item=>Number(item.worker_id)===Number(person.id))} steps={stageCase?(data.applicationSteps||[]).filter(item=>Number(item.case_id)===Number(stageCase.id)):[]} acknowledgments={stageCase?(data.acknowledgments||[]).filter(item=>Number(item.case_id)===Number(stageCase.id)):[]} renderDocumentItem={renderDocumentItem} onAcknowledge={acknowledge} />;}):<p>目前沒有必要文件項目。</p>):(documentWorkers.length?<HrDocumentReviewList workers={documentWorkers} requirements={data.requirements} renderItem={renderCompactDocument} />:<p>目前沒有必要文件項目。</p>)}{workerCases.some(caseItem=>(data.certifications||[]).some(cert=>Number(cert.case_id)===Number(caseItem.id)))&&<div className="worker-case"><h3>案件必備證照與取證進度</h3>{workerCases.map(caseItem=>{const certs=(data.certifications||[]).filter(cert=>Number(cert.case_id)===Number(caseItem.id));return certs.length?<div key={caseItem.id}><h4>{caseItem.case_number} · {caseItem.worker_name}（{caseItem.job_type}）</h4>{certs.map(cert=><div className="document-item" key={cert.id}><div className="document-heading"><div><strong>{cert.name}</strong>{cert.target_date&&<small>預計取得：{String(cert.target_date).slice(0,10)}</small>}</div><span className={`doc-status doc-${cert.status==='obtained'?'approved':'missing'}`}>{CERTIFICATION_LABELS[cert.status]||cert.status}</span></div>{canUpdateCertification&&<div className="document-actions"><select value={cert.status} onChange={event=>updateCertification(cert,event.target.value)} aria-label={`${cert.name} 取證進度`}>{Object.entries(CERTIFICATION_LABELS).map(([value,text])=><option key={value} value={value}>{text}</option>)}</select></div>}</div>)}</div>:null})}</div>}{data.role==='worker'&&<div className="stage-footnotes"><p className="stage-notice">{STAGE_NOTICE}</p><h3>遇到問題怎麼辦</h3><p className="stage-notice">{STAGE_HELP}</p></div>}</section>}
     {activeWorkspaceTab==='training'&&data.role==='worker'&&<HrWorkerTraining courses={data.trainingCourses||[]}/>}
-    {activeWorkspaceTab==='process'&&<section className="hr-member-card"><h2>赴台申請程序</h2>{workerCases.length?workerCases.map(caseItem=><div className="worker-case" key={caseItem.id}><h3>{caseItem.case_number} · {caseItem.employer_name}</h3>{data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id)).map(step=>{const singleDate=SINGLE_DATE_STEPS.has(step.step_key);const canEdit=canManageCaseProgress&&canManageStep('agency',data.agencyType,step.step_key);return <form className="process-row" key={step.id} onSubmit={event=>saveApplicationStep(event,step)}><strong>{step.label}{STEP_OWNERS[step.step_key]&&<small> · {`${OWNER_LABELS[STEP_OWNERS[step.step_key]]}辦理`}</small>}</strong>{singleDate?<label>{STEP_DATE_LABELS[step.step_key]||'辦理日期'}<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label>:<><label>{step.step_key==='training'?'訓練開始日':'辦件／開始日'}<input type="date" name="startedOn" defaultValue={step.started_on?String(step.started_on).slice(0,10):''} disabled={!canEdit}/></label><label>{step.step_key==='training'?'訓練完成日':'完成／出件日'}<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label></>}<input name="note" placeholder="狀態／備註" defaultValue={step.note||''} disabled={!canEdit}/>{canEdit&&<button disabled={stepSaving===`${step.case_id}:${step.step_key}`}>{stepSaving===`${step.case_id}:${step.step_key}`?'儲存中…':'儲存'}</button>}</form>})}</div>):<p>目前沒有來台申請程序。</p>}</section>}
+    {activeWorkspaceTab==='process'&&<section className="hr-member-card"><h2>赴台申請程序</h2>{workerCases.length?workerCases.map(caseItem=>{const caseSteps=data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id));const doneCount=caseSteps.filter(step=>step.completed_on).length;return <div className="worker-case process-case" key={caseItem.id}><h3><span>{caseItem.case_number} · {caseItem.employer_name}</span><b className="process-case-count" title="已完成">{doneCount}/{caseSteps.length}</b></h3><div className="step-compact-list">{caseSteps.map(step=><ApplicationStepRow key={step.id} step={step} canEdit={canManageCaseProgress&&canManageStep('agency',data.agencyType,step.step_key)} saving={stepSaving===`${step.case_id}:${step.step_key}`} onSave={event=>saveApplicationStep(event,step)}/>)}</div></div>}):<p>目前沒有來台申請程序。</p>}</section>}
     {activeWorkspaceTab==='agencyEmployer'&&data.role==='worker'&&!!data.employers.length && <section className="hr-member-card"><h2>我的雇主</h2><div className="hr-member-table-wrap"><table><thead><tr><th>雇主／客戶</th><th>類型</th><th>聯絡人</th><th>狀態</th></tr></thead><tbody>{data.employers.map(item => <tr key={item.id}><td>{item.name}</td><td>{{home_care:'家庭看護',factory:'工廠',domestic_helper:'家庭幫傭',other:'其他'}[item.employer_type] || '其他'}</td><td>{item.contact_name || '—'}</td><td>{item.status === 'active' ? '啟用' : '停用'}</td></tr>)}</tbody></table></div></section>}
     {activeWorkspaceTab==='agencyEmployer'&&!!data.agencies.length && data.role === 'worker' && <section className="hr-member-card"><h2>所屬仲介</h2><ul>{data.agencies.map(item => <li key={item.id}>{item.name}（{item.country || (item.agency_type === 'taiwan' ? '台灣' : '菲律賓')}）</li>)}</ul></section>}
     {profileWorker && <div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setProfileWorker(null)}}><section ref={profileDialogRef} tabIndex={-1} onKeyDown={handleProfileKeyDown} className="progress-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title"><header className="progress-modal-header"><div><span>工作者資料</span><h2 id="profile-modal-title">{profileWorker.name}</h2></div><div className="profile-modal-actions"><button type="button" className="profile-edit-action" disabled={resumePdfLoading} onClick={()=>void downloadWorkerResume(profileWorker)}>{resumePdfLoading?'產生中…':'下載履歷 PDF'}</button>{isPhilippinesOperator&&Number(profileWorker.agency_id)===Number(data.agencyId)&&<button type="button" className="profile-edit-action" onClick={()=>{setProfileWorker(null);beginWorkerEdit(profileWorker)}}>編輯資料</button>}<button type="button" className="progress-modal-close" aria-label="關閉工作者資料" onClick={()=>setProfileWorker(null)}>×</button></div></header><div className="progress-modal-body"><div className="worker-detail"><p>姓名：{profileWorker.name}</p><p>國籍：{profileWorker.nationality||'—'}</p><p>電話：{profileWorker.phone||'—'}</p><p>Email：{profileWorker.email||'—'}</p><p>工作意向：{profileWorker.job_preference||'—'}</p><p>狀態：{profileWorker.status==='active'?'啟用':'停用'}</p></div>{resumeViewPhoto&&<img className="resume-profile-photo" src={resumeViewPhoto} alt="履歷照片"/>}<WorkerResumeSections profile={profileWorker.resume_profile}/>{profileWorker.notes&&<div className="profile-notes"><strong>備註</strong><p>{profileWorker.notes}</p></div>}</div></section></div>}
