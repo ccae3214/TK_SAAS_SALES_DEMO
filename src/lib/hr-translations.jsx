@@ -293,6 +293,11 @@ const EN_EXTRA = {
   '碩士學位': "Master's Degree (M.A. / M.S. / MBA)", '博士學位': 'Doctoral Degree / PhD (Ph.D. / Ed.D.)',
 };
 const EN_MORE = {
+  '前置': 'Prep', '入境': 'Arrival', '前置作業': 'Preparation', 'VISA 路線（簽證）': 'VISA route', 'OEC 路線（出境許可）': 'OEC route (exit clearance)', '入境與在台文件': 'Arrival & Taiwan documents',
+  '配工、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。': 'Matching, passport and personal documents, and the medical exam; used by both the VISA and OEC routes.',
+  'ACCR 引進權、核准函與合約、工資切結書認證，以及簽證。': 'ACCR work permit, approval letter and contract, wage affidavit attestation, and the visa.',
+  'OEC 路線的項目：訓練、PDOS、OWWA、OEC，以及機票與出境。': 'OEC route items: training, PDOS, OWWA, OEC, and the air ticket and departure.',
+  '預定與實際入境日期，以及入國通報、勞健保加保與居留證。': 'Expected and actual entry dates, entry notification, labor and health insurance enrollment, and the residence permit.',
   '被退回，請補件': 'Returned — please resubmit',
   '被退回': 'Returned',
   '待上傳': 'To upload',

@@ -13,6 +13,21 @@ export const WORKER_PROGRESS_STEPS = [
   ['entry_notification', '入國通報（3 日內）'], ['insurance', '勞健保加保（3 日內）'], ['arc', '居留證 ARC'],
 ];
 
+// 申請程序依「簽證（VISA）」與「OEC（出境許可）」兩條路線分組；前面有共同的前置作業，最後是入境後的在台文件。
+// 兩條路線可以同時進行；沒有列在任何路線的項目（例如管理者自訂）歸到 fallback 的前置作業。
+export const PROCESS_ROUTES = [
+  { key: 'prep', badge: '前置', title: '前置作業', summary: '配工、護照與個人文件、體檢；簽證與 OEC 兩條路線都會用到。', fallback: true,
+    steps: ['match_date', 'passport', 'document_arrival', 'personal_documents', 'medical', 'medical_expiry', 'umid'] },
+  { key: 'visa', badge: 'VISA', title: 'VISA 路線（簽證）', summary: 'ACCR 引進權、核准函與合約、工資切結書認證，以及簽證。',
+    steps: ['accr_in', 'accr_out', 'contract_arrival', 'contract_issue', 'wage_attestation', 'visa'] },
+  { key: 'oec', badge: 'OEC', title: 'OEC 路線（出境許可）', summary: 'OEC 路線的項目：訓練、PDOS、OWWA、OEC，以及機票與出境。',
+    steps: ['training', 'pdos', 'owwa', 'oec', 'ticket'] },
+  { key: 'arrival', badge: '入境', title: '入境與在台文件', summary: '預定與實際入境日期，以及入國通報、勞健保加保與居留證。',
+    steps: ['expected_entry', 'actual_entry', 'entry_notification', 'insurance', 'arc'] },
+];
+const ROUTE_OF_STEP = new Map(PROCESS_ROUTES.flatMap(route => route.steps.map(key => [key, route.key])));
+export const routeOfStep = stepKey => ROUTE_OF_STEP.get(stepKey) || PROCESS_ROUTES.find(route => route.fallback).key;
+
 // 只需要一個日期的項目；其餘項目有「開始日／完成日」兩個日期。
 export const SINGLE_DATE_STEPS = new Set([
   'match_date', 'passport', 'document_arrival', 'personal_documents', 'pdos', 'medical', 'medical_expiry',
