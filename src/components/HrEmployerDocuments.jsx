@@ -79,7 +79,7 @@ export default function HrEmployerDocuments({ employers = [], embedded = false }
 
   const dateOf = value => new Date(value).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW');
 
-  return <section className={`${styles.panel} ${embedded ? styles.embedded : ''}`} aria-label={t.title}>
+  return <section className={`${styles.panel} ${embedded ? styles.embedded : styles.card}`} aria-label={t.title}>
     {!embedded && <h2>{t.title}</h2>}
     <p className={styles.lead}>{t.lead}</p>
     {message && <p className={message.type === 'error' ? styles.error : styles.success} role={message.type === 'error' ? 'alert' : 'status'}>{message.text}</p>}
