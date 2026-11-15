@@ -1,0 +1,349 @@
+diff --git a/src/app/api/hr/route.js b/src/app/api/hr/route.js
+index a8ad2ff..c593f3b 100644
+--- a/src/app/api/hr/route.js
++++ b/src/app/api/hr/route.js
+@@ -14,2 +14,3 @@ import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
+ import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
++import { notifyAfterDocumentReview, notifyAccountStatusChange, notifyApplicationRejected } from '@/lib/hr-member-notices';
+ import { withAdminAudit } from '@/lib/hr-audit';
+@@ -620,2 +621,3 @@ import { withAdminAudit } from '@/lib/hr-audit';
+       if (!inAgency.length || body.role !== undefined) return NextResponse.json({error:'仲介管理者只能管理所屬機構會員的啟用狀態。'},{status:403});
++      const beforeMember=(await query('SELECT role,active,line_user_id,requested_role FROM hr_members WHERE id=$1',[memberId]))[0];
+       const result=await query(`UPDATE hr_members m SET active=$3,updated_at=NOW()
+@@ -624,2 +626,4 @@ import { withAdminAudit } from '@/lib/hr-audit';
+         RETURNING m.id,m.email,m.display_name,m.role,m.active`,[memberId,principal.agency_id,body.active!==false]);
++      if (result[0] && beforeMember) notifyAccountStatusChange({ lineUserId: beforeMember.line_user_id, role: beforeMember.role, requestedRole: beforeMember.requested_role, wasActive: beforeMember.active, nowActive: result[0].active })
++        .catch(error => console.error('hr_member_status_notice_failed', String(error?.message || error).slice(0, 120)));
+       return NextResponse.json(result[0]);
+@@ -652,4 +656,8 @@ import { withAdminAudit } from '@/lib/hr-audit';
+       if (body.active === false) await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
++      const beforeMember = (await query('SELECT active,line_user_id,requested_role FROM hr_members WHERE id=$1',[id]))[0];
+       const result = await query('UPDATE hr_members SET active=$2,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
+       if (!result.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
++      // 停用／重新啟用時通知會員；待審核的申請人被停用視同申請未通過。狀態沒有改變時不會發送。
++      if (beforeMember) notifyAccountStatusChange({ lineUserId: beforeMember.line_user_id, role: target[0].role, requestedRole: beforeMember.requested_role, wasActive: beforeMember.active, nowActive: result[0].active })
++        .catch(error => console.error('hr_member_status_notice_failed', String(error?.message || error).slice(0, 120)));
+       return NextResponse.json(result[0]);
+@@ -697,6 +705,16 @@ import { withAdminAudit } from '@/lib/hr-audit';
+         const item = target.rows[0];
++        // 「初步審核（三取二）通過」與「所有必要文件完成」是否因這次核准而達成：比較審核前後。
++        const gateSql = `SELECT NOT ${entryGateClosedSql('w.id')} AS ready FROM hr_workers w WHERE w.id=$1`;
++        const docsOpenSql = "SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS open";
++        const gateBefore = decision === 'approved' ? (await client.query(gateSql, [item.worker_id])).rows[0]?.ready : null;
++        const docsOpenBefore = decision === 'approved' ? (await client.query(docsOpenSql, [item.worker_id])).rows[0]?.open : null;
+         await client.query('INSERT INTO hr_document_reviews(submission_id,decision,reason,reviewer) VALUES($1,$2,$3,$4)', [submissionId,decision,decision==='returned'?reason:'',actor]);
+         await client.query('UPDATE hr_worker_documents SET status=$2,review_reason=$3,updated_at=NOW() WHERE id=$1', [item.requirement_id,decision,decision==='returned'?reason:'']);
++        const gateOpened = decision === 'approved' && gateBefore === false && (await client.query(gateSql, [item.worker_id])).rows[0]?.ready === true;
++        const docsComplete = decision === 'approved' && docsOpenBefore === true && (await client.query(docsOpenSql, [item.worker_id])).rows[0]?.open === false;
+         await recordWorkerActivity(client,item.worker_id,actor,decision==='approved'?'核准文件':'退回文件',decision==='returned'?reason:`文件版本 ${item.version_number}`);
+         await client.query('COMMIT');
++        // 不通知單份文件；這一輪文件審完（沒有待審文件）才發一則結果摘要，初審通過／全部文件完成則是里程碑通知。
++        notifyAfterDocumentReview({ workerId: item.worker_id, submissionId, actor, gateOpened, docsComplete })
++          .catch(error => console.error('hr_document_review_notice_failed', String(error?.message || error).slice(0, 120)));
+         await refreshWorkerCases(item.worker_id);
+@@ -794,2 +812,3 @@ import { withAdminAudit } from '@/lib/hr-audit';
+         await client.query('UPDATE hr_job_order_candidates SET proposed_by=NULL WHERE proposed_by=$1',[id]);
++        const requestedRole = (await client.query('SELECT requested_role FROM hr_members WHERE id=$1',[id])).rows[0]?.requested_role;
+         await client.query('DELETE FROM hr_members WHERE id=$1',[id]);
+@@ -798,2 +817,5 @@ import { withAdminAudit } from '@/lib/hr-audit';
+         await client.query('COMMIT');
++        // 還在待審核、且送出過申請的會員被刪除：通知申請人未通過。
++        if(!target.role) notifyApplicationRejected({ lineUserId: target.line_user_id, requestedRole })
++          .catch(error => console.error('hr_application_rejected_notice_failed', String(error?.message || error).slice(0, 120)));
+         return NextResponse.json({ok:true});
+diff --git a/src/lib/hr-case-stage.js b/src/lib/hr-case-stage.js
+index b66a33c..1e43f29 100644
+--- a/src/lib/hr-case-stage.js
++++ b/src/lib/hr-case-stage.js
+@@ -6,5 +6,5 @@ import { entryGateClosedSql } from '@/lib/hr-requirements';
+ 
+ export async function refreshCaseStage(run, caseId) {
+-  const [state] = await run(`SELECT c.medical_status,c.training_status,
++  const [state] = await run(`SELECT c.stage AS previous_stage,c.medical_status,c.training_status,
+     ${entryGateClosedSql('c.worker_id')} AS gate_closed,
+     EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.required AND d.applicable AND d.status<>'approved') AS documents_open,
+@@ -22,4 +22,10 @@ export async function refreshCaseStage(run, caseId) {
+   });
+   await run('UPDATE hr_cases SET stage=$2,updated_at=NOW() WHERE id=$1', [caseId, stage]);
++  // 往前進到下一個「完整進度」（訓練完成、OEC 與簽證完成、全部完成）時，延後通知相關會員（不阻塞、失敗不影響階段計算）。
++  if (state.previous_stage && state.previous_stage !== stage) {
++    import('@/lib/hr-member-notices')
++      .then(notices => notices.queueStageMilestoneNotice({ caseId, fromStage: state.previous_stage, toStage: stage }))
++      .catch(() => {});
++  }
+   return stage;
+ }
+diff --git a/src/lib/hr-member-notices.js b/src/lib/hr-member-notices.js
+new file mode 100644
+index 0000000..0544efc
+--- /dev/null
++++ b/src/lib/hr-member-notices.js
+@@ -0,0 +1,268 @@
++import { query } from '@/lib/db';
++
++// 會員相關的 LINE 通知。原則：不通知「單一動作」（單份文件、來台程序的單一步驟），
++// 只在「一個完整進度完成」時通知：
++//   ・一輪文件審核完成（沒有待審文件了）→ 一則結果摘要，退件原因一次列出
++//   ・初步文件審核通過、所有必要文件完成
++//   ・案件進入下一個階段：訓練完成、OEC 與簽證完成（來台前程序）、全部申辦完成
++// 另外：帳號停用／啟用、申請未通過。
++// 所有函式都是「盡力而為」：呼叫端用 .catch 記錄錯誤即可，推播失敗不得影響原本的操作。
++// 語言依收件人在 LINE bot 的語言設定（zh / en / tl）；沒設定時工作者用英文、其他用中文。
++
++const LANGS = ['zh', 'en', 'tl'];
++const COPY = {
++  // ---- 文件審核 ----
++  docHeader: {
++    zh: ({ ok, total, who }) => `📄 文件審核結果${total ? `：已通過 ${ok}/${total} 份` : ''}${who ? `（工作者：${who}）` : ''}`,
++    en: ({ ok, total, who }) => `📄 Document review result${total ? `: ${ok}/${total} approved` : ''}${who ? ` (worker: ${who})` : ''}`,
++    tl: ({ ok, total, who }) => `📄 Resulta ng pagsusuri ng dokumento${total ? `: ${ok}/${total} ang naaprubahan` : ''}${who ? ` (manggagawa: ${who})` : ''}`,
++  },
++  docReturnedTitle: {
++    zh: n => `需要修正（${n} 份）：`, en: n => `Needs correction (${n}):`, tl: n => `Kailangang itama (${n}):`,
++  },
++  docReturnedFooter: {
++    zh: '請修正後重新上傳。', en: 'Please correct them and upload again.', tl: 'Pakitama at i-upload muli.',
++  },
++  docsComplete: {
++    zh: '✅ 所有必要文件都已通過審核。', en: '✅ All required documents have been approved.', tl: '✅ Naaprubahan na ang lahat ng kinakailangang dokumento.',
++  },
++  docsCompleteStaff: {
++    zh: ({ who }) => `✅ 工作者「${who}」的所有必要文件都已通過審核。`,
++    en: ({ who }) => `✅ All required documents for worker "${who}" have been approved.`,
++    tl: ({ who }) => `✅ Naaprubahan na ang lahat ng kinakailangang dokumento ng manggagawang "${who}".`,
++  },
++  preliminaryWorker: {
++    zh: '🎉 初步文件審核已通過！訓練中心現在可以為你安排訓練。',
++    en: '🎉 Your preliminary document review has passed! The training center can now schedule your training.',
++    tl: '🎉 Pumasa na ang iyong paunang pagsusuri ng dokumento! Maaari ka nang i-schedule ng training center para sa training.',
++  },
++  preliminaryStaff: {
++    zh: ({ who }) => `✅ 工作者「${who}」初步文件審核已通過，可以安排訓練。`,
++    en: ({ who }) => `✅ Worker "${who}" has passed the preliminary document review and can now be scheduled for training.`,
++    tl: ({ who }) => `✅ Pumasa sa paunang pagsusuri ng dokumento ang manggagawang "${who}" at maaari nang i-schedule para sa training.`,
++  },
++  // ---- 案件階段（完整進度完成）----
++  stage: {
++    application: { // 訓練（與必備證照）完成 → 進入 OEC 與簽證
++      worker: { zh: () => '🎓 你已完成訓練！接下來由菲律賓仲介為你辦理 OEC 與簽證。', en: () => '🎓 You have completed your training! Your Philippine agency will now process your OEC and visa.', tl: () => '🎓 Natapos mo na ang iyong training! Aasikasuhin na ngayon ng iyong ahensya sa Pilipinas ang iyong OEC at visa.' },
++      ph: { zh: ({ who }) => `🎓 工作者「${who}」已完成訓練，請開始辦理 OEC 與簽證。`, en: ({ who }) => `🎓 Worker "${who}" has completed training. Please start processing the OEC and visa.`, tl: ({ who }) => `🎓 Natapos na ang training ng manggagawang "${who}". Simulan na ang pag-aasikaso ng OEC at visa.` },
++      info: { zh: ({ who, employer }) => `🎓 工作者「${who}」（雇主：${employer}）已完成訓練，目前進入 OEC 與簽證辦理。`, en: ({ who, employer }) => `🎓 Worker "${who}" (employer: ${employer}) has completed training and is now in the OEC and visa stage.`, tl: ({ who, employer }) => `🎓 Natapos na ang training ng manggagawang "${who}" (employer: ${employer}) at nasa yugto na ng OEC at visa.` },
++    },
++    arrangement: { // OEC 與簽證完成（來台前程序完成）→ 安排入境、抵台體檢與在台文件
++      worker: { zh: () => '✈️ 你的 OEC 與簽證都已完成！接下來會安排你入境台灣。', en: () => '✈️ Your OEC and visa are complete! Your arrival in Taiwan will be arranged next.', tl: () => '✈️ Tapos na ang iyong OEC at visa! Susunod na aayusin ang iyong pagdating sa Taiwan.' },
++      ph: { zh: ({ who }) => `✈️ 工作者「${who}」的 OEC 與簽證已完成。`, en: ({ who }) => `✈️ OEC and visa for worker "${who}" are complete.`, tl: ({ who }) => `✈️ Tapos na ang OEC at visa ng manggagawang "${who}".` },
++      info: { zh: ({ who, employer }) => `✈️ 工作者「${who}」（雇主：${employer}）的 OEC 與簽證已完成，接下來安排入境。`, en: ({ who, employer }) => `✈️ OEC and visa for worker "${who}" (employer: ${employer}) are complete. Arrival will be arranged next.`, tl: ({ who, employer }) => `✈️ Tapos na ang OEC at visa ng manggagawang "${who}" (employer: ${employer}). Susunod na aayusin ang pagdating.` },
++      tw: { zh: ({ who, employer }) => `✈️ 工作者「${who}」（雇主：${employer}）的 OEC 與簽證已完成。入境後請安排抵台體檢，並辦理入國通報、勞健保加保與居留證。`, en: ({ who, employer }) => `✈️ OEC and visa for worker "${who}" (employer: ${employer}) are complete. After arrival, please arrange the medical check and handle entry notification, insurance enrollment, and the ARC.`, tl: ({ who, employer }) => `✈️ Tapos na ang OEC at visa ng manggagawang "${who}" (employer: ${employer}). Pagdating, mangyaring ayusin ang medical check at asikasuhin ang entry notification, insurance, at ARC.` },
++    },
++    completed: { // 全部申辦完成
++      worker: { zh: () => '🎉 你的來台申辦程序已全部完成，祝你工作順利！', en: () => '🎉 All your application steps for working in Taiwan are complete. We wish you all the best!', tl: () => '🎉 Tapos na ang lahat ng hakbang sa iyong aplikasyon para magtrabaho sa Taiwan. Nais namin ang lahat ng magandang bagay para sa iyo!' },
++      info: { zh: ({ who, employer }) => `🎉 工作者「${who}」（雇主：${employer}）的申辦程序已全部完成。`, en: ({ who, employer }) => `🎉 All application steps for worker "${who}" (employer: ${employer}) are complete.`, tl: ({ who, employer }) => `🎉 Tapos na ang lahat ng hakbang sa aplikasyon ng manggagawang "${who}" (employer: ${employer}).` },
++    },
++  },
++  // ---- 帳號 ----
++  accountDisabled: {
++    zh: '⚠️ 你的帳號已被管理員停用，暫時無法使用系統。如有疑問，請聯絡你的仲介或管理員。',
++    en: '⚠️ Your account has been disabled by an administrator and cannot be used for now. If you have questions, please contact your agency or the administrator.',
++    tl: '⚠️ Pansamantalang pinagana ng administrator ang iyong account kaya hindi mo ito magagamit sa ngayon. Makipag-ugnayan sa iyong ahensya o sa administrator kung may tanong.',
++  },
++  accountEnabled: {
++    zh: '✅ 你的帳號已重新啟用，現在可以正常登入與使用系統。',
++    en: '✅ Your account has been re-enabled. You can now sign in and use the system again.',
++    tl: '✅ Muling pinagana ang iyong account. Maaari ka nang mag-sign in at gamitin ang system.',
++  },
++  applicationRejected: {
++    zh: '你的會員申請目前未通過審核。如有疑問，請聯絡管理員或所屬仲介。',
++    en: 'Your membership application was not approved at this time. If you have questions, please contact the administrator or your agency.',
++    tl: 'Hindi naaprubahan ang iyong aplikasyon sa membership sa ngayon. Makipag-ugnayan sa administrator o sa iyong ahensya kung may tanong.',
++  },
++};
++
++const lineIdOk = value => typeof value === 'string' && value.trim() !== '';
++const short = (text, max) => { const t = String(text || '').trim(); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
++
++async function languageOf(run, lineUserId, role) {
++  try {
++    const rows = await run('SELECT preferred_language FROM hr_line_member_settings WHERE line_user_id=$1', [lineUserId]);
++    if (rows?.[0]?.preferred_language && LANGS.includes(rows[0].preferred_language)) return rows[0].preferred_language;
++  } catch { /* 還沒有語言設定表就用預設語言 */ }
++  return role === 'worker' ? 'en' : 'zh';
++}
++
++async function pushDefault(to, messages) {
++  const { pushLineMessage } = await import('@/lib/hr-line-bot');
++  return pushLineMessage(to, messages);
++}
++
++// 對每位收件人（依各自語言）發送一則文字訊息；單一收件人失敗不影響其他人，也不丟出錯誤。
++// seen 讓同一次通知裡，同一個 LINE 帳號最多只收到一則（先送出的優先）。
++async function sendEach(recipients, build, deps, seen = new Set()) {
++  const run = deps.run || query;
++  const push = deps.push || pushDefault;
++  let sent = 0;
++  for (const r of recipients) {
++    if (!lineIdOk(r?.line_user_id) || seen.has(r.line_user_id)) continue;
++    seen.add(r.line_user_id);
++    try {
++      const language = await languageOf(run, r.line_user_id, r.role);
++      const text = build(language, r);
++      if (!text) continue;
++      await push(r.line_user_id, [{ type: 'text', text: String(text).slice(0, 4900) }]);
++      sent += 1;
++    } catch (error) {
++      console.error('hr_member_notice_push_failed', error?.message || 'Error');
++    }
++  }
++  return sent;
++}
++
++const isSameActor = (actor, member) => !!actor && !!member &&
++  (String(member.email || '').trim().toLowerCase() === String(actor).trim().toLowerCase() || member.line_user_id === actor);
++const LINE_MEMBER = `active=TRUE AND line_user_id IS NOT NULL AND line_user_id<>''`;
++
++/**
++ * 一次文件審核之後呼叫（資料庫交易完成後）。不會因為「單份文件」通知：
++ *  ・還有待審文件 → 不發結果摘要（等這一輪全部審完）
++ *  ・這一輪審完 → 對工作者（與上傳者）發一則摘要：通過幾份、需要修正的文件與原因
++ *  ・初步審核通過／所有必要文件完成 → 里程碑，會合併進摘要；沒有摘要時單獨發送
++ * HR_NOTIFY_DOCUMENT_ROUND=0 可關閉「結果摘要」（里程碑通知不受影響）。
++ */
++export async function notifyAfterDocumentReview({ workerId, submissionId = null, actor = '', gateOpened = false, docsComplete = false }, deps = {}) {
++  const run = deps.run || query;
++  const worker = (await run('SELECT id, name, agency_id FROM hr_workers WHERE id=$1', [workerId]))?.[0];
++  if (!worker) return 0;
++  const docs = await run('SELECT name, status, review_reason, required FROM hr_worker_documents WHERE worker_id=$1 AND applicable=TRUE ORDER BY id', [workerId]);
++  const roundDone = !docs.some(d => d.status === 'submitted') && process.env.HR_NOTIFY_DOCUMENT_ROUND !== '0';
++  const returned = docs.filter(d => d.status === 'returned');
++  const required = docs.filter(d => d.required);
++  const ok = required.filter(d => d.status === 'approved').length;
++  if (!roundDone && !gateOpened && !docsComplete) return 0;
++
++  const seen = new Set();
++  let sent = 0;
++  const workerMembers = await run(`SELECT line_user_id, role, email FROM hr_members WHERE worker_id=$1 AND ${LINE_MEMBER}`, [workerId]);
++  const submittedBy = submissionId ? (await run('SELECT submitted_by FROM hr_document_submissions WHERE id=$1', [submissionId]))?.[0]?.submitted_by : null;
++  const submitters = submittedBy ? await run(`SELECT line_user_id, role, email FROM hr_members
++    WHERE ${LINE_MEMBER} AND (lower(email)=lower($1) OR line_user_id=$1)`, [submittedBy]) : [];
++  const firstParty = [...workerMembers.map(m => ({ ...m, isWorker: true })), ...submitters].filter(m => !isSameActor(actor, m));
++
++  sent += await sendEach(firstParty, (language, r) => {
++    const isWorker = r.isWorker || r.role === 'worker';
++    const who = isWorker ? '' : worker.name;
++    const milestones = [];
++    if (docsComplete) milestones.push(COPY.docsComplete[language]);
++    if (gateOpened) milestones.push(isWorker ? COPY.preliminaryWorker[language] : COPY.preliminaryStaff[language]({ who: worker.name }));
++    if (!roundDone) return milestones.join('\n');
++    const lines = [COPY.docHeader[language]({ ok, total: required.length, who })];
++    if (returned.length) {
++      lines.push(COPY.docReturnedTitle[language](returned.length));
++      for (const d of returned.slice(0, 15)) lines.push(`・${short(d.name, 60)}：${short(d.review_reason, 120) || '-'}`);
++      if (returned.length > 15) lines.push('…');
++    }
++    lines.push(...milestones);
++    if (returned.length) lines.push(COPY.docReturnedFooter[language]);
++    return lines.join('\n');
++  }, deps, seen);
++
++  // 工作人員：初步審核通過 → 所屬仲介會員與所有訓練中心；所有必要文件完成 → 所屬仲介會員。
++  const agency = worker.agency_id && (gateOpened || docsComplete)
++    ? await run(`SELECT line_user_id, role, email FROM hr_members WHERE role='agency' AND agency_id=$1 AND ${LINE_MEMBER}`, [worker.agency_id]) : [];
++  const centers = gateOpened ? await run(`SELECT line_user_id, role, email FROM hr_members WHERE role='training_center' AND ${LINE_MEMBER}`) : [];
++  sent += await sendEach([...agency, ...centers].filter(m => !isSameActor(actor, m)), (language, r) => {
++    const lines = [];
++    if (gateOpened) lines.push(COPY.preliminaryStaff[language]({ who: worker.name }));
++    if (docsComplete && r.role === 'agency') lines.push(COPY.docsCompleteStaff[language]({ who: worker.name }));
++    return lines.join('\n');
++  }, deps, seen);
++  return sent;
++}
++
++// ---------------------------------------------------------------------------
++// 案件進入下一個「完整進度」：訓練完成 → OEC 與簽證 → 抵台 → 全部完成。
++// 階段由 hr-case-stage.js 的 refreshCaseStage 計算；這裡只在「往前進到里程碑」時通知，每個案件每個里程碑只通知一次。
++const STAGE_ORDER = ['intake', 'documents', 'medical_training', 'application', 'arrangement', 'completed'];
++const MILESTONES = new Set(['application', 'arrangement', 'completed']);
++
++let stageTableReady = null;
++function ensureStageTable(run) {
++  stageTableReady ??= run(`CREATE TABLE IF NOT EXISTS hr_stage_notices (
++    case_id BIGINT NOT NULL REFERENCES hr_cases(id) ON DELETE CASCADE, stage TEXT NOT NULL,
++    notified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (case_id, stage))`)
++    .catch(error => { stageTableReady = null; throw error; });
++  return stageTableReady;
++}
++
++/** @returns {Promise<number|null>} 發送數；null 代表資料庫裡的階段還不是 toStage（交易尚未完成），稍後再試。 */
++export async function notifyStageMilestone({ caseId, toStage }, deps = {}) {
++  const run = deps.run || query;
++  if (!MILESTONES.has(toStage)) return 0;
++  await ensureStageTable(run);
++  const c = (await run(`SELECT c.stage, c.assigned_member_id, w.id AS worker_id, w.name AS worker_name, w.agency_id AS worker_agency_id,
++      e.id AS employer_id, e.name AS employer_name, e.agency_id AS employer_agency_id
++    FROM hr_cases c JOIN hr_workers w ON w.id=c.worker_id JOIN hr_employers e ON e.id=c.employer_id WHERE c.id=$1`, [caseId]))?.[0];
++  if (!c) return 0;
++  if (c.stage !== toStage) return null;
++  const claimed = await run('INSERT INTO hr_stage_notices(case_id, stage) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING case_id', [caseId, toStage]);
++  if (!claimed?.length) return 0; // 這個里程碑已經通知過
++
++  const tag = (rows, audience) => (rows || []).map(m => ({ ...m, audience }));
++  const worker = tag(await run(`SELECT line_user_id, role FROM hr_members WHERE worker_id=$1 AND ${LINE_MEMBER}`, [c.worker_id]), 'worker');
++  const ph = c.worker_agency_id ? tag(await run(`SELECT line_user_id, role FROM hr_members WHERE role='agency' AND agency_id=$1 AND ${LINE_MEMBER}`, [c.worker_agency_id]), 'ph') : [];
++  const employer = tag(await run(`SELECT line_user_id, role FROM hr_members WHERE employer_id=$1 AND ${LINE_MEMBER}`, [c.employer_id]), 'info');
++  let tw = [];
++  if (c.assigned_member_id) tw = tag(await run(`SELECT line_user_id, role FROM hr_members WHERE id=$1 AND role='agency' AND ${LINE_MEMBER}`, [c.assigned_member_id]), 'tw');
++  if (!tw.length && c.employer_agency_id) tw = tag(await run(`SELECT line_user_id, role FROM hr_members WHERE role='agency' AND agency_id=$1 AND ${LINE_MEMBER}`, [c.employer_agency_id]), 'tw');
++
++  const copy = COPY.stage[toStage];
++  return sendEach([...worker, ...ph, ...tw, ...employer], (language, r) => {
++    const template = copy[r.audience] || copy.info; // 該階段沒有專屬文案的對象，用一般資訊版
++    return template[language]({ who: c.worker_name, employer: c.employer_name });
++  }, deps);
++}
++
++// 洪水保護：短時間內排入太多里程碑通知（例如系統啟動時批次重算所有案件階段）就略過，避免一次大量推播。
++const recentQueued = [];
++const FLOOD_LIMIT = 20;
++const FLOOD_WINDOW_MS = 60_000;
++
++/** 由 refreshCaseStage 呼叫（不 await）。只處理「往前進到里程碑」；延後執行並確認資料庫階段已更新（避免交易還沒完成）。 */
++export function queueStageMilestoneNotice({ caseId, fromStage, toStage }, opts = {}) {
++  if (process.env.NODE_ENV === 'test' && !opts.force) return false;
++  if (!MILESTONES.has(toStage)) return false;
++  const from = STAGE_ORDER.indexOf(fromStage), to = STAGE_ORDER.indexOf(toStage);
++  if (from < 0 || to <= from) return false;
++  const now = Date.now();
++  while (recentQueued.length && now - recentQueued[0] > FLOOD_WINDOW_MS) recentQueued.shift();
++  if (recentQueued.length >= FLOOD_LIMIT) { console.error('hr_stage_notice_flood_guard_skipped', caseId, toStage); return false; }
++  recentQueued.push(now);
++  const delays = opts.delays || [3000, 12000];
++  const attempt = (index) => {
++    const timer = setTimeout(async () => {
++      try {
++        const result = await notifyStageMilestone({ caseId, toStage }, opts.deps || {});
++        if (result === null && index + 1 < delays.length) attempt(index + 1);
++      } catch (error) {
++        console.error('hr_stage_notice_failed', String(error?.message || error).slice(0, 120));
++      }
++    }, delays[index]);
++    timer.unref?.();
++  };
++  attempt(0);
++  return true;
++}
++
++// ---------------------------------------------------------------------------
++/** 會員帳號被停用／重新啟用。待審核會員（還沒有會員類型）被停用，視同申請未通過。狀態沒有改變時不發。 */
++export async function notifyAccountStatusChange({ lineUserId, role = null, requestedRole = null, wasActive, nowActive }, deps = {}) {
++  if (!lineIdOk(lineUserId) || wasActive === nowActive) return 0;
++  let key = null;
++  if (nowActive === false) key = role ? 'accountDisabled' : (requestedRole ? 'applicationRejected' : null);
++  else if (nowActive === true && role) key = 'accountEnabled';
++  if (!key) return 0;
++  return sendEach([{ line_user_id: lineUserId, role }], language => COPY[key][language], deps);
++}
++
++/** 待審核的申請被管理員刪除：通知申請人「未通過」。 */
++export async function notifyApplicationRejected({ lineUserId, requestedRole = null }, deps = {}) {
++  if (!lineIdOk(lineUserId) || !requestedRole) return 0;
++  return sendEach([{ line_user_id: lineUserId, role: null }], language => COPY.applicationRejected[language], deps);
++}
