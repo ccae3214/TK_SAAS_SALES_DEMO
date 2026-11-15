@@ -1,0 +1,454 @@
+diff --git a/src/components/HrAgencyCertifications.jsx b/src/components/HrAgencyCertifications.jsx
+index a700bfe..19f936c 100644
+--- a/src/components/HrAgencyCertifications.jsx
++++ b/src/components/HrAgencyCertifications.jsx
+@@ -1,6 +1,8 @@
+ "use client";
+ 
+ import { useCallback, useEffect, useState } from 'react';
++import { useLanguage } from '@/context/LanguageContext';
++import { translateHrText } from '@/lib/hr-translations';
+ import { actionLabel } from '@/lib/hr-agency-certification';
+ import HrAgencyAuthProgress from './HrAgencyAuthProgress';
+ import styles from './HrAgencyCertifications.module.css';
+@@ -11,6 +13,9 @@ const dateText = value => (value ? new Date(value).toLocaleDateString('zh-TW') :
+ // 台灣仲介 ↔ 菲律賓仲介 相互認證面板。
+ // role: 'agency'（仲介：申請、同意、拒絕、解除）｜'admin'（系統管理者：全部紀錄、直接認證、解除）｜'employer'（雇主：唯讀，看哪些菲律賓仲介可挑選）
+ export default function HrAgencyCertifications({ role, onChanged }) {
++  const { lang } = useLanguage();
++  // window.confirm 的文字不在畫面上，不會被自動翻譯，要自己依語言翻。
++  const tx = text => translateHrText(text, lang);
+   const [data, setData] = useState(null);
+   const [error, setError] = useState('');
+   const [message, setMessage] = useState('');
+@@ -69,14 +74,14 @@ export default function HrAgencyCertifications({ role, onChanged }) {
+         <label>菲律賓仲介<select required value={philippinesId} onChange={event => setPhilippinesId(event.target.value)}><option value="">請選擇</option>{(data.philippinesAgencies || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+         <button type="submit" className={styles.primary} disabled={busy || !taiwanId || !philippinesId}>直接認證</button>
+       </form>
+-      <h3>所有認證紀錄（{rows.length}）</h3>
++      <h3>{`所有認證紀錄（${rows.length}）`}</h3>
+       {rows.length ? <ul className={styles.list}>{rows.map(row => <li className={styles.item} key={row.id}>
+         <span className={styles.itemMain}><strong>{row.taiwan_agency_name} ⇄ {row.philippines_agency_name}</strong><small>{row.source_label} · 更新 {dateText(row.updated_at)}{row.note ? ` · ${row.note}` : ''}</small></span>
+         <span className={`${styles.badge} ${badgeClass(row.status)}`}>{row.status_label}</span>
+         <span className={styles.actions}>
+           {row.status === 'pending' && <button type="button" className={styles.primary} disabled={busy} onClick={() => void send({ action: 'approve', id: row.id }, '已代為完成認證。')}>代為同意</button>}
+           {row.status === 'pending' && <button type="button" disabled={busy} onClick={() => void send({ action: 'reject', id: row.id }, '已拒絕這筆申請。')}>拒絕</button>}
+-          {(row.status === 'certified' || row.status === 'pending') && <button type="button" disabled={busy} onClick={() => { if (window.confirm(`確定${row.status === 'certified' ? '解除' : '撤回'}「${row.taiwan_agency_name} ⇄ ${row.philippines_agency_name}」？`)) void send({ action: 'revoke', id: row.id }, '已更新認證狀態。'); }}>{row.status === 'certified' ? '解除認證' : '撤回申請'}</button>}
++          {(row.status === 'certified' || row.status === 'pending') && <button type="button" disabled={busy} onClick={() => { if (window.confirm(tx(`確定${row.status === 'certified' ? '解除' : '撤回'}「${row.taiwan_agency_name} ⇄ ${row.philippines_agency_name}」？`))) void send({ action: 'revoke', id: row.id }, '已更新認證狀態。'); }}>{row.status === 'certified' ? '解除認證' : '撤回申請'}</button>}
+           {(row.status === 'rejected' || row.status === 'revoked') && <button type="button" disabled={busy} onClick={() => void send({ action: 'certify', taiwanAgencyId: row.taiwan_agency_id, philippinesAgencyId: row.philippines_agency_id }, '已重新認證。')}>重新認證</button>}
+         </span></li>)}</ul> : <p className={styles.empty}>目前沒有任何認證紀錄。</p>}
+     </section>;
+@@ -96,15 +101,15 @@ export default function HrAgencyCertifications({ role, onChanged }) {
+   const canManage = data.canManage !== false;
+ 
+   return <section className={styles.panel} aria-label="仲介相互認證">
+-    <h2>{otherName}相互認證</h2>
++    <h2>{`${otherName}相互認證`}</h2>
+     <p className={styles.lead}>{mySide === 'taiwan' ? '您的雇主只能挑選已與貴機構完成相互認證的菲律賓仲介的工人。' : '只有與台灣仲介完成相互認證後，才能被其雇主挑選，並與該台灣仲介互相辦件。'}雙方都確認後才會生效，任何一方都可以隨時解除。</p>
+     {!canManage && <p className={styles.notice}>提出或回應認證需由貴機構的仲介管理者操作；您可以在這裡查看目前的認證狀態。</p>}
+     {feedback}
+-    {incoming.length > 0 && <><h3>等待您回應（{incoming.length}）</h3><ul className={styles.list}>{incoming.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>申請日期 {dateText(row.created_at)}</small></span><span className={styles.actions}>{canManage && <button type="button" className={styles.primary} disabled={busy} onClick={() => void send({ action: 'approve', id: row.id }, '已同意，雙方相互認證完成。')}>{actionLabel('approve')}</button>}{canManage && <button type="button" disabled={busy} onClick={() => void send({ action: 'reject', id: row.id }, '已拒絕這筆申請。')}>{actionLabel('reject')}</button>}</span><HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul></>}
+-    <h3>已相互認證（{certified.length}）</h3>
+-    {certified.length ? <ul className={styles.list}>{certified.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>{row.source_label} · {dateText(row.updated_at)}</small></span><span className={`${styles.badge} ${styles.badgeOk}`}>已相互認證</span>{canManage && <button type="button" className={styles.actions} disabled={busy} onClick={() => { if (window.confirm(`確定解除與「${nameOf(row)}」的認證？解除後雙方不能再安排新的面試、錄用或辦件。`)) void send({ action: 'revoke', id: row.id }, '已解除認證。'); }}>{actionLabel('revoke', row)}</button>}<HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul> : <p className={styles.empty}>目前還沒有已認證的{otherName}。</p>}
+-    {outgoing.length > 0 && <><h3>等待對方確認（{outgoing.length}）</h3><ul className={styles.list}>{outgoing.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>申請日期 {dateText(row.created_at)}</small></span><span className={`${styles.badge} ${styles.badgeWait}`}>等待對方確認</span>{canManage && <button type="button" disabled={busy} onClick={() => void send({ action: 'revoke', id: row.id }, '已撤回申請。')}>{actionLabel('revoke', row)}</button>}<HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul></>}
+-    {canManage && <><h3>申請新的認證</h3><form className={styles.form} onSubmit={event => { event.preventDefault(); void send({ action: 'request', counterpartAgencyId: counterpartId }, `已送出申請，等待${otherName}確認。`); }}><label>{otherName}<select required value={counterpartId} onChange={event => setCounterpartId(event.target.value)}><option value="">請選擇</option>{choices.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button type="submit" className={styles.primary} disabled={busy || !counterpartId}>申請認證</button></form>{!choices.length && <p className={styles.empty}>沒有可再申請的{otherName}。</p>}</>}
+-    {closed.length > 0 && <><h3>已拒絕或解除（{closed.length}）</h3><ul className={styles.list}>{closed.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>更新 {dateText(row.updated_at)}</small></span><span className={`${styles.badge} ${styles.badgeOff}`}>{row.status_label}</span></li>)}</ul></>}
++    {incoming.length > 0 && <><h3>{`等待您回應（${incoming.length}）`}</h3><ul className={styles.list}>{incoming.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>申請日期 {dateText(row.created_at)}</small></span><span className={styles.actions}>{canManage && <button type="button" className={styles.primary} disabled={busy} onClick={() => void send({ action: 'approve', id: row.id }, '已同意，雙方相互認證完成。')}>{actionLabel('approve')}</button>}{canManage && <button type="button" disabled={busy} onClick={() => void send({ action: 'reject', id: row.id }, '已拒絕這筆申請。')}>{actionLabel('reject')}</button>}</span><HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul></>}
++    <h3>{`已相互認證（${certified.length}）`}</h3>
++    {certified.length ? <ul className={styles.list}>{certified.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>{row.source_label} · {dateText(row.updated_at)}</small></span><span className={`${styles.badge} ${styles.badgeOk}`}>已相互認證</span>{canManage && <button type="button" className={styles.actions} disabled={busy} onClick={() => { if (window.confirm(tx(`確定解除與「${nameOf(row)}」的認證？解除後雙方不能再安排新的面試、錄用或辦件。`))) void send({ action: 'revoke', id: row.id }, '已解除認證。'); }}>{actionLabel('revoke', row)}</button>}<HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul> : <p className={styles.empty}>{`目前還沒有已認證的${otherName}。`}</p>}
++    {outgoing.length > 0 && <><h3>{`等待對方確認（${outgoing.length}）`}</h3><ul className={styles.list}>{outgoing.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>申請日期 {dateText(row.created_at)}</small></span><span className={`${styles.badge} ${styles.badgeWait}`}>等待對方確認</span>{canManage && <button type="button" disabled={busy} onClick={() => void send({ action: 'revoke', id: row.id }, '已撤回申請。')}>{actionLabel('revoke', row)}</button>}<HrAgencyAuthProgress certification={row} mySide={mySide} canManage={canManage} /></li>)}</ul></>}
++    {canManage && <><h3>申請新的認證</h3><form className={styles.form} onSubmit={event => { event.preventDefault(); void send({ action: 'request', counterpartAgencyId: counterpartId }, `已送出申請，等待${otherName}確認。`); }}><label>{otherName}<select required value={counterpartId} onChange={event => setCounterpartId(event.target.value)}><option value="">請選擇</option>{choices.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button type="submit" className={styles.primary} disabled={busy || !counterpartId}>申請認證</button></form>{!choices.length && <p className={styles.empty}>{`沒有可再申請的${otherName}。`}</p>}</>}
++    {closed.length > 0 && <><h3>{`已拒絕或解除（${closed.length}）`}</h3><ul className={styles.list}>{closed.map(row => <li className={styles.item} key={row.id}><span className={styles.itemMain}><strong>{nameOf(row)}</strong><small>{`更新 ${dateText(row.updated_at)}`}</small></span><span className={`${styles.badge} ${styles.badgeOff}`}>{row.status_label}</span></li>)}</ul></>}
+   </section>;
+ }
+diff --git a/src/components/HrAgencyDirectory.jsx b/src/components/HrAgencyDirectory.jsx
+index cee611b..d00ce94 100644
+--- a/src/components/HrAgencyDirectory.jsx
++++ b/src/components/HrAgencyDirectory.jsx
+@@ -19,13 +19,13 @@ export default function HrAgencyDirectory({ data, edit, update, navigate }) {
+     <HrAgencyCertifications role="admin" />
+     <div className={styles.agencyCards}>{visible.map(agency => {
+       const snapshot = agencySnapshot(agency, data);
+-      return <article key={agency.id} className={styles.agencyCard}><small>{agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'} · {agency.active ? '啟用' : '停用'}</small><h3>{agency.name}</h3><div className={styles.facts}><span>{snapshot.members.length} 位機構成員</span><span>{snapshot.orders.filter(order => order.status === 'open').length} 張進行中需求</span><span>{snapshot.cases.length} 件相關案件</span></div>{snapshot.unassigned > 0 && <p className={styles.notice}>{snapshot.unassigned} 張需求尚未指定負責業務</p>}<div className={styles.actions}><button type="button" aria-expanded={String(selectedId) === String(agency.id)} onClick={() => setSelectedId(agency.id)}>查看機構詳情</button><button type="button" onClick={() => edit(agency)}>編輯</button><button type="button" onClick={() => update({ type: 'agency', id: agency.id, active: !agency.active })}>{agency.active ? '停用' : '啟用'}</button></div></article>;
++      return <article key={agency.id} className={styles.agencyCard}><small>{agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'} · {agency.active ? '啟用' : '停用'}</small><h3>{agency.name}</h3><div className={styles.facts}><span>{`${snapshot.members.length} 位機構成員`}</span><span>{snapshot.orders.filter(order => order.status === 'open').length} 張進行中需求</span><span>{`${snapshot.cases.length} 件相關案件`}</span></div>{snapshot.unassigned > 0 && <p className={styles.notice}>{snapshot.unassigned} 張需求尚未指定負責業務</p>}<div className={styles.actions}><button type="button" aria-expanded={String(selectedId) === String(agency.id)} onClick={() => setSelectedId(agency.id)}>查看機構詳情</button><button type="button" onClick={() => edit(agency)}>編輯</button><button type="button" onClick={() => update({ type: 'agency', id: agency.id, active: !agency.active })}>{agency.active ? '停用' : '啟用'}</button></div></article>;
+     })}</div>
+     {!visible.length && <p className={styles.empty}>找不到符合條件的機構，請調整名稱或類型。</p>}
+     {selected && detail && <section className={styles.detail} aria-label="機構詳情"><div className={styles.detailHeader}><div><span className={styles.eyebrow}>機構詳情</span><h2>{selected.name}</h2><p>{selected.agency_type === 'taiwan' ? '台灣業務負責雇主需求、轉介與來台進度。' : '菲律賓承辦負責人選推薦、文件與申辦進度。'}</p></div><button type="button" onClick={() => setSelectedId(null)}>收起詳情</button></div>
+       <div className={styles.relationGrid}><div><h3>機構成員與責任</h3>{detail.members.length ? <ul>{detail.members.map(member => <li key={member.id}>{member.display_name} · {member.admin_scope === 'agency' ? '機構管理者' : selected.agency_type === 'taiwan' ? '業務' : '承辦'} · {member.active ? '啟用' : '停用'}</li>)}</ul> : <p>尚未指派機構成員，請到會員帳號確認歸屬。</p>}<button type="button" onClick={() => navigate('members')}>查看會員帳號</button></div>
+-      <div><h3>所屬雇主與工人</h3><p>{detail.employers.length} 位所屬雇主 · {detail.workers.length} 位所屬工人</p><ul>{[...detail.employers.map(row => ({ ...row, key: `e-${row.id}` })), ...detail.workers.map(row => ({ ...row, key: `w-${row.id}` }))].map(row => <li key={row.key}>{row.name}</li>)}</ul></div>
+-      <div><h3>相關需求與案件</h3>{detail.orders.length ? <ul>{detail.orders.map(order => <li key={order.id}>需求 #{order.id} · {order.job_type} · {({ open: '媒合中', filled: '已額滿', cancelled: '已取消' })[order.status] || order.status}</li>)}</ul> : <p>目前沒有相關需求。</p>}<p>{detail.cases.length} 件相關案件</p>{detail.unassigned > 0 && <p className={styles.notice}>請在媒合需求單指派負責業務。</p>}<button type="button" onClick={() => navigate('job-orders')}>查看媒合需求單</button></div></div>
++      <div><h3>所屬雇主與工人</h3><p>{`${detail.employers.length} 位所屬雇主 · ${detail.workers.length} 位所屬工人`}</p><ul>{[...detail.employers.map(row => ({ ...row, key: `e-${row.id}` })), ...detail.workers.map(row => ({ ...row, key: `w-${row.id}` }))].map(row => <li key={row.key}>{row.name}</li>)}</ul></div>
++      <div><h3>相關需求與案件</h3>{detail.orders.length ? <ul>{detail.orders.map(order => <li key={order.id}>需求 #{order.id} · {order.job_type} · {({ open: '媒合中', filled: '已額滿', cancelled: '已取消' })[order.status] || order.status}</li>)}</ul> : <p>目前沒有相關需求。</p>}<p>{`${detail.cases.length} 件相關案件`}</p>{detail.unassigned > 0 && <p className={styles.notice}>請在媒合需求單指派負責業務。</p>}<button type="button" onClick={() => navigate('job-orders')}>查看媒合需求單</button></div></div>
+     </section>}
+   </section>;
+ }
+diff --git a/src/components/HrMemberPortal.jsx b/src/components/HrMemberPortal.jsx
+index a49b886..0bda19b 100644
+--- a/src/components/HrMemberPortal.jsx
++++ b/src/components/HrMemberPortal.jsx
+@@ -210,7 +210,7 @@ function MemberRoleHome({data,cases,requirements,openTab}) {
+   if(data.role==='worker'){
+     const needsCorrection=requirements.filter(item=>item.required&&item.applicable&&['missing','returned'].includes(item.status));
+     const pendingReview=requirements.filter(item=>item.status==='submitted');
+-    return <section className="hr-member-card member-role-home"><div className="member-home-heading"><div><span className="orders-eyebrow">MY WORKSPACE</span><h2>我的案件與待辦</h2><p>先查看案件進度，以及需要補交或等待審核的文件。</p></div></div><div className="member-home-metrics"><article><strong>{cases.length}</strong><span>申辦案件</span></article><article><strong>{needsCorrection.length}</strong><span>待補必要文件</span></article><article><strong>{pendingReview.length}</strong><span>審核中</span></article></div>{needsCorrection.length>0&&<p className="member-home-alert">有 {needsCorrection.length} 份必要文件需要上傳或補件。</p>}{cases.length?<div className="member-home-case-list">{cases.map(item=><article key={item.id}><div><strong>{item.case_number} · {item.employer_name}</strong><p>目前階段：{item.stage} · {openTasks.filter(task=>Number(task.case_id)===Number(item.id)).length} 項待辦</p></div><button type="button" onClick={()=>openTab('process')}>查看進度</button></article>)}</div>:<p>目前沒有連結的申辦案件；文件及赴台程序會在正式建立案件後顯示。</p>}<div className="member-home-actions"><button type="button" onClick={()=>openTab('documents')}>查看必要文件</button><button type="button" onClick={()=>openTab('process')}>查看赴台程序</button></div></section>;
++    return <section className="hr-member-card member-role-home"><div className="member-home-heading"><div><span className="orders-eyebrow">MY WORKSPACE</span><h2>我的案件與待辦</h2><p>先查看案件進度，以及需要補交或等待審核的文件。</p></div></div><div className="member-home-metrics"><article><strong>{cases.length}</strong><span>申辦案件</span></article><article><strong>{needsCorrection.length}</strong><span>待補必要文件</span></article><article><strong>{pendingReview.length}</strong><span>審核中</span></article></div>{needsCorrection.length>0&&<p className="member-home-alert">{`有 ${needsCorrection.length} 份必要文件需要上傳或補件。`}</p>}{cases.length?<div className="member-home-case-list">{cases.map(item=><article key={item.id}><div><strong>{item.case_number} · {item.employer_name}</strong><p>目前階段：{item.stage} · {openTasks.filter(task=>Number(task.case_id)===Number(item.id)).length} 項待辦</p></div><button type="button" onClick={()=>openTab('process')}>查看進度</button></article>)}</div>:<p>目前沒有連結的申辦案件；文件及赴台程序會在正式建立案件後顯示。</p>}<div className="member-home-actions"><button type="button" onClick={()=>openTab('documents')}>查看必要文件</button><button type="button" onClick={()=>openTab('process')}>查看赴台程序</button></div></section>;
+   }
+   if(data.role==='employer'){
+     const orders=data.jobOrders||[];
+@@ -1230,10 +1230,10 @@ export default function HrMemberPortal({ actor }) {
+   function cancelOrderEdit(){setEditingOrderId(null);}
+   async function submitOrder(event){event.preventDefault();const agencyId=data.employers[0]?.agency_id;if(!agencyId)return;const orderError=jobOrderExtrasError({jobType:orderForm.jobType,monthlySalary:orderForm.monthlySalary,careRecipient:orderForm.careRecipient});if(orderError){setError(orderError);return;}setOrderSubmitting(true);const result=await submitWorkflow({type:'job-order',jobType:orderForm.jobType,headcount:Number(orderForm.headcount),monthlySalary:orderForm.monthlySalary,careRecipient:needsCareRecipient(orderForm.jobType)?orderForm.careRecipient:{},description:orderForm.description,expectedStartDate:orderForm.expectedStartDate,taiwanAgencyAssignments:[{agencyId,brokerMemberId:orderForm.brokerMemberId||null}]});if(result)setOrderForm({jobType:'家庭看護',headcount:1,description:'',expectedStartDate:'',brokerMemberId:'',monthlySalary:'',careRecipient:{...EMPTY_CARE_RECIPIENT}});setOrderSubmitting(false);}
+   async function submitOrderEdit(event,order){event.preventDefault();const orderError=jobOrderExtrasError({jobType:orderEditForm.jobType,monthlySalary:orderEditForm.monthlySalary,careRecipient:orderEditForm.careRecipient});if(orderError){setError(orderError);return;}setOrderSubmitting(true);const result=await submitWorkflow({type:'job-order-update',id:order.id,...orderEditForm,careRecipient:needsCareRecipient(orderEditForm.jobType)?orderEditForm.careRecipient:{},headcount:Number(orderEditForm.headcount)},'', 'PATCH');if(result)cancelOrderEdit();setOrderSubmitting(false);}
+-  async function deleteOrder(order){if(!window.confirm(`確定刪除需求單 #${order.id}？刪除後無法復原。`))return;setError('');try{const response=await fetch(`/api/hr?id=${order.id}&type=job-order`,{method:'DELETE'});const body=await response.json();if(!response.ok)throw new Error(body.error||'刪除需求單失敗');if(Number(editingOrderId)===Number(order.id))cancelOrderEdit();setOperationMessage('已刪除需求單。');await refresh();}catch(err){setError(err.message);}}
++  async function deleteOrder(order){if(!window.confirm(translateHrText(`確定刪除需求單 #${order.id}？刪除後無法復原。`,lang)))return;setError('');try{const response=await fetch(`/api/hr?id=${order.id}&type=job-order`,{method:'DELETE'});const body=await response.json();if(!response.ok)throw new Error(body.error||'刪除需求單失敗');if(Number(editingOrderId)===Number(order.id))cancelOrderEdit();setOperationMessage('已刪除需求單。');await refresh();}catch(err){setError(err.message);}}
+   async function selectOrderWorker(order,worker){await submitWorkflow({type:'job-order-employer-candidate',orderId:order.id,workerId:worker.id});}
+   async function withdrawCandidate(candidate) {
+-    if (withdrawing != null || !window.confirm(`撤回「${candidate.worker_name}」的推薦？只會撤回尚未安排面試的推薦，工作者資料與紀錄都會保留。`)) return;
++    if (withdrawing != null || !window.confirm(translateHrText(`撤回「${candidate.worker_name}」的推薦？只會撤回尚未安排面試的推薦，工作者資料與紀錄都會保留。`,lang))) return;
+     setWithdrawing(candidate.id);
+     try { await submitWorkflow({type:'job-order-candidate-withdraw',candidateId:candidate.id},'推薦已撤回，工作者與歷史紀錄已保留。','PATCH'); }
+     finally { setWithdrawing(null); }
+@@ -1364,7 +1364,7 @@ export default function HrMemberPortal({ actor }) {
+       <label className="form-wide">工作內容／條件<textarea rows="3" value={orderForm.description} onChange={e=>setOrderForm({...orderForm,description:e.target.value})}/></label>
+       <label>預計月薪（新臺幣，選填）<input type="number" min="1" max="1000000" inputMode="numeric" value={orderForm.monthlySalary} onChange={e=>setOrderForm(current=>({...current,monthlySalary:e.target.value}))}/></label>
+       {needsCareRecipient(orderForm.jobType)&&<CareRecipientFields value={orderForm.careRecipient} onChange={careRecipient=>setOrderForm(current=>({...current,careRecipient}))}/>}
+-      {(()=>{const employer=data.employers[0];const agencyId=Number(employer?.agency_id||0);const employerAgency=activeTaiwanAgencies.find(item=>Number(item.id)===agencyId);const employerActive=employer?.status==='active';return <><label className="form-wide">所屬台灣仲介<input value={employerAgency?.name||'尚未指派台灣仲介，請聯絡管理者協助設定'} readOnly/></label>{employerAgency&&<label>指定業務（選填）<select value={orderForm.brokerMemberId} onChange={e=>setOrderForm(current=>({...current,brokerMemberId:e.target.value}))}><option value="">不指定業務</option>{data.agencyContacts.filter(member=>Number(member.agency_id)===agencyId).map(member=><option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label>}{!employerActive&&<p className="hr-request-error form-wide" role="status">雇主資料目前已停用；雖已指派台灣仲介，仍需聯絡管理者啟用雇主資料後才能建立需求單。</p>}<button disabled={orderSubmitting||!employerAgency||!employerActive}>{orderSubmitting?'\u9001出中…':!employerActive?'雇主資料已停用，請聯絡管理者':employerAgency?'建立需求單並送交所屬仲介':'請聯絡管理者設定所屬仲介'}</button></>})()}</form>
++      {(()=>{const employer=data.employers[0];const agencyId=Number(employer?.agency_id||0);const employerAgency=activeTaiwanAgencies.find(item=>Number(item.id)===agencyId);const employerActive=employer?.status==='active';return <><label className="form-wide">所屬台灣仲介<input value={employerAgency?.name||translateHrText('尚未指派台灣仲介，請聯絡管理者協助設定',lang)} readOnly/></label>{employerAgency&&<label>指定業務（選填）<select value={orderForm.brokerMemberId} onChange={e=>setOrderForm(current=>({...current,brokerMemberId:e.target.value}))}><option value="">不指定業務</option>{data.agencyContacts.filter(member=>Number(member.agency_id)===agencyId).map(member=><option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label>}{!employerActive&&<p className="hr-request-error form-wide" role="status">雇主資料目前已停用；雖已指派台灣仲介，仍需聯絡管理者啟用雇主資料後才能建立需求單。</p>}<button disabled={orderSubmitting||!employerAgency||!employerActive}>{orderSubmitting?'\u9001出中…':!employerActive?'雇主資料已停用，請聯絡管理者':employerAgency?'建立需求單並送交所屬仲介':'請聯絡管理者設定所屬仲介'}</button></>})()}</form>
+       <div className="orders-section"><div className="orders-section-heading"><h3>我的需求與推薦人選</h3><span>{data.jobOrders.length} 張需求單</span></div>{data.jobOrders.length?data.jobOrders.map(order=>{const dispatches=data.orderAgencies.filter(row=>Number(row.job_order_id)===Number(order.id));const selectedWorkerIds=new Set(data.orderCandidates.filter(candidate=>Number(candidate.job_order_id)===Number(order.id)).map(candidate=>Number(candidate.worker_id)));const matchingWorkers=orderJourney(order,data.orderAgencies,data.orderRoutes,data.orderCandidates).actionable?(data.availableWorkers||[]).filter(worker=>worker.job_preference===order.job_type&&!selectedWorkerIds.has(Number(worker.id))):[];const statusLabel=({open:'媒合中',sent:'已送出',filled:'已額滿',cancelled:'已取消'})[order.status]||order.status;return <article className="job-order-card" key={order.id}><header className="job-order-header"><div><span className="job-order-number">需求單 #{order.id}</span><h4>{order.job_type}</h4></div><span className={`order-status status-${order.status}`}>{statusLabel}</span></header><OrderJourney order={order} data={data}/>{canEditEmployerOrder(order,data.orderRoutes,data.orderCandidates)&&editingOrderId!==Number(order.id)&&<div className="candidate-actions" style={{padding:'10px 16px 0'}}><button type="button" onClick={()=>editOrder(order)}>&#x7DE8;&#x8F2F;&#x9700;&#x6C42;</button><button type="button" className="candidate-reject" onClick={()=>void deleteOrder(order)}>&#x522A;&#x9664;&#x9700;&#x6C42;</button></div>}{editingOrderId===Number(order.id)&&<form className="worker-form order-form" onSubmit={event=>submitOrderEdit(event,order)}><label>&#x5DE5;&#x4F5C;&#x985E;&#x578B;<select value={orderEditForm.jobType} onChange={event=>setOrderEditForm(current=>({...current,jobType:event.target.value}))}><option>&#x5BB6;&#x5EAD;&#x770B;&#x8B77;</option><option>&#x5BB6;&#x5EAD;&#x5E6B;&#x50F1;</option><option>&#x6A5F;&#x69CB;&#x770B;&#x8B77;&#x5DE5;</option><option>&#x5DE5;&#x5EE0;&#x6280;&#x8853;&#x5DE5;</option><option>&#x8FB2;&#x5DE5;</option></select></label><label>&#x9700;&#x6C42;&#x4EBA;&#x6578;<input type="number" min="1" max="100" required value={orderEditForm.headcount} onChange={event=>setOrderEditForm(current=>({...current,headcount:event.target.value}))}/></label><label>&#x9810;&#x8A08;&#x5230;&#x8077;&#x65E5;&#x671F;<input type="date" value={orderEditForm.expectedStartDate} onChange={event=>setOrderEditForm(current=>({...current,expectedStartDate:event.target.value}))}/></label><label className="form-wide">&#x5DE5;&#x4F5C;&#x5167;&#x5BB9;&#xFF0F;&#x689D;&#x4EF6;<textarea rows="3" value={orderEditForm.description} onChange={event=>setOrderEditForm(current=>({...current,description:event.target.value}))}/></label><label>預計月薪（新臺幣，選填）<input type="number" min="1" max="1000000" inputMode="numeric" value={orderEditForm.monthlySalary} onChange={event=>setOrderEditForm(current=>({...current,monthlySalary:event.target.value}))}/></label>{needsCareRecipient(orderEditForm.jobType)&&<CareRecipientFields value={orderEditForm.careRecipient} onChange={careRecipient=>setOrderEditForm(current=>({...current,careRecipient}))}/>}{(()=>{const agencyId=Number(data.employers[0]?.agency_id||0);return <><label>&#x6307;&#x5B9A;&#x696D;&#x52D9;&#xFF08;&#x9078;&#x586B;&#xFF09;<select value={orderEditForm.brokerMemberId} onChange={event=>setOrderEditForm(current=>({...current,brokerMemberId:event.target.value}))}><option value="">&#x4E0D;&#x6307;&#x5B9A;&#x696D;&#x52D9;</option>{data.agencyContacts.filter(member=>Number(member.agency_id)===agencyId).map(member=><option key={member.id} value={member.id}>{member.display_name}</option>)}</select></label><div className="candidate-actions"><button type="submit" disabled={orderSubmitting}>&#x5132;&#x5B58;&#x4FEE;&#x6539;</button><button type="button" onClick={cancelOrderEdit}>&#x53D6;&#x6D88;</button></div></>})()}</form>}<div className="job-order-facts"><div><small>需求人數</small><strong>{order.headcount} 人</strong></div><div><small>預計到職</small><strong>{order.expected_start_date?String(order.expected_start_date).slice(0,10):'未指定'}</strong></div><div><small>所屬仲介</small><strong>{dispatches[0]?.taiwan_agency_name||'等待指派'}</strong></div>{order.monthly_salary&&<div><small>預計月薪</small><strong>{`NT$ ${Number(order.monthly_salary).toLocaleString('en-US')}`}</strong></div>}</div>{order.description&&<p className="job-order-description">{order.description}</p>}<CareRecipientSummary value={order.care_recipient}/><div className="candidate-list"><h5>符合此工作類別且尚未有雇主的工作者（{matchingWorkers.length}）</h5>{matchingWorkers.length?matchingWorkers.map(worker=><div className="candidate-card" key={`available-${worker.id}`}><div><strong>{worker.name}</strong><small>{worker.nationality||'—'} · {data.agencies.find(agency=>Number(agency.id)===Number(worker.agency_id))?.name||'菲律賓仲介'}</small></div><div className="candidate-actions"><button type="button" onClick={()=>setProfileWorker(worker)}>查看履歷</button><button type="button" disabled={resumePdfLoading} onClick={()=>void downloadWorkerResume(worker)}>下載履歷 PDF</button><button type="button" onClick={()=>void selectOrderWorker(order,worker)}>挑選工作者</button></div></div>):<p>{'目前沒有符合此工作類別的未媒合工作者。'}</p>}</div><div className="order-agency-list">{dispatches.length?dispatches.map(dispatch=>{const routes=data.orderRoutes.filter(route=>Number(route.order_agency_id)===Number(dispatch.id));const candidates=data.orderCandidates.filter(candidate=>Number(candidate.job_order_id)===Number(order.id)&&Number(candidate.taiwan_agency_id)===Number(dispatch.taiwan_agency_id));return <section className="order-agency-card" key={dispatch.id}><div className="order-agency-heading"><div><small>台灣仲介機構</small><strong>{dispatch.taiwan_agency_name}</strong></div><span>{dispatch.broker_name?`業務：${dispatch.broker_name}`:'尚未指定業務'}</span></div><p className="order-routing">菲律賓媒合：{routes.map(route=>route.philippines_agency_name).join('、')||'-'}</p>{candidates.length>0&&<div className="candidate-list"><h5>推薦人選與面試</h5>{candidates.map(candidate=><div className="candidate-card" key={candidate.id}><div><strong>{candidate.worker_name}</strong><small>{candidate.philippines_agency_name} · {recommendationStatus(candidate)}</small></div>{orderJourney(order,data.orderAgencies,data.orderRoutes,data.orderCandidates).actionable&&candidate.status!=='passed'&&candidate.status!=='rejected'&&<div className="candidate-actions"><button type="button" onClick={()=>interviewDecision(candidate,'scheduled')}>安排面試</button><button type="button" onClick={()=>interviewDecision(candidate,'passed')}>錄用</button><button type="button" className="candidate-reject" onClick={()=>interviewDecision(candidate,'rejected')}>未錄用</button></div>}</div>)}</div>}</section>}) : <div className="order-awaiting"><span>1</span><div><strong>等待仲介機構接單</strong><small>需求已建立，仲介受理後會顯示在這裡。</small></div></div>}</div></article>}):<div className="orders-empty"><span>＋</span><strong>目前還沒有需求單</strong><p>填寫上方需求並選擇仲介，送出後即可在這裡追蹤進度。</p></div>}</div></section>}
+     {activeWorkspaceTab==='matching'&&isTaiwanOperator&&data.orderAgencies.length>0&&<section className="hr-member-card"><h2>雇主需求與媒合進度</h2>{data.orderAgencies.map(dispatch=>{const order=data.jobOrders.find(row=>Number(row.id)===Number(dispatch.job_order_id));if(!order)return null;const candidates=data.orderCandidates.filter(candidate=>Number(candidate.job_order_id)===Number(order.id));return <article className="worker-case" key={dispatch.id}><strong>需求 #{order.id} · {order.employer_name} · {order.job_type} · {order.headcount} 人</strong><p>{order.description||'未填工作說明'}</p><CareRecipientSummary value={order.care_recipient}/><p>負責業務：{dispatch.broker_name||'未指定，由機構分派'}</p><OrderJourney order={order} data={data}/><HrNextSteps kind="order" order={order} data={data} agencyType={data.role==='agency'?data.agencyType:null}/>{candidates.length?candidates.map(candidate=><p key={candidate.id}>{candidate.worker_name} · {recommendationStatus(candidate)}</p>):<p>雇主挑選工作者後，系統會直接通知台灣與菲律賓仲介。</p>}</article>})}</section>}
+     {activeWorkspaceTab==='matching'&&isPhilippinesOperator&&data.orderRoutes.length>0&&<section className="hr-member-card"><h2>收到的工作需求與推薦工作者</h2>{data.orderRoutes.map(route=>{const order=data.jobOrders.find(row=>Number(row.id)===Number(route.job_order_id));const dispatch=data.orderAgencies.find(row=>Number(row.id)===Number(route.order_agency_id));if(!order||!orderJourney(order,data.orderAgencies,data.orderRoutes,data.orderCandidates).actionable)return null;const eligibleWorkers=data.workers.filter(w=>Number(w.agency_id)===Number(data.agencyId)&&w.status==='active'&&!data.cases.some(c=>Number(c.worker_id)===Number(w.id))&&!data.orderCandidates.some(c=>Number(c.route_id)===Number(route.id)&&Number(c.worker_id)===Number(w.id)&&c.status!=='proposed'));return <article className="worker-case" key={route.id}><strong>需求 #{order.id} · {order.employer_name} · {order.job_type} · {order.headcount} 人</strong><p>{order.description||'未填工作說明'}</p><CareRecipientSummary value={order.care_recipient}/><p>承接機構：{route.philippines_agency_name}（Staff 作業） · 台灣業務：{dispatch?.broker_name||'未指定'}</p><OrderJourney order={order} data={data}/><HrNextSteps kind="order" order={order} data={data} agencyType={data.role==='agency'?data.agencyType:null}/><form className="agency-choice" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await submitWorkflow({type:'job-order-candidate',routeId:route.id,workerId:f.get('workerId'),notes:f.get('notes')});}}><label>推薦所屬工作者<select name="workerId" required><option value="">選擇工作者</option>{eligibleWorkers.map(w=><option key={w.id} value={w.id}>{w.name} · {w.job_preference||'未填意向'}</option>)}</select></label>{eligibleWorkers.length===0&&<small>目前沒有尚未建立案件的可用工作者。</small>}<label>推薦說明<input name="notes"/></label><button disabled={!eligibleWorkers.length}>推薦給雇主面試</button></form><HrRecommendationHistory candidates={data.orderCandidates.filter(c=>Number(c.route_id)===Number(route.id))} onWithdraw={withdrawCandidate} busy={withdrawing}/></article>})}</section>}
+@@ -1388,7 +1388,7 @@ export default function HrMemberPortal({ actor }) {
+     {activeWorkspaceTab==='agencyEmployer'&&!!data.agencies.length && data.role === 'worker' && <section className="hr-member-card"><h2>所屬仲介</h2><ul>{data.agencies.map(item => <li key={item.id}>{item.name}（{item.country || (item.agency_type === 'taiwan' ? '台灣' : '菲律賓')}）</li>)}</ul></section>}
+     {profileWorker && <div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setProfileWorker(null)}}><section ref={profileDialogRef} tabIndex={-1} onKeyDown={handleProfileKeyDown} className="progress-modal profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title"><header className="progress-modal-header"><div><span>工作者資料</span><h2 id="profile-modal-title">{profileWorker.name}</h2></div><div className="profile-modal-actions"><button type="button" className="profile-edit-action" disabled={resumePdfLoading} onClick={()=>void downloadWorkerResume(profileWorker)}>{resumePdfLoading?'產生中…':'下載履歷 PDF'}</button>{isPhilippinesOperator&&Number(profileWorker.agency_id)===Number(data.agencyId)&&<button type="button" className="profile-edit-action" onClick={()=>{setProfileWorker(null);beginWorkerEdit(profileWorker)}}>編輯資料</button>}<button type="button" className="progress-modal-close" aria-label="關閉工作者資料" onClick={()=>setProfileWorker(null)}>×</button></div></header><div className="progress-modal-body"><div className="worker-detail"><p>姓名：{profileWorker.name}</p><p>國籍：{profileWorker.nationality||'—'}</p><p>電話：{profileWorker.phone||'—'}</p><p>Email：{profileWorker.email||'—'}</p><p>工作意向：{profileWorker.job_preference||'—'}</p><p>狀態：{profileWorker.status==='active'?'啟用':'停用'}</p></div>{resumeViewPhoto&&<img className="resume-profile-photo" src={resumeViewPhoto} alt="履歷照片"/>}<WorkerResumeSections profile={profileWorker.resume_profile}/>{profileWorker.notes&&<div className="profile-notes"><strong>備註</strong><p>{profileWorker.notes}</p></div>}</div></section></div>}
+     {progressWorker && <div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setProgressWorker(null)}}><section ref={progressDialogRef} tabIndex={-1} onKeyDown={handleProgressKeyDown} className="progress-modal" role="dialog" aria-modal="true" aria-labelledby="progress-modal-title"><header className="progress-modal-header"><div><span>案件進度</span><h2 id="progress-modal-title">{progressWorker.name}</h2></div><button type="button" className="progress-modal-close" aria-label="關閉進度視窗" onClick={()=>setProgressWorker(null)}>×</button></header><div className="progress-modal-body"><div className="worker-detail"><p>國籍：{progressWorker.nationality||'—'}</p><p>工作意向：{progressWorker.job_preference||'—'}</p><p>所屬仲介：{data.agencies.find(row=>Number(row.id)===Number(progressWorker.agency_id))?.name||'—'}</p></div>{data.cases.filter(item=>Number(item.worker_id)===Number(progressWorker.id)).map(caseItem=>{const steps=data.applicationSteps.filter(step=>Number(step.case_id)===Number(caseItem.id));const requirements=data.requirements.filter(item=>Number(item.case_id)===Number(caseItem.id));return <article className="progress-modal-case" key={caseItem.id}><h3>{caseItem.case_number} · {caseItem.employer_name||'雇主未指定'}</h3><h4>必要文件</h4>{requirements.length?<ul className="progress-document-list">{requirements.map(item=><li key={item.id}><span>{item.name}</span><strong className={`doc-status doc-${item.applicable?item.status:'na'}`}>{!item.applicable?'不適用':({missing:'待收件',submitted:'待審核',approved:'已合格',returned:'退件待修正'}[item.status]||item.status)}</strong></li>)}</ul>:<p>此案件尚無必要文件資料。</p>}<h4>赴台申請程序</h4>{steps.map(step=>{const canEdit=data.role==='agency';const singleDate=['match_date','passport','document_arrival','personal_documents','pdos','medical','accr_in','accr_out','umid','expected_entry','actual_entry'].includes(step.step_key);return <form className="progress-step" key={step.id} onSubmit={event=>saveApplicationStep(event,step)}><strong>{step.label}</strong>{singleDate?<label>{step.step_key==='expected_entry'?'預定入境日期':step.step_key==='actual_entry'?'實際入境日期':step.step_key==='match_date'?'配工／面試日期':'辦理日期'}<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label>:<><label>開始日<input type="date" name="startedOn" defaultValue={step.started_on?String(step.started_on).slice(0,10):''} disabled={!canEdit}/></label><label>完成日<input type="date" name="completedOn" defaultValue={step.completed_on?String(step.completed_on).slice(0,10):''} disabled={!canEdit}/></label></>}<input name="note" placeholder="狀態／備註" defaultValue={step.note||''} disabled={!canEdit}/>{canEdit&&<button disabled={stepSaving===`${step.case_id}:${step.step_key}`}>{stepSaving===`${step.case_id}:${step.step_key}`?'儲存中…':'儲存'}</button>}</form>})}</article>})}{data.cases.every(item=>Number(item.worker_id)!==Number(progressWorker.id))&&<p>此工作者目前沒有申辦案件。</p>}</div></section></div>}
+-    {returnDocument&&<div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget){setReturnDocument(null);setReturnError('')}}}><section ref={reviewDialogRef} tabIndex={-1} onKeyDown={handleReviewDialogKeyDown} className="progress-modal review-document-modal" role="dialog" aria-modal="true" aria-labelledby="return-document-title"><header className="progress-modal-header"><div><span>文件審核</span><h2 id="return-document-title">退回「{returnDocument.name}」</h2></div><button type="button" className="progress-modal-close" aria-label="關閉補件原因視窗" onClick={()=>{setReturnDocument(null);setReturnError('')}}>×</button></header><form className="progress-modal-body return-document-form" onSubmit={submitDocumentReturn}><p>工作者會看到這段說明，請具體指出需要修正或補交的內容。</p><label htmlFor="document-return-reason">補件原因（必填）</label><textarea id="document-return-reason" autoFocus required rows={5} value={returnReason} onChange={event=>setReturnReason(event.target.value)} aria-describedby={returnError?'document-return-error':undefined}/>{returnError&&<p id="document-return-error" className="delete-worker-error" role="alert">{returnError}</p>}<div className="worker-edit-actions"><button type="button" className="worker-edit-cancel" disabled={reviewSaving} onClick={()=>{setReturnDocument(null);setReturnError('')}}>取消</button><button type="submit" disabled={reviewSaving}>{reviewSaving?'送出中…':'退回並通知工作者'}</button></div></form></section></div>}
++    {returnDocument&&<div className="progress-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget){setReturnDocument(null);setReturnError('')}}}><section ref={reviewDialogRef} tabIndex={-1} onKeyDown={handleReviewDialogKeyDown} className="progress-modal review-document-modal" role="dialog" aria-modal="true" aria-labelledby="return-document-title"><header className="progress-modal-header"><div><span>文件審核</span><h2 id="return-document-title">{`退回「${returnDocument.name}」`}</h2></div><button type="button" className="progress-modal-close" aria-label="關閉補件原因視窗" onClick={()=>{setReturnDocument(null);setReturnError('')}}>×</button></header><form className="progress-modal-body return-document-form" onSubmit={submitDocumentReturn}><p>工作者會看到這段說明，請具體指出需要修正或補交的內容。</p><label htmlFor="document-return-reason">補件原因（必填）</label><textarea id="document-return-reason" autoFocus required rows={5} value={returnReason} onChange={event=>setReturnReason(event.target.value)} aria-describedby={returnError?'document-return-error':undefined}/>{returnError&&<p id="document-return-error" className="delete-worker-error" role="alert">{returnError}</p>}<div className="worker-edit-actions"><button type="button" className="worker-edit-cancel" disabled={reviewSaving} onClick={()=>{setReturnDocument(null);setReturnError('')}}>取消</button><button type="submit" disabled={reviewSaving}>{reviewSaving?'送出中…':'退回並通知工作者'}</button></div></form></section></div>}
+     <section className="workspace-chat-page" hidden={activeWorkspaceTab!=='chat'}><HrChat /></section>
+     <footer className="hr-member-footer">資料僅供授權帳號查閱。</footer>
+ 
+diff --git a/src/lib/hr-translations-agency.js b/src/lib/hr-translations-agency.js
+new file mode 100644
+index 0000000..213ac43
+--- /dev/null
++++ b/src/lib/hr-translations-agency.js
+@@ -0,0 +1,173 @@
++// 仲介頁面（台灣／菲律賓仲介的會員頁、仲介相互認證、仲介關係總覽、媒合進度、下一步提示）的英文對照。
++// 由 hr-translations.jsx 的 translateHrText 串接使用（已有的翻譯優先，這裡只補新增文字）。
++// 含數字或名稱的句子寫在 translateAgencyPattern；元件裡這類文字要用「單一字串」輸出（例如 {`${n} 件`}），
++// 不要拆成 {n} 與 件 兩段，否則翻譯時會被拆開、英文接不起來。
++
++export const AGENCY_PAGE_EN = {
++  // ── 台灣／菲律賓仲介相互認證（HrAgencyCertifications）
++  '相互認證': 'Mutual certification',
++  '台灣仲介相互認證': 'Taiwan agency mutual certification',
++  '菲律賓仲介相互認證': 'Philippine agency mutual certification',
++  '台灣／菲律賓仲介相互認證': 'Taiwan / Philippine agency mutual certification',
++  '仲介相互認證': 'Agency mutual certification',
++  '仲介相互認證管理': 'Agency mutual certification management',
++  '可合作的菲律賓仲介': 'Partner Philippine agencies',
++  '可挑選的菲律賓仲介': 'Philippine agencies you can choose from',
++  '讀取中…': 'Loading…',
++  '無法讀取相互認證資料。': 'Unable to load the mutual certification data.',
++  '無法讀取相互認證資料，請稍後再試。': 'Unable to load the mutual certification data. Please try again later.',
++  '相互認證操作失敗，請稍後再試。': 'The mutual certification action failed. Please try again later.',
++  '操作失敗。': 'The action failed.',
++  '這筆認證已經存在，不需要重複申請。': 'This certification already exists; there is no need to apply again.',
++  '對方先前已提出申請，認證已完成。': 'The other agency had already applied, so the certification is now complete.',
++  '只有與您所屬台灣仲介完成「相互認證」的菲律賓仲介，其工作者才會出現在可挑選名單。': 'Only workers of Philippine agencies that have completed “mutual certification” with your Taiwan agency appear in the list you can choose from.',
++  '· 認證日期': '· Certified on',
++  '已相互認證': 'Mutually certified',
++  '您的台灣仲介目前還沒有已認證的菲律賓仲介，所以暫時沒有可挑選的工作者。請聯絡您的台灣仲介協助辦理認證。': 'Your Taiwan agency has no certified Philippine agencies yet, so there are no workers to choose from for now. Please contact your Taiwan agency to arrange certification.',
++  '雙方確認後才算認證完成：雇主只能挑選已與其台灣仲介認證的菲律賓仲介的工人，雙方也只能互相辦件。管理者可直接認證或解除。': 'Certification is complete only after both sides confirm: employers can only choose workers from Philippine agencies certified with their Taiwan agency, and the two agencies can only handle cases with each other. Administrators can certify or end a certification directly.',
++  '已直接完成認證。': 'Certified directly.',
++  '直接認證': 'Certify directly',
++  '· 更新': '· Updated',
++  '已代為完成認證。': 'Approved on their behalf; the certification is complete.',
++  '代為同意': 'Approve on their behalf',
++  '已拒絕這筆申請。': 'The request was declined.',
++  '拒絕': 'Decline',
++  '已更新認證狀態。': 'Certification status updated.',
++  '解除認證': 'End certification',
++  '撤回申請': 'Withdraw request',
++  '重新認證': 'Certify again',
++  '已重新認證。': 'Certified again.',
++  '目前沒有任何認證紀錄。': 'There are no certification records yet.',
++  '您的雇主只能挑選已與貴機構完成相互認證的菲律賓仲介的工人。': 'Your employers can only choose workers from Philippine agencies that have completed mutual certification with your agency.',
++  '只有與台灣仲介完成相互認證後，才能被其雇主挑選，並與該台灣仲介互相辦件。': 'Only after mutual certification with a Taiwan agency can your agency be chosen by its employers and handle cases with that agency.',
++  '雙方都確認後才會生效，任何一方都可以隨時解除。': ' It takes effect only after both sides confirm, and either side can end it at any time.',
++  '提出或回應認證需由貴機構的仲介管理者操作；您可以在這裡查看目前的認證狀態。': 'Only your agency’s administrators can request or respond to certifications; you can view the current status here.',
++  '申請日期': 'Requested on',
++  '已同意，雙方相互認證完成。': 'Approved; mutual certification is complete.',
++  '已解除認證。': 'Certification ended.',
++  '等待對方確認': 'Awaiting the other agency',
++  '已撤回申請。': 'Request withdrawn.',
++  '申請新的認證': 'Request a new certification',
++  '申請認證': 'Request certification',
++  '重新申請認證': 'Request certification again',
++  '同意認證': 'Approve certification',
++  '已拒絕': 'Declined',
++  '已撤銷': 'Ended',
++  '雙方申請': 'Requested by both sides',
++  '管理者直接認證': 'Certified directly by an administrator',
++  '既有合作沿用': 'Carried over from an existing partnership',
++  '只有仲介管理者可以提出或回應相互認證，請聯絡貴機構的管理者。': 'Only agency administrators can request or respond to mutual certification. Please contact your agency’s administrator.',
++  // 認證 API 的錯誤訊息
++  '找不到雇主資料。': 'Employer record not found.',
++  '僅仲介機構、雇主或系統管理者可以查看相互認證。': 'Only agencies, employers or system administrators can view mutual certification.',
++  '請選擇台灣仲介與菲律賓仲介。': 'Please choose a Taiwan agency and a Philippine agency.',
++  '請選擇要申請認證的對方仲介。': 'Please choose the agency you want to request certification with.',
++  '台灣仲介只能與菲律賓仲介相互認證，且雙方都必須是啟用中的仲介。': 'A Taiwan agency can only be certified with a Philippine agency, and both agencies must be active.',
++  '認證資料剛剛被其他人更新，請重新整理後再試。': 'The certification was just updated by someone else. Please refresh and try again.',
++  '認證紀錄編號不正確。': 'The certification record ID is not valid.',
++  '找不到這筆認證紀錄。': 'Certification record not found.',
++  '這筆申請已不在等待確認狀態，請重新整理。': 'This request is no longer awaiting confirmation. Please refresh.',
++  '這筆申請由貴機構提出，需由對方仲介確認。': 'Your agency made this request; the other agency must confirm it.',
++  '這筆申請由貴機構提出，如要取消請使用「撤回申請」。': 'Your agency made this request. To cancel it, use “Withdraw request”.',
++  '這筆申請由對方提出，請使用「拒絕」。': 'The other agency made this request. Please use “Decline”.',
++  '這筆認證目前不是有效狀態。': 'This certification is not currently active.',
++  '認證操作不正確。': 'The certification action is not valid.',
++  '僅仲介機構或系統管理者可以管理相互認證。': 'Only agencies or system administrators can manage mutual certification.',
++  '系統管理者請使用「直接認證」。': 'System administrators should use “Certify directly”.',
++  '只有系統管理者可以直接認證。': 'Only system administrators can certify directly.',
++
++  // ── 仲介關係總覽（HrAgencyDirectory）
++  '仲介關係總覽': 'Agency relationship overview',
++  '機構詳情': 'Agency details',
++  '先找到機構，再確認成員、負責業務與相關需求。以下只整理目前帳號已獲授權的資料。': 'Find an agency first, then check its members, assigned representatives and related requests. Only data your account is authorized to see is shown.',
++  '找不到符合條件的機構，請調整名稱或類型。': 'No agencies match. Try a different name or type.',
++  '台灣業務負責雇主需求、轉介與來台進度。': 'Taiwan representatives handle employer requests, referrals and arrival progress.',
++  '菲律賓承辦負責人選推薦、文件與申辦進度。': 'Philippine staff handle candidate recommendations, documents and application progress.',
++  '機構管理者': 'Agency administrator',
++  '承辦': 'Staff',
++  '尚未指派機構成員，請到會員帳號確認歸屬。': 'No members are assigned yet. Check the member accounts page for affiliations.',
++  '目前沒有相關需求。': 'There are no related requests yet.',
++
++  // ── 雇主需求與媒合進度、下一步（HrMemberPortal / HrJourney / hr-workflow）
++  '雇主需求與媒合進度': 'Employer requests and matching progress',
++  '雇主挑選工作者後，系統會直接通知台灣與菲律賓仲介。': 'After an employer chooses a worker, the system notifies the Taiwan and Philippine agencies directly.',
++  '進行中需求依目前分工處理；已額滿或取消只保留紀錄。': 'Open requests are handled according to the current assignments; filled or cancelled requests are kept as records only.',
++  '配對進度': 'Matching progress',
++  '仲介分工': 'Agency assignment',
++  '挑選／推薦人選': 'Select / recommend candidates',
++  '雇主可挑選符合工作類型的工作者；管理者也可指派合作菲律賓仲介。': 'The employer can choose workers matching the job type; an administrator can also assign a partner Philippine agency.',
++  '確認負責業務，追蹤雇主選工、錄用與來台進度。': 'Confirm the assigned representative and track the employer’s selection, hiring and arrival progress.',
++  '由訓練中心安排訓練': 'The training center schedules the training',
++  '由菲律賓仲介辦理 OEC 與簽證': 'The Philippine agency handles the OEC and visa',
++  '由台灣仲介安排抵台體檢並辦理在台文件': 'The Taiwan agency arranges the arrival medical exam and handles the documents in Taiwan',
++  '建立案件後才能確認以下項目。': 'You can confirm the items below once a case has been created.',
++  '前往我的需求': 'Go to my requests',
++  '查看人選': 'View candidates',
++  '建立需求後即可挑選符合工作類別的未媒合工作者；送出挑選後，系統會直接通知台灣與菲律賓仲介。': 'After you create a request, you can choose unmatched workers that fit the job category. Once you submit your choice, the system notifies the Taiwan and Philippine agencies directly.',
++  '尚未指派台灣仲介，請聯絡管理者協助設定': 'No Taiwan agency assigned yet. Please contact an administrator.',
++  '雇主資料目前已停用；雖已指派台灣仲介，仍需聯絡管理者啟用雇主資料後才能建立需求單。': 'This employer record is currently deactivated. Although a Taiwan agency is assigned, an administrator must reactivate the record before a request can be created.',
++  '雇主資料已停用，請聯絡管理者': 'Employer record deactivated. Please contact an administrator',
++  '建立需求單並送交所屬仲介': 'Create the request and send it to your agency',
++  '請聯絡管理者設定所屬仲介': 'Please contact an administrator to set your agency',
++  '等待指派': 'Awaiting assignment',
++  '查看履歷': 'View resume',
++  '挑選工作者': 'Choose this worker',
++  '目前沒有符合此工作類別的未媒合工作者。': 'There are no unmatched workers for this job category.',
++  '儲存修改': 'Save changes',
++  '只會清除該工作者的所屬仲介，不會刪除工作者資料或申辦紀錄。': 'Only the worker’s agency is cleared; the worker’s data and application records are not deleted.',
++  '案件必備證照與取證進度': 'Required certifications and progress for this case',
++  '預計取得：': 'Expected by: ',
++  '文件審核': 'Document review',
++  '退回並通知工作者': 'Return and notify the worker',
++  '工作區分頁': 'Workspace tabs',
++  '未開始': 'Not started',
++  '考照中': 'Preparing for the exam',
++  '已取得': 'Obtained',
++  '更新取證進度失敗': 'Failed to update the certification progress',
++  '取證進度已更新。': 'Certification progress updated.',
++  '送出失敗': 'Submission failed',
++  '刪除需求單失敗': 'Failed to delete the request',
++  '履歷 PDF 產生失敗。': 'Failed to generate the resume PDF.',
++  '訊息送出失敗': 'Failed to send the message',
++  '此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。': 'This role can only view workers whose documents are complete and who are waiting for training; it cannot access agency, employer or case data. Enter “會員類型” in the LINE Official Account to see the training center menu.',
++};
++
++const AGENCY_SIDE_EN = { 菲律賓仲介: 'Philippine agency', 台灣仲介: 'Taiwan agency' };
++const AGENCY_SIDE_PLURAL_EN = { 菲律賓仲介: 'Philippine agencies', 台灣仲介: 'Taiwan agencies' };
++const OWNER_EN = { 訓練中心: 'the training center', 菲律賓仲介: 'the Philippine agency', 台灣仲介: 'the Taiwan agency' };
++const COUNTED_TITLE_EN = {
++  所有認證紀錄: 'All certification records', 等待您回應: 'Awaiting your response', 已相互認證: 'Mutually certified',
++  等待對方確認: 'Awaiting the other agency', 已拒絕或解除: 'Declined or ended',
++};
++const plural = (count, one, many) => `${count} ${Number(count) === 1 ? one : many}`;
++
++// 含數字、名稱的句子。translate 用來翻譯句子裡的片段（可省略）。沒有符合的句型時回傳 undefined。
++export function translateAgencyPattern(text, translate = value => value) {
++  let m;
++  if ((m = text.match(/^(\d+) 件$/))) return plural(m[1], 'case', 'cases');
++  if ((m = text.match(/^(\d+) 位機構成員$/))) return plural(m[1], 'agency member', 'agency members');
++  if ((m = text.match(/^(\d+) 件相關案件$/))) return plural(m[1], 'related case', 'related cases');
++  if ((m = text.match(/^(\d+) 位所屬雇主 · (\d+) 位所屬工人$/))) return `${plural(m[1], 'employer', 'employers')} · ${plural(m[2], 'worker', 'workers')}`;
++  if ((m = text.match(/^(所有認證紀錄|等待您回應|已相互認證|等待對方確認|已拒絕或解除)（(\d+)）$/))) return `${COUNTED_TITLE_EN[m[1]]} (${m[2]})`;
++  if ((m = text.match(/^目前還沒有已認證的(菲律賓仲介|台灣仲介)。$/))) return `There are no certified ${AGENCY_SIDE_PLURAL_EN[m[1]]} yet.`;
++  if ((m = text.match(/^沒有可再申請的(菲律賓仲介|台灣仲介)。$/))) return `There are no more ${AGENCY_SIDE_PLURAL_EN[m[1]]} to request certification with.`;
++  if ((m = text.match(/^已送出申請，等待(菲律賓仲介|台灣仲介)確認。$/))) return `Request sent. Waiting for the ${AGENCY_SIDE_EN[m[1]]} to confirm.`;
++  if ((m = text.match(/^確定(解除|撤回)「(.+)」？$/))) return `${m[1] === '解除' ? 'End the certification' : 'Withdraw the request'} “${m[2]}”?`;
++  if ((m = text.match(/^確定解除與「(.+)」的認證？解除後雙方不能再安排新的面試、錄用或辦件。$/))) return `End the certification with “${m[1]}”? After that, neither side can arrange new interviews, hires or case work.`;
++  if ((m = text.match(/^更新 (\d{4}\/\d{1,2}\/\d{1,2}|—)$/))) return `Updated ${m[1]}`;
++  if ((m = text.match(/^台灣仲介「(.+)」與菲律賓仲介「(.+)」尚未完成相互認證，不能建立案件。$/))) return `Taiwan agency “${m[1]}” and Philippine agency “${m[2]}” have not completed mutual certification, so a case cannot be created.`;
++  if ((m = text.match(/^(訓練中心|菲律賓仲介|台灣仲介)辦理$/))) return `Handled by ${OWNER_EN[m[1]]}`;
++  if ((m = text.match(/^業務：(.+)$/))) return `Representative: ${m[1]}`;
++  if ((m = text.match(/^退件：(.*)$/))) return `Returned: ${m[1]}`;
++  if ((m = text.match(/^確定刪除需求單 #(\d+)？刪除後無法復原。$/))) return `Delete request #${m[1]}? This cannot be undone.`;
++  if ((m = text.match(/^撤回「(.+)」的推薦？只會撤回尚未安排面試的推薦，工作者資料與紀錄都會保留。$/))) return `Withdraw the recommendation of “${m[1]}”? Only recommendations without a scheduled interview can be withdrawn; the worker’s data and records are kept.`;
++  if ((m = text.match(/^符合此工作類別且尚未有雇主的工作者（(\d+)）$/))) return `Workers matching this job category who have no employer yet (${m[1]})`;
++  if ((m = text.match(/^退回「(.+)」$/))) return `Return “${m[1]}”`;
++  if ((m = text.match(/^(.+) 取證進度$/))) return `${translate(m[1])} certification progress`;
++  if ((m = text.match(/^剩 (\d+) 天$/))) return `${plural(m[1], 'day', 'days')} left`;
++  if ((m = text.match(/^(\d+) 天後$/))) return `in ${plural(m[1], 'day', 'days')}`;
++  if ((m = text.match(/^已過 (\d+) 天$/))) return `${plural(m[1], 'day', 'days')} ago`;
++  if ((m = text.match(/^考證日期（(.+)）$/))) return `Exam date (${m[1]})`;
++  if ((m = text.match(/^證照辦件日期（(.+)）$/))) return `Certificate filing date (${m[1]})`;
++  return undefined;
++}
+diff --git a/src/lib/hr-translations.jsx b/src/lib/hr-translations.jsx
+index 804715d..50fb0f3 100644
+--- a/src/lib/hr-translations.jsx
++++ b/src/lib/hr-translations.jsx
+@@ -6,6 +6,7 @@ import { useEffect } from 'react';
+ import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
+ import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
+ import { EMPLOYER_PROFILE_EN, translateEmployerPattern } from '@/lib/hr-translations-employer';
++import { AGENCY_PAGE_EN, translateAgencyPattern } from '@/lib/hr-translations-agency';
+ 
+ const EN = {
+   '克雷迅人力管理': 'Kolecion HR', '克雷迅人力仲介管理系統': 'Kolecion Employment Agency Management',
+@@ -265,7 +266,7 @@ const EN_EXTRA = {
+   '建立雇主與工作者資料後，即可新增案件。': 'Create employer and worker records before adding a case.', '建立仲介後可將工作者或雇主指派給所屬仲介。': 'Create an agency to assign workers or employers to it.', '建立需求單並分派': 'Create and dispatch job order',
+   '新增第一筆案件後，案件進度會顯示在這裡。': 'Case progress will appear here after you add the first case.', '新增工作者後可建立案件並追蹤進度。': 'Add workers to create cases and track progress.', '新增或更新案件資料後，操作歷程會顯示在這裡。': 'Activity appears here after case records are created or updated.',
+   '尚未指派台灣仲介': 'No Taiwan agency assigned', '尚未指派菲律賓仲介': 'No Philippines agency assigned', '尚未轉交菲律賓仲介': 'Not forwarded to a Philippines agency', '未指定業務': 'No representative assigned', '雇主未指定': 'No employer assigned', '尚未媒合': 'Not matched yet', '待護照／PSA': 'Waiting for passport / PSA documents',
+-  '工作者姓名': 'Worker name', '工作者 Email': 'Worker email', '案件相關工作者': 'Case worker', '所屬台灣仲介業務': 'Taiwan agency representative', '台灣仲介業務': 'Taiwan agency representative',
++  '工作者姓名': 'Worker name', '工作者 Email': 'Worker email', '案件相關工作者': 'Workers on your cases', '所屬台灣仲介業務': 'Taiwan agency representative', '台灣仲介業務': 'Taiwan agency representative',
+   '個人文件確認日期': 'Personal documents verified on', '護照確認日期': 'Passport verified on', '文件到達日期': 'Document received on', '文件名稱': 'Document name', '文件收件': 'Document receipt', '入件日期': 'Filing date', '出件日期': 'Release date', '辦理日期': 'Processing date', '配工／面試日期': 'Placement / interview date', '體檢日期': 'Medical examination date', '收件備註': 'Receipt notes', '文件版本': 'Document version', '文件要求': 'Document requirement', '文件處理': 'Document processing', '文件預覽': 'Document preview',
+   '文件上傳失敗': 'Document upload failed', '文件審核失敗': 'Document review failed', '上傳中…': 'Uploading…', '儲存工作者資料失敗': 'Could not save worker details', '儲存雇主資料失敗': 'Could not save employer details', '儲存申請程序失敗': 'Could not save application step', '儲存仲介': 'Save agency', '刪除工作者失敗': 'Could not delete worker', '刪除失敗，請確認網路連線後再試。': 'Delete failed. Check your connection and try again.', '更新工作者狀態失敗': 'Could not update worker status', '更新所屬仲介失敗': 'Could not update assigned agency', '更新文件適用狀態失敗': 'Could not update document applicability', '更新案件狀態失敗': 'Could not update case status', '更新雇主狀態失敗': 'Could not update employer status', '更新面試結果失敗': 'Could not update interview result', '提醒暫時無法載入': 'Reminders are temporarily unavailable',
+   '管理者可將會員變更為其他類型。': 'Administrators can change a member’s type.', '會員登入並申請類型後會列於此，管理者可審核並指派所屬資料。': 'Members appear here after applying for a type. Administrators can review and assign their records.', '使用人力仲介管理系統專用帳號登入。': 'Sign in with an account created for the HR management system.',
+@@ -445,7 +446,7 @@ const HR_TEXT_ORIGINALS = new WeakMap();
+ export function translateHrText(value, lang = 'zh') {
+   if (lang !== 'en' || typeof value !== 'string') return value;
+   const trimmed = value.trim();
+-  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed];
++  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || AGENCY_PAGE_EN[trimmed];
+   if (!translated) {
+     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
+     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;
+@@ -509,6 +510,7 @@ export function translateHrText(value, lang = 'zh') {
+   if (!translated && trimmed.includes('家庭看護') && trimmed.includes('測試')) translated = 'Home care test employer';
+   if (!translated) translated = translateTrainingCenterPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
+   if (!translated) translated = translateEmployerPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
++  if (!translated) translated = translateAgencyPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
+   if (!translated) return value;
+   const leading = value.match(/^\s*/)?.[0] || '';
+   const trailing = value.match(/\s*$/)?.[0] || '';
+diff --git a/tests/hr-agency-translations.test.mjs b/tests/hr-agency-translations.test.mjs
+new file mode 100644
+index 0000000..44cf5fe
+--- /dev/null
++++ b/tests/hr-agency-translations.test.mjs
+@@ -0,0 +1,103 @@
++import assert from 'node:assert/strict';
++import { readFileSync } from 'node:fs';
++import test from 'node:test';
++import { AGENCY_PAGE_EN, translateAgencyPattern } from '../src/lib/hr-translations-agency.js';
++import { OWNER_LABELS, nextActionForStage } from '../src/lib/hr-case-flow.js';
++import { MATCH_STEPS } from '../src/lib/hr-workflow.js';
++import {
++  AGENCY_ADMIN_REQUIRED_MESSAGE, CERTIFICATION_ACTIONS, CERTIFICATION_SOURCE_LABELS, CERTIFICATION_STATUS_LABELS, actionLabel,
++} from '../src/lib/hr-agency-certification.js';
++
++// 畫面上實際會出現的文字（含變數代入後）→ 這個檔案負責的英文。
++const translate = text => AGENCY_PAGE_EN[text] ?? translateAgencyPattern(text);
++const CJK = /[㐀-鿿]/;
++const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
++
++test('every dictionary entry has a non-empty English value (only the LINE menu keyword may stay Chinese)', () => {
++  for (const [zh, en] of Object.entries(AGENCY_PAGE_EN)) {
++    assert.ok(en.trim(), `empty translation for ${zh}`);
++    assert.ok(!CJK.test(en.replace('“會員類型”', '')), `English text still has Chinese: ${zh}`);
++  }
++});
++
++test('mutual certification panel text (both agency sides and admin) is translated', () => {
++  const rendered = [
++    '相互認證', '台灣仲介相互認證', '菲律賓仲介相互認證', '台灣／菲律賓仲介相互認證', '等待您回應（2）', '已相互認證（0）', '等待對方確認（1）',
++    '已拒絕或解除（3）', '所有認證紀錄（5）', '目前還沒有已認證的菲律賓仲介。', '目前還沒有已認證的台灣仲介。', '沒有可再申請的菲律賓仲介。', '沒有可再申請的台灣仲介。',
++    '已送出申請，等待菲律賓仲介確認。', '已送出申請，等待台灣仲介確認。', '確定解除「甲 ⇄ 乙」？', '確定撤回「甲 ⇄ 乙」？',
++    '確定解除與「乙」的認證？解除後雙方不能再安排新的面試、錄用或辦件。', '更新 2026/11/16', '更新 —', '· 認證日期', '· 更新', '申請日期',
++    AGENCY_ADMIN_REQUIRED_MESSAGE,
++    ...Object.values(CERTIFICATION_STATUS_LABELS), ...Object.values(CERTIFICATION_SOURCE_LABELS),
++  ];
++  for (const text of rendered) assert.ok(translate(text), `no English for: ${text}`);
++  assert.equal(translate('菲律賓仲介相互認證'), 'Philippine agency mutual certification');
++  assert.equal(translate('等待您回應（2）'), 'Awaiting your response (2)');
++  assert.equal(translate('確定解除「甲 ⇄ 乙」？'), 'End the certification “甲 ⇄ 乙”?');
++  assert.equal(translate('確定撤回「甲 ⇄ 乙」？'), 'Withdraw the request “甲 ⇄ 乙”?');
++});
++
++test('every certification button label is translated', () => {
++  const rows = [{ status: 'pending' }, { status: 'certified' }, { status: 'rejected' }, { status: 'revoked' }];
++  for (const action of CERTIFICATION_ACTIONS) for (const row of rows) {
++    const label = actionLabel(action, row);
++    assert.ok(translate(label), `no English for button: ${label} (${action}/${row.status})`);
++  }
++});
++
++test('employer requests and matching progress, and the next-step prompts, are translated', () => {
++  for (const text of [
++    '雇主需求與媒合進度', '雇主挑選工作者後，系統會直接通知台灣與菲律賓仲介。', '進行中需求依目前分工處理；已額滿或取消只保留紀錄。', '配對進度',
++    '雇主可挑選符合工作類型的工作者；管理者也可指派合作菲律賓仲介。', '確認負責業務，追蹤雇主選工、錄用與來台進度。',
++    '符合此工作類別且尚未有雇主的工作者（4）', '業務：王先生', '等待指派', '前往我的需求', '查看人選', '建立案件後才能確認以下項目。',
++    ...['仲介分工', '挑選／推薦人選'].filter(step => MATCH_STEPS.includes(step)),
++    ...['medical_training', 'application', 'arrangement'].map(nextActionForStage),
++    ...Object.values(OWNER_LABELS).map(owner => `${owner}辦理`),
++  ]) assert.ok(translate(text), `no English for: ${text}`);
++  assert.equal(translate('台灣仲介辦理'), 'Handled by the Taiwan agency');
++  assert.equal(translate('由菲律賓仲介辦理 OEC 與簽證'), 'The Philippine agency handles the OEC and visa');
++});
++
++test('case counts are singular/plural English instead of staying Chinese', () => {
++  assert.equal(translate('0 件'), '0 cases');
++  assert.equal(translate('1 件'), '1 case');
++  assert.equal(translate('3 件'), '3 cases');
++  assert.equal(translate('1 位機構成員'), '1 agency member');
++  assert.equal(translate('5 位機構成員'), '5 agency members');
++  assert.equal(translate('1 件相關案件'), '1 related case');
++  assert.equal(translate('2 位所屬雇主 · 1 位所屬工人'), '2 employers · 1 worker');
++  assert.equal(translate('剩 1 天'), '1 day left');
++  assert.equal(translate('剩 5 天'), '5 days left');
++});
++
++test('confirm dialogs and certification progress text are translated', () => {
++  assert.equal(translate('確定刪除需求單 #12？刪除後無法復原。'), 'Delete request #12? This cannot be undone.');
++  assert.match(translate('撤回「Maria」的推薦？只會撤回尚未安排面試的推薦，工作者資料與紀錄都會保留。'), /^Withdraw the recommendation of “Maria”\?/);
++  assert.equal(translate('退回「PSA 出生證明」'), 'Return “PSA 出生證明”');
++  assert.equal(translate('退件：照片模糊'), 'Returned: 照片模糊');
++  assert.equal(translate('未開始'), 'Not started');
++  assert.equal(translate('取證進度已更新。'), 'Certification progress updated.');
++});
++
++test('unrelated text is left alone by the patterns', () => {
++  for (const text of ['備註', '3 件事', '更新', '更新失敗', '案件 #3', '']) assert.equal(translateAgencyPattern(text), undefined, text);
++});
++
++// 元件裡含變數的文字必須是「單一字串」，翻譯才接得起來；這裡守住不被改回成 {n} 與文字分開的寫法。
++test('components keep variable text in one string and the dictionary is wired into translateHrText', () => {
++  const certifications = read('../src/components/HrAgencyCertifications.jsx');
++  for (const piece of [
++    '{`所有認證紀錄（${rows.length}）`}', '{`等待您回應（${incoming.length}）`}', '{`已相互認證（${certified.length}）`}',
++    '{`等待對方確認（${outgoing.length}）`}', '{`已拒絕或解除（${closed.length}）`}', '{`${otherName}相互認證`}',
++    '{`目前還沒有已認證的${otherName}。`}', '{`沒有可再申請的${otherName}。`}', '{`更新 ${dateText(row.updated_at)}`}',
++  ]) assert.ok(certifications.includes(piece), `HrAgencyCertifications lost: ${piece}`);
++  assert.equal((certifications.match(/window\.confirm\(tx\(/g) || []).length, 2, 'both confirm dialogs must be translated');
++
++  const directory = read('../src/components/HrAgencyDirectory.jsx');
++  assert.ok(directory.includes('{`${snapshot.members.length} 位機構成員`}') && directory.includes('{`${detail.cases.length} 件相關案件`}'));
++
++  const portal = read('../src/components/HrMemberPortal.jsx');
++  assert.equal((portal.match(/window\.confirm\(translateHrText\(/g) || []).length >= 2, true, 'portal confirm dialogs must be translated');
++
++  const translations = read('../src/lib/hr-translations.jsx');
++  assert.ok(translations.includes('AGENCY_PAGE_EN[trimmed]') && translations.includes('translateAgencyPattern(trimmed'), 'dictionary not wired into translateHrText');
++});
