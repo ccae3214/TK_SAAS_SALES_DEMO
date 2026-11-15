@@ -8,6 +8,7 @@ import { WORKER_DOCUMENT_NAMES, ENTRY_GATE_DOCUMENTS, CERTIFICATION_STATUSES, en
 import { migrateWorkerDocuments } from '@/lib/hr-worker-documents-schema';
 import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
+import { notifyAfterDocumentReview, notifyAccountStatusChange, notifyApplicationRejected } from '@/lib/hr-member-notices';
 import { withAdminAudit } from '@/lib/hr-audit';
 import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, STEP_OWNERS, OWNER_LABELS, WORKFLOW_DENIED_MESSAGES } from '@/lib/hr-case-flow';
 import { refreshCaseStage as refreshStage, refreshWorkerCases as refreshStagesForWorker } from '@/lib/hr-case-stage';
@@ -1132,10 +1133,13 @@ async function handlePatch(request) {
       const inAgency=await query(`SELECT m.id FROM hr_members m LEFT JOIN hr_workers w ON w.id=m.worker_id LEFT JOIN hr_employers e ON e.id=m.employer_id
         WHERE m.id=$1 AND (m.agency_id=$2 OR w.agency_id=$2 OR e.agency_id=$2)`,[memberId,principal.agency_id]);
       if (!inAgency.length || body.role !== undefined) return NextResponse.json({error:'仲介管理者只能管理所屬機構會員的啟用狀態。'},{status:403});
+      const beforeMember=(await query('SELECT role,active,line_user_id,requested_role FROM hr_members WHERE id=$1',[memberId]))[0];
       const result=await query(`UPDATE hr_members m SET active=$3,updated_at=NOW()
         WHERE m.id=$1 AND (m.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_workers w WHERE w.id=m.worker_id AND w.agency_id=$2)
           OR EXISTS(SELECT 1 FROM hr_employers e WHERE e.id=m.employer_id AND e.agency_id=$2))
         RETURNING m.id,m.email,m.display_name,m.role,m.active`,[memberId,principal.agency_id,body.active!==false]);
+      if (result[0] && beforeMember) notifyAccountStatusChange({ lineUserId: beforeMember.line_user_id, role: beforeMember.role, requestedRole: beforeMember.requested_role, wasActive: beforeMember.active, nowActive: result[0].active })
+        .catch(error => console.error('hr_member_status_notice_failed', String(error?.message || error).slice(0, 120)));
       return NextResponse.json(result[0]);
     }
     if (principal.role !== 'admin' && !principal.is_agency_admin && !['requirement-applicability','application-step','review','workflow','case','certification'].includes(body.type)) return NextResponse.json({ error: 'HR admin access required' }, { status: 403 });
@@ -1351,8 +1355,12 @@ async function handlePatch(request) {
         return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者帳號狀態。' }, { status: 403 });
       }
       if (body.active === false) await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
+      const beforeMember = (await query('SELECT active,line_user_id,requested_role FROM hr_members WHERE id=$1',[id]))[0];
       const result = await query('UPDATE hr_members SET active=$2,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
       if (!result.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+      // 停用／重新啟用時通知會員；待審核的申請人被停用視同申請未通過。狀態沒有改變時不會發送。
+      if (beforeMember) notifyAccountStatusChange({ lineUserId: beforeMember.line_user_id, role: target[0].role, requestedRole: beforeMember.requested_role, wasActive: beforeMember.active, nowActive: result[0].active })
+        .catch(error => console.error('hr_member_status_notice_failed', String(error?.message || error).slice(0, 120)));
       return NextResponse.json(result[0]);
     }
     if (body.type === 'review') {
@@ -1380,10 +1388,20 @@ async function handlePatch(request) {
           return NextResponse.json({ error: '此文件已更新或不在待審狀態，請重新整理。' }, { status: 409 });
         }
         const item = target.rows[0];
+        // 「初步審核（三取二）通過」與「所有必要文件完成」是否因這次核准而達成：比較審核前後。
+        const gateSql = `SELECT NOT ${entryGateClosedSql('w.id')} AS ready FROM hr_workers w WHERE w.id=$1`;
+        const docsOpenSql = "SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS open";
+        const gateBefore = decision === 'approved' ? (await client.query(gateSql, [item.worker_id])).rows[0]?.ready : null;
+        const docsOpenBefore = decision === 'approved' ? (await client.query(docsOpenSql, [item.worker_id])).rows[0]?.open : null;
         await client.query('INSERT INTO hr_document_reviews(submission_id,decision,reason,reviewer) VALUES($1,$2,$3,$4)', [submissionId,decision,decision==='returned'?reason:'',actor]);
         await client.query('UPDATE hr_worker_documents SET status=$2,review_reason=$3,updated_at=NOW() WHERE id=$1', [item.requirement_id,decision,decision==='returned'?reason:'']);
+        const gateOpened = decision === 'approved' && gateBefore === false && (await client.query(gateSql, [item.worker_id])).rows[0]?.ready === true;
+        const docsComplete = decision === 'approved' && docsOpenBefore === true && (await client.query(docsOpenSql, [item.worker_id])).rows[0]?.open === false;
         await recordWorkerActivity(client,item.worker_id,actor,decision==='approved'?'核准文件':'退回文件',decision==='returned'?reason:`文件版本 ${item.version_number}`);
         await client.query('COMMIT');
+        // 不通知單份文件；這一輪文件審完（沒有待審文件）才發一則結果摘要，初審通過／全部文件完成則是里程碑通知。
+        notifyAfterDocumentReview({ workerId: item.worker_id, submissionId, actor, gateOpened, docsComplete })
+          .catch(error => console.error('hr_document_review_notice_failed', String(error?.message || error).slice(0, 120)));
         await refreshWorkerCases(item.worker_id);
         return NextResponse.json({ ok: true });
       } catch (error) {
@@ -1552,10 +1570,14 @@ async function handleDelete(request) {
           if(used.has_orders){await client.query('ROLLBACK');return NextResponse.json({error:'此會員對應的雇主還有媒合需求單，請先處理需求單後再刪除會員帳號。'},{status:409});}
         }
         await client.query('UPDATE hr_job_order_candidates SET proposed_by=NULL WHERE proposed_by=$1',[id]);
+        const requestedRole = (await client.query('SELECT requested_role FROM hr_members WHERE id=$1',[id])).rows[0]?.requested_role;
         await client.query('DELETE FROM hr_members WHERE id=$1',[id]);
         if(target.worker_id)await client.query('DELETE FROM hr_workers WHERE id=$1',[target.worker_id]);
         if(target.employer_id)await client.query('DELETE FROM hr_employers WHERE id=$1',[target.employer_id]);
         await client.query('COMMIT');
+        // 還在待審核、且送出過申請的會員被刪除：通知申請人未通過。
+        if(!target.role) notifyApplicationRejected({ lineUserId: target.line_user_id, requestedRole })
+          .catch(error => console.error('hr_application_rejected_notice_failed', String(error?.message || error).slice(0, 120)));
         return NextResponse.json({ok:true});
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }

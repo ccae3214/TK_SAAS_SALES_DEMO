@@ -439,12 +439,13 @@ const FLOW_EN = {
   "請在媒合需求單指派負責業務。": "Assign a representative from the matching requests screen.",
   "會員起步指引": "Membership guide"
 };
+import { NATIONALITY_EN } from '@/lib/hr-nationalities';
 const HR_TEXT_ORIGINALS = new WeakMap();
 
 export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
-  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed];
+  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;

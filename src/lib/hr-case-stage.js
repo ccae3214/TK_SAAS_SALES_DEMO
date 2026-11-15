@@ -5,7 +5,7 @@ import { computeCaseStage, summarizeSteps } from '@/lib/hr-case-flow';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 
 export async function refreshCaseStage(run, caseId) {
-  const [state] = await run(`SELECT c.medical_status,c.training_status,
+  const [state] = await run(`SELECT c.stage AS previous_stage,c.medical_status,c.training_status,
     ${entryGateClosedSql('c.worker_id')} AS gate_closed,
     EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=c.worker_id AND d.required AND d.applicable AND d.status<>'approved') AS documents_open,
     EXISTS(SELECT 1 FROM hr_case_certifications k WHERE k.case_id=c.id AND k.status<>'obtained') AS certification_open
@@ -21,6 +21,12 @@ export async function refreshCaseStage(run, caseId) {
     ...summarizeSteps(steps),
   });
   await run('UPDATE hr_cases SET stage=$2,updated_at=NOW() WHERE id=$1', [caseId, stage]);
+  // 往前進到下一個「完整進度」（訓練完成、OEC 與簽證完成、全部完成）時，延後通知相關會員（不阻塞、失敗不影響階段計算）。
+  if (state.previous_stage && state.previous_stage !== stage) {
+    import('@/lib/hr-member-notices')
+      .then(notices => notices.queueStageMilestoneNotice({ caseId, fromStage: state.previous_stage, toStage: stage }))
+      .catch(() => {});
+  }
   return stage;
 }
 
