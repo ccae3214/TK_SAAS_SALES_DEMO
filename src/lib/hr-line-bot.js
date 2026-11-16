@@ -91,9 +91,47 @@ const RICH_MENU_DEFINITIONS = {
   },
 };
 
-// 圖文選單會送出的指令文字。這些是固定的中文指令，不能拿來判斷使用者的語言。
-const MENU_COMMAND_TEXTS = new Set(Object.values(RICH_MENU_DEFINITIONS)
-  .flatMap(({ actions }) => actions.filter(action => action.type === 'message').map(action => action.text)));
+// 英文／Filipino 選單按鈕送出的文字（順序與上面各選單的 message 按鈕一一對應）。
+// 按鈕被按下時，LINE 會把這段文字當成使用者的訊息顯示在聊天室，所以要依使用者語言換成對應語言；
+// 這些文字也必須是機器人看得懂的指令（機器人本來就能辨識中／英／Filipino 關鍵字）。
+const MENU_TEXTS = {
+  worker: {
+    en: ['My case', 'My documents', 'My agency', 'My employer', 'To-do list'],
+    tl: ['Aking kaso', 'Aking mga dokumento', 'Aking ahensya', 'Aking employer', 'Mga gawain'],
+  },
+  employer: {
+    en: ['My worker', 'Contract progress', 'Order matching progress', 'Matched worker progress', 'To-do list'],
+    tl: ['Aking manggagawa', 'Progreso ng kontrata', 'Progreso ng pagtutugma ng order', 'Progreso ng mga naitugmang manggagawa', 'Mga gawain'],
+  },
+  agency_philippines: {
+    en: ['My workers', 'Worker training progress', 'Worker licence progress', 'Worker match progress', 'Worker employer progress'],
+    tl: ['Aking mga manggagawa', 'Progreso ng pagsasanay ng manggagawa', 'Progreso ng lisensya ng manggagawa', 'Progreso ng pagtutugma ng manggagawa', 'Progreso ng employer ng manggagawa'],
+  },
+  agency_taiwan: {
+    en: ['My employers', 'Contract progress', 'Order matching progress', 'Matched worker progress', 'To-do list'],
+    tl: ['Aking mga employer', 'Progreso ng kontrata ng employer', 'Progreso ng pagtutugma ng order ng employer', 'Progreso ng mga naitugmang manggagawa', 'Mga gawain'],
+  },
+  training_center: {
+    en: ['My students', 'Student training progress', 'Student licence progress', 'Student match progress', 'Student agency progress'],
+    tl: ['Aking mga estudyante', 'Progreso ng pagsasanay ng estudyante', 'Progreso ng lisensya ng estudyante', 'Progreso ng pagtutugma ng estudyante', 'Progreso ng ahensya ng estudyante'],
+  },
+  admin: {
+    en: ['Manage workers', 'Manage employers', 'Manage agencies', 'Manage training centers', 'Manage case progress'],
+    tl: ['Pamahalaan ang mga manggagawa', 'Pamahalaan ang mga employer', 'Pamahalaan ang mga ahensya', 'Pamahalaan ang mga training center', 'Pamahalaan ang progreso ng kaso'],
+  },
+};
+const MENU_LANGUAGES = ['en', 'tl'];
+
+// 圖文選單會送出的指令文字。這些是固定指令，不能拿來判斷使用者的語言。
+const MENU_COMMAND_TEXTS = new Set([
+  ...Object.values(RICH_MENU_DEFINITIONS).flatMap(({ actions }) => actions.filter(action => action.type === 'message').map(action => action.text)),
+  ...Object.values(MENU_TEXTS).flatMap(texts => MENU_LANGUAGES.flatMap(language => texts[language])),
+]);
+
+// 選單 key：中文沿用原本的 key（已建立的選單繼續用）；英文／Filipino 加上語言後綴，各自一份選單。
+function localizedMenuKey(baseKey, language) {
+  return baseKey && MENU_LANGUAGES.includes(language) ? `${baseKey}__${language}` : baseKey;
+}
 
 function richMenuKey(principal) {
   if (!principal?.role) return null;
@@ -120,8 +158,13 @@ async function ensureRichMenu(menuKey) {
 
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error('missing_messaging_access_token');
-  const definition = RICH_MENU_DEFINITIONS[menuKey.replace(/_v\d+$/, '')];
+  const [baseKey, menuLanguage] = menuKey.split('__');
+  const definitionKey = baseKey.replace(/_v\d+$/, '');
+  const definition = RICH_MENU_DEFINITIONS[definitionKey];
   if (!definition) throw new Error('unknown_line_rich_menu');
+  const localizedTexts = MENU_LANGUAGES.includes(menuLanguage) ? MENU_TEXTS[definitionKey]?.[menuLanguage] : null;
+  if (menuLanguage && !localizedTexts) throw new Error(`unknown_line_rich_menu_language_${menuKey}`);
+  let messageIndex = 0;
   if (definition.actions.some(({ label }) => [...label].length > 20)) {
     throw new Error(`line_rich_menu_action_label_too_long_${menuKey}`);
   }
@@ -135,7 +178,7 @@ async function ensureRichMenu(menuKey) {
       bounds: { x, y, width: right - x, height: 843 },
       action: action.type === 'uri'
         ? { type: 'uri', label: action.label, uri: `${websiteBase()}${action.uri}` }
-        : { type: 'message', label: action.label, text: action.text },
+        : { type: 'message', label: action.label, text: localizedTexts ? localizedTexts[messageIndex++] : action.text },
     };
   });
   const created = await lineApiRequest('https://api.line.me/v2/bot/richmenu', {
@@ -144,8 +187,8 @@ async function ensureRichMenu(menuKey) {
     body: JSON.stringify({
       size: { width: 2500, height: 1686 },
       selected: true,
-      name: definition.name,
-      chatBarText: '功能選單',
+      name: menuLanguage ? `${definition.name} (${menuLanguage})` : definition.name,
+      chatBarText: localizedTexts ? 'Menu' : '功能選單',
       areas,
     }),
   }, 'line_rich_menu_create_failed');
@@ -165,9 +208,9 @@ async function ensureRichMenu(menuKey) {
   return saved[0].rich_menu_id;
 }
 
-export async function syncLineRichMenu(lineUserId, principal) {
+export async function syncLineRichMenu(lineUserId, principal, language = null) {
   if (!lineUserId) return;
-  const menuKey = richMenuKey(principal);
+  const menuKey = localizedMenuKey(richMenuKey(principal), language);
   const rows = await query('SELECT rich_menu_role FROM hr_line_member_settings WHERE line_user_id=$1', [lineUserId]);
   if ((rows[0]?.rich_menu_role || null) === menuKey) return;
 
@@ -186,8 +229,10 @@ export async function syncLineRichMenu(lineUserId, principal) {
     }, 'line_rich_menu_unlink_failed');
   }
 
+  // 這裡只記錄選單，不能順便寫入 preferred_language：以前寫死 'zh'，
+  // 會讓還沒選過語言的會員（例如菲律賓會員）第一則訊息之後就被永久釘成中文。
   await query(`INSERT INTO hr_line_member_settings(line_user_id,preferred_language,rich_menu_role)
-    VALUES($1,'zh',$2)
+    VALUES($1,NULL,$2)
     ON CONFLICT(line_user_id) DO UPDATE SET rich_menu_role=EXCLUDED.rich_menu_role,updated_at=NOW()`, [lineUserId, menuKey]);
 }
 
@@ -1271,7 +1316,7 @@ export async function replyForHrLineEvent(event) {
     const lineUserId = event.source?.userId;
     const principal = lineUserId ? await getHrPrincipal({ user: { lineUserId, name: 'LINE 會員' } }) : null;
     const language = await resolveReplyLanguage(lineUserId, roleDefaultLanguage(principal));
-    await syncLineRichMenu(lineUserId, principal);
+    await syncLineRichMenu(lineUserId, principal, language);
     return principal?.role ? memberMenuReply(principal, language) : memberWebsiteReply(language, true);
   }
   if (event?.type !== 'message' || event?.message?.type !== 'text') return null;
@@ -1291,10 +1336,13 @@ export async function replyForHrLineEvent(event) {
       : '為保護會員資料，案件查詢只在 LINE 官方帳號的一對一聊天中提供。';
   if (/^(語言|語言設定|切換語言|language|languages|change language|switch language|wika)$/i.test(text)) return languagePicker(language);
 
-  await syncLineRichMenu(lineUserId, principal);
+  // 選單語言＝已存的偏好；還沒選過就用身分預設（不用從訊息文字猜的語言，避免選單來回切換）。
+  const menuLanguage = (await getPreferredLanguage(lineUserId)) || roleDefaultLanguage(principal);
+  await syncLineRichMenu(lineUserId, principal, menuLanguage);
   const chosenLanguage = selectedLanguage(text);
   if (chosenLanguage) {
     await setPreferredLanguage(lineUserId, chosenLanguage);
+    await syncLineRichMenu(lineUserId, principal, chosenLanguage); // 選完語言，圖文選單立刻換成該語言
     return languageUpdated(chosenLanguage);
   }
   const activeLanguage = preference || language;
@@ -1365,7 +1413,7 @@ export async function replyForHrLineEvent(event) {
         : { not_scheduled: notScheduled, scheduled: '已安排', in_progress: '處理中', passed: '合格', retest: '複檢', failed: '未通過', completed: '已完成' };
     return [header, ...cases.map(item => `${item.case_number}｜${training}: ${workflowLabels[item.training_status] || item.training_status || notScheduled}｜${medical}: ${workflowLabels[item.medical_status] || item.medical_status || notScheduled}`)].join('\n');
   }
-  if (/仲介|雇主|案件|進度|狀態|我的工作者|agency|employer|case|progress|status|worker|ahensya|employer|manggagawa|kaso/.test(lower)) {
+  if (/仲介|雇主|案件|進度|狀態|我的工作者|agency|employer|case|progress|progreso|status|worker|ahensya|employer|manggagawa|kaso/.test(lower)) {
     return caseReply(await visibleCases(principal), principal, activeLanguage);
   }
   return helpText(principal, activeLanguage);
