@@ -272,7 +272,7 @@ export default function CheckoutRoute() {
         if (userProfile?.email) {
           await fetch('/api/cart', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
             body: JSON.stringify({ email: userProfile.email, cart: remaining }),
           }).catch(err => {
             console.error('Failed to persist cart clear after checkout:', err);
@@ -287,7 +287,7 @@ export default function CheckoutRoute() {
         if (userProfile?.email) {
           await fetch('/api/cart', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
             body: JSON.stringify({ email: userProfile.email, cart: [] }),
           }).catch(err => {
             console.error('Failed to persist cart clear after checkout:', err);

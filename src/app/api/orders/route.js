@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool, { query, run } from '@/lib/db';
-import { requireUser, requireCsrf } from '@/lib/security';
+import { requireUser, requireCsrf, requireAdmin, requireOwnerOrAdmin } from '@/lib/security';
 
 export async function GET(request) {
   try {
@@ -8,10 +8,16 @@ export async function GET(request) {
     const email = searchParams.get('email');
 
     if (email) {
-      const orders = await query('SELECT * FROM orders WHERE id IN (SELECT order_id FROM order_items WHERE user_email = $1) ORDER BY created_at DESC', [email]);
+      // 只有本人或管理者能看某個 email 的訂單。
+      const access = await requireOwnerOrAdmin(request, email);
+      if (!access.authorized) return access.response;
+      const orders = await query('SELECT * FROM orders WHERE id IN (SELECT order_id FROM order_items WHERE lower(user_email) = $1) ORDER BY created_at DESC', [access.email]);
       return NextResponse.json(orders || []);
     }
 
+    // 不帶 email 會回傳所有人的訂單，只有管理者可以。
+    const admin = await requireAdmin();
+    if (!admin.authorized) return admin.response;
     const orders = await query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100');
     return NextResponse.json(orders || []);
   } catch (error) {

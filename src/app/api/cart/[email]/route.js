@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireCsrf, requireOwnerOrAdmin } from '@/lib/security';
 
 const carts = new Map();
 
 export async function GET(request, { params }) {
   try {
-    const { email } = params;
-    const cart = carts.get(email) || [];
+    const access = await requireOwnerOrAdmin(request, decodeURIComponent(params.email || ''));
+    if (!access.authorized) return access.response;
+    const cart = carts.get(access.email) || [];
     return NextResponse.json(cart);
   } catch (error) {
     console.error('Cart fetch error:', error);
@@ -15,10 +17,14 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const { email } = params;
+    if (!requireCsrf(request)) {
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 });
+    }
+    const access = await requireOwnerOrAdmin(request, decodeURIComponent(params.email || ''));
+    if (!access.authorized) return access.response;
     const { items } = await request.json();
-    if (email && items) {
-      carts.set(email, items);
+    if (Array.isArray(items)) {
+      carts.set(access.email, items);
     }
     return NextResponse.json({ success: true });
   } catch (error) {

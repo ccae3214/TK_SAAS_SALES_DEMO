@@ -340,15 +340,15 @@ function EcommerceDemo() {
 
   useEffect(() => {
     if (userProfile?.email) {
-      fetch(`/api/wishlist/${userProfile.email}`)
+      fetch(`/api/wishlist/${encodeURIComponent(userProfile.email)}`)
         .then(res => res.json())
-        .then(data => setWishlist(data || []))
+        .then(data => setWishlist(Array.isArray(data) ? data : []))
         .catch(() => {});
       
-      fetch(`/api/cart/${userProfile.email}`)
+      fetch(`/api/cart/${encodeURIComponent(userProfile.email)}`)
         .then(res => res.json())
         .then(data => {
-            if (data && data.length > 0) setCart(data);
+            if (Array.isArray(data) && data.length > 0) setCart(data);
         })
         .catch(() => {});
     } else {
