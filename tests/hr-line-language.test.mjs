@@ -74,3 +74,14 @@ test('同步圖文選單只記錄選單，不能寫死 preferred_language（以�
 test('選完語言後圖文選單立刻換成該語言', () => {
   assert.match(source, /await setPreferredLanguage\(lineUserId, chosenLanguage\);\s*await syncLineRichMenu\(lineUserId, principal, chosenLanguage\)/);
 });
+
+// ---- 圖文選單快取：內容變了就要換新選單，不能一直沿用舊的（否則按鈕文字永遠是舊的） ----
+test('選單 key 帶有內容簽章，按鈕文字、圖片一變就會自動換新選單', () => {
+  assert.match(source, /async function versionedRichMenuKey\(/);
+  assert.match(source, /createHash\('sha1'\)\.update\(JSON\.stringify\(\{ name: spec\.name, chatBarText: spec\.chatBarText, areas: spec\.areas \}\)\)/);
+  assert.match(source, /`\$\{menuKey\}@\$\{hash\.digest\('hex'\)\.slice\(0, 8\)\}`/);
+  // 同步選單時比對與儲存的是帶簽章的 key；ensureRichMenu 也用同一把 key 查／存 LINE 選單 ID
+  assert.match(source, /const menuKey = baseKey \? await versionedRichMenuKey\(baseKey\) : null;/);
+  assert.match(source, /const stored = await query\('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=\$1', \[versionedKey\]\)/);
+  assert.match(source, /VALUES\(\$1,\$2\) ON CONFLICT\(menu_key\) DO NOTHING`, \[versionedKey, richMenuId\]\)/);
+});

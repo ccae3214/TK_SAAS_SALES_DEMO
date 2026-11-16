@@ -4,6 +4,7 @@ import { query } from '@/lib/db';
 import pool from '@/lib/db';
 import { insertWorkerDocuments } from '@/lib/hr-requirements';
 import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -152,12 +153,8 @@ async function lineApiRequest(url, options, errorCode) {
   return response;
 }
 
-async function ensureRichMenu(menuKey) {
-  const stored = await query('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=$1', [menuKey]);
-  if (stored.length) return stored[0].rich_menu_id;
-
-  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
-  if (!accessToken) throw new Error('missing_messaging_access_token');
+// 依選單 key（例如 admin_v3__en）組出要送給 LINE 的內容：名稱、按鈕與每顆按鈕送出的文字。
+function richMenuSpec(menuKey) {
   const [baseKey, menuLanguage] = menuKey.split('__');
   const definitionKey = baseKey.replace(/_v\d+$/, '');
   const definition = RICH_MENU_DEFINITIONS[definitionKey];
@@ -181,36 +178,72 @@ async function ensureRichMenu(menuKey) {
         : { type: 'message', label: action.label, text: localizedTexts ? localizedTexts[messageIndex++] : action.text },
     };
   });
+  return {
+    definition,
+    areas,
+    name: menuLanguage ? `${definition.name} (${menuLanguage})` : definition.name,
+    chatBarText: localizedTexts ? 'Menu' : '功能選單',
+  };
+}
+
+async function richMenuImage(definition) {
+  return readFile(path.join(process.cwd(), 'public', 'line-rich-menus', definition.image));
+}
+
+// LINE 的圖文選單建好後內容就不能改，而我們把「選單 key → LINE 選單 ID」存在資料庫。
+// 以前 key 只看角色與語言，所以改了按鈕文字（例如「管理工人」→「管理工作者」）或換了圖片，
+// 已經建好的舊選單會一直被沿用，使用者按鈕後聊天室還是舊文字。
+// 現在 key 後面加上「內容簽章」（按鈕文字、版面、圖片的雜湊）：內容一變，key 就變，
+// 下一則訊息時會自動建立新選單並重新連結給該會員；內容沒變就沿用，不會重複建立。
+const richMenuSignatures = new Map();
+async function versionedRichMenuKey(menuKey) {
+  if (!richMenuSignatures.has(menuKey)) {
+    const spec = richMenuSpec(menuKey);
+    const hash = createHash('sha1').update(JSON.stringify({ name: spec.name, chatBarText: spec.chatBarText, areas: spec.areas }));
+    try { hash.update(await richMenuImage(spec.definition)); }
+    catch (error) { console.warn('line_rich_menu_image_unreadable', menuKey, error?.code || error?.name || 'Error'); }
+    richMenuSignatures.set(menuKey, `${menuKey}@${hash.digest('hex').slice(0, 8)}`);
+  }
+  return richMenuSignatures.get(menuKey);
+}
+
+async function ensureRichMenu(versionedKey) {
+  const stored = await query('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=$1', [versionedKey]);
+  if (stored.length) return stored[0].rich_menu_id;
+
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
+  if (!accessToken) throw new Error('missing_messaging_access_token');
+  const spec = richMenuSpec(versionedKey.split('@')[0]);
   const created = await lineApiRequest('https://api.line.me/v2/bot/richmenu', {
     method: 'POST',
     headers: lineApiHeaders(accessToken),
     body: JSON.stringify({
       size: { width: 2500, height: 1686 },
       selected: true,
-      name: menuLanguage ? `${definition.name} (${menuLanguage})` : definition.name,
-      chatBarText: localizedTexts ? 'Menu' : '功能選單',
-      areas,
+      name: `${spec.name} ${versionedKey.split('@')[1] || ''}`.trim(),
+      chatBarText: spec.chatBarText,
+      areas: spec.areas,
     }),
   }, 'line_rich_menu_create_failed');
   const { richMenuId } = await created.json();
   if (!richMenuId) throw new Error('line_rich_menu_id_missing');
 
-  const image = await readFile(path.join(process.cwd(), 'public', 'line-rich-menus', definition.image));
   await lineApiRequest(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
     method: 'POST',
     headers: lineApiHeaders(accessToken, 'image/png'),
-    body: image,
+    body: await richMenuImage(spec.definition),
   }, 'line_rich_menu_upload_failed');
 
   await query(`INSERT INTO hr_line_rich_menus(menu_key,rich_menu_id)
-    VALUES($1,$2) ON CONFLICT(menu_key) DO NOTHING`, [menuKey, richMenuId]);
-  const saved = await query('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=$1', [menuKey]);
+    VALUES($1,$2) ON CONFLICT(menu_key) DO NOTHING`, [versionedKey, richMenuId]);
+  const saved = await query('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=$1', [versionedKey]);
   return saved[0].rich_menu_id;
 }
 
 export async function syncLineRichMenu(lineUserId, principal, language = null) {
   if (!lineUserId) return;
-  const menuKey = localizedMenuKey(richMenuKey(principal), language);
+  const baseKey = localizedMenuKey(richMenuKey(principal), language);
+  const menuKey = baseKey ? await versionedRichMenuKey(baseKey) : null;
   const rows = await query('SELECT rich_menu_role FROM hr_line_member_settings WHERE line_user_id=$1', [lineUserId]);
   if ((rows[0]?.rich_menu_role || null) === menuKey) return;
 
