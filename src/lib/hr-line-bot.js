@@ -3,6 +3,7 @@ import { LinkedRecordError, updateLinkedRecord } from '@/lib/hr-linked-record-st
 import { query } from '@/lib/db';
 import pool from '@/lib/db';
 import { insertWorkerDocuments } from '@/lib/hr-requirements';
+import { recordLineAdminAction } from '@/lib/hr-audit';
 import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -875,6 +876,19 @@ const ADMIN_CREATE_FIELDS = {
 };
 const ADMIN_CREATE_MAX_LENGTH = { name: 160, nationality: 80, gender: 40, phone: 50, email: 254, jobPreference: 120, notes: 2000, contactName: 120, address: 300, employerType: 30, agencyType: 30 };
 
+// 操作紀錄（hr_admin_audit_log）一律用中文記錄，與網頁端的紀錄格式一致，不隨 LINE 回覆語言變動。
+const AUDIT_TYPE_LABELS = { worker: '工作者', employer: '雇主', agency: '仲介機構', training_center: '訓練中心' };
+async function auditLineAdmin(principal, lineUserId, { action, type, id, name, phrase }) {
+  await recordLineAdminAction({
+    principal, lineUserId, action, type: type === 'training_center' ? 'member' : type, id,
+    name, phrase: phrase(AUDIT_TYPE_LABELS[type]),
+  });
+}
+async function auditedRecordName(type, id) {
+  try { return (await loadAdminRecord(type, id))?.[ADMIN_RECORD_NAME_KEY[type]] || `#${id}`; }
+  catch { return `#${id}`; }
+}
+
 async function handleAdminManagement(lineUserId, text, principal, language = 'zh') {
   if (principal?.role !== 'admin') return null;
   const tx = adminText(language);
@@ -956,7 +970,9 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
     if (pending?.mode !== 'confirm_delete' || pending.type !== type || Number(pending.id) !== Number(id)) {
       return adminQuickReply(tx.staleConfirm, [{ label: tx.backToList, text: `adm-list:${type}:0` }]);
     }
+    const targetName = await auditedRecordName(type, Number(id));
     const result = await deactivateAdminRecord(type, Number(id));
+    if (result) await auditLineAdmin(principal, lineUserId, { action: '停用', type, id, name: targetName, phrase: label => `停用了${targetName}${label}` });
     await saveAdminSession(lineUserId, { type, mode: 'list' });
     return result ? tx.deactivated(tx.types[type], id) : tx.notFoundShort;
   }
@@ -965,6 +981,7 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
   if (!session) return null;
   if (session.mode === 'edit_value') {
     const value = isAdminClear(command) ? '' : command;
+    const targetName = await auditedRecordName(session.type, session.id);
     let updated;
     try { updated = await updateAdminRecord(session.type, session.id, session.key, value); }
     catch (error) {
@@ -974,6 +991,10 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
       throw error;
     }
     if (!updated) return adminQuickReply(tx.notFoundRemoved, [{ label: tx.backToListShort, text: `adm-list:${session.type}:0` }]);
+    const statusChange = ['status', 'active'].includes(session.key) ? parseAdminActive(value) : null;
+    await auditLineAdmin(principal, lineUserId, statusChange === null
+      ? { action: '編輯', type: session.type, id: session.id, name: targetName, phrase: label => `編輯了${targetName}${label}的${plainAdminLabel(ADMIN_TEXT.zh.fields[session.type][session.key])}` }
+      : { action: statusChange ? '啟用' : '停用', type: session.type, id: session.id, name: targetName, phrase: label => `${statusChange ? '啟用' : '停用'}了${targetName}${label}` });
     await saveAdminSession(lineUserId, { type: session.type, mode: 'detail', id: session.id });
     const record = await loadAdminRecord(session.type, session.id);
     return adminQuickReply(`${tx.updated}\n${adminRecordText(session.type, record, tx)}`, adminDetailActions(session.type, session.id, tx));
@@ -1014,6 +1035,8 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
       }
       throw error;
     }
+    const createdName = values.name.trim();
+    await auditLineAdmin(principal, lineUserId, { action: '新增', type: session.type, id: created[0].id, name: createdName, phrase: label => `新增了${createdName}${label}` });
     await saveAdminSession(lineUserId, { type: session.type, mode: 'list' });
     return tx.created(tx.types[session.type], created[0].id);
   }
