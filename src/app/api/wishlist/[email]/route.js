@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireCsrf, requireOwnerOrAdmin } from '@/lib/security';
 
 const wishlists = new Map();
 
 export async function GET(request, { params }) {
   try {
-    const { email } = params;
-    const wishlist = wishlists.get(email) || [];
+    const access = await requireOwnerOrAdmin(request, decodeURIComponent(params.email || ''));
+    if (!access.authorized) return access.response;
+    const wishlist = wishlists.get(access.email) || [];
     return NextResponse.json(wishlist);
   } catch (error) {
     console.error('Wishlist fetch error:', error);
@@ -15,10 +17,14 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const { email } = params;
+    if (!requireCsrf(request)) {
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 });
+    }
+    const access = await requireOwnerOrAdmin(request, decodeURIComponent(params.email || ''));
+    if (!access.authorized) return access.response;
     const { items } = await request.json();
-    if (email && items) {
-      wishlists.set(email, items);
+    if (Array.isArray(items)) {
+      wishlists.set(access.email, items);
     }
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, run } from '@/lib/db';
+import { requireCsrf, requireOwnerOrAdmin } from '@/lib/security';
 
 // POST /api/cart - Save/sync cart to database
 export async function POST(request) {
@@ -8,37 +9,29 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 });
     }
 
-    const { email, cart } = await request.json();
-    
-    console.log('[Cart API] POST received:', { email, cartLength: cart?.length, cartItems: JSON.stringify(cart) });
-    
-    if (!email || !cart) {
+    const { email: rawEmail, cart } = await request.json();
+
+    if (!rawEmail || !Array.isArray(cart)) {
       return NextResponse.json({ error: 'Missing email or cart' }, { status: 400 });
     }
 
+    const access = await requireOwnerOrAdmin(request, rawEmail);
+    if (!access.authorized) return access.response;
+    const email = access.email;
+
     // Clear existing cart items for this user
-    await run('DELETE FROM shopping_carts WHERE user_email = $1', [email]);
+    await run('DELETE FROM shopping_carts WHERE lower(user_email) = $1', [email]);
 
     // Insert new cart items
     for (const item of cart) {
-      console.log('[Cart API] Processing item:', { 
-        originalId: item.id, 
-        idType: typeof item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        size: item.size 
-      });
       
       // Extract numeric product_id from string like "3-S" if needed
       let productId = item.id;
       if (typeof item.id === 'string') {
         const parts = item.id.split('-');
         productId = parseInt(parts[0]);
-        console.log('[Cart API] Extracted product ID:', { original: item.id, extracted: productId, parts });
       }
       
-      console.log('[Cart API] Inserting with productId:', productId, 'Type:', typeof productId);
       
       await run(
         `INSERT INTO shopping_carts 
@@ -51,10 +44,7 @@ export async function POST(request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Cart sync error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -62,16 +52,14 @@ export async function POST(request) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const email = searchParams.get('email');
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email required' }, { status: 400 });
-    }
+    const access = await requireOwnerOrAdmin(request, searchParams.get('email'));
+    if (!access.authorized) return access.response;
+    const email = access.email;
 
     const cartItems = await query(
       `SELECT id, product_id as id, product_name as name, price, quantity, size, img 
        FROM shopping_carts 
-       WHERE user_email = $1 
+       WHERE lower(user_email) = $1 
        ORDER BY updated_at DESC`,
       [email]
     );

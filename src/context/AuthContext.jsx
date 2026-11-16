@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    await fetch('/api/users/logout', { method: 'POST' }).catch(() => {}); // 清除商店登入憑證
     await nextAuthSignOut({ redirect: false });
     setUserProfile(null);
   };

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, run, get } from '@/lib/db';
+import { createShopSessionToken, shopSessionCookie, isHttpsRequest } from '@/lib/shop-session';
 
 export async function POST(request) {
   try {
@@ -37,7 +38,7 @@ export async function POST(request) {
 
     const user = result[0] || { id: result.id, name, email };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -45,6 +46,9 @@ export async function POST(request) {
         email: user.email
       }
     });
+    const token = createShopSessionToken(user.email);
+    if (token) response.cookies.set(shopSessionCookie(token, { secure: isHttpsRequest(request) }));
+    return response;
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(

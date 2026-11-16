@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { SHOP_SESSION_COOKIE, verifyShopSessionToken } from "@/lib/shop-session";
 
 const PRODUCT_CATEGORIES = new Set(["Men", "Women", "Accessories"]);
 
@@ -56,6 +57,32 @@ export async function requireAdmin() {
     authorized: true,
     session,
   };
+}
+
+// 訂單／購物車／願望清單這類「屬於某個 email」的資料：只有本人或管理者可以存取。
+// 本人 = NextAuth 登入的 email，或商店示範帳號登入時發的簽章 cookie 裡的 email。
+// 管理者只認 NextAuth 登入（商店帳號是任何人都能註冊的，不能憑它的 email 當管理者）。
+export async function requireOwnerOrAdmin(request, email) {
+  const target = String(email || '').trim().toLowerCase();
+  if (!target) {
+    return { authorized: false, response: NextResponse.json({ error: 'Email required' }, { status: 400 }) };
+  }
+
+  const session = await auth();
+  const sessionEmail = session?.user?.email?.trim().toLowerCase() || null;
+  const shopEmail = verifyShopSessionToken(request.cookies.get(SHOP_SESSION_COOKIE)?.value);
+
+  if (!sessionEmail && !shopEmail) {
+    return { authorized: false, response: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) };
+  }
+
+  const isOwner = sessionEmail === target || shopEmail === target;
+  const isAdmin = !!sessionEmail && getAdminEmails().includes(sessionEmail);
+  if (!isOwner && !isAdmin) {
+    return { authorized: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+
+  return { authorized: true, email: target };
 }
 
 export function isHrAdminSession(session) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { get } from '@/lib/db';
+import { createShopSessionToken, shopSessionCookie, isHttpsRequest } from '@/lib/shop-session';
 
 export async function POST(request) {
   try {
@@ -35,7 +36,7 @@ export async function POST(request) {
       );
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -45,6 +46,10 @@ export async function POST(request) {
         spending: user.spending || 0
       }
     });
+    // 發登入憑證，之後訂單／購物車／願望清單 API 靠它確認是本人。
+    const token = createShopSessionToken(user.email);
+    if (token) response.cookies.set(shopSessionCookie(token, { secure: isHttpsRequest(request) }));
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
