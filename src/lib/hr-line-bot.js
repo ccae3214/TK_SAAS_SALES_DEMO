@@ -3,6 +3,7 @@ import { LinkedRecordError, updateLinkedRecord } from '@/lib/hr-linked-record-st
 import { query } from '@/lib/db';
 import pool from '@/lib/db';
 import { insertWorkerDocuments } from '@/lib/hr-requirements';
+import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -89,6 +90,10 @@ const RICH_MENU_DEFINITIONS = {
     ],
   },
 };
+
+// 圖文選單會送出的指令文字。這些是固定的中文指令，不能拿來判斷使用者的語言。
+const MENU_COMMAND_TEXTS = new Set(Object.values(RICH_MENU_DEFINITIONS)
+  .flatMap(({ actions }) => actions.filter(action => action.type === 'message').map(action => action.text)));
 
 function richMenuKey(principal) {
   if (!principal?.role) return null;
@@ -1021,11 +1026,6 @@ async function resolveReplyLanguage(lineUserId, fallback) {
   return profileLanguage;
 }
 
-function detectedLanguage(text) {
-  if (/[\u3400-\u9fff]/.test(text)) return 'zh';
-  return 'en';
-}
-
 function caseScope(principal) {
   if (principal.role === 'admin') return { where: '', params: [] };
   if (principal.role === 'worker') return { where: 'c.worker_id=$1', params: [principal.worker_id] };
@@ -1269,8 +1269,8 @@ function identityReply(principal, language) {
 export async function replyForHrLineEvent(event) {
   if (event?.type === 'follow') {
     const lineUserId = event.source?.userId;
-    const language = await resolveReplyLanguage(lineUserId, 'zh');
     const principal = lineUserId ? await getHrPrincipal({ user: { lineUserId, name: 'LINE 會員' } }) : null;
+    const language = await resolveReplyLanguage(lineUserId, roleDefaultLanguage(principal));
     await syncLineRichMenu(lineUserId, principal);
     return principal?.role ? memberMenuReply(principal, language) : memberWebsiteReply(language, true);
   }
@@ -1278,8 +1278,10 @@ export async function replyForHrLineEvent(event) {
   const text = String(event.message.text || '').trim().replace(/\s+/g, ' ');
   const lower = text.toLowerCase();
   const lineUserId = event.source?.userId;
-  const preference = event.source?.type === 'user'
-    ? await resolveReplyLanguage(lineUserId, detectedLanguage(text))
+  const isUser = event.source?.type === 'user';
+  const principal = lineUserId && isUser ? await getHrPrincipal({ user: { lineUserId, name: 'LINE 會員' } }) : null;
+  const preference = isUser
+    ? await resolveReplyLanguage(lineUserId, fallbackReplyLanguage(text, principal, MENU_COMMAND_TEXTS))
     : await getPreferredLanguage(lineUserId);
   const language = preference || detectedLanguage(text);
   if (event.source?.type !== 'user') return language === 'en'
@@ -1289,7 +1291,6 @@ export async function replyForHrLineEvent(event) {
       : '為保護會員資料，案件查詢只在 LINE 官方帳號的一對一聊天中提供。';
   if (/^(語言|語言設定|切換語言|language|languages|change language|switch language|wika)$/i.test(text)) return languagePicker(language);
 
-  const principal = lineUserId ? await getHrPrincipal({ user: { lineUserId, name: 'LINE 會員' } }) : null;
   await syncLineRichMenu(lineUserId, principal);
   const chosenLanguage = selectedLanguage(text);
   if (chosenLanguage) {
