@@ -385,7 +385,7 @@ export async function GET() {
       // 工人報名的訓練班別：訓練／考證／取證日期，以及該班別最新證照批次的辦件日期與狀態。
       try {
         await ensureTrainingCenterSchema();
-        trainingCourses = await query(`SELECT e.id, cl.name AS class_name, c.name AS certification_name, co.name AS course_name, co.hours, ctr.display_name AS center_name,
+        trainingCourses = await query(`SELECT e.id, co.id AS course_id, cl.name AS class_name, c.name AS certification_name, co.name AS course_name, co.hours, ctr.display_name AS center_name,
             to_char(cl.training_start_date,'YYYY-MM-DD') AS training_start_date, to_char(cl.training_end_date,'YYYY-MM-DD') AS training_end_date,
             to_char(cl.exam_date,'YYYY-MM-DD') AS exam_date, cl.exam_location, to_char(cl.certificate_issue_date,'YYYY-MM-DD') AS certificate_issue_date,
             to_char(b.applied_date,'YYYY-MM-DD') AS batch_applied_date, b.status AS batch_status

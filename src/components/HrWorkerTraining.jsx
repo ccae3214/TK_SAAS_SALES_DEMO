@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from 'react';
 import { trainingEvents, daysUntil, whenLabel, TRAINING_REMINDER_DAYS } from '@/lib/hr-worker-training';
+import HrWorkerLearning from '@/components/HrWorkerLearning';
 
 // 工人頁面的「訓練課程」：列出報名的班別、課程日期與證照辦件日期，近期日期會標示提醒。
 export default function HrWorkerTraining({ courses = [] }) {
+  const [learningCourseId, setLearningCourseId] = useState(null);
+  if (learningCourseId) return <section className="hr-member-card"><HrWorkerLearning courseId={learningCourseId} onClose={() => setLearningCourseId(null)} /></section>;
   return <section className="hr-member-card">
     <h2>訓練課程</h2>
     <p>顯示您報名的證照課程日期與證照辦件日期；{TRAINING_REMINDER_DAYS} 天內的日期會出現在上方提醒。</p>
@@ -13,6 +17,7 @@ export default function HrWorkerTraining({ courses = [] }) {
       return <div className="worker-case" key={course.id}>
         <h3>{course.certification_name} · {course.class_name}</h3>
         <p>{course.center_name}{course.course_name ? ` · ${course.course_name}` : ''}{course.hours ? ` · ${course.hours} 小時` : ''}</p>
+        {course.course_id && <p><button type="button" className="table-action" onClick={() => setLearningCourseId(course.course_id)}>開始學習</button></p>}
         <div className="hr-member-table-wrap"><table><thead><tr><th>項目</th><th>日期</th><th>提醒</th></tr></thead><tbody>
           {events.map(event => {
             const days = daysUntil(event.date);

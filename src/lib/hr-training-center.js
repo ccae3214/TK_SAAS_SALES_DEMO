@@ -72,6 +72,17 @@ export function ensureTrainingCenterSchema() {
       UNIQUE(course_id, name)
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_course_units_course ON hr_tc_course_units(course_id, position)');
+    // 學習內容：詞彙與對話（每行「中文 | 拼音 | 英文」，對話行首可加 A：／B：）。
+    await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS vocabulary TEXT NOT NULL DEFAULT ''");
+    await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS dialogue TEXT NOT NULL DEFAULT ''");
+    // 工人的學習進度：讀完（標記）的單元；單元或工人刪除時一併刪除。
+    await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_unit_progress (
+      id BIGSERIAL PRIMARY KEY,
+      worker_id BIGINT NOT NULL REFERENCES hr_workers(id) ON DELETE CASCADE,
+      unit_id BIGINT NOT NULL REFERENCES hr_tc_course_units(id) ON DELETE CASCADE,
+      completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(worker_id, unit_id)
+    )`);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_classes (
       id BIGSERIAL PRIMARY KEY,
       center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,

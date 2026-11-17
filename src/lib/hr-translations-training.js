@@ -66,6 +66,29 @@ export const TRAINING_CENTER_EN = {
   '課程名稱': 'Course name',
   '課程時數': 'Course hours',
   '課程費用': 'Course fee',
+  '詞彙': 'Vocabulary',
+  '對話': 'Dialogue',
+  '拼音': 'Pinyin',
+  '開始學習': 'Start learning',
+  '繼續學習': 'Continue learning',
+  '複習': 'Review',
+  '回到課程': 'Back to courses',
+  '回到單元清單': 'Back to unit list',
+  '上一單元': 'Previous unit',
+  '下一單元': 'Next unit',
+  '標記為已讀完': 'Mark as completed',
+  '取消已讀完標記': 'Mark as not completed',
+  '已讀完': 'Completed',
+  '未讀': 'Not started',
+  '讀取中…': 'Loading…',
+  '這個單元還沒有學習內容。': 'This unit has no learning content yet.',
+  '這門課程還沒有單元內容，訓練中心建立後就能在這裡學習。': 'This course has no units yet. You can study here once the training center adds them.',
+  '無法讀取學習內容，請稍後再試。': 'Unable to load the learning content. Please try again later.',
+  '無法記錄學習進度，請稍後再試。': 'Unable to save your progress. Please try again later.',
+  '找不到這門課程，或您沒有報名這門課程。': 'Course not found, or you are not enrolled in this course.',
+  '找不到這個單元，或您沒有報名這門課程。': 'Unit not found, or you are not enrolled in this course.',
+  '只有工人可以記錄學習進度。': 'Only workers can record learning progress.',
+  '僅工人、系統管理者或訓練中心會員可使用學習系統。': 'The learning system is only for workers, system administrators and training center members.',
   '單元名稱': 'Unit name',
   '英文單元名稱': 'Unit name (English)',
   '順序': 'Order',
@@ -74,7 +97,7 @@ export const TRAINING_CENTER_EN = {
   '例句': 'Example sentences',
   '新增單元': 'Add unit',
   '編輯單元': 'Edit unit',
-  '例句每行一句，格式：中文 | 拼音 | 英文': 'One sentence per line, in the format: Chinese | Pinyin | English',
+  '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：': 'One entry per line for vocabulary and examples, in the format: Chinese | Pinyin | English. Start each dialogue line with A: or B:',
   '把課程內容拆成單元，每個單元可寫學習重點與例句。': 'Break the course content into units, each with learning points and example sentences.',
   '尚無單元': 'No units yet',
   '新增課程的第一個單元。': 'Add the first unit of this course.',
@@ -234,6 +257,10 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   let m;
   if ((m = text.match(/^課程單元：(.+)$/))) return `Course units: ${m[1]}`;
   if ((m = text.match(/^課程單元（(\d+)）$/))) return `Course units (${m[1]})`;
+  if ((m = text.match(/^學習：(.*)$/))) return `Learning: ${m[1]}`;
+  if ((m = text.match(/^已讀完 (\d+) \/ (\d+) 個單元$/))) return `${m[1]} of ${m[2]} units completed`;
+  if ((m = text.match(/^(\d+) \/ (\d+) · (\d+) 小時$/))) return `${m[1]} / ${m[2]} · ${m[3]} hours`;
+  if ((m = text.match(/^(\d+) 小時$/))) return Number(m[1]) === 1 ? '1 hour' : `${m[1]} hours`;
   if ((m = text.match(/^單元時數合計：(\d+) 小時$/))) return `Total unit hours: ${m[1]}`;
   if ((m = text.match(/^(\d+) 天後$/))) return Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`;
   if ((m = text.match(/^已過 (\d+) 天$/))) return Number(m[1]) === 1 ? '1 day ago' : `${m[1]} days ago`;

@@ -33,7 +33,7 @@ test('畫面：課程列有「課程單元」入口，英文介面優先顯示�
 
 test('新增的畫面文字與句型都有英文翻譯', () => {
   for (const text of ['單元名稱', '英文單元名稱', '順序', '學習重點', '學習重點（英文）', '例句', '新增單元', '編輯單元', '尚無單元',
-    '已新增課程單元', '已更新課程單元', '請輸入單元名稱。', '單元順序必須是 0 以上的整數。', '例句每行一句，格式：中文 | 拼音 | 英文']) {
+    '已新增課程單元', '已更新課程單元', '請輸入單元名稱。', '單元順序必須是 0 以上的整數。', '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：']) {
     assert.ok(TRAINING_CENTER_EN[text], `missing English translation: ${text}`);
   }
   assert.equal(translateTrainingCenterPattern('課程單元：Mandarin Training'), 'Course units: Mandarin Training');

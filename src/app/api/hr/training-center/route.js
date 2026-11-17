@@ -163,7 +163,10 @@ async function buildRecord(resource, body, centerId, existing) {
     // 沒填順序：更新時維持原順序，新增時排在最後。
     if (position === null) position = existing ? existing.position : ((await one('SELECT COALESCE(MAX(position),0)+1 AS n FROM hr_tc_course_units WHERE course_id=$1', [course.id])).n);
     return { course_id: course.id, position, name, name_en: clean(body.nameEn, 120), hours, topics: clean(body.topics, 1000),
-      topics_en: clean(body.topicsEn, 1000), examples: clean(body.examples, 2000) };
+      topics_en: clean(body.topicsEn, 1000), examples: clean(body.examples, 2000),
+      // 舊呼叫端沒帶詞彙／對話時保留原內容。
+      vocabulary: body.vocabulary === undefined && existing ? existing.vocabulary : clean(body.vocabulary, 4000),
+      dialogue: body.dialogue === undefined && existing ? existing.dialogue : clean(body.dialogue, 4000) };
   }
   if (resource === 'class') {
     if (!name) throw new Refuse('請輸入班別名稱。');

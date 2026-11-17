@@ -155,14 +155,16 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     submit: values => record ? save('PATCH', { resource: 'course', id: record.id, ...values, active: record.active }, '已更新課程') : save('POST', { resource: 'course', centerId, ...values }, '已新增課程'),
   });
   const unitModal = record => setModal({
-    title: record ? '編輯單元' : '新增單元', hint: '例句每行一句，格式：中文 | 拼音 | 英文',
+    title: record ? '編輯單元' : '新增單元', hint: '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：',
     fields: [
       { name: 'name', label: '單元名稱', required: true }, { name: 'nameEn', label: '英文單元名稱' },
       { name: 'position', label: '順序', type: 'number' }, { name: 'hours', label: '課程時數', type: 'number' },
       { name: 'topics', label: '學習重點', type: 'textarea', maxLength: 1000 }, { name: 'topicsEn', label: '學習重點（英文）', type: 'textarea', maxLength: 1000 },
+      { name: 'vocabulary', label: '詞彙', type: 'textarea', rows: 8, maxLength: 4000 },
       { name: 'examples', label: '例句', type: 'textarea', rows: 6, maxLength: 2000 },
+      { name: 'dialogue', label: '對話', type: 'textarea', rows: 8, maxLength: 4000 },
     ],
-    initial: { name: record?.name || '', nameEn: record?.name_en || '', position: record?.position ?? '', hours: record?.hours ?? '', topics: record?.topics || '', topicsEn: record?.topics_en || '', examples: record?.examples || '' },
+    initial: { name: record?.name || '', nameEn: record?.name_en || '', position: record?.position ?? '', hours: record?.hours ?? '', topics: record?.topics || '', topicsEn: record?.topics_en || '', examples: record?.examples || '', vocabulary: record?.vocabulary || '', dialogue: record?.dialogue || '' },
     submit: values => record
       ? save('PATCH', { resource: 'unit', id: record.id, courseId: unitCourse.id, ...values }, '已更新課程單元')
       : save('POST', { resource: 'unit', centerId, courseId: unitCourse.id, ...values }, '已新增課程單元'),
