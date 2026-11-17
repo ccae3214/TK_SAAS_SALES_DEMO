@@ -3,6 +3,7 @@ import { LinkedRecordError, updateLinkedRecord } from '@/lib/hr-linked-record-st
 import { query } from '@/lib/db';
 import pool from '@/lib/db';
 import { insertWorkerDocuments } from '@/lib/hr-requirements';
+import { normalizePersonName } from '@/lib/person-name';
 import { recordLineAdminAction } from '@/lib/hr-audit';
 import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
 import { createHash } from 'node:crypto';
@@ -839,7 +840,7 @@ async function createAdminRecord(type, values) {
     if (!gender) throw new AdminInputError('genderInvalid');
     const created = await query(`INSERT INTO hr_workers(name,nationality,phone,email,job_preference,notes,resume_profile)
       VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING id`,
-    [values.name.trim(), values.nationality || '', values.phone || '', values.email || '', job, values.notes || '', JSON.stringify({ gender })]);
+    [normalizePersonName(values.name), values.nationality || '', values.phone || '', values.email || '', job, values.notes || '', JSON.stringify({ gender })]);
     const category = job === '家庭看護' || job === '家庭幫傭' ? 'CT' : job === '工廠技術工' ? 'SW' : job === '農工' ? 'FM' : 'CG';
     const sex = gender === 'male' ? 'M' : 'F';
     const sequence = String(created[0].id).padStart(3, '0');

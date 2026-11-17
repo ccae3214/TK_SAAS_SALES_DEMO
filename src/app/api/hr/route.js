@@ -19,6 +19,7 @@ import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { WORKER_PROGRESS_STEPS, cleanStepDetail } from '@/lib/hr-worker-progress';
 import { collectExpiryReminders, reminderKindsForRole } from '@/lib/hr-expiry-reminders-store';
 import { LinkedRecordError, normalizeRecordEmail, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
+import { normalizePersonName } from '@/lib/person-name';
 import { cleanCareRecipient, cleanEmployerProfile, employerRecordError, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -682,7 +683,7 @@ async function handlePost(request) {
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
     }
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
-      const name = clean(body.name,160);
+      const name = normalizePersonName(clean(body.name,160));
       if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
       const email = normalizeRecordEmail(clean(body.email,254), { reservedEmails: getAdminEmails() });
       const workerProfile=cleanWorkerResumeProfile(body.resumeProfile),jobPreference=clean(body.jobPreference,120);
@@ -703,7 +704,8 @@ async function handlePost(request) {
       return NextResponse.json(result[0], { status: 201 });
     }
     if (body.type === 'member') {
-      const email = clean(body.email,254).toLowerCase(), name = clean(body.name,160), role = clean(body.role,20);
+      const email = clean(body.email,254).toLowerCase(), role = clean(body.role,20);
+      const name = role === 'worker' ? normalizePersonName(clean(body.name,160)) : clean(body.name,160);
       const lineUserId = clean(body.lineUserId,100) || null;
       const password = typeof body.password === 'string' ? body.password : '';
       const agencyId = Number(body.agencyId);
@@ -771,7 +773,7 @@ async function handlePost(request) {
     }
     if (body.type === 'employer' || body.type === 'worker') {
       const isEmployer = body.type === 'employer';
-      const name = clean(body.name, 160);
+      const name = isEmployer ? clean(body.name, 160) : normalizePersonName(clean(body.name, 160));
       if (!name) return NextResponse.json({ error: isEmployer ? '請填寫雇主或客戶名稱。' : '請填寫工作者姓名。' }, { status: 400 });
       const email = normalizeRecordEmail(clean(body.email, 254), { reservedEmails: getAdminEmails(), allowEmpty: false });
       const password = typeof body.password === 'string' ? body.password : '';
@@ -986,7 +988,7 @@ async function handlePatch(request) {
     }
     if (principal.role === 'worker' && body.type === 'worker') {
       if (!validId(principal.worker_id) || id !== Number(principal.worker_id)) return NextResponse.json({ error: '只能編輯自己的工作者資料。' }, { status: 403 });
-      const name = clean(body.name,160);
+      const name = normalizePersonName(clean(body.name,160));
       if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
       const resumeProfile=workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),principal.worker_id);
       const edited = await editLinkedRecord('worker', id, { name, email: clean(body.email,254) }, async (client, fields) =>
@@ -1010,7 +1012,7 @@ async function handlePatch(request) {
     if (body.type === 'worker' && principal.role === 'agency' && principal.agency_type === 'philippines') {
       if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
       if (body.active === undefined && !clean(body.name,160)) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
-      const fields = body.active !== undefined ? { active: Boolean(body.active) } : { name: clean(body.name,160), email: clean(body.email,254) };
+      const fields = body.active !== undefined ? { active: Boolean(body.active) } : { name: normalizePersonName(clean(body.name,160)), email: clean(body.email,254) };
       const edited = await editLinkedRecord('worker', id, fields, async (client, normalized) => {
         const saved = body.active !== undefined
           ? await client.query("UPDATE hr_workers SET status=$3,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING *", [id,principal.agency_id,body.active ? 'active' : 'inactive'])
@@ -1237,7 +1239,7 @@ async function handlePatch(request) {
         update: async (client, fields) => (await client.query(`UPDATE hr_members SET display_name=$2,email=$3,line_user_id=$4,
           password_hash=COALESCE($5,password_hash),updated_at=NOW() WHERE id=$1
           RETURNING id,email,line_user_id,display_name,role,requested_role,worker_id,employer_id,agency_id,active`,
-          [id,displayName,fields.email || null,lineUserId,passwordHash])).rows[0],
+          [id,fields.displayName,fields.email || null,lineUserId,passwordHash])).rows[0],
       });
       return NextResponse.json(edited);
     }
@@ -1301,7 +1303,7 @@ async function handlePatch(request) {
               workerId = updated.rows[0]?.id || null;
             }
             if (!workerId) {
-              const created = await client.query('INSERT INTO hr_workers(name,nationality,agency_id) VALUES($1,$2,$3) RETURNING id', [clean(current.display_name,160)||'會員工作者','菲律賓',agencyId]);
+              const created = await client.query('INSERT INTO hr_workers(name,nationality,agency_id) VALUES($1,$2,$3) RETURNING id', [normalizePersonName(clean(current.display_name,160))||'會員工作者','菲律賓',agencyId]);
               workerId = created.rows[0].id;
             }
             await insertWorkerDocuments(client, workerId, {});
@@ -1503,13 +1505,14 @@ async function handlePatch(request) {
       if (body.name !== undefined && body.type === 'employer' && !EMPLOYER_TYPES.has(body.employerType)) return NextResponse.json({ error: '請選擇有效的雇主類型。' }, { status: 400 });
       const employerExtra = body.type === 'employer' && body.name !== undefined ? employerProfileFromBody(body) : { profile: null };
       if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
-      const fields = body.name !== undefined ? { name: clean(body.name,160), email: clean(body.email,254) } : { active: body.status !== 'inactive' };
+      const recordName = body.name === undefined ? '' : body.type === 'worker' ? normalizePersonName(clean(body.name,160)) : clean(body.name,160);
+      const fields = body.name !== undefined ? { name: recordName, email: clean(body.email,254) } : { active: body.status !== 'inactive' };
       const saved = await editLinkedRecord(body.type, id, fields, async (client, normalized) => {
         let result;
         if (body.name !== undefined) {
           result = body.type === 'employer'
             ? await client.query('UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,agency_id=$9,employer_profile=COALESCE($10::jsonb,employer_profile),updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),normalized.email,clean(body.address,300),clean(body.notes,2000),body.employerType,body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null,employerExtra.profile])
-            : await client.query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id)),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
+            : await client.query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,recordName,clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id)),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
         } else {
           const status = body.status === 'inactive' ? 'inactive' : 'active';
           result = await client.query(`UPDATE ${table} SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *`, [id,status]);

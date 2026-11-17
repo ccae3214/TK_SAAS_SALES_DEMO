@@ -110,6 +110,18 @@ test('reverse LINE-only transition explicitly clears record contact email', asyn
   const f = fixture(); await updateLinkedMemberProfile(f.pool, { ...profile, fields: { displayName: 'After', email: null, lineUserId: 'fictional-line-id' } });
   assert.equal(f.calls.find(x => x.sql.startsWith('UPDATE hr_workers')).args[2], '');
 });
+test('worker-bound member edit stores the normalized worker name on both records', async () => {
+  const f = fixture(); let received;
+  await updateLinkedMemberProfile(f.pool, { ...profile, fields: { ...profile.fields, displayName: 'Maria Santos' }, update: async (client, fields) => { received = fields.displayName; return { id: 2 }; } });
+  assert.equal(received, 'Santos / Maria');
+  assert.equal(f.calls.find(x => x.sql.startsWith('UPDATE hr_workers')).args[1], 'Santos / Maria');
+});
+test('employer-bound member edit leaves the company name untouched', async () => {
+  const f = fixture({ linked: { ...member, worker_id: null, employer_id: 1 } }); let received;
+  await updateLinkedMemberProfile(f.pool, { ...profile, fields: { ...profile.fields, displayName: 'Acme Trading Co' }, update: async (client, fields) => { received = fields.displayName; return { id: 2 }; } });
+  assert.equal(received, 'Acme Trading Co');
+  assert.equal(f.calls.find(x => x.sql.startsWith('UPDATE hr_employers')).args[1], 'Acme Trading Co');
+});
 test('all record edit routes use shared transaction; no legacy separate sync helper remains', async () => {
   const source = await readFile(new URL('../src/app/api/hr/route.js', import.meta.url), 'utf8');
   assert(!source.includes('assertMemberEmailFree')); assert(!source.includes('syncLinkedMember('));
