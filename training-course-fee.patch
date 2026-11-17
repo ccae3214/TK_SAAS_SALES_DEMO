@@ -1,0 +1,208 @@
+diff --git a/scripts/seed-training-courses.sql b/scripts/seed-training-courses.sql
+new file mode 100644
+index 0000000..9cc77c4
+--- /dev/null
++++ b/scripts/seed-training-courses.sql
+@@ -0,0 +1,40 @@
++-- 訓練中心預設課程：CAV 與中文 N1（可重複執行，已存在的證照／課程不會被覆蓋）。
++--
++-- 用法（在專案資料夾，center_email 換成訓練中心會員的 Email）：
++--   Get-Content scripts/seed-training-courses.sql | docker compose exec -T postgres psql -U postgres -d saas_demo -v center_email=center@example.com
++--
++-- 若網站還沒更新到有「課程費用」欄位的版本，這支腳本也會先補上欄位。
++\set ON_ERROR_STOP on
++
++-- 找不到訓練中心就中止，不寫入任何資料。
++SELECT COALESCE(max(id), 0) AS center_id FROM hr_members
++WHERE role = 'training_center' AND lower(email) = lower(:'center_email') \gset
++SELECT :center_id = 0 AS missing_center \gset
++\if :missing_center
++  \echo '找不到這個 Email 的訓練中心會員（會員類型必須是訓練中心），已中止。'
++  \quit
++\endif
++
++BEGIN;
++
++ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS fee NUMERIC(12,2);
++ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PHP';
++
++INSERT INTO hr_tc_certifications(center_id, name)
++VALUES (:center_id, 'CAV'), (:center_id, '中文N1')
++ON CONFLICT (center_id, name) DO NOTHING;
++
++INSERT INTO hr_tc_courses(center_id, certification_id, name, fee, currency)
++SELECT :center_id, c.id, v.course_name, v.fee, 'PHP'
++FROM (VALUES
++  ('CAV',    'CAV Training (Q8)',             35000),
++  ('中文N1', 'Mandarin Training (Kolecion)',  20000)
++) AS v(cert_name, course_name, fee)
++JOIN hr_tc_certifications c ON c.center_id = :center_id AND c.name = v.cert_name
++ON CONFLICT (center_id, certification_id, name) DO NOTHING;
++
++COMMIT;
++
++SELECT c.name AS certification, co.name AS course, co.fee, co.currency, co.active
++FROM hr_tc_courses co JOIN hr_tc_certifications c ON c.id = co.certification_id
++WHERE co.center_id = :center_id ORDER BY co.id;
+diff --git a/src/app/api/hr/training-center/route.js b/src/app/api/hr/training-center/route.js
+index 3df32ae..99afc3c 100644
+--- a/src/app/api/hr/training-center/route.js
++++ b/src/app/api/hr/training-center/route.js
+@@ -17,6 +17,13 @@ const dateOf = value => {
+   const d = new Date(`${value}T00:00:00Z`);
+   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? undefined : value;
+ };
++const CURRENCIES = new Set(['PHP', 'TWD', 'USD']);
++// 金額：空白＝未填（null）；0 以上、最多兩位小數；格式不對回傳 undefined。
++const moneyOf = (value, max = 100000000) => {
++  if (value === null || value === undefined || value === '') return null;
++  const n = Number(value);
++  return Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 100) / 100 : undefined;
++};
+ const intOf = (value, max = 100000) => {
+   if (value === null || value === undefined || value === '') return null;
+   const n = Number(value);
+@@ -137,7 +144,12 @@ async function buildRecord(resource, body, centerId, existing) {
+     if (!(await owned('hr_tc_certifications', body.certificationId, centerId))) throw new Refuse('請選擇這個訓練中心的證照。');
+     const hours = intOf(body.hours, 10000);
+     if (hours === undefined) throw new Refuse('課程時數必須是 0 以上的整數。');
+-    return { name, certification_id: Number(body.certificationId), hours, description: clean(body.description, 500), active: body.active === false ? false : true };
++    // 沒帶費用欄位的舊呼叫端更新課程時，保留原本的費用與幣別。
++    const keepFee = body.fee === undefined && existing;
++    const fee = keepFee ? (existing.fee == null ? null : Number(existing.fee)) : moneyOf(body.fee);
++    if (fee === undefined) throw new Refuse('課程費用必須是 0 以上的數字。');
++    const currency = body.currency === undefined && existing ? existing.currency : CURRENCIES.has(body.currency) ? body.currency : 'PHP';
++    return { name, certification_id: Number(body.certificationId), hours, fee, currency, description: clean(body.description, 500), active: body.active === false ? false : true };
+   }
+   if (resource === 'class') {
+     if (!name) throw new Refuse('請輸入班別名稱。');
+diff --git a/src/components/HrTrainingCenterWorkspace.jsx b/src/components/HrTrainingCenterWorkspace.jsx
+index 58f7064..74295a7 100644
+--- a/src/components/HrTrainingCenterWorkspace.jsx
++++ b/src/components/HrTrainingCenterWorkspace.jsx
+@@ -10,6 +10,9 @@ import { translateHrText } from '@/lib/hr-translations';
+ 
+ const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名']];
+ const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
++const CURRENCY_OPTIONS = [['PHP', '菲律賓披索 (PHP)'], ['TWD', '新台幣 (TWD)'], ['USD', '美元 (USD)']];
++// 課程費用顯示：幣別代碼 + 千分位，例如「PHP 35,000」；沒填費用顯示「—」。
++const feeText = row => row.fee == null ? '—' : `${row.currency || 'PHP'} ${Number(row.fee).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+ const dateText = value => value ? String(value).slice(0, 10) : '—';
+ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+ 
+@@ -57,7 +60,7 @@ function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSub
+                 ? <select name={field.name} required={field.required} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)}>{!field.noEmpty && <option value="">{field.emptyLabel || '請選擇'}</option>}{options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                 : field.type === 'textarea'
+                   ? <textarea name={field.name} rows="3" maxLength="500" value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />
+-                  : <input name={field.name} type={field.type || 'text'} required={field.required} min={field.type === 'number' ? 0 : undefined} maxLength={field.type === 'number' || field.type === 'date' ? undefined : 200} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />}
++                  : <input name={field.name} type={field.type || 'text'} required={field.required} min={field.type === 'number' ? 0 : undefined} step={field.step} maxLength={field.type === 'number' || field.type === 'date' ? undefined : 200} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />}
+             </label>;
+           })}
+         </div>
+@@ -140,8 +143,8 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
+   });
+   const courseModal = record => setModal({
+     title: record ? '編輯課程' : '新增課程', hint: '課程隸屬於一張證照，開班時會依課程帶入證照。',
+-    fields: [{ name: 'certificationId', label: '對應證照', type: 'select', required: true, options: certOptions }, { name: 'name', label: '課程名稱', required: true }, { name: 'hours', label: '課程時數', type: 'number' }, { name: 'description', label: '說明', type: 'textarea' }],
+-    initial: { certificationId: record?.certification_id || '', name: record?.name || '', hours: record?.hours ?? '', description: record?.description || '' },
++    fields: [{ name: 'certificationId', label: '對應證照', type: 'select', required: true, options: certOptions }, { name: 'name', label: '課程名稱', required: true }, { name: 'hours', label: '課程時數', type: 'number' }, { name: 'fee', label: '課程費用', type: 'number', step: '0.01' }, { name: 'currency', label: '幣別', type: 'select', noEmpty: true, options: CURRENCY_OPTIONS }, { name: 'description', label: '說明', type: 'textarea' }],
++    initial: { certificationId: record?.certification_id || '', name: record?.name || '', hours: record?.hours ?? '', fee: record?.fee == null ? '' : Number(record.fee), currency: record?.currency || 'PHP', description: record?.description || '' },
+     submit: values => record ? save('PATCH', { resource: 'course', id: record.id, ...values, active: record.active }, '已更新課程') : save('POST', { resource: 'course', centerId, ...values }, '已新增課程'),
+   });
+   const classModal = record => {
+@@ -241,7 +244,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
+ 
+     {tab === 'courses' && <section className={styles.panel}>
+       <div className={styles.panelHeader}><div><h2>證照課程</h2><p>每門課程對應一張證照，開班時依課程帶入證照。</p></div><button className={styles.primaryButton} disabled={!activeCerts.length} onClick={() => courseModal(null)}>新增課程</button></div>
+-      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
++      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
+     </section>}
+ 
+     {tab === 'classes' && <section className={styles.panel}>
+diff --git a/src/lib/hr-training-center.js b/src/lib/hr-training-center.js
+index 7369397..96c619c 100644
+--- a/src/lib/hr-training-center.js
++++ b/src/lib/hr-training-center.js
+@@ -51,6 +51,9 @@ export function ensureTrainingCenterSchema() {
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+       UNIQUE(center_id, certification_id, name)
+     )`);
++    // 課程費用（原幣金額）與幣別；舊資料沒有費用就是 NULL，畫面顯示「—」。
++    await pool.query('ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS fee NUMERIC(12,2)');
++    await pool.query("ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PHP'");
+     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_classes (
+       id BIGSERIAL PRIMARY KEY,
+       center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,
+diff --git a/src/lib/hr-translations-training.js b/src/lib/hr-translations-training.js
+index c807a5a..0f813a0 100644
+--- a/src/lib/hr-translations-training.js
++++ b/src/lib/hr-translations-training.js
+@@ -65,6 +65,12 @@ export const TRAINING_CENTER_EN = {
+   '課程': 'Course',
+   '課程名稱': 'Course name',
+   '課程時數': 'Course hours',
++  '課程費用': 'Course fee',
++  '幣別': 'Currency',
++  '菲律賓披索 (PHP)': 'Philippine peso (PHP)',
++  '新台幣 (TWD)': 'New Taiwan dollar (TWD)',
++  '美元 (USD)': 'US dollar (USD)',
++  '課程費用必須是 0 以上的數字。': 'Course fee must be a number of 0 or more.',
+   '時數': 'Hours',
+   '尚無課程': 'No courses yet',
+   '對應證照': 'Linked certification',
+diff --git a/tests/hr-training-course-fee.test.mjs b/tests/hr-training-course-fee.test.mjs
+new file mode 100644
+index 0000000..2c32cce
+--- /dev/null
++++ b/tests/hr-training-course-fee.test.mjs
+@@ -0,0 +1,50 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const route = await readFile(new URL('../src/app/api/hr/training-center/route.js', import.meta.url), 'utf8');
++const schema = await readFile(new URL('../src/lib/hr-training-center.js', import.meta.url), 'utf8');
++const ui = await readFile(new URL('../src/components/HrTrainingCenterWorkspace.jsx', import.meta.url), 'utf8');
++const { TRAINING_CENTER_EN } = await import('../src/lib/hr-translations-training.js');
++
++// 直接取出 route 裡的金額驗證函式來測行為，避免只比對字串。
++const moneyOf = new Function(`${route.match(/const moneyOf = [\s\S]*?\n};\n/)[0]}; return moneyOf;`)();
++
++test('課程費用：空白為未填，0 以上最多兩位小數，其餘拒絕', () => {
++  assert.equal(moneyOf(''), null);
++  assert.equal(moneyOf(undefined), null);
++  assert.equal(moneyOf('35000'), 35000);
++  assert.equal(moneyOf(20000), 20000);
++  assert.equal(moneyOf('0'), 0);
++  assert.equal(moneyOf('12.345'), 12.35);
++  assert.equal(moneyOf('-1'), undefined);
++  assert.equal(moneyOf('abc'), undefined);
++  assert.equal(moneyOf('Infinity'), undefined);
++  assert.equal(moneyOf('100000001'), undefined);
++});
++
++test('課程資料表有費用與幣別欄位，API 預設幣別為披索並保留舊呼叫端的費用', () => {
++  assert.match(schema, /ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS fee NUMERIC\(12,2\)/);
++  assert.match(schema, /ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PHP'/);
++  assert.match(route, /const CURRENCIES = new Set\(\['PHP', 'TWD', 'USD'\]\)/);
++  assert.match(route, /CURRENCIES\.has\(body\.currency\) \? body\.currency : 'PHP'/);
++  assert.match(route, /const keepFee = body\.fee === undefined && existing;/);
++  assert.match(route, /課程費用必須是 0 以上的數字。/);
++});
++
++test('課程畫面可編輯並顯示費用，新增的文字都有英文翻譯', () => {
++  assert.match(ui, /name: 'fee', label: '課程費用', type: 'number', step: '0\.01'/);
++  assert.match(ui, /<th>課程費用<\/th>/);
++  assert.match(ui, /<td>\{feeText\(row\)\}<\/td>/);
++  for (const text of ['課程費用', '幣別', '菲律賓披索 (PHP)', '新台幣 (TWD)', '美元 (USD)', '課程費用必須是 0 以上的數字。']) {
++    assert.ok(TRAINING_CENTER_EN[text], `missing English translation: ${text}`);
++  }
++});
++
++test('預設課程 SQL：CAV 35,000 與中文 N1 20,000（披索），找不到訓練中心就中止', async () => {
++  const sql = await readFile(new URL('../scripts/seed-training-courses.sql', import.meta.url), 'utf8');
++  assert.match(sql, /'CAV Training \(Q8\)',\s+35000/);
++  assert.match(sql, /'Mandarin Training \(Kolecion\)',\s+20000/);
++  assert.match(sql, /ON CONFLICT \(center_id, certification_id, name\) DO NOTHING/);
++  assert.match(sql, /\\if :missing_center/);
++});

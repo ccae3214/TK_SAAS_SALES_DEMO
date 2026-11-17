@@ -17,6 +17,13 @@ const dateOf = value => {
   const d = new Date(`${value}T00:00:00Z`);
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? undefined : value;
 };
+const CURRENCIES = new Set(['PHP', 'TWD', 'USD']);
+// 金額：空白＝未填（null）；0 以上、最多兩位小數；格式不對回傳 undefined。
+const moneyOf = (value, max = 100000000) => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 100) / 100 : undefined;
+};
 const intOf = (value, max = 100000) => {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
@@ -137,7 +144,12 @@ async function buildRecord(resource, body, centerId, existing) {
     if (!(await owned('hr_tc_certifications', body.certificationId, centerId))) throw new Refuse('請選擇這個訓練中心的證照。');
     const hours = intOf(body.hours, 10000);
     if (hours === undefined) throw new Refuse('課程時數必須是 0 以上的整數。');
-    return { name, certification_id: Number(body.certificationId), hours, description: clean(body.description, 500), active: body.active === false ? false : true };
+    // 沒帶費用欄位的舊呼叫端更新課程時，保留原本的費用與幣別。
+    const keepFee = body.fee === undefined && existing;
+    const fee = keepFee ? (existing.fee == null ? null : Number(existing.fee)) : moneyOf(body.fee);
+    if (fee === undefined) throw new Refuse('課程費用必須是 0 以上的數字。');
+    const currency = body.currency === undefined && existing ? existing.currency : CURRENCIES.has(body.currency) ? body.currency : 'PHP';
+    return { name, certification_id: Number(body.certificationId), hours, fee, currency, description: clean(body.description, 500), active: body.active === false ? false : true };
   }
   if (resource === 'class') {
     if (!name) throw new Refuse('請輸入班別名稱。');

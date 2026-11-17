@@ -51,6 +51,9 @@ export function ensureTrainingCenterSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(center_id, certification_id, name)
     )`);
+    // 課程費用（原幣金額）與幣別；舊資料沒有費用就是 NULL，畫面顯示「—」。
+    await pool.query('ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS fee NUMERIC(12,2)');
+    await pool.query("ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PHP'");
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_classes (
       id BIGSERIAL PRIMARY KEY,
       center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,
