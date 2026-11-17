@@ -6,9 +6,10 @@ import { getHrPrincipal } from '@/lib/hr-access';
 import { recordAdminAction } from '@/lib/hr-audit';
 import {
   EMPLOYER_DOCUMENT_LIMIT_PER_EMPLOYER, EMPLOYER_DOCUMENT_MAX_SIZE, EMPLOYER_DOCUMENT_TYPES, canManageEmployerDocuments,
-  detectContentType, documentKey, ensureEmployerDocumentsSchema, requestIsSameOrigin,
+  detectContentType, documentKey, ensureEmployerDocumentsSchema,
 } from '@/lib/hr-employer-documents';
 import { APPROVAL_MESSAGES, validateApprovalFields } from '@/lib/hr-employer-approval';
+import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

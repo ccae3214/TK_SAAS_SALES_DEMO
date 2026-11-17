@@ -5,11 +5,12 @@ import { auth } from '@/auth';
 import { ensureSchema } from '@/app/api/hr/route';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { recordAdminAction } from '@/lib/hr-audit';
-import { detectContentType, documentKey, requestIsSameOrigin } from '@/lib/hr-employer-documents';
+import { detectContentType, documentKey } from '@/lib/hr-employer-documents';
 import {
   AGENCY_CERTIFICATE_LIMIT, AGENCY_CERTIFICATE_MAX_SIZE, AGENCY_CERTIFICATE_TYPES, canManageAgencyProfile, ensureAgencyProfileSchema,
   normalizeExpiry, resolveAgencyId,
 } from '@/lib/hr-agency-profile';
+import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
