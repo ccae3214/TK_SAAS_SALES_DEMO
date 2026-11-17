@@ -92,7 +92,7 @@ export const DOCUMENT_GUIDE = {
   'PSA結婚證明（附收據）': { agency: 'PSA', time: '約 1–2 週', cost: '約 ₱155–365', tag: 'estimate' },
   'NBI（確認有效期限）': { agency: 'NBI', time: '預約後數日', cost: '約 ₱130–200', tag: 'estimate' },
   '照片（2x2 16張及護照尺寸2張）': { agency: '照相館', time: '當天', cost: '數十至百餘披索', tag: 'estimate' },
-  'CAV／NC2 TESDA': { agency: 'TESDA', time: '視情況', cost: 'NC 測驗約 ₱1,500–3,000', tag: 'estimate', note: '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。' },
+  'CAV／NC2 TESDA': { agency: 'TESDA', time: '視情況', cost: 'NC 測驗約 ₱1,500–3,000', tag: 'estimate', note: '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。CAV 訓練必要文件：PSA 出生證明、畢業證書（Diploma）、Form 137（學校成績紀錄）。訓練分兩階段：① 面授訓練 7 天；② 線上訓練 3 週。' },
   '體檢 Medical': { agency: 'DMW 或台灣認可醫院', time: '3–5 天', cost: '約 ₱3,400–7,000', tag: 'estimate', note: '簽證申請時需為 3 個月內的報告。' },
   'SSS contribution': { cost: 'OFW 通常要登記或繳款', tag: 'estimate' },
 };
@@ -170,7 +170,7 @@ export const WORKER_STAGE_EN = {
   '遇到問題：台灣勞動部 1955 勞工諮詢申訴專線；菲律賓 OWWA 24 小時專線 1348。紅旗：要求先付大筆現金、不給收據、扣留護照、承諾保證出國時間、要你簽空白文件。': 'If you run into problems: Taiwan\'s Ministry of Labor 1955 hotline; OWWA 24-hour hotline 1348 in the Philippines. Red flags: demands for large upfront cash, no receipts, passport withheld, guaranteed departure dates, or being asked to sign blank documents.',
   // 新增的文件欄位、步驟與欄位名稱
   '合約 Contract（掃描檔）': 'Contract (scan)', '簽證 Visa': 'Visa', 'OEC 出國認證': 'OEC (overseas employment certificate)',
-  '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。': 'Only care-related jobs (home caregiver, institutional caregiver, domestic helper) need this; other job types do not.',
+  '只有看護相關職業（家庭看護、機構看護工、家庭幫傭）需要，其他工種不需要。CAV 訓練必要文件：PSA 出生證明、畢業證書（Diploma）、Form 137（學校成績紀錄）。訓練分兩階段：① 面授訓練 7 天；② 線上訓練 3 週。': 'Only care-related jobs (home caregiver, institutional caregiver, domestic helper) need this; other job types do not. Documents required for CAV training: PSA birth certificate, diploma, and Form 137 (school records). Training has two stages: (1) face-to-face training, 7 days; (2) online training, 3 weeks.',
   '看護相關職業（家庭看護、機構看護工、家庭幫傭）': 'Care-related jobs (home caregiver, institutional caregiver, domestic helper)',
   'PDOS 台灣文化講習（1 日）': 'PDOS Taiwan culture seminar (1 day)', '體檢過期日': 'Medical exam expiry date', '合約到達菲律賓': 'Contract arrived in the Philippines',
   '核准函（合約）發函日': 'Approval letter (contract) issue date', '來華工資切結書認證': 'Wage affidavit attestation',
