@@ -1,0 +1,133 @@
+diff --git a/src/lib/hr-audit.js b/src/lib/hr-audit.js
+index 20d499b..d42aed3 100644
+--- a/src/lib/hr-audit.js
++++ b/src/lib/hr-audit.js
+@@ -162,6 +162,23 @@ export async function recordAdminAction({ principal, session, action, type, id,
+   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
+ }
+ 
++// LINE 機器人上的系統管理員資料操作（新增／編輯／停用）也寫入同一份操作紀錄，網頁的「操作紀錄」看得到。
++// 以 LINE 身分操作的管理者不一定有會員資料列（例如 .env 設定的管理者），沒有時改記 LINE User ID 方便追查。
++// 失敗只記 log，不影響原本的操作。
++export async function recordLineAdminAction({ principal, lineUserId, action, type, id, name, phrase }) {
++  try {
++    const actorName = String((principal?.id && principal?.name) || 'LINE 管理者').slice(0, 160);
++    const lineSuffix = principal?.id ? '' : `（LINE ID：${String(lineUserId || '').slice(0, 64)}）`;
++    await ensureAuditSchema();
++    await pool.query(
++      `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
++       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
++      [principal?.id || null, actorName, String(principal?.email || '').slice(0, 254), action, type || '', idOf(id), String(name || '').slice(0, 200),
++        `${actorName}系統管理員透過 LINE 機器人${phrase}${lineSuffix}`.slice(0, 500)]
++    );
++  } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
++}
++
+ // 包住 route handler：只在系統管理員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
+ export function withAdminAudit(method, handler) {
+   return async function auditedHandler(request) {
+diff --git a/src/lib/hr-line-bot.js b/src/lib/hr-line-bot.js
+index 6c945e0..bf8319e 100644
+--- a/src/lib/hr-line-bot.js
++++ b/src/lib/hr-line-bot.js
+@@ -3,6 +3,7 @@ import { LinkedRecordError, updateLinkedRecord } from '@/lib/hr-linked-record-st
+ import { query } from '@/lib/db';
+ import pool from '@/lib/db';
+ import { insertWorkerDocuments } from '@/lib/hr-requirements';
++import { recordLineAdminAction } from '@/lib/hr-audit';
+ import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
+ import { createHash } from 'node:crypto';
+ import { readFile } from 'node:fs/promises';
+@@ -875,6 +876,19 @@ const ADMIN_CREATE_FIELDS = {
+ };
+ const ADMIN_CREATE_MAX_LENGTH = { name: 160, nationality: 80, gender: 40, phone: 50, email: 254, jobPreference: 120, notes: 2000, contactName: 120, address: 300, employerType: 30, agencyType: 30 };
+ 
++// 操作紀錄（hr_admin_audit_log）一律用中文記錄，與網頁端的紀錄格式一致，不隨 LINE 回覆語言變動。
++const AUDIT_TYPE_LABELS = { worker: '工作者', employer: '雇主', agency: '仲介機構', training_center: '訓練中心' };
++async function auditLineAdmin(principal, lineUserId, { action, type, id, name, phrase }) {
++  await recordLineAdminAction({
++    principal, lineUserId, action, type: type === 'training_center' ? 'member' : type, id,
++    name, phrase: phrase(AUDIT_TYPE_LABELS[type]),
++  });
++}
++async function auditedRecordName(type, id) {
++  try { return (await loadAdminRecord(type, id))?.[ADMIN_RECORD_NAME_KEY[type]] || `#${id}`; }
++  catch { return `#${id}`; }
++}
++
+ async function handleAdminManagement(lineUserId, text, principal, language = 'zh') {
+   if (principal?.role !== 'admin') return null;
+   const tx = adminText(language);
+@@ -956,7 +970,9 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
+     if (pending?.mode !== 'confirm_delete' || pending.type !== type || Number(pending.id) !== Number(id)) {
+       return adminQuickReply(tx.staleConfirm, [{ label: tx.backToList, text: `adm-list:${type}:0` }]);
+     }
++    const targetName = await auditedRecordName(type, Number(id));
+     const result = await deactivateAdminRecord(type, Number(id));
++    if (result) await auditLineAdmin(principal, lineUserId, { action: '停用', type, id, name: targetName, phrase: label => `停用了${targetName}${label}` });
+     await saveAdminSession(lineUserId, { type, mode: 'list' });
+     return result ? tx.deactivated(tx.types[type], id) : tx.notFoundShort;
+   }
+@@ -965,6 +981,7 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
+   if (!session) return null;
+   if (session.mode === 'edit_value') {
+     const value = isAdminClear(command) ? '' : command;
++    const targetName = await auditedRecordName(session.type, session.id);
+     let updated;
+     try { updated = await updateAdminRecord(session.type, session.id, session.key, value); }
+     catch (error) {
+@@ -974,6 +991,10 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
+       throw error;
+     }
+     if (!updated) return adminQuickReply(tx.notFoundRemoved, [{ label: tx.backToListShort, text: `adm-list:${session.type}:0` }]);
++    const statusChange = ['status', 'active'].includes(session.key) ? parseAdminActive(value) : null;
++    await auditLineAdmin(principal, lineUserId, statusChange === null
++      ? { action: '編輯', type: session.type, id: session.id, name: targetName, phrase: label => `編輯了${targetName}${label}的${plainAdminLabel(ADMIN_TEXT.zh.fields[session.type][session.key])}` }
++      : { action: statusChange ? '啟用' : '停用', type: session.type, id: session.id, name: targetName, phrase: label => `${statusChange ? '啟用' : '停用'}了${targetName}${label}` });
+     await saveAdminSession(lineUserId, { type: session.type, mode: 'detail', id: session.id });
+     const record = await loadAdminRecord(session.type, session.id);
+     return adminQuickReply(`${tx.updated}\n${adminRecordText(session.type, record, tx)}`, adminDetailActions(session.type, session.id, tx));
+@@ -1014,6 +1035,8 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
+       }
+       throw error;
+     }
++    const createdName = values.name.trim();
++    await auditLineAdmin(principal, lineUserId, { action: '新增', type: session.type, id: created[0].id, name: createdName, phrase: label => `新增了${createdName}${label}` });
+     await saveAdminSession(lineUserId, { type: session.type, mode: 'list' });
+     return tx.created(tx.types[session.type], created[0].id);
+   }
+diff --git a/tests/hr-line-admin-audit.test.mjs b/tests/hr-line-admin-audit.test.mjs
+new file mode 100644
+index 0000000..92e7571
+--- /dev/null
++++ b/tests/hr-line-admin-audit.test.mjs
+@@ -0,0 +1,29 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++
++const bot = await readFile(new URL('../src/lib/hr-line-bot.js', import.meta.url), 'utf8');
++const audit = await readFile(new URL('../src/lib/hr-audit.js', import.meta.url), 'utf8');
++
++test('LINE 管理者的新增、編輯、停用都會寫入系統管理員操作紀錄', () => {
++  assert.match(bot, /import \{ recordLineAdminAction \} from '@\/lib\/hr-audit';/);
++  // 停用：先取名字再停用，成功才記錄
++  assert.match(bot, /const result = await deactivateAdminRecord\(type, Number\(id\)\);\s*if \(result\) await auditLineAdmin\(principal, lineUserId, \{ action: '停用'/);
++  // 編輯：更新成功後記錄；狀態欄位記為啟用／停用，其他記為編輯
++  assert.match(bot, /\['status', 'active'\]\.includes\(session\.key\) \? parseAdminActive\(value\) : null/);
++  assert.match(bot, /action: '編輯', type: session\.type, id: session\.id/);
++  // 新增：成功建立後記錄
++  assert.match(bot, /action: '新增', type: session\.type, id: created\[0\]\.id, name: createdName/);
++});
++
++test('操作紀錄一律用中文寫入，且記錄失敗不會影響原本的操作', () => {
++  assert.match(bot, /phrase: phrase\(AUDIT_TYPE_LABELS\[type\]\)/);
++  assert.match(audit, /export async function recordLineAdminAction/);
++  assert.match(audit, /透過 LINE 機器人\$\{phrase\}\$\{lineSuffix\}/);
++  assert.match(audit, /catch \(error\) \{ console\.error\('hr_audit_write_failed'/);
++});
++
++test('沒有會員資料列的管理者（.env 設定）改記 LINE ID，不寫成「LINE 會員」', () => {
++  assert.match(audit, /\(principal\?\.id && principal\?\.name\) \|\| 'LINE 管理者'/);
++  assert.match(audit, /LINE ID：/);
++});

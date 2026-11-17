@@ -162,6 +162,23 @@ export async function recordAdminAction({ principal, session, action, type, id, 
   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
 }
 
+// LINE 機器人上的系統管理員資料操作（新增／編輯／停用）也寫入同一份操作紀錄，網頁的「操作紀錄」看得到。
+// 以 LINE 身分操作的管理者不一定有會員資料列（例如 .env 設定的管理者），沒有時改記 LINE User ID 方便追查。
+// 失敗只記 log，不影響原本的操作。
+export async function recordLineAdminAction({ principal, lineUserId, action, type, id, name, phrase }) {
+  try {
+    const actorName = String((principal?.id && principal?.name) || 'LINE 管理者').slice(0, 160);
+    const lineSuffix = principal?.id ? '' : `（LINE ID：${String(lineUserId || '').slice(0, 64)}）`;
+    await ensureAuditSchema();
+    await pool.query(
+      `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [principal?.id || null, actorName, String(principal?.email || '').slice(0, 254), action, type || '', idOf(id), String(name || '').slice(0, 200),
+        `${actorName}系統管理員透過 LINE 機器人${phrase}${lineSuffix}`.slice(0, 500)]
+    );
+  } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
+}
+
 // 包住 route handler：只在系統管理員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
 export function withAdminAudit(method, handler) {
   return async function auditedHandler(request) {
