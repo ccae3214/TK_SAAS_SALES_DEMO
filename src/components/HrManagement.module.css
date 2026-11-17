@@ -194,3 +194,11 @@
 .resumeLanguageLevel{display:grid;grid-template-columns:minmax(90px,1fr) minmax(120px,200px);align-items:center;gap:10px;margin-top:10px;color:#53636a;font-size:12px;font-weight:700}
 .resumeLanguageLevel select{min-height:36px;padding:6px 10px;border:1px solid #dfe6e7;border-radius:8px;background:#fff;font:inherit;font-size:12px}
 @media(max-width:420px){.resumeLanguageLevel{grid-template-columns:1fr}}
+
+.quickFilters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:0 1 auto}
+.quickChip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid #d3dfd8;border-radius:999px;background:#fff;color:#35514a;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .16s,border-color .16s,color .16s}
+.quickChip:hover{border-color:#1f8366;background:#f1f8f5}
+.quickChip:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(31,131,102,.2)}
+.quickChip small{min-width:18px;padding:1px 6px;border-radius:999px;background:#e4f3ec;color:#176b54;font-size:11px;font-weight:700;text-align:center}
+.quickChipActive{border-color:#1f8366;background:#1f8366;color:#fff}
+.quickChipActive small{background:rgba(255,255,255,.22);color:#fff}
