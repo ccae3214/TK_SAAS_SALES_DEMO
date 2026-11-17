@@ -1,13 +1,13 @@
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
+import { migrateOnce } from './migrate-once.js';
 
 // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
 // 紀錄失敗只會寫 log，不會影響原本的操作。
 
-let schemaPromise;
 export function ensureAuditSchema() {
-  schemaPromise ||= (async () => {
+  return migrateOnce('audit', async () => {
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_admin_audit_log (
       id BIGSERIAL PRIMARY KEY,
       actor_member_id BIGINT,
@@ -21,8 +21,7 @@ export function ensureAuditSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_admin_audit_log_created ON hr_admin_audit_log(created_at DESC, id DESC)');
-  })().catch(error => { schemaPromise = null; throw error; });
-  return schemaPromise;
+  });
 }
 
 const ROLE_NAMES = { worker: '工作者', employer: '雇主', agency: '仲介機構員工', training_center: '訓練中心', system_admin: '系統管理者' };

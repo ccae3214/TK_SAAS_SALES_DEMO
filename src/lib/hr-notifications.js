@@ -1,14 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { migrateOnce } from './migrate-once.js';
 
 // No provider calls inside business transactions. Only this new table is added.
-const schemaJobs = new WeakMap();
-export function ensureNotificationSchema(pool) {
-  if (!schemaJobs.has(pool)) {
-    const job = initializeNotificationSchema(pool).catch(error => { schemaJobs.delete(pool); throw error; });
-    schemaJobs.set(pool, job);
-  }
-  return schemaJobs.get(pool);
-}
+export function ensureNotificationSchema(pool) { return migrateOnce('notifications', () => initializeNotificationSchema(pool)); }
 async function initializeNotificationSchema(pool) {
   const db = await pool.connect();
   try {

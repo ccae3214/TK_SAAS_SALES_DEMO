@@ -2,7 +2,7 @@ import { createDecipheriv, createHash, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { auth } from '@/auth';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { documentKey } from '@/lib/hr-employer-documents';
 import { canViewAgencyProfile, ensureAgencyProfileSchema } from '@/lib/hr-agency-profile';

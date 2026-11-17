@@ -47,6 +47,7 @@ test('hr-line-bot 把偏好語言放在備援之前，且選單指令不再被�
 
 // ---- 圖文選單：按鈕文字依語言、不得偷寫語言 ----
 const webhook = await readFile(new URL('../src/app/api/line/webhook/route.js', import.meta.url), 'utf8');
+const schema = await readFile(new URL('../src/lib/hr-schema.js', import.meta.url), 'utf8'); // 資料表遷移在這裡
 const menuTexts = new Function('return ' + source.slice(source.indexOf('const MENU_TEXTS = ') + 18, source.indexOf('\nconst MENU_LANGUAGES')).replace(/;\s*$/, ''))();
 const definitions = source.slice(source.indexOf('const RICH_MENU_DEFINITIONS = '), source.indexOf('// 英文／Filipino 選單按鈕送出的文字'));
 
@@ -68,7 +69,7 @@ test('每個選單都有英文與 Filipino 按鈕文字，數量與中文選單�
 test('同步圖文選單只記錄選單，不能寫死 preferred_language（以前寫 zh 會把菲律賓會員釘成中文）', () => {
   assert.doesNotMatch(source, /INSERT INTO hr_line_member_settings\(line_user_id,preferred_language,rich_menu_role\)\s*VALUES\(\$1,'zh'/);
   assert.match(source, /INSERT INTO hr_line_member_settings\(line_user_id,preferred_language,rich_menu_role\)\s*VALUES\(\$1,NULL,\$2\)/);
-  assert.match(webhook, /ALTER COLUMN preferred_language DROP NOT NULL/);
+  assert.match(schema, /ALTER COLUMN preferred_language DROP NOT NULL/);
 });
 
 test('選完語言後圖文選單立刻換成該語言', () => {

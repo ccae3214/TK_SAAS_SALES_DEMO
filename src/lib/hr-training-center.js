@@ -1,12 +1,12 @@
 import pool from '@/lib/db';
 import { ensureHrIdentitySchema } from '@/lib/hr-access';
+import { migrateOnce } from './migrate-once.js';
 
 // 訓練中心工作區：老師與證照、課程、開班（訓練／考證／取證日期）、證照批次。
 // 訓練中心本身是 hr_members 裡 role='training_center' 的會員，所有資料以 center_id 區分。
 
-let schemaPromise;
 export function ensureTrainingCenterSchema() {
-  schemaPromise ||= (async () => {
+  return migrateOnce('training-center', async () => {
     await ensureHrIdentitySchema();
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_certifications (
       id BIGSERIAL PRIMARY KEY,
@@ -123,6 +123,5 @@ export function ensureTrainingCenterSchema() {
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_enrollments_worker ON hr_tc_enrollments(worker_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_classes_center ON hr_tc_classes(center_id, training_start_date)');
-  })().catch(error => { schemaPromise = null; throw error; });
-  return schemaPromise;
+  });
 }

@@ -1,3 +1,4 @@
+import { migrateOnce } from './migrate-once.js';
 // 仲介機構自己的「基本資料」與「仲介證書」。
 // 不 import '@/…'，所以 node:test 可以直接測試；db 只需要有 query(sql, params)，寫入用的 pool 需要 connect()。
 // 為什麼放在獨立資料表：hr_agencies 會回傳給工人、雇主與其他仲介（只有名稱與國家），電話、Email、地址、許可字號不應該跟著公開。
@@ -82,7 +83,8 @@ export function resolveAgencyId(principal, requested) {
 }
 
 // ---- 資料表 ----
-export async function ensureAgencyProfileSchema(db) {
+export function ensureAgencyProfileSchema(db) { return migrateOnce('agency-profile', () => migrateAgencyProfileSchema(db)); }
+async function migrateAgencyProfileSchema(db) {
   await db.query(`CREATE TABLE IF NOT EXISTS hr_agency_profiles (
     agency_id BIGINT PRIMARY KEY REFERENCES hr_agencies(id) ON DELETE CASCADE,
     contact_person TEXT NOT NULL DEFAULT '',

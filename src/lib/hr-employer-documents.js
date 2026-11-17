@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { ensureHrIdentitySchema } from '@/lib/hr-access';
+import { migrateOnce } from './migrate-once.js';
 
 // 雇主文件（目前是「核准函」）。檔案用和工人文件相同的 AES-256-GCM 加密存放。
 // 誰可以管理：系統管理者、雇主本人、雇主所屬的台灣仲介。
@@ -8,9 +9,8 @@ export const EMPLOYER_DOCUMENT_TYPES = { approval_letter: { zh: '核准函', en:
 export const EMPLOYER_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
 export const EMPLOYER_DOCUMENT_LIMIT_PER_EMPLOYER = 30;
 
-let schemaPromise;
 export function ensureEmployerDocumentsSchema() {
-  schemaPromise ||= (async () => {
+  return migrateOnce('employer-documents', async () => {
     await ensureHrIdentitySchema();
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_employer_documents (
       id BIGSERIAL PRIMARY KEY,
@@ -32,8 +32,7 @@ export function ensureEmployerDocumentsSchema() {
     await pool.query('ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_date DATE');
     await pool.query("ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_number TEXT NOT NULL DEFAULT ''");
     await pool.query('CREATE INDEX IF NOT EXISTS hr_employer_documents_employer ON hr_employer_documents(employer_id, created_at DESC)');
-  })().catch(error => { schemaPromise = null; throw error; });
-  return schemaPromise;
+  });
 }
 
 // employer 需有 id 與 agency_id。

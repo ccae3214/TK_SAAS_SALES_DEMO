@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { auth } from '@/auth';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { recordAdminAction } from '@/lib/hr-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';

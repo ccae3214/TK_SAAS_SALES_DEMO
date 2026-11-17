@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema } from '@/lib/hr-schema';
 import pool from '@/lib/db';
 import { ensureNotificationSchema } from '@/lib/hr-notifications';
 

@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { auth } from '@/auth';
 import { getHrPrincipal, HR_ROLES } from '@/lib/hr-access';
 import pool, { query } from '@/lib/db';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema } from '@/lib/hr-schema';
 import { ensureNotificationSchema, submitMemberRequest, MemberRequestConflict, notificationAuthority, dispatchNotifications } from '@/lib/hr-notifications';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 

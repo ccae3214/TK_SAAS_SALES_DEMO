@@ -2,6 +2,7 @@ import {
   AGENCY_ADMIN_REQUIRED_MESSAGE, CERTIFICATION_ACTIONS, CERTIFICATION_SOURCE_LABELS, CERTIFICATION_STATUS_LABELS,
   availableActions, otherSide, sideOfAgencyType,
 } from './hr-agency-certification.js';
+import { migrateOnce } from './migrate-once.js';
 
 // 資料表、驗證與交易邏輯。不 import '@/…'，所以 node:test 可以直接用假的 pool 測試。
 // db 只需要有 query(sql, params)；pool 需要 connect()（與 hr-candidate-withdrawal-store.js 相同做法）。
@@ -39,7 +40,8 @@ const GRANDFATHER_SQL = `INSERT INTO hr_agency_certifications(taiwan_agency_id,p
   WHERE pair.t IS NOT NULL AND pair.p IS NOT NULL
   ON CONFLICT(taiwan_agency_id,philippines_agency_id) DO NOTHING`;
 
-export async function ensureCertificationSchema(db) {
+export function ensureCertificationSchema(db) { return migrateOnce('agency-certification', () => migrateCertificationSchema(db)); }
+async function migrateCertificationSchema(db) {
   await db.query(TABLE_SQL);
   await db.query('CREATE INDEX IF NOT EXISTS hr_agency_certifications_philippines ON hr_agency_certifications(philippines_agency_id, status)');
   await db.query(GRANDFATHER_SQL);
