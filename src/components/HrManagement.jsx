@@ -68,6 +68,16 @@ const MEMBER_ROLE_SEARCH_ALIASES = { worker: 'worker 工人 工作者 移工', e
 // 會員搜尋用的字串：包含中文標籤、英文別名與原始角色代碼，讓 worker／employer 等英文關鍵字也找得到（含待審核、角色已指派但申請類型不同的會員）。
 const memberSearchValues = row => [row.role, row.requested_role, row.admin_scope, MEMBER_ROLE_SEARCH_ALIASES[row.role], MEMBER_ROLE_SEARCH_ALIASES[row.requested_role], row.admin_scope === 'agency' ? 'agency admin' : '', row.admin_scope === 'system' ? 'system admin' : ''];
 const memberStatusLabel = row => !row.role ? '待審核' : row.active ? '啟用' : '停用';
+// 會員清單的「會員類型」快速篩選：按鈕在搜尋欄旁，可和搜尋關鍵字一起使用。待審核會員依其申請類型歸入對應類型。
+const MEMBER_TYPE_FILTERS = [
+  { key: 'all', zh: '全部', en: 'All', match: () => true },
+  { key: 'worker', zh: '工作者', en: 'Workers', match: row => (row.role || row.requested_role) === 'worker' },
+  { key: 'employer', zh: '雇主', en: 'Employers', match: row => (row.role || row.requested_role) === 'employer' },
+  { key: 'agency', zh: '仲介', en: 'Agency', match: row => (row.role || row.requested_role) === 'agency' || row.admin_scope === 'agency' },
+  { key: 'training_center', zh: '訓練中心', en: 'Training centers', match: row => (row.role || row.requested_role) === 'training_center' },
+  { key: 'system_admin', zh: '系統管理者', en: 'System admins', match: row => row.role === 'system_admin' || row.admin_scope === 'system' },
+  { key: 'pending', zh: '待審核', en: 'Pending review', match: row => !row.role },
+];
 const memberUnitLabel = row => {
   if (row.role === 'system_admin' || row.admin_scope === 'system') return '不需所屬仲介 · 全站最高權限';
   if (!row.role && row.requested_agency_name) return `申請所屬仲介：${row.requested_agency_type === 'taiwan' ? '台灣' : '菲律賓'} · ${row.requested_agency_name}`;
@@ -487,14 +497,17 @@ function AgencyList({rows,update,edit,search,setSearch}) {return <section classN
 function MemberList({rows,update,review,edit,manageAdmin,isRootAdmin,deleteMember,saving,search,setSearch}) {
   const {lang}=useLanguage();
   const roleNames=MEMBER_ROLE_NAMES;
-  const pending=rows.filter(row=>!row.role).length;
+  const [typeFilter,setTypeFilter]=useState('all');
+  const activeFilter=MEMBER_TYPE_FILTERS.find(item=>item.key===typeFilter)||MEMBER_TYPE_FILTERS[0];
+  const visibleRows=rows.filter(activeFilter.match);
+  const pending=visibleRows.filter(row=>!row.role).length;
   return <section className={styles.panel}>
-    <div className={`${styles.listToolbar} ${styles.filterToolbar}`}><SearchBar value={search} onChange={setSearch} placeholder="搜尋會員、Email、會員類型或所屬仲介"/><p className={styles.panelDescription}>仲介類型會員是仲介機構員工：台灣機構員工稱為「業務」，菲律賓機構員工稱為「Staff」。管理者將會員綁定所屬機構後，該機構可有多位員工帳號。</p><span className={styles.rowCount}>{pending?`${pending} 筆待審 · `:''}{rows.length} 個會員帳號</span></div>
-    {rows.length?<div className={styles.tableWrap}><table><thead><tr><th>會員</th><th>登入 Email</th><th>申請類型</th><th>會員類型</th><th>所屬仲介</th><th>狀態</th><th>操作</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}>
+    <div className={`${styles.listToolbar} ${styles.filterToolbar}`}><SearchBar value={search} onChange={setSearch} placeholder="搜尋會員、Email、會員類型或所屬仲介"/><div className={styles.quickFilters} role="group" aria-label={lang==='en'?'Quick filter by member type':'會員類型快速篩選'}>{MEMBER_TYPE_FILTERS.map(item=>{const count=rows.filter(item.match).length;return <button type="button" key={item.key} className={`${styles.quickChip} ${typeFilter===item.key?styles.quickChipActive:''}`} aria-pressed={typeFilter===item.key} onClick={()=>setTypeFilter(item.key)}>{lang==='en'?item.en:item.zh}<small>{count}</small></button>;})}</div><p className={styles.panelDescription}>仲介類型會員是仲介機構員工：台灣機構員工稱為「業務」，菲律賓機構員工稱為「Staff」。管理者將會員綁定所屬機構後，該機構可有多位員工帳號。</p><span className={styles.rowCount}>{pending?`${pending} 筆待審 · `:''}{visibleRows.length} 個會員帳號</span></div>
+    {visibleRows.length?<div className={styles.tableWrap}><table><thead><tr><th>會員</th><th>登入 Email</th><th>申請類型</th><th>會員類型</th><th>所屬仲介</th><th>狀態</th><th>操作</th></tr></thead><tbody>{visibleRows.map(row=><tr key={row.id}>
       <td><strong>{row.display_name}</strong></td><td>{row.email||'LINE 登入'}</td><td>{roleNames[row.requested_role]||'—'}</td><td>{memberTypeLabel(row)}</td>
       <td>{memberUnitLabel(row)}</td><td><MemberStatus row={row}/></td>
       <td><div className={styles.rowActions}>{(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>edit(row)}>編輯資料</button>}{manageAdmin&&(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>edit({...row,modalType:'member-admin-scope'})}>管理權限</button>}{manageAdmin&&(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>review(row)}>{row.role?'變更類型':'審核／指派'}</button>}{(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>update({type:'member',id:row.id,active:!row.active})}>{lang==='en'?(row.active?'Deactivate account':'Activate account'):(row.active?'停用帳號':'啟用帳號')}</button>}{manageAdmin&&!row.protected_admin&&<button className={styles.smallButton} disabled={saving} onClick={()=>deleteMember(row)}>刪除帳號</button>}</div></td>
-    </tr>)}</tbody></table></div>:search.trim()?<Empty title="找不到符合的會員帳號" text="請調整關鍵字或清除搜尋。"/>:<Empty title="尚無一般會員帳號" text="會員登入並申請類型後會列於此，管理者可審核並指派所屬仲介。"/>}
+    </tr>)}</tbody></table></div>:(search.trim()||typeFilter!=='all')?<Empty title="找不到符合的會員帳號" text="請調整關鍵字或清除搜尋。"/>:<Empty title="尚無一般會員帳號" text="會員登入並申請類型後會列於此，管理者可審核並指派所屬仲介。"/>}
   </section>;
 }
 function AdminAuditList() {
