@@ -1,21 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { splitPersonName, joinPersonName } from '@/lib/person-name';
 
-export function splitPersonName(value='') {
-  const text=String(value||'').trim();
-  if(text.includes('/')){
-    const [surname='',givenName='',middleName='']=text.split('/').map(part=>part.trim());
-    return {surname,givenName,middleName};
-  }
-  const words=text.split(/\s+/).filter(Boolean);
-  if(words.length<2)return {surname:'',givenName:words[0]||'',middleName:''};
-  return {surname:words.at(-1),givenName:words[0],middleName:words.slice(1,-1).join(' ')};
-}
-
-export function joinPersonName(parts) {
-  return [parts.surname,parts.givenName,parts.middleName].map(part=>String(part||'').trim()).filter(Boolean).join(' / ');
-}
+export { splitPersonName, joinPersonName };
 
 export default function PersonNameFields({name,value='',label='',required=false,className='',onChange}) {
   const [parts,setParts]=useState(()=>splitPersonName(value));

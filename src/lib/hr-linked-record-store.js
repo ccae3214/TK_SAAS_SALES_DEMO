@@ -1,6 +1,7 @@
 // Shared transaction boundary for worker/employer records and their login member.
 // No schema changes. Callers retain role/tenant authorization; scope is rechecked under lock.
 const RECORDS = { worker: ['hr_workers', 'worker_id'], employer: ['hr_employers', 'employer_id'] };
+import { normalizePersonName } from './person-name.js';
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
 export class LinkedRecordError extends Error {
@@ -82,13 +83,15 @@ export async function updateLinkedMemberProfile(pool, { id, fields, reservedEmai
       normalized.email = normalizeRecordEmail(fields.email, { member, reservedEmails, allowEmpty: !!fields.lineUserId });
       const [table, column] = RECORDS[kind];
       await client.query(`SELECT id FROM ${table} WHERE id=$1 FOR UPDATE`, [member[column]]);
+      // Worker names use one format ("姓氏 / 名字 / 中間名") for both the worker record and its member.
+      if (kind === 'worker') normalized.displayName = normalizePersonName(fields.displayName);
     }
     await assertEmailFree(client, normalized.email, member);
     const saved = await update(client, normalized);
     if (!saved || String(saved.id) !== String(id)) throw new LinkedRecordError('找不到會員帳號。', 404);
     if (kind) {
       const [table, column] = RECORDS[kind];
-      await client.query(`UPDATE ${table} SET name=$2,email=$3,updated_at=NOW() WHERE id=$1`, [member[column], fields.displayName, normalized.email || '']);
+      await client.query(`UPDATE ${table} SET name=$2,email=$3,updated_at=NOW() WHERE id=$1`, [member[column], normalized.displayName, normalized.email || '']);
     }
     return saved;
   });
