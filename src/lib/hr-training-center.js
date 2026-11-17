@@ -54,6 +54,24 @@ export function ensureTrainingCenterSchema() {
     // 課程費用（原幣金額）與幣別；舊資料沒有費用就是 NULL，畫面顯示「—」。
     await pool.query('ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS fee NUMERIC(12,2)');
     await pool.query("ALTER TABLE hr_tc_courses ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'PHP'");
+    // 課程單元（課程內容大綱）：每門課程由多個單元組成；name 是中文單元名稱，name_en／topics_en 供英文介面顯示。
+    // examples 每行一句，格式「中文 | 拼音 | 英文」。
+    await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_course_units (
+      id BIGSERIAL PRIMARY KEY,
+      center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,
+      course_id BIGINT NOT NULL REFERENCES hr_tc_courses(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 1,
+      name TEXT NOT NULL,
+      name_en TEXT NOT NULL DEFAULT '',
+      hours INTEGER,
+      topics TEXT NOT NULL DEFAULT '',
+      topics_en TEXT NOT NULL DEFAULT '',
+      examples TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(course_id, name)
+    )`);
+    await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_course_units_course ON hr_tc_course_units(course_id, position)');
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_classes (
       id BIGSERIAL PRIMARY KEY,
       center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,

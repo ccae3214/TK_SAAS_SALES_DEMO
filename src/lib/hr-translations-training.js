@@ -66,6 +66,22 @@ export const TRAINING_CENTER_EN = {
   '課程名稱': 'Course name',
   '課程時數': 'Course hours',
   '課程費用': 'Course fee',
+  '單元名稱': 'Unit name',
+  '英文單元名稱': 'Unit name (English)',
+  '順序': 'Order',
+  '學習重點': 'Learning points',
+  '學習重點（英文）': 'Learning points (English)',
+  '例句': 'Example sentences',
+  '新增單元': 'Add unit',
+  '編輯單元': 'Edit unit',
+  '例句每行一句，格式：中文 | 拼音 | 英文': 'One sentence per line, in the format: Chinese | Pinyin | English',
+  '把課程內容拆成單元，每個單元可寫學習重點與例句。': 'Break the course content into units, each with learning points and example sentences.',
+  '尚無單元': 'No units yet',
+  '新增課程的第一個單元。': 'Add the first unit of this course.',
+  '已新增課程單元': 'Course unit added',
+  '已更新課程單元': 'Course unit updated',
+  '請輸入單元名稱。': 'Please enter a unit name.',
+  '單元順序必須是 0 以上的整數。': 'Unit order must be an integer of 0 or more.',
   '幣別': 'Currency',
   '菲律賓披索 (PHP)': 'Philippine peso (PHP)',
   '新台幣 (TWD)': 'New Taiwan dollar (TWD)',
@@ -216,6 +232,9 @@ const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 // 含變數的句型。translate 用來翻譯句型裡包含的子字串（例如「今天」「3 天後」）。
 export function translateTrainingCenterPattern(text, translate = value => value) {
   let m;
+  if ((m = text.match(/^課程單元：(.+)$/))) return `Course units: ${m[1]}`;
+  if ((m = text.match(/^課程單元（(\d+)）$/))) return `Course units (${m[1]})`;
+  if ((m = text.match(/^單元時數合計：(\d+) 小時$/))) return `Total unit hours: ${m[1]}`;
   if ((m = text.match(/^(\d+) 天後$/))) return Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`;
   if ((m = text.match(/^已過 (\d+) 天$/))) return Number(m[1]) === 1 ? '1 day ago' : `${m[1]} days ago`;
   if ((m = text.match(/^已過期（(.+)）$/))) return `Expired (${translate(m[1]).toLowerCase()})`;

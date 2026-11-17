@@ -13,6 +13,8 @@ const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], 
 const CURRENCY_OPTIONS = [['PHP', '菲律賓披索 (PHP)'], ['TWD', '新台幣 (TWD)'], ['USD', '美元 (USD)']];
 // 課程費用顯示：幣別代碼 + 千分位，例如「PHP 35,000」；沒填費用顯示「—」。
 const feeText = row => row.fee == null ? '—' : `${row.currency || 'PHP'} ${Number(row.fee).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+// 例句每行一句：「中文 | 拼音 | 英文」。拼音與英文可省略。
+const exampleLines = text => String(text || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => line.split(/\s*[|｜]\s*/));
 const dateText = value => value ? String(value).slice(0, 10) : '—';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -59,7 +61,7 @@ function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSub
               {field.type === 'select'
                 ? <select name={field.name} required={field.required} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)}>{!field.noEmpty && <option value="">{field.emptyLabel || '請選擇'}</option>}{options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
                 : field.type === 'textarea'
-                  ? <textarea name={field.name} rows="3" maxLength="500" value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />
+                  ? <textarea name={field.name} rows={field.rows || 3} maxLength={field.maxLength || 500} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />
                   : <input name={field.name} type={field.type || 'text'} required={field.required} min={field.type === 'number' ? 0 : undefined} step={field.step} maxLength={field.type === 'number' || field.type === 'date' ? undefined : 200} value={values[field.name] ?? ''} onChange={event => setValue(field.name, event.target.value)} />}
             </label>;
           })}
@@ -78,6 +80,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  const [unitCourseId, setUnitCourseId] = useState(null);
 
   const load = useCallback(async id => {
     try {
@@ -114,7 +117,11 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   if (!data) return <section className={styles.panel}><Empty title="讀取中" text="正在載入訓練中心資料。" /></section>;
   if (!data.center) return <section className={styles.panel} style={THEME}><div className={styles.panelHeader}><div><h2>訓練中心工作區</h2></div></div>{message && <p className={`${styles.message} ${styles.messageError}`}>{message.text}</p>}<Empty title="尚無訓練中心" text="請先到「會員帳號」把會員類型設為訓練中心，再回來管理老師、課程與班別。" /></section>;
 
-  const { center, certifications, teachers, holdings, courses, classes, batches, enrollments = [], students = [] } = data;
+  const { center, certifications, teachers, holdings, courses, units = [], classes, batches, enrollments = [], students = [] } = data;
+  const unitCourse = courses.find(item => Number(item.id) === Number(unitCourseId)) || null;
+  const unitsOf = courseId => units.filter(item => Number(item.course_id) === Number(courseId));
+  // 英文介面優先顯示英文欄位，沒填英文就顯示中文。
+  const pick = (zh, en) => lang === 'en' && en ? en : zh;
   const activeCerts = certifications.filter(item => item.active);
   const certOptions = activeCerts.map(item => [item.id, item.name]);
   const holdingsOf = teacherId => holdings.filter(item => Number(item.teacher_id) === Number(teacherId));
@@ -146,6 +153,19 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     fields: [{ name: 'certificationId', label: '對應證照', type: 'select', required: true, options: certOptions }, { name: 'name', label: '課程名稱', required: true }, { name: 'hours', label: '課程時數', type: 'number' }, { name: 'fee', label: '課程費用', type: 'number', step: '0.01' }, { name: 'currency', label: '幣別', type: 'select', noEmpty: true, options: CURRENCY_OPTIONS }, { name: 'description', label: '說明', type: 'textarea' }],
     initial: { certificationId: record?.certification_id || '', name: record?.name || '', hours: record?.hours ?? '', fee: record?.fee == null ? '' : Number(record.fee), currency: record?.currency || 'PHP', description: record?.description || '' },
     submit: values => record ? save('PATCH', { resource: 'course', id: record.id, ...values, active: record.active }, '已更新課程') : save('POST', { resource: 'course', centerId, ...values }, '已新增課程'),
+  });
+  const unitModal = record => setModal({
+    title: record ? '編輯單元' : '新增單元', hint: '例句每行一句，格式：中文 | 拼音 | 英文',
+    fields: [
+      { name: 'name', label: '單元名稱', required: true }, { name: 'nameEn', label: '英文單元名稱' },
+      { name: 'position', label: '順序', type: 'number' }, { name: 'hours', label: '課程時數', type: 'number' },
+      { name: 'topics', label: '學習重點', type: 'textarea', maxLength: 1000 }, { name: 'topicsEn', label: '學習重點（英文）', type: 'textarea', maxLength: 1000 },
+      { name: 'examples', label: '例句', type: 'textarea', rows: 6, maxLength: 2000 },
+    ],
+    initial: { name: record?.name || '', nameEn: record?.name_en || '', position: record?.position ?? '', hours: record?.hours ?? '', topics: record?.topics || '', topicsEn: record?.topics_en || '', examples: record?.examples || '' },
+    submit: values => record
+      ? save('PATCH', { resource: 'unit', id: record.id, courseId: unitCourse.id, ...values }, '已更新課程單元')
+      : save('POST', { resource: 'unit', centerId, courseId: unitCourse.id, ...values }, '已新增課程單元'),
   });
   const classModal = record => {
     const activeCourses = courses.filter(item => item.active || Number(item.id) === Number(record?.course_id));
@@ -244,7 +264,12 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'courses' && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>證照課程</h2><p>每門課程對應一張證照，開班時依課程帶入證照。</p></div><button className={styles.primaryButton} disabled={!activeCerts.length} onClick={() => courseModal(null)}>新增課程</button></div>
-      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
+      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => setUnitCourseId(Number(unitCourseId) === Number(row.id) ? null : row.id)}>{`課程單元（${unitsOf(row.id).length}）`}</button><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
+    </section>}
+
+    {tab === 'courses' && unitCourse && <section className={styles.panel}>
+      <div className={styles.panelHeader}><div><h2>{`課程單元：${unitCourse.name}`}</h2><p>{unitsOf(unitCourse.id).length ? `單元時數合計：${unitsOf(unitCourse.id).reduce((sum, item) => sum + (item.hours || 0), 0)} 小時` : '把課程內容拆成單元，每個單元可寫學習重點與例句。'}</p></div><div className={styles.rowActions}><button className={styles.primaryButton} onClick={() => unitModal(null)}>新增單元</button><button className={styles.smallButton} onClick={() => setUnitCourseId(null)}>關閉</button></div></div>
+      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>課程時數</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{row.hours ?? '—'}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
     </section>}
 
     {tab === 'classes' && <section className={styles.panel}>

@@ -95,7 +95,7 @@ export async function GET(request) {
     const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });
-    const [certifications, teachers, holdings, courses, classes, batches, enrollments, students] = await Promise.all([
+    const [certifications, teachers, holdings, courses, units, classes, batches, enrollments, students] = await Promise.all([
       query('SELECT * FROM hr_tc_certifications WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query('SELECT * FROM hr_tc_teachers WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query(`SELECT tc.*, c.name AS certification_name FROM hr_tc_teacher_certifications tc
@@ -103,6 +103,7 @@ export async function GET(request) {
              WHERE t.center_id=$1 ORDER BY c.name`, [center.id]),
       query(`SELECT co.*, c.name AS certification_name FROM hr_tc_courses co JOIN hr_tc_certifications c ON c.id=co.certification_id
              WHERE co.center_id=$1 ORDER BY co.active DESC, c.name, co.name`, [center.id]),
+      query('SELECT * FROM hr_tc_course_units WHERE center_id=$1 ORDER BY course_id, position, id', [center.id]),
       query(`SELECT cl.*, c.name AS certification_name, co.name AS course_name, t.name AS teacher_name
              FROM hr_tc_classes cl JOIN hr_tc_certifications c ON c.id=cl.certification_id JOIN hr_tc_courses co ON co.id=cl.course_id
              LEFT JOIN hr_tc_teachers t ON t.id=cl.teacher_id
@@ -115,7 +116,7 @@ export async function GET(request) {
       query(ELIGIBLE_WORKERS_SQL),
     ]);
     return NextResponse.json({
-      centers, center, certifications, teachers, courses, enrollments, students,
+      centers, center, certifications, teachers, courses, units, enrollments, students,
       holdings: withDates(holdings, ['issued_date', 'expires_date']),
       classes: withDates(classes, ['training_start_date', 'training_end_date', 'exam_date', 'certificate_issue_date']),
       batches: withDates(batches, ['applied_date']),
@@ -150,6 +151,19 @@ async function buildRecord(resource, body, centerId, existing) {
     if (fee === undefined) throw new Refuse('課程費用必須是 0 以上的數字。');
     const currency = body.currency === undefined && existing ? existing.currency : CURRENCIES.has(body.currency) ? body.currency : 'PHP';
     return { name, certification_id: Number(body.certificationId), hours, fee, currency, description: clean(body.description, 500), active: body.active === false ? false : true };
+  }
+  if (resource === 'unit') {
+    if (!name) throw new Refuse('請輸入單元名稱。');
+    const course = await owned('hr_tc_courses', body.courseId ?? existing?.course_id, centerId);
+    if (!course) throw new Refuse('請選擇這個訓練中心的課程。');
+    const hours = intOf(body.hours, 10000);
+    if (hours === undefined) throw new Refuse('課程時數必須是 0 以上的整數。');
+    let position = intOf(body.position, 1000);
+    if (position === undefined) throw new Refuse('單元順序必須是 0 以上的整數。');
+    // 沒填順序：更新時維持原順序，新增時排在最後。
+    if (position === null) position = existing ? existing.position : ((await one('SELECT COALESCE(MAX(position),0)+1 AS n FROM hr_tc_course_units WHERE course_id=$1', [course.id])).n);
+    return { course_id: course.id, position, name, name_en: clean(body.nameEn, 120), hours, topics: clean(body.topics, 1000),
+      topics_en: clean(body.topicsEn, 1000), examples: clean(body.examples, 2000) };
   }
   if (resource === 'class') {
     if (!name) throw new Refuse('請輸入班別名稱。');
@@ -190,8 +204,8 @@ async function buildRecord(resource, body, centerId, existing) {
   throw new Refuse('不支援的項目。');
 }
 
-const TABLES = { certification: 'hr_tc_certifications', teacher: 'hr_tc_teachers', course: 'hr_tc_courses', class: 'hr_tc_classes', batch: 'hr_tc_batches' };
-const LABELS = { certification: '證照', teacher: '老師', course: '課程', class: '班別', batch: '證照批次' };
+const TABLES = { certification: 'hr_tc_certifications', teacher: 'hr_tc_teachers', course: 'hr_tc_courses', unit: 'hr_tc_course_units', class: 'hr_tc_classes', batch: 'hr_tc_batches' };
+const LABELS = { certification: '證照', teacher: '老師', course: '課程', unit: '課程單元', class: '班別', batch: '證照批次' };
 const nameOf = (resource, row) => resource === 'batch' ? row.batch_no : row.name;
 
 function friendly(error) {
