@@ -3,6 +3,7 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
+import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { recordAdminAction } from '@/lib/hr-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 export const runtime = 'nodejs';
@@ -49,11 +50,11 @@ const scope = (ctx, centerId) => {
   if (ctx.self && Number(centerId) !== Number(ctx.centerId)) throw new Refuse('沒有權限操作其他訓練中心的資料。', 403);
 };
 
-// 可報名的工人：必要文件全部核准，或已進入訓練（與訓練中心名單同一規則）。
+// 可報名的工人：初步文件審核已通過（LCR Form 1-A、PSA 出生證明、護照三取二），或已進入訓練。
+// 與 /api/hr 的訓練中心名單（trainingRoster）使用同一規則，名單上的工人才一定報名得了班別。
 const ELIGIBLE_WORKERS_SQL = `SELECT w.id, w.name FROM hr_workers w LEFT JOIN hr_worker_health_training h ON h.worker_id=w.id
-  WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable)
-    AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled'
-      OR NOT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.required AND d.applicable AND d.status<>'approved'))
+  WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.entry_gate AND d.applicable)
+    AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')})
   ORDER BY w.name, w.id`;
 
 const one = async (sql, params) => (await query(sql, params))[0] || null;
@@ -245,7 +246,7 @@ export async function POST(request) {
       scope(ctx, cls.center_id);
       if (!validId(body.workerId)) throw new Refuse('請選擇工人。');
       const worker = (await query(ELIGIBLE_WORKERS_SQL)).find(item => Number(item.id) === Number(body.workerId));
-      if (!worker) throw new Refuse('這位工人尚未完成必要文件，暫時不能報名班別。');
+      if (!worker) throw new Refuse('這位工人尚未通過初步文件審核，暫時不能報名班別。');
       if (cls.capacity) {
         const used = await one('SELECT COUNT(*)::int AS n FROM hr_tc_enrollments WHERE class_id=$1', [cls.id]);
         if (used.n >= cls.capacity) throw new Refuse('這個班別已額滿。', 409);
