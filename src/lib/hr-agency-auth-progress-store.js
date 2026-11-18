@@ -1,11 +1,13 @@
 import { AUTH_ITEMS, canTrackProgress, isItemOf, isStageOf, otherSideOf } from './hr-agency-auth-guide.js';
 import { AGENCY_ADMIN_REQUIRED_MESSAGE, sideOfAgencyType } from './hr-agency-certification.js';
+import { migrateOnce } from './migrate-once.js';
 
 // 相互認證的「文件驗證進度」：每一筆認證、每一邊、每一份文件各一列，記錄走到哪一關。
 // 雙方都看得到對方的進度；只有自己這一邊的仲介管理者（或系統管理者）可以更新自己那一邊。
 // 不 import '@/…'，db 只需要有 query(sql, params)，所以 node:test 可以用假的 db 測試。
 
-export async function ensureProgressSchema(db) {
+export function ensureProgressSchema(db) { return migrateOnce('agency-cert-progress', () => migrateProgressSchema(db)); }
+async function migrateProgressSchema(db) {
   await db.query(`CREATE TABLE IF NOT EXISTS hr_agency_cert_progress (
     certification_id BIGINT NOT NULL REFERENCES hr_agency_certifications(id) ON DELETE CASCADE,
     side TEXT NOT NULL CHECK (side IN ('taiwan','philippines')),

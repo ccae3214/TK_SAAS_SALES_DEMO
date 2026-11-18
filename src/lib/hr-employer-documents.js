@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { ensureHrIdentitySchema } from '@/lib/hr-access';
+import { migrateOnce } from './migrate-once.js';
 
 // 雇主文件（目前是「核准函」）。檔案用和工人文件相同的 AES-256-GCM 加密存放。
 // 誰可以管理：系統管理者、雇主本人、雇主所屬的台灣仲介。
@@ -8,9 +9,8 @@ export const EMPLOYER_DOCUMENT_TYPES = { approval_letter: { zh: '核准函', en:
 export const EMPLOYER_DOCUMENT_MAX_SIZE = 10 * 1024 * 1024;
 export const EMPLOYER_DOCUMENT_LIMIT_PER_EMPLOYER = 30;
 
-let schemaPromise;
 export function ensureEmployerDocumentsSchema() {
-  schemaPromise ||= (async () => {
+  return migrateOnce('employer-documents', async () => {
     await ensureHrIdentitySchema();
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_employer_documents (
       id BIGSERIAL PRIMARY KEY,
@@ -32,8 +32,7 @@ export function ensureEmployerDocumentsSchema() {
     await pool.query('ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_date DATE');
     await pool.query("ALTER TABLE hr_employer_documents ADD COLUMN IF NOT EXISTS approval_number TEXT NOT NULL DEFAULT ''");
     await pool.query('CREATE INDEX IF NOT EXISTS hr_employer_documents_employer ON hr_employer_documents(employer_id, created_at DESC)');
-  })().catch(error => { schemaPromise = null; throw error; });
-  return schemaPromise;
+  });
 }
 
 // employer 需有 id 與 agency_id。
@@ -57,15 +56,4 @@ export function detectContentType(data) {
   return null;
 }
 
-export function requestIsSameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) { if (value) allowed.add(new URL(value).origin); }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
+export { requestIsSameOrigin } from '@/lib/request-origin';

@@ -1,39 +1,15 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { query } from '@/lib/db';
+import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function sameOrigin(request) {
-  const origin=request.headers.get('origin');
-  if(!origin)return false;
-  try {
-    const allowed=new Set([new URL(request.url).origin]);
-    for(const value of [process.env.APP_ORIGIN,process.env.NEXTAUTH_URL])if(value)allowed.add(new URL(value).origin);
-    const host=request.headers.get('x-forwarded-host')||request.headers.get('host');
-    const protocol=(request.headers.get('x-forwarded-proto')||new URL(request.url).protocol.slice(0,-1)).split(',')[0].trim();
-    if(host)allowed.add(`${protocol}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
-
-async function ensureRooms() {
-  await query("ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_room_type_check");
-  await query("ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_check");
-  await query("ALTER TABLE hr_chat_rooms ADD COLUMN IF NOT EXISTS direct_key TEXT");
-  await query(`DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='hr_chat_rooms_type_check') THEN ALTER TABLE hr_chat_rooms ADD CONSTRAINT hr_chat_rooms_type_check CHECK((room_type='agency' AND agency_id IS NOT NULL AND case_id IS NULL) OR (room_type='case' AND case_id IS NOT NULL AND agency_id IS NULL) OR (room_type='direct' AND agency_id IS NULL AND case_id IS NULL AND direct_key IS NOT NULL)); END IF; END $$`);
-  await query("CREATE UNIQUE INDEX IF NOT EXISTS hr_chat_rooms_direct_unique ON hr_chat_rooms(direct_key) WHERE room_type='direct'");
-  await query(`CREATE TABLE IF NOT EXISTS hr_chat_participants (room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE, participant_key TEXT NOT NULL, member_id BIGINT REFERENCES hr_members(id) ON DELETE CASCADE, display_name TEXT NOT NULL, PRIMARY KEY(room_id,participant_key))`);
-  await query(`CREATE TABLE IF NOT EXISTS hr_chat_reads (
-    reader_key TEXT NOT NULL,
-    room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE,
-    last_read_message_id BIGINT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(reader_key,room_id)
-  )`);
+async function syncRooms() {
+  // 新建的仲介機構與案件要有聊天室；這是資料同步（不是資料表遷移），所以留在請求路徑。
   await query("INSERT INTO hr_chat_rooms(room_type,agency_id) SELECT 'agency',id FROM hr_agencies WHERE active=TRUE ON CONFLICT DO NOTHING");
   await query("INSERT INTO hr_chat_rooms(room_type,case_id) SELECT 'case',id FROM hr_cases ON CONFLICT DO NOTHING");
 }
@@ -83,7 +59,8 @@ export async function GET(request) {
     await ensureSchema();
     const principal=await getHrPrincipal(session);
     if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
-    await ensureRooms();
+    await ensureChatSchema();
+    await syncRooms();
     const roomId=new URL(request.url).searchParams.get('roomId');
     if(roomId){
       if(!/^\d+$/.test(roomId))return NextResponse.json({error:'聊天室編號不正確。'},{status:400});
@@ -131,12 +108,13 @@ export async function GET(request) {
 export async function POST(request) {
   const session=await auth();
   if(!session?.user)return NextResponse.json({error:'Authentication required'},{status:401});
-  if(!sameOrigin(request))return NextResponse.json({error:'請從本站提交資料。'},{status:403});
+  if(!requestIsSameOrigin(request))return NextResponse.json({error:'請從本站提交資料。'},{status:403});
   try {
     await ensureSchema();
     const principal=await getHrPrincipal(session);
     if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
-    await ensureRooms();
+    await ensureChatSchema();
+    await syncRooms();
     const body=await request.json(),roomId=Number(body.roomId),message=typeof body.message==='string'?body.message.trim():'';
     if(body.type==='direct'){
       const targetId=Number(body.targetMemberId);

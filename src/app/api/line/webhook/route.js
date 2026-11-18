@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import pool, { query } from '@/lib/db';
-import { ensureHrIdentitySchema } from '@/lib/hr-access';
+import { query } from '@/lib/db';
 import { replyForHrLineEvent } from '@/lib/hr-line-bot';
+import { ensureLineSchema } from '@/lib/hr-schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,35 +65,7 @@ export async function POST(request) {
     if (!Array.isArray(payload.events)) return NextResponse.json({ ok: false, message: 'Webhook 格式不正確。' }, { status: 400 });
 
     if (payload.events.length) {
-      await ensureHrIdentitySchema();
-      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_webhook_events (
-        event_id TEXT PRIMARY KEY,
-        event_type TEXT NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('processing','completed','failed')),
-        attempts INTEGER NOT NULL DEFAULT 1,
-        last_error TEXT,
-        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_member_settings (
-        line_user_id TEXT PRIMARY KEY,
-        preferred_language TEXT NOT NULL CHECK (preferred_language IN ('zh','en','tl')),
-        rich_menu_role TEXT,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )`);
-      await pool.query('ALTER TABLE hr_line_member_settings ADD COLUMN IF NOT EXISTS rich_menu_role TEXT');
-      // 只記錄圖文選單的會員不一定選過語言；語言欄位允許空值（CHECK 對空值不擋）。
-      await pool.query('ALTER TABLE hr_line_member_settings ALTER COLUMN preferred_language DROP NOT NULL');
-      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_rich_menus (
-        menu_key TEXT PRIMARY KEY,
-        rich_menu_id TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS hr_line_admin_sessions (
-        line_user_id TEXT PRIMARY KEY,
-        session_data JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )`);
+      await ensureLineSchema();
     }
 
     let replied = 0, duplicates = 0;

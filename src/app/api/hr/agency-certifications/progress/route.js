@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { auth } from '@/auth';
-import { ensureSchema } from '@/app/api/hr/route';
+import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureCertificationSchema } from '@/lib/hr-agency-certification-store';
 import { ensureProgressSchema, readProgress, saveProgress } from '@/lib/hr-agency-auth-progress-store';
-import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
+import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

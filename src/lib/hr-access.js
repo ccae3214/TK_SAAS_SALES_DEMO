@@ -1,4 +1,5 @@
 import pool, { get } from '@/lib/db';
+import { migrateOnce } from './migrate-once.js';
 
 export const HR_ROLES = new Set(['worker', 'employer', 'agency', 'training_center']);
 export const HR_MEMBER_ROLES = new Set([...HR_ROLES, 'system_admin']);
@@ -30,7 +31,8 @@ export function isHrRootAdminSession(session) {
   return !!lineUserId && getAdminLineUserIds().includes(lineUserId);
 }
 
-export async function ensureHrIdentitySchema() {
+export function ensureHrIdentitySchema() { return migrateOnce('hr-identity', migrateHrIdentitySchema); }
+async function migrateHrIdentitySchema() {
   await pool.query(`CREATE TABLE IF NOT EXISTS hr_agencies (
     id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,

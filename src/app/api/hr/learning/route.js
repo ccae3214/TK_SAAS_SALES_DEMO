@@ -3,6 +3,7 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
+import { requestIsSameOrigin } from '@/lib/request-origin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -11,19 +12,6 @@ export const dynamic = 'force-dynamic';
 
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
 const fail = (message, status = 400) => NextResponse.json({ error: message }, { status });
-
-function sameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) { if (value) allowed.add(new URL(value).origin); }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
 
 async function accessContext() {
   const session = await auth();
@@ -70,7 +58,7 @@ export async function GET(request) {
 
 // 工人標記單元「已讀完」或取消標記。
 export async function POST(request) {
-  if (!sameOrigin(request)) return fail('Invalid origin', 403);
+  if (!requestIsSameOrigin(request)) return fail('Invalid origin', 403);
   const ctx = await accessContext();
   if (ctx.error) return ctx.error;
   if (ctx.role !== 'worker') return fail('只有工人可以記錄學習進度。', 403);

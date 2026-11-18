@@ -3,6 +3,7 @@
 // 規則與訊息文字在 hr-expiry-reminders.js（純函式）。
 import { query } from '@/lib/db';
 import { buildExpiryReminders, expiryMessage, taipeiToday } from '@/lib/hr-expiry-reminders';
+import { migrateOnce } from './migrate-once.js';
 
 const STEP_KEYS = ['medical_expiry', 'contract_issue', 'actual_entry'];
 
@@ -45,7 +46,8 @@ export function reminderKindsForRole(role) {
   return null;
 }
 
-async function ensureLogTable() {
+export function ensureLogTable() { return migrateOnce('expiry-reminder-log', migrateLogTable); }
+async function migrateLogTable() {
   await query(`CREATE TABLE IF NOT EXISTS hr_expiry_reminder_log (
     worker_id BIGINT NOT NULL REFERENCES hr_workers(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
