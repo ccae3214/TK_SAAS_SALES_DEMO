@@ -77,7 +77,7 @@ test('route.js 的 handlePost 只做驗證登入與分派，不再自帶 body.ty
   const post = route.slice(start, end);
   assert.doesNotMatch(post, /body\.type\s*===/);
   assert.doesNotMatch(post, /principal\.role\s*!==\s*'admin'/);
-  assert.match(post, /dispatchPost\(/);
+  assert.match(post, /return await dispatchPost\(/, 'handler 的錯誤要在 handlePost 的 try/catch 內被接住（23503 等對應回應）');
 });
 
 test('_post 目錄下每個檔案都在 index.js 的分派範圍內（沒有被遺忘的檔案）', async () => {

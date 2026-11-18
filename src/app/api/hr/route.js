@@ -283,7 +283,7 @@ async function handlePost(request) {
     if (!principal || !['admin','agency','employer'].includes(principal.role)) return NextResponse.json({ error: 'HR membership required' }, { status: 403 });
     const body = await request.json();
     const actor = clean(session.user?.email || session.user?.lineUserId || 'LINE 登入', 254);
-    return dispatchPost({ principal, session, body, actor });
+    return await dispatchPost({ principal, session, body, actor }); // 必須 await，handler 丟出的資料庫錯誤才會被下面的 catch 轉成對應回應
   } catch (error) {
     if (error instanceof LinkedRecordError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof SyntaxError) return NextResponse.json({ error: '表單資料格式不正確。' }, { status: 400 });
