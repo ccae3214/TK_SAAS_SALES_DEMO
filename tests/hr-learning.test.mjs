@@ -28,7 +28,7 @@ test('學習 API：工人只能讀自己報名的課程，標記進度要同源�
   const route = await read('../src/app/api/hr/learning/route.js');
   assert.match(route, /EXISTS\(SELECT 1 FROM hr_tc_enrollments e JOIN hr_tc_classes cl ON cl\.id=e\.class_id WHERE e\.worker_id=\$2 AND cl\.course_id=co\.id\)/);
   assert.match(route, /co\.center_id=\$2/);
-  assert.match(route, /if \(!sameOrigin\(request\)\) return fail\('Invalid origin', 403\);/);
+  assert.match(route, /if \(!requestIsSameOrigin\(request\)\) return fail\('Invalid origin', 403\);/);
   assert.match(route, /if \(ctx\.role !== 'worker'\) return fail\('只有工人可以記錄學習進度。', 403\);/);
   assert.match(route, /ON CONFLICT\(worker_id, unit_id\) DO NOTHING/);
   assert.match(route, /readOnly: ctx\.role !== 'worker'/);
