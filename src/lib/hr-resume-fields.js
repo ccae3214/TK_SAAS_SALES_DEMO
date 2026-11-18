@@ -1,6 +1,8 @@
-// Shared option lists and helpers for worker resume fields.
+// Shared option lists, per-field length limits and helpers for worker resume fields.
 // Used by both the worker portal (HrMemberPortal) and the admin resume editor
 // (HrManagement) so the dropdown / checkbox options never drift apart.
+// The server-side sanitizer (src/app/api/hr/_shared.js) imports the limits from here,
+// so there is exactly one list of resume fields to maintain.
 
 export const WORKER_RESUME_CHOICES = {
   cookingSkills:['台灣','廣東','中國','日本','泰國','印度','韓國','菲律賓'],
@@ -27,6 +29,20 @@ export const WORKER_RESUME_SELECTS = {
 };
 
 export const WORKER_RESUME_SKIN_COMPLEXIONS = ['白','黃','黑'];
+
+// 每個履歷欄位可儲存的最大字元數；超過的內容在儲存前會被截斷。
+export const WORKER_RESUME_FIELD_LIMITS = {
+  referenceNo: 80, birthDate: 30, gender: 40, birthplace: 120, address: 300, height: 20, weight: 20,
+  skinComplexion: 80, maritalStatus: 50, religion: 80, hobby: 300,
+  spouseName: 120, spouseOccupation: 120, spouseAge: 20, numberOfChildren: 20, childrenAges: 100,
+  fatherName: 120, fatherOccupation: 120, fatherBirthDate: 30, motherName: 120, motherOccupation: 120, motherBirthDate: 30,
+  brotherCount: 20, brotherAges: 100, sisterCount: 20, sisterAges: 100, familyRank: 40, caregiverDuringOverseas: 200,
+  educationLevels: 200, education: 2000, coursesCompleted: 1000, languageOptions: 200, languages: 2000, cookingSkills: 700, applianceOptions: 300, applianceSkills: 700, childcareSkills: 1000,
+  experienceNewborn: 1500, experienceChildren: 1500, experienceElderly: 1500, experienceDisabled: 1500,
+  hasTattoo: 20, smokes: 20, drinksAlcohol: 20, petExperience: 500, willingToWorkWithPets: 20, seriousIllness: 20,
+  operationLast12Months: 20, allergies: 20, dayOffChores: 20, finishChoresBeforeOuting: 20, returnBy8PM: 20,
+  makeupAtWork: 20, workOnDaysOff: 20, workedAbroad: 20, overseasWorkDetails: 1000, employmentHistory: 5000, remarks: 2000,
+};
 
 export function resumeChoiceList(value) { return String(value||'').split(/[,，、;；|]/).map(item=>item.trim()).filter(Boolean); }
 
