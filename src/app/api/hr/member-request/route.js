@@ -1,3 +1,4 @@
+import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse, after } from 'next/server';
 import { auth } from '@/auth';
 import { getHrPrincipal, HR_ROLES } from '@/lib/hr-access';

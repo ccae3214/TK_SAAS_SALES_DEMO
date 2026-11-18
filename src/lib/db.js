@@ -1,13 +1,26 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:82988530@localhost:5432/saas_demo';
+// No fallback connection string: a default password in git protects nothing.
+// `next build` imports route modules without a database, so the failure is raised on first use instead of at import.
+const connectionString = process.env.DATABASE_URL;
 
-const pool = new Pool({
-  connectionString,
-  // Disable SSL for local Docker network
-  ssl: false,
-});
+function missingDatabaseUrl() {
+  return new Error('DATABASE_URL is not set. Set it in the environment (see .env.example); there is no default connection string.');
+}
+
+const pool = connectionString
+  ? new Pool({
+    connectionString,
+    // Disable SSL for local Docker network
+    ssl: false,
+  })
+  : new Proxy({}, {
+    get(_target, property) {
+      if (property === 'then') return undefined;
+      return () => { throw missingDatabaseUrl(); };
+    },
+  });
 
 export const query = async (sql, params = []) => {
   try {

@@ -27,14 +27,19 @@ function verifySignature(body, signature, secret) {
   return expected.length === received.length && timingSafeEqual(expected, received);
 }
 
+// 事件停在 processing 超過這段時間（行程當機、沒機會標 completed/failed），LINE 重送時就允許重新處理。
+const STALE_PROCESSING_MINUTES = 2;
+
 async function claimEvent(event) {
   const eventId = event.webhookEventId;
   if (!eventId) return true;
   const claimed = await query(`INSERT INTO hr_line_webhook_events(event_id,event_type,status,attempts)
     VALUES($1,$2,'processing',1)
-    ON CONFLICT(event_id) DO UPDATE SET status='processing',attempts=hr_line_webhook_events.attempts+1,last_error=NULL
+    ON CONFLICT(event_id) DO UPDATE SET status='processing',attempts=hr_line_webhook_events.attempts+1,last_error=NULL,updated_at=NOW()
       WHERE hr_line_webhook_events.status='failed'
-    RETURNING event_id`, [eventId,event.type || 'unknown']);
+         OR (hr_line_webhook_events.status='processing'
+             AND hr_line_webhook_events.updated_at < NOW() - make_interval(mins => $3::int))
+    RETURNING event_id`, [eventId,event.type || 'unknown',STALE_PROCESSING_MINUTES]);
   return claimed.length > 0;
 }
 
