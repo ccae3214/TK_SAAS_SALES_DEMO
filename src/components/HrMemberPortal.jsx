@@ -762,21 +762,23 @@ function PortalStyles() {
 .hr-member-shell button.doc-filter.is-active b{background:rgba(255,255,255,.22);color:#fff}
 .hr-member-shell .doc-search{display:block;margin:0 0 12px}
 .hr-member-shell .doc-search input[type=search]{width:100%;box-sizing:border-box}
-.hr-member-shell .doc-worker{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}
-.hr-member-shell .doc-worker+.doc-worker{margin-top:10px}
-.hr-member-shell button.doc-worker-toggle{display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"name progress chevron" "badges badges badges";align-items:center;gap:8px 10px;width:100%;min-height:56px;padding:12px 14px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;text-align:left;box-shadow:none}
-.hr-member-shell button.doc-worker-toggle:hover:not(:disabled){background:var(--g-50);transform:none;box-shadow:none;filter:none}
+.hr-member-shell .doc-worker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;align-items:start}
+.hr-member-shell button.doc-worker-tile{display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"name progress chevron" "badges badges badges";align-items:center;gap:8px 8px;width:100%;min-height:72px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font:inherit;text-align:left;box-shadow:none}
+.hr-member-shell button.doc-worker-tile:hover:not(:disabled){background:var(--g-50);border-color:var(--g-200);transform:none;box-shadow:none;filter:none}
+.hr-member-shell button.doc-worker-tile.is-open,.hr-member-shell button.doc-worker-tile.is-open:hover:not(:disabled){border-color:var(--g-700);background:var(--g-50)}
+.hr-member-shell .doc-worker-panel{grid-column:1/-1;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}
+.hr-member-shell .doc-worker-panel-title{margin:0;padding:12px 14px 0;font-size:15px;font-weight:800;color:var(--ink)}
 .hr-member-shell .doc-worker-name{grid-area:name;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:800}
 .hr-member-shell .doc-worker-progress{grid-area:progress;color:var(--ink-3);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
 .hr-member-shell .doc-worker-chevron{grid-area:chevron;color:var(--ink-3);transition:transform .2s}
-.hr-member-shell button.doc-worker-toggle[aria-expanded=true] .doc-worker-chevron{transform:rotate(180deg)}
+.hr-member-shell button.doc-worker-tile[aria-expanded=true] .doc-worker-chevron{transform:rotate(180deg)}
 .hr-member-shell .doc-worker-badges{grid-area:badges;display:flex;flex-wrap:wrap;gap:6px}
 .hr-member-shell .doc-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:#eef2ef;color:#56655d;font-size:12px;font-weight:800}
 .hr-member-shell .doc-badge b{font-variant-numeric:tabular-nums}
 .hr-member-shell .doc-badge-submitted{background:var(--amber-bg);color:var(--amber)}
 .hr-member-shell .doc-badge-returned{background:var(--red-bg);color:var(--red)}
 .hr-member-shell .doc-badge-done{background:var(--g-100);color:var(--g-700)}
-.hr-member-shell .doc-worker-body{padding:2px 12px 14px;border-top:1px solid var(--line-soft)}
+.hr-member-shell .doc-worker-body{padding:2px 12px 14px}
 .hr-member-shell .doc-group{margin-top:12px}
 .hr-member-shell .doc-group>h4{display:flex;align-items:center;gap:8px;margin:0;color:var(--ink-2);font-size:13px}
 .hr-member-shell .doc-group>h4 b,.hr-member-shell .doc-group>summary b{padding:1px 8px;border-radius:999px;background:var(--line-soft);font-size:12px;font-variant-numeric:tabular-nums}
@@ -955,6 +957,7 @@ function PortalStyles() {
 .hr-member-shell button.doc-filter{flex:1 1 0;flex-wrap:wrap;min-width:0;justify-content:center;gap:2px 4px;padding:8px 3px;font-size:12.5px}
 .hr-member-shell button.doc-filter span{white-space:nowrap}
 .hr-member-shell button.doc-filter b{min-width:0;padding:1px 5px;font-size:11px}
+.hr-member-shell .doc-worker-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .hr-member-shell .doc-worker-body{padding:0 10px 12px}
 .hr-member-shell .doc-worker-body .document-item{padding:12px;margin-top:8px;border-radius:12px}
 .hr-member-shell .document-item .document-heading strong{font-size:14px}

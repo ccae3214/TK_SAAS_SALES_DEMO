@@ -20,3 +20,14 @@ test('document review list keeps worker and document order fixed until the filte
   // 排序不能再直接用即時的狀態
   assert.doesNotMatch(source, /STATUS_ORDER\[documentGroup\(x\)\] - STATUS_ORDER\[documentGroup\(y\)\]/);
 });
+
+// 每位工作者是一個小元件；點選才展開文件，同一時間只展開一位（點另一位會收起前一位）。
+test('document review list shows workers as tiles and keeps only one expanded at a time', () => {
+  assert.match(source, /className="doc-worker-grid"/);
+  assert.match(source, /doc-worker-tile/);
+  assert.match(source, /const \[openId, setOpenId\] = useState\(undefined\)/);
+  assert.match(source, /onClick=\{\(\) => setOpenId\(expanded \? null : person\.id\)\}/);
+  // 不能再用「每位工作者各自記錄展開狀態」的 map
+  assert.doesNotMatch(source, /useState\(\{\}\)/);
+  assert.doesNotMatch(source, /setOpen\(prev =>/);
+});

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { WORKER_STAGES, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequirement } from '@/lib/hr-worker-stages';
 
 // 仲介／雇主查看多位工作者的必要文件。
 // 目標是減少手機上的捲動：依「需要處理」排序工作者、預設收合、可用狀態篩選。
+// 每位工作者是一個小元件（tile）；點選才會列出該工作者的全部文件，點另一位會自動收起前一位（同一時間只展開一位）。
 // 每位工作者的文件和工人頁面一樣依 A–G 階段分組；還有待處理文件的階段預設展開，全部核准的階段預設收起。
 // 卡片內容由 renderItem 提供（沿用工作者頁面的文件卡片）。
 
@@ -41,7 +42,8 @@ function StageGroup({ stage, items, approved, applicable, pending, defaultOpen, 
 export default function HrDocumentReviewList({ workers, requirements, renderItem }) {
   const [filter, setFilter] = useState(null); // null＝尚未手動選擇，改用預設
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState({});
+  // undefined＝使用者尚未點選，改用預設（只有一位工作者時直接展開）；null＝全部收起。
+  const [openId, setOpenId] = useState(undefined);
 
   const summaries = useMemo(() => workers.map(person => {
     const rows = requirements.filter(item => Number(item.worker_id) === Number(person.id));
@@ -95,38 +97,44 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
     </label>}
     {visible.length === 0
       ? <p className="doc-review-empty">目前沒有符合的文件。</p>
-      : visible.map(({ person, rows, counts, applicable }) => {
-        const expanded = person.id in open ? open[person.id] : (activeFilter !== 'all' || summaries.length === 1);
-        const pending = counts.submitted + counts.returned + counts.missing;
-        const stageRows = WORKER_STAGES.map(stage => {
-          const stageDocs = rows.filter(item => stageOfRequirement(item.name) === stage.key);
-          const stageApplicable = stageDocs.filter(item => item.applicable);
-          const items = stageDocs.filter(matchesFilter)
-            .sort((x, y) => itemRank(x) - itemRank(y) || Number(y.entry_gate) - Number(x.entry_gate));
-          return {
-            stage, items, applicable: stageApplicable.length,
-            approved: stageApplicable.filter(item => item.status === 'approved').length,
-            pending: stageApplicable.filter(item => item.status !== 'approved').length,
-          };
-        }).filter(row => row.items.length);
-        return <section className="doc-worker" key={person.id}>
-          <button type="button" className="doc-worker-toggle" aria-expanded={expanded}
-            onClick={() => setOpen(prev => ({ ...prev, [person.id]: !expanded }))}>
-            <span className="doc-worker-name">{person.name}</span>
-            <span className="doc-worker-badges">
-              {counts.submitted > 0&&<span className="doc-badge doc-badge-submitted"><span>待審核</span><b>{counts.submitted}</b></span>}
-              {counts.returned > 0&&<span className="doc-badge doc-badge-returned"><span>被退回</span><b>{counts.returned}</b></span>}
-              {counts.missing > 0&&<span className="doc-badge doc-badge-missing"><span>待上傳</span><b>{counts.missing}</b></span>}
-              {pending === 0&&<span className="doc-badge doc-badge-done"><span>文件齊全</span></span>}
-            </span>
-            <span className="doc-worker-progress" title="已核准／適用文件">{counts.approved}/{applicable}</span>
-            <ChevronDown size={18} aria-hidden="true" className="doc-worker-chevron" />
-          </button>
-          {expanded&&<div className="doc-worker-body">
-            {stageRows.map(row => <StageGroup key={`${row.stage.key}:${activeFilter}`} {...row}
-              defaultOpen={activeFilter !== 'all' || row.pending > 0} renderItem={renderItem} />)}
-          </div>}
-        </section>;
-      })}
+      : <div className="doc-worker-grid">
+        {visible.map(({ person, rows, counts, applicable }) => {
+          const defaultId = summaries.length === 1 ? summaries[0].person.id : null;
+          const expanded = (openId === undefined ? defaultId : openId) === person.id;
+          const pending = counts.submitted + counts.returned + counts.missing;
+          const stageRows = expanded ? WORKER_STAGES.map(stage => {
+            const stageDocs = rows.filter(item => stageOfRequirement(item.name) === stage.key);
+            const stageApplicable = stageDocs.filter(item => item.applicable);
+            const items = stageDocs.filter(matchesFilter)
+              .sort((x, y) => itemRank(x) - itemRank(y) || Number(y.entry_gate) - Number(x.entry_gate));
+            return {
+              stage, items, applicable: stageApplicable.length,
+              approved: stageApplicable.filter(item => item.status === 'approved').length,
+              pending: stageApplicable.filter(item => item.status !== 'approved').length,
+            };
+          }).filter(row => row.items.length) : [];
+          return <Fragment key={person.id}>
+            <button type="button" className={`doc-worker-tile${expanded ? ' is-open' : ''}${pending === 0 ? ' is-done' : ''}`}
+              aria-expanded={expanded} aria-controls={`doc-worker-panel-${person.id}`}
+              onClick={() => setOpenId(expanded ? null : person.id)}>
+              <span className="doc-worker-name">{person.name}</span>
+              <span className="doc-worker-progress" title="已核准／適用文件">{counts.approved}/{applicable}</span>
+              <ChevronDown size={16} aria-hidden="true" className="doc-worker-chevron" />
+              <span className="doc-worker-badges">
+                {counts.submitted > 0&&<span className="doc-badge doc-badge-submitted"><span>待審核</span><b>{counts.submitted}</b></span>}
+                {counts.returned > 0&&<span className="doc-badge doc-badge-returned"><span>被退回</span><b>{counts.returned}</b></span>}
+                {counts.missing > 0&&<span className="doc-badge doc-badge-missing"><span>待上傳</span><b>{counts.missing}</b></span>}
+                {pending === 0&&<span className="doc-badge doc-badge-done"><span>文件齊全</span></span>}
+              </span>
+            </button>
+            {expanded&&<section className="doc-worker-panel doc-worker-body" id={`doc-worker-panel-${person.id}`}>
+              <h3 className="doc-worker-panel-title">{person.name}</h3>
+              {stageRows.length === 0&&<p className="doc-review-empty">目前沒有符合的文件。</p>}
+              {stageRows.map(row => <StageGroup key={`${row.stage.key}:${activeFilter}`} {...row}
+                defaultOpen={activeFilter !== 'all' || row.pending > 0} renderItem={renderItem} />)}
+            </section>}
+          </Fragment>;
+        })}
+      </div>}
   </div>;
 }
