@@ -23,30 +23,18 @@ const pool = connectionString
   });
 
 export const query = async (sql, params = []) => {
-  try {
-    const result = await pool.query(sql, params);
-    return result.rows;
-  } catch (err) {
-    throw err;
-  }
+  const result = await pool.query(sql, params);
+  return result.rows;
 };
 
 export const get = async (sql, params = []) => {
-  try {
-    const result = await pool.query(sql, params);
-    return result.rows[0] || null;
-  } catch (err) {
-    throw err;
-  }
+  const result = await pool.query(sql, params);
+  return result.rows[0] || null;
 };
 
 export const run = async (sql, params = []) => {
-  try {
-    const result = await pool.query(sql, params);
-    return { changes: result.rowCount, id: result.rows[0]?.id };
-  } catch (err) {
-    throw err;
-  }
+  const result = await pool.query(sql, params);
+  return { changes: result.rowCount, id: result.rows[0]?.id };
 };
 
 export default pool;
