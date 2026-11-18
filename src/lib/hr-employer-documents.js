@@ -56,9 +56,5 @@ export function detectContentType(data) {
   return null;
 }
 
-<<<<<<< HEAD
-export { requestIsSameOrigin } from '@/lib/request-origin';
-=======
 // Same-origin (CSRF) check lives in a dependency-free module so it can be unit tested; this is the one shared copy.
 export { requestIsSameOrigin } from './request-origin.js';
->>>>>>> fix/security-perf-review

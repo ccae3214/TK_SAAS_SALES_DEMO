@@ -1,4 +1,3 @@
-import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
@@ -9,25 +8,8 @@ import { requestIsSameOrigin } from '@/lib/request-origin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-<<<<<<< HEAD
 async function syncRooms() {
   // 新建的仲介機構與案件要有聊天室；這是資料同步（不是資料表遷移），所以留在請求路徑。
-=======
-async function ensureRooms() {
-  await query("ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_room_type_check");
-  await query("ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_check");
-  await query("ALTER TABLE hr_chat_rooms ADD COLUMN IF NOT EXISTS direct_key TEXT");
-  await query(`DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='hr_chat_rooms_type_check') THEN ALTER TABLE hr_chat_rooms ADD CONSTRAINT hr_chat_rooms_type_check CHECK((room_type='agency' AND agency_id IS NOT NULL AND case_id IS NULL) OR (room_type='case' AND case_id IS NOT NULL AND agency_id IS NULL) OR (room_type='direct' AND agency_id IS NULL AND case_id IS NULL AND direct_key IS NOT NULL)); END IF; END $$`);
-  await query("CREATE UNIQUE INDEX IF NOT EXISTS hr_chat_rooms_direct_unique ON hr_chat_rooms(direct_key) WHERE room_type='direct'");
-  await query(`CREATE TABLE IF NOT EXISTS hr_chat_participants (room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE, participant_key TEXT NOT NULL, member_id BIGINT REFERENCES hr_members(id) ON DELETE CASCADE, display_name TEXT NOT NULL, PRIMARY KEY(room_id,participant_key))`);
-  await query(`CREATE TABLE IF NOT EXISTS hr_chat_reads (
-    reader_key TEXT NOT NULL,
-    room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE,
-    last_read_message_id BIGINT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(reader_key,room_id)
-  )`);
->>>>>>> fix/security-perf-review
   await query("INSERT INTO hr_chat_rooms(room_type,agency_id) SELECT 'agency',id FROM hr_agencies WHERE active=TRUE ON CONFLICT DO NOTHING");
   await query("INSERT INTO hr_chat_rooms(room_type,case_id) SELECT 'case',id FROM hr_cases ON CONFLICT DO NOTHING");
 }
