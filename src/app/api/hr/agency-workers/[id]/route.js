@@ -1,4 +1,3 @@
-import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
@@ -12,7 +11,6 @@ import {
 import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { requestIsSameOrigin } from '@/lib/request-origin';
-import { ensureWorkerProgressSchema } from '@/lib/hr-schema';
 
 // 菲律賓仲介（與系統管理者）管理「底下工作者」的文件審核與進度安排；訓練中心只能更新「訓練」狀態。
 // 文件的審核、適用性切換、上傳與預覽沿用既有 API（/api/hr、/api/hr/documents）；

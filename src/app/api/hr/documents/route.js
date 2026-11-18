@@ -1,4 +1,3 @@
-import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';

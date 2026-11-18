@@ -1,4 +1,3 @@
-import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
