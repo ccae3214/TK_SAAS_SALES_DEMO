@@ -3,6 +3,8 @@ import pool, { query } from '@/lib/db';
 import { refreshCaseStage as refreshStage, refreshWorkerCases as refreshStagesForWorker } from '@/lib/hr-case-stage';
 import { WORKER_PROGRESS_STEPS } from '@/lib/hr-worker-progress';
 import { cleanEmployerProfile, employerRecordError } from '@/lib/hr-employer-profile';
+// 履歷欄位的長度上限與選項清單放在同一支檔案，只維護這一份。
+import { WORKER_RESUME_FIELD_LIMITS as WORKER_RESUME_FIELDS } from '@/lib/hr-resume-fields';
 
 const EMPLOYER_TYPES = new Set(['home_care', 'factory', 'domestic_helper', 'other']);
 const TASK_CATEGORIES = new Set(['document', 'medical', 'training', 'other']);
@@ -11,18 +13,6 @@ const APPLICATION_STEPS = WORKER_PROGRESS_STEPS;
 
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const WORKER_JOB_PREFERENCES = new Set(['家庭幫傭','家庭看護','工廠技術工','農工','機構看護工']);
-const WORKER_RESUME_FIELDS = {
-  referenceNo: 80, birthDate: 30, gender: 40, birthplace: 120, address: 300, height: 20, weight: 20,
-  skinComplexion: 80, maritalStatus: 50, religion: 80, hobby: 300,
-  spouseName: 120, spouseOccupation: 120, spouseAge: 20, numberOfChildren: 20, childrenAges: 100,
-  fatherName: 120, fatherOccupation: 120, fatherBirthDate: 30, motherName: 120, motherOccupation: 120, motherBirthDate: 30,
-  brotherCount: 20, brotherAges: 100, sisterCount: 20, sisterAges: 100, familyRank: 40, caregiverDuringOverseas: 200,
-  educationLevels: 200, education: 2000, coursesCompleted: 1000, languageOptions: 200, languages: 2000, cookingSkills: 700, applianceOptions: 300, applianceSkills: 700, childcareSkills: 1000,
-  experienceNewborn: 1500, experienceChildren: 1500, experienceElderly: 1500, experienceDisabled: 1500,
-  hasTattoo: 20, smokes: 20, drinksAlcohol: 20, petExperience: 500, willingToWorkWithPets: 20, seriousIllness: 20,
-  operationLast12Months: 20, allergies: 20, dayOffChores: 20, finishChoresBeforeOuting: 20, returnBy8PM: 20,
-  makeupAtWork: 20, workOnDaysOff: 20, workedAbroad: 20, overseasWorkDetails: 1000, employmentHistory: 5000, remarks: 2000,
-};
 function cleanWorkerResumeProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const profile=Object.fromEntries(Object.entries(WORKER_RESUME_FIELDS).map(([field, limit]) => [field, clean(value[field], limit)]));
