@@ -36,8 +36,10 @@ test('worker name write paths use normalizePersonName', async () => {
   const route = await readFile(new URL('../src/app/api/hr/route.js', import.meta.url), 'utf8');
   const bot = await readFile(new URL('../src/lib/hr-line-bot.js', import.meta.url), 'utf8');
   const store = await readFile(new URL('../src/lib/hr-linked-record-store.js', import.meta.url), 'utf8');
+  const people = await readFile(new URL('../src/app/api/hr/_post/people.js', import.meta.url), 'utf8');
   assert.match(route, /import \{ normalizePersonName \} from '@\/lib\/person-name'/);
-  assert.equal((route.match(/normalizePersonName\(/g) || []).length >= 7, true);
+  assert.match(people, /import \{ normalizePersonName \} from '@\/lib\/person-name'/);
+  assert.equal((route.match(/normalizePersonName\(/g) || []).length + (people.match(/normalizePersonName\(/g) || []).length >= 7, true);
   assert.match(bot, /normalizePersonName\(values\.name\)/);
   assert.match(store, /kind === 'worker'\) normalized\.displayName = normalizePersonName/);
 });

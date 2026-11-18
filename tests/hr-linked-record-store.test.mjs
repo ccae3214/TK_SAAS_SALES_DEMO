@@ -127,5 +127,6 @@ test('all record edit routes use shared transaction; no legacy separate sync hel
   assert(!source.includes('assertMemberEmailFree')); assert(!source.includes('syncLinkedMember('));
   assert.equal((source.match(/await editLinkedRecord\(/g) || []).length, 5);
   assert(source.includes('await updateLinkedMemberProfile(pool'));
-  assert(source.includes('normalizeRecordEmail(email, { reservedEmails: getAdminEmails()'));
+  const people = await readFile(new URL('../src/app/api/hr/_post/people.js', import.meta.url), 'utf8');
+  assert(people.includes('normalizeRecordEmail(email, { reservedEmails: getAdminEmails()'));
 });
