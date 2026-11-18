@@ -467,7 +467,9 @@ export function translateHrText(value, lang = 'zh') {
     const blockedDue=trimmed.match(/^受阻 · (今天到期|逾期 \d+ 天)$/);
     const requiredMissing=trimmed.match(/^必要文件待補 (\d+) 份$/);
     const needsUpload=trimmed.match(/^有 (\d+) 份必要文件需要上傳或補件。$/);
-    if(removeWorkerTitle)translated=`Remove worker "${removeWorkerTitle[1]}" from this agency?`;
+    const versionRow=trimmed.match(/^第(\d+)版 · (.+)$/);
+    if(versionRow)translated=`Version ${versionRow[1]} · ${versionRow[2]}`;
+    else if(removeWorkerTitle)translated=`Remove worker "${removeWorkerTitle[1]}" from this agency?`;
     else if(clearResumeConfirm)translated=`Clear the entire resume for "${clearResumeConfirm[1]}"? Worker records and case history will not be deleted.`;
     else if(orderMatch)translated=`Order #${orderMatch[1]} · ${translateHrText(orderMatch[2],'en')} · ${orderMatch[3]} position${orderMatch[3]==='1'?'':'s'}`;
     else if(agencyMatch)translated=`${agencyMatch[1]} · Agency chat`;
