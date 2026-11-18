@@ -126,12 +126,17 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   const certOptions = activeCerts.map(item => [item.id, item.name]);
   const holdingsOf = teacherId => holdings.filter(item => Number(item.teacher_id) === Number(teacherId));
 
-  const enrollModal = cls => setModal({
-    title: `報名到「${cls.name}」`, hint: '只列出必要文件已核准或已進入訓練的工人；報名後工人頁面會顯示課程日期與證照辦件日期提醒。',
-    fields: [{ name: 'workerId', label: '工人', type: 'select', required: true, options: students.filter(item => !enrollments.some(row => Number(row.class_id) === Number(cls.id) && Number(row.worker_id) === Number(item.id))).map(item => [item.id, item.name]) }],
-    initial: { workerId: '' },
-    submit: values => save('POST', { resource: 'enrollment', classId: cls.id, workerId: values.workerId }, '已報名工人'),
-  });
+  const enrollModal = cls => {
+    const enrolled = new Set(enrollments.filter(row => Number(row.class_id) === Number(cls.id)).map(row => Number(row.worker_id)));
+    const available = students.filter(item => !enrolled.has(Number(item.id)));
+    if (!available.length) { setMessage({ type: 'error', text: '符合資格的工人都已報名這個班別，沒有可再報名的工人。' }); return; }
+    setModal({
+      title: `報名到「${cls.name}」`, hint: '只列出初步文件審核已通過（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）或已進入訓練的工人；報名後工人頁面會顯示課程日期與證照辦件日期提醒。',
+      fields: [{ name: 'workerId', label: '工人', type: 'select', required: true, options: available.map(item => [item.id, item.name]) }],
+      initial: { workerId: '' },
+      submit: values => save('POST', { resource: 'enrollment', classId: cls.id, workerId: values.workerId }, '已報名工人'),
+    });
+  };
   const certModal = record => setModal({
     title: record ? '編輯證照' : '新增證照', fields: [{ name: 'name', label: '證照名稱', required: true }, { name: 'description', label: '說明', type: 'textarea' }],
     initial: { name: record?.name || '', description: record?.description || '' },
@@ -286,7 +291,8 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'students' && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>學員報名</h2><p>把工人排進班別；工人頁面會顯示該班的訓練、考證、取證與證照辦件日期，並在日期接近時提醒。</p></div></div>
-      {classes.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>訓練日期</th><th>報名人數</th><th>學員</th><th>操作</th></tr></thead><tbody>{classes.map(row => { const list = enrollments.filter(item => Number(item.class_id) === Number(row.id)); return <tr key={row.id}><td><strong>{row.name}</strong><br />{row.certification_name}</td><td>{dateText(row.training_start_date)} ~ {dateText(row.training_end_date)}</td><td>{list.length}{row.capacity ? ` / ${row.capacity}` : ''}</td><td>{list.length ? list.map(item => <span key={item.id} style={{ display: 'inline-block', marginRight: 8 }}>{item.worker_name} <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => remove('enrollment', item.id, `${item.worker_name}的報名`)}>取消</button></span>) : '—'}</td><td><button type="button" className={styles.primaryButton} disabled={saving || !students.length} onClick={() => enrollModal(row)}>報名工人</button></td></tr>; })}</tbody></table></div>
+      {!students.length && <p className={styles.formHint}>目前沒有可報名的工人：工人需先通過初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准），才能報名班別。</p>}
+      {classes.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>訓練日期</th><th>報名人數</th><th>學員</th><th>操作</th></tr></thead><tbody>{classes.map(row => { const list = enrollments.filter(item => Number(item.class_id) === Number(row.id)); const full = Boolean(row.capacity) && list.length >= row.capacity; return <tr key={row.id}><td><strong>{row.name}</strong><br />{row.certification_name}</td><td>{dateText(row.training_start_date)} ~ {dateText(row.training_end_date)}</td><td>{list.length}{row.capacity ? ` / ${row.capacity}` : ''}</td><td>{list.length ? list.map(item => <span key={item.id} style={{ display: 'inline-block', marginRight: 8 }}>{item.worker_name} <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => remove('enrollment', item.id, `${item.worker_name}的報名`)}>取消</button></span>) : '—'}</td><td><button type="button" className={styles.primaryButton} disabled={saving || !students.length || full} onClick={() => enrollModal(row)}>報名工人</button>{full && <><br /><small>已額滿</small></>}</td></tr>; })}</tbody></table></div>
         : <Empty title="還沒有班別" text="請先到「開班與日期」建立班別，再報名工人。" />}
     </section>}
 

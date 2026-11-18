@@ -247,6 +247,13 @@ export const TRAINING_CENTER_EN = {
   '個章節': 'sections',
   '讀取履歷中…': 'Reading resume…',
   '讀取照片中…': 'Reading photo…',
+  // 學員報名：資格改為「初步文件審核通過或已進入訓練」，與訓練中心名單一致
+  '只列出初步文件審核已通過（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）或已進入訓練的工人；報名後工人頁面會顯示課程日期與證照辦件日期提醒。': 'Only workers who have passed the preliminary document review (any two of LCR Form 1-A, PSA birth certificate and passport approved) or who are already in training are listed. After enrollment, the worker\'s page shows reminders for the course dates and the certification application date.',
+  '目前沒有可報名的工人：工人需先通過初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准），才能報名班別。': 'No workers are available to enroll right now. A worker must first pass the preliminary document review (any two of LCR Form 1-A, PSA birth certificate and passport approved) before being enrolled in a class.',
+  '符合資格的工人都已報名這個班別，沒有可再報名的工人。': 'All eligible workers are already enrolled in this class, so there is no one left to enroll.',
+  '這位工人尚未通過初步文件審核，暫時不能報名班別。': 'This worker has not passed the preliminary document review yet and cannot be enrolled in a class for now.',
+  '請選擇工人。': 'Please select a worker.',
+  '這個班別已額滿。': 'This class is full.',
 };
 
 const OWNER_EN = { 訓練中心: 'training center', 菲律賓仲介: 'Philippines agency', 台灣仲介: 'Taiwan agency', 指定單位: 'designated party' };
@@ -255,6 +262,7 @@ const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 // 含變數的句型。translate 用來翻譯句型裡包含的子字串（例如「今天」「3 天後」）。
 export function translateTrainingCenterPattern(text, translate = value => value) {
   let m;
+  if ((m = text.match(/^報名到「(.+)」$/))) return `Enroll in "${m[1]}"`;
   if ((m = text.match(/^課程單元：(.+)$/))) return `Course units: ${m[1]}`;
   if ((m = text.match(/^課程單元（(\d+)）$/))) return `Course units (${m[1]})`;
   if ((m = text.match(/^學習：(.*)$/))) return `Learning: ${m[1]}`;
