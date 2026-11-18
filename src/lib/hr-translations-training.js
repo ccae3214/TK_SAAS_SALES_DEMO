@@ -277,6 +277,8 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^共 (\d+) 個班別$/))) return plural(m[1], 'class', 'classes') + ' in total';
   if ((m = text.match(/^共登記 (\d+) 筆持證$/))) return plural(m[1], 'certification holding', 'certification holdings') + ' registered';
   if ((m = text.match(/^證照批次 (\d+) 筆未發證$/))) return plural(m[1], 'certification batch', 'certification batches') + ' not yet issued';
+  if ((m = text.match(/^考證日期（(.+)）$/))) return `Exam date (${m[1]})`;
+  if ((m = text.match(/^證照辦件日期（(.+)）$/))) return `Certification application date (${translate(m[1])})`;
   if ((m = text.match(/^已(停用|啟用)「(.+)」$/))) return `${m[1] === '停用' ? 'Deactivated' : 'Activated'} "${translateLabel(m[2])}"`;
   if ((m = text.match(/^已刪除「(.+)」$/))) return `Deleted "${translateLabel(m[1])}"`;
   if ((m = text.match(/^確定刪除「(.+)」？此操作無法復原。$/))) return `Delete "${translateLabel(m[1])}"? This cannot be undone.`;
