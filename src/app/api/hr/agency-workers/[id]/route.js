@@ -1,3 +1,4 @@
+import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
@@ -20,21 +21,6 @@ export const dynamic = 'force-dynamic';
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
 const DOCUMENT_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3 };
-
-function sameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) {
-      if (value) allowed.add(new URL(value).origin);
-    }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
 
 let schemaPromise;
 async function ensureWorkerProgressSchema() {
@@ -169,7 +155,7 @@ export async function GET(request, { params }) {
 export async function PATCH(request, { params }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
+  if (!requestIsSameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
   const { id: rawId } = await params;
   if (!validId(rawId)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
   const workerId = Number(rawId);

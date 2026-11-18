@@ -1,3 +1,4 @@
+import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { ensureSchema } from '@/app/api/hr/route';
@@ -6,19 +7,6 @@ import { query } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function sameOrigin(request) {
-  const origin=request.headers.get('origin');
-  if(!origin)return false;
-  try {
-    const allowed=new Set([new URL(request.url).origin]);
-    for(const value of [process.env.APP_ORIGIN,process.env.NEXTAUTH_URL])if(value)allowed.add(new URL(value).origin);
-    const host=request.headers.get('x-forwarded-host')||request.headers.get('host');
-    const protocol=(request.headers.get('x-forwarded-proto')||new URL(request.url).protocol.slice(0,-1)).split(',')[0].trim();
-    if(host)allowed.add(`${protocol}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
 
 async function ensureRooms() {
   await query("ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_room_type_check");
@@ -131,7 +119,7 @@ export async function GET(request) {
 export async function POST(request) {
   const session=await auth();
   if(!session?.user)return NextResponse.json({error:'Authentication required'},{status:401});
-  if(!sameOrigin(request))return NextResponse.json({error:'請從本站提交資料。'},{status:403});
+  if(!requestIsSameOrigin(request))return NextResponse.json({error:'請從本站提交資料。'},{status:403});
   try {
     await ensureSchema();
     const principal=await getHrPrincipal(session);

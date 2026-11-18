@@ -4,7 +4,7 @@ services:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-82988530}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       - POSTGRES_DB=${POSTGRES_DB:-saas_demo}
     ports:
       # 只開給本機（維護時用 psql / 備份）。以前是 "5432:5432"，會對外網開放資料庫。
@@ -43,7 +43,7 @@ services:
       # Only these LINE IDs can manage other system administrator accounts.
       - HR_ADMIN_LINE_USER_IDS=${HR_ADMIN_LINE_USER_IDS:-}
       - HR_DOCUMENT_ENCRYPTION_KEY=${HR_DOCUMENT_ENCRYPTION_KEY:-}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-82988530}@postgres:5432/${POSTGRES_DB:-saas_demo}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-saas_demo}
     depends_on:
       postgres:
         condition: service_healthy

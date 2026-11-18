@@ -1,3 +1,4 @@
+import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import pool, { query } from '@/lib/db';
@@ -254,22 +255,6 @@ const validDate = value => {
   const date = new Date(`${text}T00:00:00.000Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === text;
 };
-
-function sameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) {
-      if (value) allowed.add(new URL(value).origin);
-    }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  }
-  catch { return false; }
-}
 
 async function recordActivity(caseId, actor, action, detail) {
   await pool.query('INSERT INTO hr_case_activity(case_id, actor_email, action, detail) VALUES($1,$2,$3,$4)', [caseId, actor, action, detail]);
@@ -536,7 +521,7 @@ const editLinkedRecord = (kind, id, fields, update, agencyId) => updateLinkedRec
 async function handlePost(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
+  if (!requestIsSameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
   try {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
@@ -893,7 +878,7 @@ async function handlePost(request) {
 async function handlePatch(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
+  if (!requestIsSameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
   try {
     await ensureSchema();
     const principal = await getHrPrincipal(session);
@@ -1535,7 +1520,7 @@ async function handlePatch(request) {
 async function handleDelete(request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  if (!sameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
+  if (!requestIsSameOrigin(request)) return NextResponse.json({ error: '請從本站提交資料。' }, { status: 403 });
   const deleteType=new URL(request.url).searchParams.get('type');
   try {
     await ensureSchema();

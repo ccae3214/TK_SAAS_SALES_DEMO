@@ -57,6 +57,8 @@ Environment variables used by Docker verification:
 - `POSTGRES_DB`
 - `DATABASE_URL`
 
+`POSTGRES_PASSWORD` has no default: `docker compose` refuses to start without it, and the app refuses to start without `DATABASE_URL` (there is no built-in connection string). `APP_ORIGIN` / `NEXTAUTH_URL` must be the public origin users type in the browser (for example `https://your-domain`), because the same-origin check for HR writes only trusts those two values and the request URL, never `X-Forwarded-Host`.
+
 If they are not already set, the script falls back to safe local verification defaults.
 
 To grant HR system administrator access by Google/Gmail login, set `HR_ADMIN_EMAILS` to a comma-separated list of email addresses. Existing `ADMIN_EMAILS` remains supported. `HR_ADMIN_LINE_USER_IDS` is the root administrator allowlist: only these LINE users can create, read, update, or delete other system administrator accounts. Add at least one trusted LINE User ID there before granting the system administrator member type; ordinary HR administrators cannot promote accounts to that type.

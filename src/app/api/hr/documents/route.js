@@ -1,3 +1,4 @@
+import { requestIsSameOrigin } from '@/lib/hr-employer-documents';
 import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
@@ -9,21 +10,6 @@ export const dynamic = 'force-dynamic';
 
 const MAX_SIZE = 10 * 1024 * 1024;
 const clean = (value, max = 1000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
-
-function requestIsSameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) {
-      if (value) allowed.add(new URL(value).origin);
-    }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
 
 function documentKey() {
   const key = Buffer.from(process.env.HR_DOCUMENT_ENCRYPTION_KEY || '', 'base64');
