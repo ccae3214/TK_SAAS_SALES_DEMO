@@ -26,5 +26,14 @@
 .line { display: flex; gap: 10px; align-items: flex-start; }
 .speaker { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-bg, #e7f0fa); color: var(--blue, #245f9e); font-weight: 700; font-size: 13px; }
 .lineText small { display: block; color: #5b6b63; }
+.lineText { flex: 1 1 auto; min-width: 0; }
+.speechBar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line, #e1e9e4); border-radius: 10px; background: var(--line-soft, #edf2ee); }
+.speechOption { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.speechOption select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line, #cfd9d3); background: #fff; }
+.speakGroup { display: inline-flex; flex: none; gap: 6px; }
+.speakButton { min-width: 40px; height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line, #cfd9d3); background: #fff; cursor: pointer; font: inherit; font-size: 14px; line-height: 1; }
+.speakButton:disabled { opacity: .5; cursor: default; }
+.speakActive { background: #1f7a4d; border-color: #1f7a4d; color: #fff; }
+.speaking { background: #fff8d6; border-radius: 8px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; align-items: center; }
 .error { color: #b42318; }

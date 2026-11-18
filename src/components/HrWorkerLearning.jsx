@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { learningProgress, parseLessonLines } from '@/lib/hr-learning';
+import { SPEECH_RATES, SPEECH_TEXT, buildUnitSpeechQueue, rowSpeechItems } from '@/lib/hr-speech';
+import { useLessonSpeech } from '@/lib/use-lesson-speech';
 import styles from './HrWorkerLearning.module.css';
 
 // 工人的學習頁：單元清單（含進度）→ 單元內容（學習重點、詞彙、例句、對話）→ 標記讀完。
 // 系統管理者與訓練中心預覽時為唯讀（不能標記進度）。
+// 單元內容可朗讀：每個詞彙／例句／對話旁有播放鈕，也可以朗讀整個單元（瀏覽器內建語音）。
 export default function HrWorkerLearning({ courseId, onClose }) {
   const { lang } = useLanguage();
   const [data, setData] = useState(null);
@@ -14,6 +17,11 @@ export default function HrWorkerLearning({ courseId, onClose }) {
   const [unitId, setUnitId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState([]);
+  const speech = useLessonSpeech();
+  const { stop: stopSpeech } = speech;
+  const [includeEnglish, setIncludeEnglish] = useState(true);
+  const [slow, setSlow] = useState(false);
+  const speechText = SPEECH_TEXT[lang === 'en' ? 'en' : 'zh'];
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +36,9 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       .catch(() => { if (!cancelled) setError('無法讀取學習內容，請稍後再試。'); });
     return () => { cancelled = true; };
   }, [courseId]);
+
+  // 換單元或回到清單時停止朗讀。
+  useEffect(() => { stopSpeech(); }, [unitId, stopSpeech]);
 
   const pick = (zh, en) => lang === 'en' && en ? en : zh;
   const units = data?.units || [];
@@ -64,21 +75,58 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     const examples = parseLessonLines(unit.examples);
     const dialogue = parseLessonLines(unit.dialogue, { speaker: true });
     const topics = pick(unit.topics, unit.topics_en);
+
+    const rate = slow ? SPEECH_RATES.slow : SPEECH_RATES.normal;
+    const hasSpeakable = [...vocabulary, ...examples, ...dialogue].some(row => row.zh);
+    const isSpeaking = (section, i) => speech.playingKey === `${section}-${i}`;
+    const playUnit = () => speech.play(buildUnitSpeechQueue({ vocabulary, examples, dialogue }, { includeEnglish }), { rate });
+    const playRow = (section, i, row, part) => {
+      if (isSpeaking(section, i)) return speech.stop();
+      speech.play(rowSpeechItems(section, i, row, part), { rate });
+    };
+    const speakButtons = (section, i, row) => speech.supported ? <span className={styles.speakGroup}>
+      <button type="button" className={`${styles.speakButton} ${isSpeaking(section, i) ? styles.speakActive : ''}`} aria-label={speechText.playZh} title={speechText.playZh} disabled={!row.zh} onClick={() => playRow(section, i, row, 'zh')}>
+        <span aria-hidden="true">🔊</span>
+      </button>
+      {row.en && <button type="button" className={`${styles.speakButton} ${isSpeaking(section, i) ? styles.speakActive : ''}`} aria-label={speechText.playEn} title={speechText.playEn} onClick={() => playRow(section, i, row, 'en')}>
+        <span aria-hidden="true">EN</span>
+      </button>}
+    </span> : null;
+
     return <div className={styles.panel}>
       {header}
       <p className={styles.muted}>{`${index + 1} / ${units.length}${unit.hours ? ` · ${unit.hours} 小時` : ''}`}</p>
       <h3>{pick(unit.name, unit.name_en)}</h3>
+      {speech.supported && hasSpeakable && <div className={styles.speechBar}>
+        <button type="button" className={`${styles.button} ${speech.playingKey ? '' : styles.buttonPrimary}`} onClick={speech.playingKey ? speech.stop : playUnit}>
+          <span aria-hidden="true">{speech.playingKey ? '⏹' : '🔊'}</span>{' '}<span>{speech.playingKey ? speechText.stop : speechText.playUnit}</span>
+        </button>
+        <label className={styles.speechOption}><input type="checkbox" checked={includeEnglish} onChange={event => setIncludeEnglish(event.target.checked)} /><span>{speechText.includeEnglish}</span></label>
+        <label className={styles.speechOption}><span>{speechText.speed}</span>
+          <select value={slow ? 'slow' : 'normal'} onChange={event => setSlow(event.target.value === 'slow')}>
+            <option value="normal">{speechText.speedNormal}</option>
+            <option value="slow">{speechText.speedSlow}</option>
+          </select>
+        </label>
+      </div>}
+      {speech.checked && !speech.supported && hasSpeakable && <p className={styles.muted}>{speechText.unsupported}</p>}
+      {speech.missingChineseVoice && hasSpeakable && <p className={styles.muted}>{speechText.noChineseVoice}</p>}
+      {speech.error && <p className={styles.error}>{speechText.failed}</p>}
       {topics && <div className={styles.section}><h4>學習重點</h4><p>{topics}</p></div>}
-      {vocabulary.length > 0 && <div className={styles.section}><h4>詞彙</h4><div className={styles.tableWrap}><table className={styles.lessonTable}><thead><tr><th>詞彙</th><th>拼音</th><th>英文</th></tr></thead><tbody>
-        {vocabulary.map((row, i) => <tr key={i}><td className={styles.zh}>{row.zh}</td><td>{row.pinyin}</td><td>{row.en}</td></tr>)}
+      {vocabulary.length > 0 && <div className={styles.section}><h4>詞彙</h4><div className={styles.tableWrap}><table className={styles.lessonTable}><thead><tr><th>詞彙</th><th>拼音</th><th>英文</th>{speech.supported && <th>{speechText.listen}</th>}</tr></thead><tbody>
+        {vocabulary.map((row, i) => <tr key={i} className={isSpeaking('vocabulary', i) ? styles.speaking : ''}><td className={styles.zh}>{row.zh}</td><td>{row.pinyin}</td><td>{row.en}</td>{speech.supported && <td>{speakButtons('vocabulary', i, row)}</td>}</tr>)}
       </tbody></table></div></div>}
       {examples.length > 0 && <div className={styles.section}><h4>例句</h4><div className={styles.dialogue}>
-        {examples.map((row, i) => <div className={styles.lineText} key={i}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>)}
+        {examples.map((row, i) => <div className={`${styles.line} ${isSpeaking('examples', i) ? styles.speaking : ''}`} key={i}>
+          <div className={styles.lineText}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>
+          {speakButtons('examples', i, row)}
+        </div>)}
       </div></div>}
       {dialogue.length > 0 && <div className={styles.section}><h4>對話</h4><div className={styles.dialogue}>
-        {dialogue.map((row, i) => <div className={styles.line} key={i}>
+        {dialogue.map((row, i) => <div className={`${styles.line} ${isSpeaking('dialogue', i) ? styles.speaking : ''}`} key={i}>
           <span className={styles.speaker}>{row.speaker || '•'}</span>
           <div className={styles.lineText}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>
+          {speakButtons('dialogue', i, row)}
         </div>)}
       </div></div>}
       {!topics && !vocabulary.length && !examples.length && !dialogue.length && <p className={styles.muted}>這個單元還沒有學習內容。</p>}

@@ -497,9 +497,9 @@ function PortalStyles() {
 .hr-member-shell .hr-member-header button{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;min-height:40px;padding:9px 16px;border:1px solid rgba(255,255,255,.3);border-radius:11px;background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:background .18s,transform .18s}
 .hr-member-shell .hr-member-header button:hover{background:rgba(255,255,255,.26);transform:translateY(-1px)}
 .hr-member-shell .hr-member-header button:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.hr-member-shell .workspace-tabs{position:sticky;top:10px;z-index:20;display:flex;gap:6px;max-width:1100px;margin:0 auto 20px;padding:6px;overflow-x:auto;border:1px solid rgba(255,255,255,.9);border-radius:18px;background:rgba(255,255,255,.82);box-shadow:var(--shadow-sm),0 12px 30px rgba(15,45,33,.06);backdrop-filter:blur(14px);scrollbar-width:none}
+.hr-member-shell .workspace-tabs{position:sticky;top:10px;z-index:20;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px;max-width:1100px;margin:0 auto 20px;padding:6px;overflow:visible;border:1px solid rgba(255,255,255,.9);border-radius:18px;background:rgba(255,255,255,.82);box-shadow:var(--shadow-sm),0 12px 30px rgba(15,45,33,.06);backdrop-filter:blur(14px)}
 .hr-member-shell .workspace-tabs::-webkit-scrollbar{display:none}
-.hr-member-shell .workspace-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:1 0 auto;min-height:44px;padding:9px 18px;border:0;border-radius:13px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,box-shadow .18s}
+.hr-member-shell .workspace-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:0;min-height:44px;padding:9px 18px;border:0;border-radius:13px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:700;line-height:1.35;white-space:normal;cursor:pointer;transition:background .18s,color .18s,box-shadow .18s}
 .hr-member-shell .workspace-tabs button svg{flex:none;opacity:.8}
 .hr-member-shell .workspace-tabs button:hover{background:var(--g-50);color:var(--g-700)}
 .hr-member-shell .workspace-tabs button.active{background:linear-gradient(135deg,var(--g-700),var(--g-500));color:#fff;box-shadow:0 6px 16px rgba(23,107,84,.32)}
@@ -895,6 +895,8 @@ function PortalStyles() {
 .hr-member-shell label.resume-language-level{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.hr-member-shell .hr-member-header,.hr-member-shell .hr-member-card,.hr-member-shell .progress-modal,.hr-member-shell .progress-modal-backdrop{animation:none}
 .hr-member-shell .hr-member-card button,.hr-member-shell .workspace-tabs button,.hr-member-shell .member-home-metrics article{transition:none}}
+@media(max-width:420px){.hr-member-shell .workspace-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hr-member-shell .workspace-tabs button{padding:8px 6px}}
 /* ===== 工人階段文件 ===== */
 .hr-member-shell .stage-overall{display:grid;gap:8px;margin:0 0 16px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(120deg,var(--g-50),#fff)}
 .hr-member-shell .stage-overall>div{display:flex;justify-content:space-between;gap:12px;color:var(--ink-2);font-size:13px}
