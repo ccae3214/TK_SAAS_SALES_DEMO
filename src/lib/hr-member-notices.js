@@ -1,4 +1,5 @@
 import { query } from '@/lib/db';
+import { documentDisplayName } from '@/lib/hr-line-document-names';
 
 // 會員相關的 LINE 通知。原則：不通知「單一動作」（單份文件、來台程序的單一步驟），
 // 只在「一個完整進度完成」時通知：
@@ -155,7 +156,7 @@ export async function notifyAfterDocumentReview({ workerId, submissionId = null,
     const lines = [COPY.docHeader[language]({ ok, total: required.length, who })];
     if (returned.length) {
       lines.push(COPY.docReturnedTitle[language](returned.length));
-      for (const d of returned.slice(0, 15)) lines.push(`・${short(d.name, 60)}：${short(d.review_reason, 120) || '-'}`);
+      for (const d of returned.slice(0, 15)) lines.push(`・${short(documentDisplayName(d.name, language), 60)}：${short(d.review_reason, 120) || '-'}`);
       if (returned.length > 15) lines.push('…');
     }
     lines.push(...milestones);

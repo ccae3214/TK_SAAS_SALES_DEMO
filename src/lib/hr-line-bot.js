@@ -6,6 +6,7 @@ import { insertWorkerDocuments } from '@/lib/hr-requirements';
 import { normalizePersonName } from '@/lib/person-name';
 import { recordLineAdminAction } from '@/lib/hr-audit';
 import { detectedLanguage, fallbackReplyLanguage, roleDefaultLanguage } from '@/lib/hr-line-language';
+import { documentDisplayName } from '@/lib/hr-line-document-names';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -244,7 +245,10 @@ async function ensureRichMenu(versionedKey) {
 
 export async function syncLineRichMenu(lineUserId, principal, language = null) {
   if (!lineUserId) return;
-  const baseKey = localizedMenuKey(richMenuKey(principal), language);
+  // 呼叫端沒指定語言時（例如管理者核准會員、管理者建立會員），不能直接用中文選單：
+  // 菲律賓會員第一次點選單會送出中文文字。改用會員已存的語言，沒有就用身分預設語言。
+  const menuLanguage = language || (await getPreferredLanguage(lineUserId)) || roleDefaultLanguage(principal);
+  const baseKey = localizedMenuKey(richMenuKey(principal), menuLanguage);
   const menuKey = baseKey ? await versionedRichMenuKey(baseKey) : null;
   const rows = await query('SELECT rich_menu_role FROM hr_line_member_settings WHERE line_user_id=$1', [lineUserId]);
   if ((rows[0]?.rich_menu_role || null) === menuKey) return;
@@ -1442,7 +1446,7 @@ export async function replyForHrLineEvent(event) {
         ? {missing:'Hindi pa natatanggap',submitted:'Naghihintay ng pagsusuri',approved:'Naaprubahan',returned:'Ibinalik para ayusin'}
         : DOC_LABELS;
     const header = activeLanguage === 'en' ? 'Documents still needed:' : activeLanguage === 'tl' ? 'Mga dokumentong kailangan pa:' : '尚未完成的文件：';
-    return [header, ...rows.map(item => `${principal.role === 'worker' ? '' : `${item.worker_name}｜`}${item.name}: ${docLabels[item.status] || item.status}${item.status === 'returned' && item.review_reason ? ` (${item.review_reason})` : ''}`)].join('\n');
+    return [header, ...rows.map(item => `${principal.role === 'worker' ? '' : `${item.worker_name}｜`}${documentDisplayName(item.name, activeLanguage)}: ${docLabels[item.status] || item.status}${item.status === 'returned' && item.review_reason ? ` (${item.review_reason})` : ''}`)].join('\n');
   }
   if (/待辦|待處理|工作事項|task|to-do|pending work|gawain|nakabinbin/.test(lower)) {
     const rows = await visibleTasks(principal);

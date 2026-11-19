@@ -86,3 +86,7 @@ test('選單 key 帶有內容簽章，按鈕文字、圖片一變就會自動換
   assert.match(source, /const stored = await query\('SELECT rich_menu_id FROM hr_line_rich_menus WHERE menu_key=\$1', \[versionedKey\]\)/);
   assert.match(source, /VALUES\(\$1,\$2\) ON CONFLICT\(menu_key\) DO NOTHING`, \[versionedKey, richMenuId\]\)/);
 });
+
+test('同步圖文選單沒指定語言時（核准會員、管理者建立會員），依已存語言或身分預設語言，不直接用中文選單', () => {
+  assert.match(source, /const menuLanguage = language \|\| \(await getPreferredLanguage\(lineUserId\)\) \|\| roleDefaultLanguage\(principal\);\s*const baseKey = localizedMenuKey\(richMenuKey\(principal\), menuLanguage\);/);
+});
