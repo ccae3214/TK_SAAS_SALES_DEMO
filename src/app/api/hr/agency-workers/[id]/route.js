@@ -11,6 +11,7 @@ import {
 import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { ensureWorkerProgressSchema } from '@/lib/hr-schema';
 
 // 菲律賓仲介（與系統管理者）管理「底下工作者」的文件審核與進度安排；訓練中心只能更新「訓練」狀態。
 // 文件的審核、適用性切換、上傳與預覽沿用既有 API（/api/hr、/api/hr/documents）；
@@ -21,47 +22,6 @@ export const dynamic = 'force-dynamic';
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
 const DOCUMENT_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3 };
-
-function sameOrigin(request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const allowed = new Set([new URL(request.url).origin]);
-    for (const value of [process.env.APP_ORIGIN, process.env.NEXTAUTH_URL]) {
-      if (value) allowed.add(new URL(value).origin);
-    }
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.slice(0, -1);
-    if (host) allowed.add(`${protocol.split(',')[0].trim()}://${host}`);
-    return allowed.has(new URL(origin).origin);
-  } catch { return false; }
-}
-
-let schemaPromise;
-async function ensureWorkerProgressSchema() {
-  if (!schemaPromise) schemaPromise = (async () => {
-    // 先確保既有資料表（工作者、文件、案件…）已建立；匯入失敗時不阻擋，因為正常使用時 /api/hr 早已建立。
-    try {
-      const base = await import('@/app/api/hr/route');
-      if (typeof base.ensureSchema === 'function') await base.ensureSchema();
-    } catch (error) { console.error('hr_worker_progress_base_schema_skipped', error?.name || 'Error'); }
-    await pool.query(`CREATE TABLE IF NOT EXISTS hr_worker_progress_steps (
-      worker_id BIGINT NOT NULL REFERENCES hr_workers(id) ON DELETE CASCADE,
-      step_key TEXT NOT NULL, started_on DATE, completed_on DATE,
-      note TEXT NOT NULL DEFAULT '', updated_by TEXT NOT NULL DEFAULT '',
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (worker_id, step_key)
-    )`);
-    await pool.query("ALTER TABLE hr_worker_progress_steps ADD COLUMN IF NOT EXISTS detail TEXT NOT NULL DEFAULT ''");
-    await pool.query(`CREATE TABLE IF NOT EXISTS hr_worker_health_training (
-      worker_id BIGINT PRIMARY KEY REFERENCES hr_workers(id) ON DELETE CASCADE,
-      medical_status TEXT NOT NULL DEFAULT 'not_scheduled',
-      training_status TEXT NOT NULL DEFAULT 'not_scheduled',
-      updated_by TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`);
-  })().catch(error => { schemaPromise = null; throw error; });
-  return schemaPromise;
-}
 
 // 回傳 { worker } 或 { response }（錯誤回應）。
 async function authorize(principal, workerId, { trainingCenterOk = false } = {}) {
