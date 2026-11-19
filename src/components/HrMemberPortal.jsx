@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, GraduationCap, LogOut, ChevronDown, Check } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
+import { photoFileError } from '@/lib/hr-photo-file';
 import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrFilePicker from '@/components/HrFilePicker';
 import HrWorkerProgressLink from '@/components/HrWorkerProgressLink';
@@ -1148,10 +1149,8 @@ export default function HrMemberPortal({ actor }) {
   }
   function uploadWorkerPhoto(event) {
     const input=event.currentTarget,file=input.files?.[0];if(!file)return;
-    // Phone photos are often 3-10 MB; the cropper resizes them to 600x750 JPEG, so only guard against huge/unsupported files.
-    const isJpegOrPng=/^image\/(jpeg|jpg|pjpeg|png)$/i.test(file.type)||(!file.type&&/\.(jpe?g|png)$/i.test(file.name||''));
-    if(!isJpegOrPng){setError('履歷照片請使用 JPG 或 PNG 格式（iPhone 請選擇「最相容」格式，或截圖後上傳）。');input.value='';return;}
-    if(file.size>30000000){setError('履歷照片檔案過大，請選擇小於 30 MB 的照片。');input.value='';return;}
+    const photoError=photoFileError(file);
+    if(photoError){setError(photoError);input.value='';return;}
     setError('');
     setPhotoCropFile(file);
     input.value='';
