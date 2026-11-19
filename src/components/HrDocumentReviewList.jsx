@@ -7,7 +7,7 @@ import { WORKER_STAGES, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequireme
 // 仲介／雇主查看多位工作者的必要文件。
 // 目標是減少手機上的捲動：依「需要處理」排序工作者、預設收合、可用狀態篩選。
 // 每位工作者是一個小元件（tile）；點選才會列出該工作者的全部文件，點另一位會自動收起前一位（同一時間只展開一位）。
-// 每位工作者的文件和工人頁面一樣依 A–G 階段分組；點開工作者後，各階段預設全部收起，點階段標題才展開該階段的文件。
+// 每位工作者的文件和工人頁面一樣依 A–G 階段分組；點開工作者後，各階段預設全部收起；點階段標題才展開，且一次只展開一個階段（點 D 會收起 A）。
 // 卡片內容由 renderItem 提供（沿用工作者頁面的文件卡片）。
 
 const STATUS_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3, na: 4 };
@@ -26,10 +26,10 @@ function takeOrderSnapshot(summaries) {
   return { workers, items };
 }
 
-function StageGroup({ stage, items, approved, applicable, pending, renderItem }) {
-  const [open, setOpen] = useState(false); // 階段一律預設收起，點階段標題才展開
+// 展開狀態由上層控制（一次只展開一個階段），預設全部收起。
+function StageGroup({ stage, items, approved, applicable, pending, open, onToggle, renderItem }) {
   return <section className={`doc-stage${pending === 0 ? ' doc-stage-done' : ''}`}>
-    <button type="button" className="doc-stage-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+    <button type="button" className="doc-stage-toggle" aria-expanded={open} onClick={onToggle}>
       <span className="stage-badge">{stage.key}</span>
       <span className="doc-stage-title">{stage.title}</span>
       <span className="doc-stage-count" title="已核准／適用文件">{approved}/{applicable}</span>
@@ -44,6 +44,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
   const [query, setQuery] = useState('');
   // undefined＝使用者尚未點選，改用預設（只有一位工作者時直接展開）；null＝全部收起。
   const [openId, setOpenId] = useState(undefined);
+  const [openStage, setOpenStage] = useState(null); // 目前展開的階段（A–G），同一時間只展開一個；null＝全部收起
 
   const summaries = useMemo(() => workers.map(person => {
     const rows = requirements.filter(item => Number(item.worker_id) === Number(person.id));
@@ -63,7 +64,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
     });
   }, [summaries, order]);
   const itemRank = item => order.items.get(item.id) ?? STATUS_ORDER[documentGroup(item)];
-  function changeFilter(key) { setFilter(key); setOrder(takeOrderSnapshot(summaries)); }
+  function changeFilter(key) { setFilter(key); setOpenStage(null); setOrder(takeOrderSnapshot(summaries)); }
 
   const totals = summaries.reduce((sum, row) => ({
     submitted: sum.submitted + row.counts.submitted,
@@ -116,7 +117,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
           return <Fragment key={person.id}>
             <button type="button" className={`doc-worker-tile${expanded ? ' is-open' : ''}${pending === 0 ? ' is-done' : ''}`}
               aria-expanded={expanded} aria-controls={`doc-worker-panel-${person.id}`}
-              onClick={() => setOpenId(expanded ? null : person.id)}>
+              onClick={() => { setOpenId(expanded ? null : person.id); setOpenStage(null); }}>
               <span className="doc-worker-name">{person.name}</span>
               <span className="doc-worker-progress" title="已核准／適用文件">{counts.approved}/{applicable}</span>
               <ChevronDown size={16} aria-hidden="true" className="doc-worker-chevron" />
@@ -130,7 +131,9 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
             {expanded&&<section className="doc-worker-panel doc-worker-body" id={`doc-worker-panel-${person.id}`}>
               <h3 className="doc-worker-panel-title">{person.name}</h3>
               {stageRows.length === 0&&<p className="doc-review-empty">目前沒有符合的文件。</p>}
-              {stageRows.map(row => <StageGroup key={`${row.stage.key}:${activeFilter}`} {...row} renderItem={renderItem} />)}
+              {stageRows.map(row => <StageGroup key={row.stage.key} {...row} renderItem={renderItem}
+                open={openStage === row.stage.key}
+                onToggle={() => setOpenStage(openStage === row.stage.key ? null : row.stage.key)} />)}
             </section>}
           </Fragment>;
         })}
