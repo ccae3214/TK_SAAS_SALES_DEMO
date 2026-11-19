@@ -245,9 +245,10 @@ async function ensureRichMenu(versionedKey) {
 
 export async function syncLineRichMenu(lineUserId, principal, language = null) {
   if (!lineUserId) return;
-  // 呼叫端沒指定語言時（例如管理者核准會員、管理者建立會員），不能直接用中文選單：
-  // 菲律賓會員第一次點選單會送出中文文字。改用會員已存的語言，沒有就用身分預設語言。
-  const menuLanguage = language || (await getPreferredLanguage(lineUserId)) || roleDefaultLanguage(principal);
+  // 呼叫端沒指定語言時（管理者核准會員、管理者建立會員）：以會員的 LINE 語言為準並存起來，
+  // 查不到再用已存的語言，最後才用身分預設語言；不能直接用中文選單（菲律賓會員會送出中文文字）。
+  const menuLanguage = language || (await refreshLanguageFromLineProfile(lineUserId))
+    || (await getPreferredLanguage(lineUserId)) || roleDefaultLanguage(principal);
   const baseKey = localizedMenuKey(richMenuKey(principal), menuLanguage);
   const menuKey = baseKey ? await versionedRichMenuKey(baseKey) : null;
   const rows = await query('SELECT rich_menu_role FROM hr_line_member_settings WHERE line_user_id=$1', [lineUserId]);
@@ -1132,6 +1133,14 @@ async function resolveReplyLanguage(lineUserId, fallback) {
   return profileLanguage;
 }
 
+// 以 LINE 個人資料的語言為準：查得到（中文／英文／Filipino）就存成回覆語言並回傳，查不到回傳 null、不動原設定。
+// 用在「核准會員」與「輸入我的身分」：已加入過的會員在這兩個時間點同步成他的 LINE 語言。
+async function refreshLanguageFromLineProfile(lineUserId) {
+  const profileLanguage = await getLineProfileLanguage(lineUserId);
+  if (profileLanguage) await setPreferredLanguage(lineUserId, profileLanguage);
+  return profileLanguage;
+}
+
 function caseScope(principal) {
   if (principal.role === 'admin') return { where: '', params: [] };
   if (principal.role === 'worker') return { where: 'c.worker_id=$1', params: [principal.worker_id] };
@@ -1408,7 +1417,10 @@ export async function replyForHrLineEvent(event) {
   }
   const activeLanguage = preference || language;
   if (/^(我的身分|我的身份|會員身分|會員身份|my identity|my membership|my member type|who am i|aking pagkakakilanlan|uri ng miyembro)$/i.test(text)) {
-    return identityReply(principal, activeLanguage);
+    // 「我的身分」：語言同步成 LINE 的語言，圖文選單一起換；查不到 LINE 語言就維持原本的語言。
+    const lineLanguage = await refreshLanguageFromLineProfile(lineUserId);
+    if (lineLanguage) await syncLineRichMenu(lineUserId, principal, lineLanguage);
+    return identityReply(principal, lineLanguage || activeLanguage);
   }
   if (principal?.role === 'admin') {
     const adminReply = await handleAdminManagement(lineUserId,text,principal,activeLanguage);
@@ -1516,6 +1528,7 @@ function memberApprovedMessage(language, { role, agencyType, agencyName }) {
 
 export async function notifyMemberApproved({ lineUserId, role, agencyType = null, agencyName = '' }) {
   if (!lineUserId) return;
-  const language = (await getPreferredLanguage(lineUserId)) || (role === 'worker' ? 'en' : 'zh');
+  const language = (await refreshLanguageFromLineProfile(lineUserId))
+    || (await getPreferredLanguage(lineUserId)) || (role === 'worker' ? 'en' : 'zh');
   await pushLineMessage(lineUserId, memberApprovedMessage(language, { role, agencyType, agencyName }));
 }

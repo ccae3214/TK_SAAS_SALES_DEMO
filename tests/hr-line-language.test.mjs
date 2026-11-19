@@ -87,6 +87,16 @@ test('選單 key 帶有內容簽章，按鈕文字、圖片一變就會自動換
   assert.match(source, /VALUES\(\$1,\$2\) ON CONFLICT\(menu_key\) DO NOTHING`, \[versionedKey, richMenuId\]\)/);
 });
 
-test('同步圖文選單沒指定語言時（核准會員、管理者建立會員），依已存語言或身分預設語言，不直接用中文選單', () => {
-  assert.match(source, /const menuLanguage = language \|\| \(await getPreferredLanguage\(lineUserId\)\) \|\| roleDefaultLanguage\(principal\);\s*const baseKey = localizedMenuKey\(richMenuKey\(principal\), menuLanguage\);/);
+test('同步圖文選單沒指定語言時（核准會員、管理者建立會員），先用 LINE 語言，再依已存語言或身分預設語言', () => {
+  assert.match(source, /const menuLanguage = language \|\| \(await refreshLanguageFromLineProfile\(lineUserId\)\)\s*\|\| \(await getPreferredLanguage\(lineUserId\)\) \|\| roleDefaultLanguage\(principal\);\s*const baseKey = localizedMenuKey\(richMenuKey\(principal\), menuLanguage\);/);
+});
+
+test('核准通知與「我的身分」都會把語言同步成 LINE 的語言，圖文選單一起換', () => {
+  assert.match(source, /export async function notifyMemberApproved[\s\S]*?const language = \(await refreshLanguageFromLineProfile\(lineUserId\)\)/);
+  assert.match(source, /const lineLanguage = await refreshLanguageFromLineProfile\(lineUserId\);\s*if \(lineLanguage\) await syncLineRichMenu\(lineUserId, principal, lineLanguage\);\s*return identityReply\(principal, lineLanguage \|\| activeLanguage\);/);
+});
+
+test('第一次加入（follow）時，沒有存過語言就用 LINE 語言並存起來', () => {
+  assert.match(source, /event\?\.type === 'follow'[\s\S]*?await resolveReplyLanguage\(lineUserId, roleDefaultLanguage\(principal\)\)/);
+  assert.match(source, /const profileLanguage = await getLineProfileLanguage\(lineUserId\);\s*if \(!profileLanguage\) return fallback;\s*await setPreferredLanguage\(lineUserId, profileLanguage\);/);
 });
