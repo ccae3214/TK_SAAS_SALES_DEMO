@@ -799,6 +799,33 @@ export function PortalStyles() {
 .hr-member-shell .doc-stage-chevron{flex:none;color:var(--ink-3);transition:transform .2s}
 .hr-member-shell button.doc-stage-toggle[aria-expanded=true] .doc-stage-chevron{transform:rotate(180deg)}
 .hr-member-shell .doc-stage-body{padding:0 10px 12px}
+/* 訓練與來台進度（管理員／仲介）：展開後的訓練中心與仲介進度區塊 */
+.hr-member-shell .wf-panel{padding-bottom:14px}
+.hr-member-shell .wf-case-line{margin:2px 14px 0;color:var(--ink-3);font-size:13px}
+.hr-member-shell .wf-next{display:flex;gap:8px;align-items:baseline;margin:10px 14px 0;padding:8px 12px;border-radius:10px;background:var(--g-50);color:var(--ink-2);font-size:13.5px}
+.hr-member-shell .wf-next b{flex:none;color:var(--g-700)}
+.hr-member-shell .wf-section{margin:12px 12px 0;padding:12px;border:1px solid var(--line-soft);border-radius:12px;background:#fff}
+.hr-member-shell .wf-section h4{margin:0 0 8px;font-size:14px;font-weight:800;color:var(--ink)}
+.hr-member-shell .wf-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line-soft);font-size:13.5px;color:var(--ink-2)}
+.hr-member-shell .wf-row:first-of-type{border-top:0}
+.hr-member-shell .wf-row small{display:block;color:var(--ink-3);font-size:12px}
+.hr-member-shell .wf-input{min-height:38px;max-width:190px;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-size:13.5px}
+.hr-member-shell .wf-save{min-height:38px;padding:4px 14px;border:1px solid var(--g-700);border-radius:8px;background:var(--g-700);color:#fff;font-size:13px;font-weight:800;box-shadow:none}
+.hr-member-shell .wf-save:disabled{border-color:var(--line);background:var(--g-50);color:var(--ink-3)}
+.hr-member-shell .wf-step{flex-wrap:wrap}
+.hr-member-shell .wf-step>span:first-child{flex:1 1 130px;min-width:0}
+.hr-member-shell .wf-ok{color:var(--g-700)}
+.hr-member-shell .wf-warn{color:var(--amber)}
+.hr-member-shell .wf-empty{margin:8px 0 0;color:var(--ink-3);font-size:13px}
+.hr-member-shell .wf-enrollment{display:grid;gap:4px;margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--g-50)}
+.hr-member-shell .wf-muted{color:var(--ink-3);font-size:12.5px}
+.hr-member-shell .wf-facts{display:grid;gap:4px;margin:6px 0 0}
+.hr-member-shell .wf-facts>div{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+.hr-member-shell .wf-facts dt{color:var(--ink-3)}
+.hr-member-shell .wf-facts dd{margin:0;text-align:right;color:var(--ink-2);font-weight:700}
+.hr-member-shell .wf-cert-list{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.hr-member-shell .wf-cert{padding:2px 8px;border-radius:999px;background:#eef2ef;font-size:12px;font-weight:700}
+.hr-member-shell .wf-cert i{margin-left:6px;font-style:normal;color:var(--g-700)}
 .hr-member-shell .doc-review-empty{margin:8px 0 0;padding:20px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--ink-3);font-size:14px}
 .hr-member-shell .process-row,.hr-member-shell .progress-step{display:grid;grid-template-columns:minmax(140px,1.2fr) repeat(2,minmax(130px,1fr)) minmax(120px,1fr) auto;align-items:end;gap:10px;padding:13px 15px;margin-top:10px;border:1px solid var(--line-soft);border-radius:14px;background:#fcfdfc}
 .hr-member-shell .process-case h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
