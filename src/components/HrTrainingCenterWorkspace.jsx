@@ -5,6 +5,7 @@ import styles from './HrManagement.module.css';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
+import HrWorkerLearning from '@/components/HrWorkerLearning';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
@@ -81,6 +82,9 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [unitCourseId, setUnitCourseId] = useState(null);
+  // 學習預覽：用工人看到的學習頁預覽課程內容（管理者與訓練中心為唯讀）。
+  const [learningCourseId, setLearningCourseId] = useState(null);
+  const learningRef = useRef(null);
 
   const load = useCallback(async id => {
     try {
@@ -92,6 +96,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     } catch (error) { setMessage({ type: 'error', text: error.message }); setData(current => current || { centers: [], center: null }); }
   }, [self]);
   useEffect(() => { void load(''); }, [load]);
+  useEffect(() => { if (learningCourseId) learningRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); }, [learningCourseId]);
 
   async function request(method, body, query = '') {
     const response = await fetch(`/api/hr/training-center${query}`, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -222,7 +227,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
         <div><h2>{self ? center.display_name : '訓練中心工作區'}</h2><p>管理訓練中心老師持有的證照、證照課程、依證照開班的訓練／考證／取證日期，以及班別的證照批次。</p></div>
-        {!self && <label className={styles.filterField}>訓練中心<select className={styles.inlineSelect} value={centerId} onChange={event => { setData(null); void load(event.target.value); }}>{data.centers.map(item => <option key={item.id} value={item.id}>{item.display_name}{item.active ? '' : '（停用）'}</option>)}</select></label>}
+        {!self && <label className={styles.filterField}>訓練中心<select className={styles.inlineSelect} value={centerId} onChange={event => { setData(null); setLearningCourseId(null); void load(event.target.value); }}>{data.centers.map(item => <option key={item.id} value={item.id}>{item.display_name}{item.active ? '' : '（停用）'}</option>)}</select></label>}
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
@@ -271,8 +276,10 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'courses' && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>證照課程</h2><p>每門課程對應一張證照，開班時依課程帶入證照。</p></div><button className={styles.primaryButton} disabled={!activeCerts.length} onClick={() => courseModal(null)}>新增課程</button></div>
-      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => setUnitCourseId(Number(unitCourseId) === Number(row.id) ? null : row.id)}>{`課程單元（${unitsOf(row.id).length}）`}</button><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
+      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} disabled={!unitsOf(row.id).length} title={unitsOf(row.id).length ? undefined : (lang === 'en' ? 'Add course units first' : '請先新增課程單元')} onClick={() => setLearningCourseId(Number(learningCourseId) === Number(row.id) ? null : row.id)}>{lang === 'en' ? 'Preview learning' : '學習預覽'}</button><button className={styles.smallButton} onClick={() => setUnitCourseId(Number(unitCourseId) === Number(row.id) ? null : row.id)}>{`課程單元（${unitsOf(row.id).length}）`}</button><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
     </section>}
+
+    {tab === 'courses' && learningCourseId && courses.some(item => Number(item.id) === Number(learningCourseId)) && <div ref={learningRef}><HrWorkerLearning key={learningCourseId} courseId={learningCourseId} onClose={() => setLearningCourseId(null)} /></div>}
 
     {tab === 'courses' && unitCourse && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>{`課程單元：${unitCourse.name}`}</h2><p>{unitsOf(unitCourse.id).length ? `單元時數合計：${unitsOf(unitCourse.id).reduce((sum, item) => sum + (item.hours || 0), 0)} 小時` : '把課程內容拆成單元，每個單元可寫學習重點與例句。'}</p></div><div className={styles.rowActions}><button className={styles.primaryButton} onClick={() => unitModal(null)}>新增單元</button><button className={styles.smallButton} onClick={() => setUnitCourseId(null)}>關閉</button></div></div>
