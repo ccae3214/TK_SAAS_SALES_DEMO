@@ -31,3 +31,9 @@ test('document review list shows workers as tiles and keeps only one expanded at
   assert.doesNotMatch(source, /useState\(\{\}\)/);
   assert.doesNotMatch(source, /setOpen\(prev =>/);
 });
+
+// 點開工作者時，各階段（A–G）預設全部收起，不要一次把所有進度都展開。
+test('document review list opens a worker with every stage collapsed', () => {
+  assert.match(source, /const \[open, setOpen\] = useState\(false\)/);
+  assert.doesNotMatch(source, /defaultOpen/);
+});

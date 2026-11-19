@@ -7,7 +7,7 @@ import { WORKER_STAGES, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequireme
 // 仲介／雇主查看多位工作者的必要文件。
 // 目標是減少手機上的捲動：依「需要處理」排序工作者、預設收合、可用狀態篩選。
 // 每位工作者是一個小元件（tile）；點選才會列出該工作者的全部文件，點另一位會自動收起前一位（同一時間只展開一位）。
-// 每位工作者的文件和工人頁面一樣依 A–G 階段分組；還有待處理文件的階段預設展開，全部核准的階段預設收起。
+// 每位工作者的文件和工人頁面一樣依 A–G 階段分組；點開工作者後，各階段預設全部收起，點階段標題才展開該階段的文件。
 // 卡片內容由 renderItem 提供（沿用工作者頁面的文件卡片）。
 
 const STATUS_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3, na: 4 };
@@ -26,8 +26,8 @@ function takeOrderSnapshot(summaries) {
   return { workers, items };
 }
 
-function StageGroup({ stage, items, approved, applicable, pending, defaultOpen, renderItem }) {
-  const [open, setOpen] = useState(defaultOpen);
+function StageGroup({ stage, items, approved, applicable, pending, renderItem }) {
+  const [open, setOpen] = useState(false); // 階段一律預設收起，點階段標題才展開
   return <section className={`doc-stage${pending === 0 ? ' doc-stage-done' : ''}`}>
     <button type="button" className="doc-stage-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
       <span className="stage-badge">{stage.key}</span>
@@ -130,8 +130,7 @@ export default function HrDocumentReviewList({ workers, requirements, renderItem
             {expanded&&<section className="doc-worker-panel doc-worker-body" id={`doc-worker-panel-${person.id}`}>
               <h3 className="doc-worker-panel-title">{person.name}</h3>
               {stageRows.length === 0&&<p className="doc-review-empty">目前沒有符合的文件。</p>}
-              {stageRows.map(row => <StageGroup key={`${row.stage.key}:${activeFilter}`} {...row}
-                defaultOpen={activeFilter !== 'all' || row.pending > 0} renderItem={renderItem} />)}
+              {stageRows.map(row => <StageGroup key={`${row.stage.key}:${activeFilter}`} {...row} renderItem={renderItem} />)}
             </section>}
           </Fragment>;
         })}
