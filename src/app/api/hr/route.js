@@ -13,6 +13,7 @@ import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, S
 import { refreshCaseStage as refreshStage } from '@/lib/hr-case-stage';
 import { isWithdrawnRecommendation } from '@/lib/hr-candidate-withdrawal';
 import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
+import { recordCandidateDeposit } from '@/lib/hr-candidate-deposit-store';
 import { isRouteCertified, certifiedPhilippinesAgencyIds } from '@/lib/hr-agency-certification-store';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { cleanStepDetail } from '@/lib/hr-worker-progress';
@@ -221,6 +222,8 @@ export async function GET() {
     // 雇主年齡、性別與家庭成員只提供雇主本人、台灣仲介與管理者；工作者與菲律賓仲介看不到。
     if (principal.role === 'worker' || (principal.role === 'agency' && principal.agency_type !== 'taiwan')) {
       employers = employers.map(item => ({ ...item, employer_profile: {} }));
+      // 訂金金額只給雇主、台灣仲介與管理者；工作者與菲律賓仲介只看得到「已結單」。
+      orderCandidates = orderCandidates.map(({ deposit_amount, deposit_recorded_by, ...item }) => item);
     }
     const caseIds = new Set(cases.map(item => Number(item.id)));
     const privateCaseIds = employerPrivateCaseIds || caseIds;
@@ -337,6 +340,10 @@ async function handlePatch(request) {
         await client.query('COMMIT');
         return NextResponse.json(updated.rows[0]);
       }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+    }
+    if (body.type === 'job-order-candidate-deposit') {
+      const result = await recordCandidateDeposit(pool, principal, body, actor);
+      return NextResponse.json(result.body, { status: result.status });
     }
     if (body.type === 'job-order-candidate-withdraw') {
       const result = await withdrawRecommendation(pool, principal, body.candidateId);

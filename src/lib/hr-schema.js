@@ -80,6 +80,10 @@ export function ensureSchema() {
       interview_at TIMESTAMPTZ, notes TEXT NOT NULL DEFAULT '', case_id BIGINT UNIQUE REFERENCES hr_cases(id),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(route_id,worker_id)
     )`);
+    // 雇主錄用後付訂金：訂金金額（新臺幣）、付款登記時間與登記人。有登記付款的錄用人選視為「已結單」。只新增欄位，不改動既有資料。
+    await pool.query('ALTER TABLE hr_job_order_candidates ADD COLUMN IF NOT EXISTS deposit_amount INTEGER CHECK(deposit_amount IS NULL OR deposit_amount>0)');
+    await pool.query('ALTER TABLE hr_job_order_candidates ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ');
+    await pool.query('ALTER TABLE hr_job_order_candidates ADD COLUMN IF NOT EXISTS deposit_recorded_by BIGINT REFERENCES hr_members(id) ON DELETE SET NULL');
     await ensureCertificationSchema(pool);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_chat_rooms (
       id BIGSERIAL PRIMARY KEY, room_type TEXT NOT NULL CHECK(room_type IN ('agency','case')),

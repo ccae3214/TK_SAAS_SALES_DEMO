@@ -13,5 +13,6 @@ export function canWithdrawRecommendation(candidate) {
 
 export function recommendationStatus(candidate) {
   if (isWithdrawnRecommendation(candidate)) return '已撤回推薦';
+  if (candidate?.status === 'passed' && candidate.deposit_paid_at) return '已結單';
   return ({ proposed: '待面試', scheduled: '已安排面試', passed: '已錄用', rejected: '未錄用' })[candidate?.status] || candidate?.status || '';
 }
