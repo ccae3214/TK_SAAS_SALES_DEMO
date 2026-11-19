@@ -16,9 +16,11 @@ test('Origin 與請求網址相同才通過，其他網站被拒絕', () => {
   assert.equal(requestIsSameOrigin(req({ origin: 'not a url' })), false);
 });
 
-test('反向代理轉送的 Host 與 x-forwarded-proto 視為本站', () => {
-  const proxied = req({ origin: 'https://www.example.org', 'x-forwarded-host': 'www.example.org', 'x-forwarded-proto': 'https' }, 'http://localhost:3000/api/hr');
-  assert.equal(requestIsSameOrigin(proxied), true);
+// 轉送標頭可由用戶端偽造（app 埠不經 nginx 就能連到時），所以不能拿來放行；
+// 在 TLS 反向代理後面要設 APP_ORIGIN／NEXTAUTH_URL（見 src/lib/request-origin.js）。
+test('X-Forwarded-Host／X-Forwarded-Proto 不會讓外部 Origin 通過', () => {
+  const forged = req({ origin: 'https://www.example.org', 'x-forwarded-host': 'www.example.org', 'x-forwarded-proto': 'https' }, 'http://localhost:3000/api/hr');
+  assert.equal(requestIsSameOrigin(forged), false);
 });
 
 test('APP_ORIGIN 設定的網址視為本站', () => {
