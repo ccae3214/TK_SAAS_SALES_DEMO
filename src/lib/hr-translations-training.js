@@ -97,6 +97,7 @@ export const TRAINING_CENTER_EN = {
   '例句': 'Example sentences',
   '新增單元': 'Add unit',
   '編輯單元': 'Edit unit',
+  '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：（多義字用「；」分隔多個英文意思，後面可接造句：[意思編號] 中文 ＝ 拼音 ＝ 英文，例如：是 | shì | am / is / are；to be；yes, true | [1] 我是男生。＝ Wǒ shì nánshēng. ＝ I am a boy.）': 'One entry per line for vocabulary and examples, in the format: Chinese | Pinyin | English. Start each dialogue line with A: or B: (For a word with several meanings, separate the English meanings with "；" and add example sentences after them in the format "[meaning no.] Chinese ＝ Pinyin ＝ English", for example: 是 | shì | am / is / are；to be；yes, true | [1] 我是男生。＝ Wǒ shì nánshēng. ＝ I am a boy.)',
   '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：': 'One entry per line for vocabulary and examples, in the format: Chinese | Pinyin | English. Start each dialogue line with A: or B:',
   '把課程內容拆成單元，每個單元可寫學習重點與例句。': 'Break the course content into units, each with learning points and example sentences.',
   '尚無單元': 'No units yet',

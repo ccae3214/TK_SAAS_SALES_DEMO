@@ -160,7 +160,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     submit: values => record ? save('PATCH', { resource: 'course', id: record.id, ...values, active: record.active }, '已更新課程') : save('POST', { resource: 'course', centerId, ...values }, '已新增課程'),
   });
   const unitModal = record => setModal({
-    title: record ? '編輯單元' : '新增單元', hint: '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：',
+    title: record ? '編輯單元' : '新增單元', hint: '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：（多義字用「；」分隔多個英文意思，後面可接造句：[意思編號] 中文 ＝ 拼音 ＝ 英文，例如：是 | shì | am / is / are；to be；yes, true | [1] 我是男生。＝ Wǒ shì nánshēng. ＝ I am a boy.）',
     fields: [
       { name: 'name', label: '單元名稱', required: true }, { name: 'nameEn', label: '英文單元名稱' },
       { name: 'position', label: '順序', type: 'number' }, { name: 'hours', label: '課程時數', type: 'number' },

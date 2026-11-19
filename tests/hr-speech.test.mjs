@@ -63,7 +63,8 @@ test('學習頁已接上朗讀：語音 hook、單元朗讀、每列播放鈕、
   assert.match(page, /buildUnitSpeechQueue\(/);
   assert.match(page, /rowSpeechItems\(/);
   assert.match(page, /stopSpeech\(\);\s*\}, \[unitId, stopSpeech\]\)/);
-  for (const section of ['vocabulary', 'examples', 'dialogue']) assert.match(page, new RegExp(`speakButtons\\('${section}'`));
+  for (const section of ['examples', 'dialogue']) assert.match(page, new RegExp(`speakButtons\\('${section}'`));
+  assert.match(await read('../src/components/HrLessonVocabulary.jsx'), /speakButtons\('vocabulary'/);
   const hook = await read('../src/lib/use-lesson-speech.js');
   assert.match(hook, /speechSynthesis\.cancel\(\)/);
   assert.match(hook, /voiceschanged/);

@@ -63,7 +63,9 @@ export function rowSpeechItems(section, index, row, part = 'zh') {
   const rowKey = `${section}-${index}`;
   const items = [];
   const zh = cleanSpeechText(row?.zh);
-  const en = cleanSpeechText(row?.en);
+  // 多義字：各個意思依序唸（「am / is / are」的斜線改成逗號，避免唸出 slash）。
+  const enSource = Array.isArray(row?.senses) && row.senses.length ? row.senses.join('. ') : row?.en;
+  const en = cleanSpeechText(enSource).replace(/\s*\/\s*/g, ', ');
   if (zh && (part === 'zh' || part === 'both')) items.push({ rowKey, text: zh, lang: SPEECH_LANG.zh });
   if (en && (part === 'en' || part === 'both')) items.push({ rowKey, text: en, lang: SPEECH_LANG.en });
   return items;
@@ -72,6 +74,14 @@ export function rowSpeechItems(section, index, row, part = 'zh') {
 // 整個單元依序朗讀：詞彙 → 例句 → 對話（講話者的 A／B 不唸，學習重點是說明文字也不唸）。
 export function buildUnitSpeechQueue({ vocabulary = [], examples = [], dialogue = [] } = {}, { includeEnglish = true } = {}) {
   const part = includeEnglish ? 'both' : 'zh';
-  return [['vocabulary', vocabulary], ['examples', examples], ['dialogue', dialogue]]
-    .flatMap(([section, rows]) => rows.flatMap((row, index) => rowSpeechItems(section, index, row, part)));
+  // 詞彙後面接著唸它的造句（rowKey：vocabulary-{詞彙序}-ex-{造句序}）。
+  const vocabularyItems = vocabulary.flatMap((row, index) => [
+    ...rowSpeechItems('vocabulary', index, row, part),
+    ...(row?.examples || []).flatMap((example, exampleIndex) => rowSpeechItems(`vocabulary-${index}-ex`, exampleIndex, example, part)),
+  ]);
+  return [
+    ...vocabularyItems,
+    ...examples.flatMap((row, index) => rowSpeechItems('examples', index, row, part)),
+    ...dialogue.flatMap((row, index) => rowSpeechItems('dialogue', index, row, part)),
+  ];
 }

@@ -5,6 +5,8 @@ import { useLanguage } from '@/context/LanguageContext';
 import { learningProgress, parseLessonLines } from '@/lib/hr-learning';
 import { SPEECH_RATES, SPEECH_TEXT, buildUnitSpeechQueue, rowSpeechItems } from '@/lib/hr-speech';
 import { useLessonSpeech } from '@/lib/use-lesson-speech';
+import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
+import HrLessonVocabulary from '@/components/HrLessonVocabulary';
 import styles from './HrWorkerLearning.module.css';
 
 // 工人的學習頁：單元清單（含進度）→ 單元內容（學習重點、詞彙、例句、對話）→ 標記讀完。
@@ -71,7 +73,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     const isDone = completed.includes(Number(unit.id));
     const next = units[index + 1];
     const prev = units[index - 1];
-    const vocabulary = parseLessonLines(unit.vocabulary);
+    const vocabulary = parseVocabularyEntries(unit.vocabulary);
     const examples = parseLessonLines(unit.examples);
     const dialogue = parseLessonLines(unit.dialogue, { speaker: true });
     const topics = pick(unit.topics, unit.topics_en);
@@ -113,9 +115,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       {speech.missingChineseVoice && hasSpeakable && <p className={styles.muted}>{speechText.noChineseVoice}</p>}
       {speech.error && <p className={styles.error}>{speechText.failed}</p>}
       {topics && <div className={styles.section}><h4>學習重點</h4><p>{topics}</p></div>}
-      {vocabulary.length > 0 && <div className={styles.section}><h4>詞彙</h4><div className={styles.tableWrap}><table className={styles.lessonTable}><thead><tr><th>詞彙</th><th>拼音</th><th>英文</th>{speech.supported && <th>{speechText.listen}</th>}</tr></thead><tbody>
-        {vocabulary.map((row, i) => <tr key={i} className={isSpeaking('vocabulary', i) ? styles.speaking : ''}><td className={styles.zh}>{row.zh}</td><td>{row.pinyin}</td><td>{row.en}</td>{speech.supported && <td>{speakButtons('vocabulary', i, row)}</td>}</tr>)}
-      </tbody></table></div></div>}
+      {vocabulary.length > 0 && <div className={styles.section}><h4>詞彙</h4><HrLessonVocabulary entries={vocabulary} speechOn={speech.supported} listenLabel={speechText.listen} isSpeaking={isSpeaking} speakButtons={speakButtons} /></div>}
       {examples.length > 0 && <div className={styles.section}><h4>例句</h4><div className={styles.dialogue}>
         {examples.map((row, i) => <div className={`${styles.line} ${isSpeaking('examples', i) ? styles.speaking : ''}`} key={i}>
           <div className={styles.lineText}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>
