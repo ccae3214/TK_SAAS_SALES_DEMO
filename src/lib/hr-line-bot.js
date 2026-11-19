@@ -1459,7 +1459,7 @@ export async function replyForHrLineEvent(event) {
   if (/體檢|訓練|medical|training|kalusugan|pagsasanay/.test(lower)) {
     const cases = await visibleCases(principal);
     if (!cases.length) return activeLanguage === 'en' ? 'There is no medical or training progress available.' : activeLanguage === 'tl' ? 'Walang available na progreso ng medical o pagsasanay.' : '目前沒有可查看的體檢或訓練進度。';
-    const header = activeLanguage === 'en' ? 'Training and arrival documents progress:' : activeLanguage === 'tl' ? 'Progreso ng pagsasanay at mga dokumento pagdating sa Taiwan:' : '訓練與來台文件進度：';
+    const header = activeLanguage === 'en' ? 'Training and arrival progress:' : activeLanguage === 'tl' ? 'Progreso ng pagsasanay at pagdating sa Taiwan:' : '訓練與來台進度：';
     const medical = activeLanguage === 'en' ? 'Arrival medical' : activeLanguage === 'tl' ? 'Medical pagdating' : '抵台體檢';
     const training = activeLanguage === 'en' ? 'Training' : activeLanguage === 'tl' ? 'Pagsasanay' : '訓練';
     const notScheduled = activeLanguage === 'en' ? 'Not scheduled' : activeLanguage === 'tl' ? 'Hindi nakaiskedyul' : '未安排';
