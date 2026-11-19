@@ -373,6 +373,18 @@ const EN_MORE = {
   '還沒有班別': 'No classes yet',
   '請先到「開班與日期」建立班別，再報名工人。': 'Create a class under "Classes and dates" first, then enroll workers.',
   '已報名工人': 'Worker enrolled',
+  // 訓練與來台進度：工作者小元件（訓練中心的訓練＋仲介的進度）
+  'OEC（出境許可）': 'OEC (overseas employment certificate)', '簽證 VISA': 'Visa', '籌備中': 'Preparing', '已核發': 'Issued',
+  '訓練未安排': 'Training not scheduled', '訓練已安排': 'Training scheduled', '訓練進行中': 'Training in progress', '訓練完成': 'Training completed',
+  '開訓／結訓': 'Training start / end', '證照辦件': 'Certificate filing', '尚未辦件': 'Not filed yet', '必備證照': 'Required certificates',
+  '已取得': 'Obtained', '取證中': 'In progress', '尚未報名訓練中心的班別。': 'Not enrolled in any training center class yet.',
+  '訓練中心的訓練': 'Training center training', '仲介的進度': 'Agency progress',
+  '搜尋案件編號、工作者、雇主或進度狀態': 'Search case number, worker, employer or progress status',
+  '找不到符合的案件，請調整關鍵字或清除搜尋。': 'No matching cases. Adjust the keyword or clear the search.',
+  '尚無案件，建立案件後可追蹤訓練與來台進度。': 'No cases yet. Create a case to track training and arrival progress.',
+  '每位工作者一個小元件，點開同時查看訓練中心的訓練與仲介的進度。初步文件審核通過後由訓練中心安排訓練；訓練完成後由菲律賓仲介辦理 OEC 與簽證；抵台後由台灣仲介安排體檢並辦理在台文件。': 'One tile per worker; open it to see the training center training and the agency progress together. After the initial document review passes, the training center schedules training; once training is complete the Philippine agency handles the OEC and visa; after arrival the Taiwan agency arranges the medical exam and in-Taiwan documents.',
+  '必要文件全部核准後，才能安排訓練。': 'Training can be scheduled once all required documents are approved.',
+  '登錄實際入境日期後，才能安排抵台體檢。': 'The arrival medical exam can be scheduled once the actual entry date is recorded.',
 };
 const FLOW_EN = {
   '請填寫有效的登入 Email；已綁定 Email 登入的會員不可清空。': 'Enter a valid login email. An account using email login cannot have an empty email.',

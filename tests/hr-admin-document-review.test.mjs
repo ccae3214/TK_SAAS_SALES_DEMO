@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 const admin = await readFile(new URL('../src/components/HrManagement.jsx', import.meta.url), 'utf8');
 const portal = await readFile(new URL('../src/components/HrMemberPortal.jsx', import.meta.url), 'utf8');
 const translations = await readFile(new URL('../src/lib/hr-translations.jsx', import.meta.url), 'utf8');
-const documentList = admin.slice(admin.indexOf('function DocumentList('), admin.indexOf('function StepDone('));
+const documentList = admin.slice(admin.indexOf('function DocumentList('), admin.indexOf('function WorkflowList('));
 
 test('admin document review uses the same worker-tile list as the agency view', () => {
   assert.match(admin, /import HrDocumentReviewList from '@\/components\/HrDocumentReviewList'/);

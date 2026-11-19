@@ -228,6 +228,21 @@ export async function GET() {
     // 文件屬於工人：看得到哪些工人，就看得到哪些工人的文件（雇主只看得到已建立案件的工人）。
     const documentWorkerIds = principal.role === 'employer' ? new Set(cases.map(item => Number(item.worker_id))) : new Set(workers.map(item => Number(item.id)));
     const requirements = allRequirements.filter(item => documentWorkerIds.has(Number(item.worker_id)));
+    // 管理者與仲介在「訓練與來台進度」要同時看到訓練中心的訓練：依可見工作者讀取各自報名的班別與證照批次進度。
+    let trainingEnrollments = [];
+    if ((principal.role === 'admin' || principal.role === 'agency') && documentWorkerIds.size) {
+      try {
+        await ensureTrainingCenterSchema();
+        trainingEnrollments = await query(`SELECT e.id, e.worker_id, cl.name AS class_name, c.name AS certification_name, co.name AS course_name, co.hours, ctr.display_name AS center_name,
+            to_char(cl.training_start_date,'YYYY-MM-DD') AS training_start_date, to_char(cl.training_end_date,'YYYY-MM-DD') AS training_end_date,
+            to_char(cl.exam_date,'YYYY-MM-DD') AS exam_date, cl.exam_location, to_char(cl.certificate_issue_date,'YYYY-MM-DD') AS certificate_issue_date,
+            to_char(b.applied_date,'YYYY-MM-DD') AS batch_applied_date, b.status AS batch_status
+          FROM hr_tc_enrollments e JOIN hr_tc_classes cl ON cl.id=e.class_id JOIN hr_tc_certifications c ON c.id=cl.certification_id
+          JOIN hr_tc_courses co ON co.id=cl.course_id JOIN hr_members ctr ON ctr.id=cl.center_id
+          LEFT JOIN LATERAL (SELECT applied_date,status FROM hr_tc_batches WHERE class_id=cl.id ORDER BY applied_date DESC NULLS LAST, id DESC LIMIT 1) b ON TRUE
+          WHERE e.worker_id = ANY($1::bigint[]) ORDER BY e.worker_id, cl.training_start_date, e.id`, [[...documentWorkerIds]]);
+      } catch (error) { console.error('hr_training_enrollments_read_failed', error?.code || error?.name || 'Error'); trainingEnrollments = []; }
+    }
     const submissions = allSubmissions.filter(item => documentWorkerIds.has(Number(item.worker_id)));
     const certifications = allCertifications.filter(item => privateCaseIds.has(Number(item.case_id)));
     const applicationSteps = allApplicationSteps.filter(item => caseIds.has(Number(item.case_id)));
@@ -260,7 +275,7 @@ export async function GET() {
     if (reminderKinds) {
       try { expiryReminders = await collectExpiryReminders(query, { workerIds: workers.map(item => Number(item.id)), kinds: reminderKinds }); } catch (error) { console.error('hr_expiry_reminders_load_failed', error?.code || 'error'); }
     }
-    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, expiryReminders, trainingCourses, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, expiryReminders, trainingCourses, trainingEnrollments, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
