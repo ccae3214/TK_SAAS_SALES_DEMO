@@ -10,6 +10,7 @@ import {
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useLanguage } from '@/context/LanguageContext';
+import styles from './AdminDashboard.module.css';
 
 const AdminDashboard = () => {
   const { t, lang, setLang } = useLanguage();
@@ -89,9 +90,9 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc', color: '#0f172a', fontFamily: "'Inter', sans-serif" }}>
+    <div className={styles.dashboard}>
       {/* Sidebar */}
-      <div style={{ width: '280px', background: '#ffffff', borderRight: '1px solid #e2e8f0', padding: '32px 24px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' }}>
+      <div className={styles.sidebar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.25rem', fontWeight: 900, marginBottom: '48px' }}>
            <div style={{ width: 32, height: 32, background: '#2563eb', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <LayoutDashboard size={18} color="white" />
@@ -115,10 +116,10 @@ const AdminDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '40px 60px', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+      <main className={styles.main}>
+        <div className={styles.pageHeader}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '4px', letterSpacing: '-0.02em' }}>{activeTab}</h1>
+            <h1 className={styles.pageTitle} style={{ fontWeight: 800, marginBottom: '4px', letterSpacing: '-0.02em' }}>{activeTab}</h1>
             <p style={{ color: '#64748b' }}>Nexus Data Management Control Panel.</p>
           </div>
         </div>
@@ -126,20 +127,20 @@ const AdminDashboard = () => {
         <AnimatePresence mode="wait">
           {activeTab === 'Overview' && (
             <Motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>
+              <div className={styles.statsGrid}>
                 {[
                   { label: t.admin.overview.totalRevenue, val: `$${stats?.revenue?.toLocaleString() || 0}`, icon: <DollarSign size={24} />, color: '#22c55e', bg: '#f0fdf4' },
                   { label: t.admin.overview.orders, val: stats?.ordersCount || 0, icon: <ShoppingCart size={24} />, color: '#2563eb', bg: '#eff6ff' },
                   { label: t.admin.overview.users, val: stats?.usersCount || 0, icon: <Users size={24} />, color: '#a855f7', bg: '#f5f3ff' },
                   { label: t.admin.overview.subscribed, val: stats?.newsletterCount || 0, icon: <Mail size={24} />, color: '#f59e0b', bg: '#fffbeb' }
                 ].map((stat, i) => (
-                  <div key={i} style={{ padding: '24px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
+                  <div key={i} className={styles.statCard} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                       <div style={{ width: 48, height: 48, background: stat.bg, color: stat.color, borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{stat.icon}</div>
                       <div style={{ color: '#22c55e', display: 'flex', alignItems: 'center', fontSize: '0.85rem', fontWeight: 700 }}>+12% <ArrowUpRight size={14} /></div>
                     </div>
                     <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>{stat.label}</div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800 }}>{stat.val}</div>
+                    <div className={styles.statValue} style={{ fontWeight: 800 }}>{stat.val}</div>
                   </div>
                 ))}
               </div>
@@ -377,7 +378,7 @@ const AdminDashboard = () => {
              </Motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </main>
 
       {showProductModal && <ProductModal t={t} product={editingProduct} onClose={() => setShowProductModal(false)} onSuccess={() => { setShowProductModal(false); fetchStats(); }} />}
       {showNewsModal && <NewsModal t={t} onClose={() => setShowNewsModal(false)} onSuccess={() => { setShowNewsModal(false); fetchStats(); }} />}
