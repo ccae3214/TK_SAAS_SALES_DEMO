@@ -1,5 +1,6 @@
 "use client";
 
+import { groupUnitsByCategory } from '@/lib/hr-learning-units';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { learningProgress, parseLessonLines } from '@/lib/hr-learning';
@@ -7,6 +8,7 @@ import { SPEECH_RATES, SPEECH_TEXT, buildUnitSpeechQueue, rowSpeechItems } from 
 import { useLessonSpeech } from '@/lib/use-lesson-speech';
 import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 import HrLessonVocabulary from '@/components/HrLessonVocabulary';
+import HrUnitQuiz from '@/components/HrUnitQuiz';
 import styles from './HrWorkerLearning.module.css';
 
 // 工人的學習頁：單元清單（含進度）→ 單元內容（學習重點、詞彙、例句、對話）→ 標記讀完。
@@ -98,6 +100,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     return <div className={styles.panel}>
       {header}
       <p className={styles.muted}>{`${index + 1} / ${units.length}${unit.hours ? ` · ${unit.hours} 小時` : ''}`}</p>
+      {pick(unit.category, unit.category_en) && <p className={styles.category}>{pick(unit.category, unit.category_en)}</p>}
       <h3>{pick(unit.name, unit.name_en)}</h3>
       {speech.supported && hasSpeakable && <div className={styles.speechBar}>
         <button type="button" className={`${styles.button} ${speech.playingKey ? '' : styles.buttonPrimary}`} onClick={speech.playingKey ? speech.stop : playUnit}>
@@ -130,6 +133,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
         </div>)}
       </div></div>}
       {!topics && !vocabulary.length && !examples.length && !dialogue.length && <p className={styles.muted}>這個單元還沒有學習內容。</p>}
+      <HrUnitQuiz key={unit.id} vocabulary={unit.vocabulary} poolText={units.map(item => item.vocabulary).join('\n')} />
       {error && <p className={styles.error}>{error}</p>}
       <div className={styles.actions}>
         <button type="button" className={styles.button} onClick={() => setUnitId(null)}>回到單元清單</button>
@@ -149,16 +153,19 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     </div>}
     {units.length === 0 && <p className={styles.muted}>這門課程還沒有單元內容，訓練中心建立後就能在這裡學習。</p>}
     {error && <p className={styles.error}>{error}</p>}
-    <ol className={styles.unitList}>
-      {units.map((item, i) => {
-        const isDone = completed.includes(Number(item.id));
-        return <li key={item.id} className={`${styles.unitRow} ${isDone ? styles.unitDone : ''}`}>
-          <span className={styles.unitNo}>{i + 1}</span>
-          <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}</span>
-          {!data.readOnly && <span className={`${styles.badge} ${isDone ? styles.badgeDone : ''}`}>{isDone ? '已讀完' : '未讀'}</span>}
-          <button type="button" className={`${styles.button} ${!isDone && item.id === progress.nextUnitId ? styles.buttonPrimary : ''}`} onClick={() => setUnitId(item.id)}>{isDone ? '複習' : item.id === progress.nextUnitId && progress.done > 0 ? '繼續學習' : '開始學習'}</button>
-        </li>;
-      })}
-    </ol>
+    {groupUnitsByCategory(units, item => pick(item.category, item.category_en)).map((group, groupIndex) => <div key={groupIndex}>
+      {group.category && <h4 className={styles.categoryHeading}>{group.category}</h4>}
+      <ol className={styles.unitList}>
+        {group.items.map(({ unit: item, index: i }) => {
+          const isDone = completed.includes(Number(item.id));
+          return <li key={item.id} className={`${styles.unitRow} ${isDone ? styles.unitDone : ''}`}>
+            <span className={styles.unitNo}>{i + 1}</span>
+            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}</span>
+            {!data.readOnly && <span className={`${styles.badge} ${isDone ? styles.badgeDone : ''}`}>{isDone ? '已讀完' : '未讀'}</span>}
+            <button type="button" className={`${styles.button} ${!isDone && item.id === progress.nextUnitId ? styles.buttonPrimary : ''}`} onClick={() => setUnitId(item.id)}>{isDone ? '複習' : item.id === progress.nextUnitId && progress.done > 0 ? '繼續學習' : '開始學習'}</button>
+          </li>;
+        })}
+      </ol>
+    </div>)}
   </div>;
 }

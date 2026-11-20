@@ -87,9 +87,24 @@ export const TRAINING_CENTER_EN = {
   '無法記錄學習進度，請稍後再試。': 'Unable to save your progress. Please try again later.',
   '找不到這門課程，或您沒有報名這門課程。': 'Course not found, or you are not enrolled in this course.',
   '找不到這個單元，或您沒有報名這門課程。': 'Unit not found, or you are not enrolled in this course.',
+  '小測驗': 'Quick quiz',
+  '看看自己記住了多少：每題選出正確的英文意思。': 'See how much you remember: choose the correct English meaning for each word.',
+  '測驗成績不會被記錄，可以重複作答。': 'Quiz scores are not recorded. You can try as many times as you like.',
+  '開始小測驗': 'Start quiz',
+  '這個詞是什麼意思？': 'What does this word mean?',
+  '請先回答所有題目。': 'Please answer all the questions first.',
+  '送出答案': 'Submit answers',
+  '答對了': 'Correct',
+  '答錯了': 'Incorrect',
+  '正確答案：': 'Correct answer:',
+  '通過！你已經掌握這個單元的詞彙。': 'Passed! You have a good grasp of this unit\'s vocabulary.',
+  '再複習一次詞彙後重新測驗吧。': 'Review the vocabulary once more and try again.',
+  '重新測驗': 'Retake quiz',
   '只有工人可以記錄學習進度。': 'Only workers can record learning progress.',
   '僅工人、系統管理者或訓練中心會員可使用學習系統。': 'The learning system is only for workers, system administrators and training center members.',
   '單元名稱': 'Unit name',
+  '場合分類': 'Occasion category',
+  '場合分類（英文）': 'Occasion category (English)',
   '英文單元名稱': 'Unit name (English)',
   '順序': 'Order',
   '學習重點': 'Learning points',
@@ -269,6 +284,7 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^學習：(.*)$/))) return `Learning: ${m[1]}`;
   if ((m = text.match(/^已讀完 (\d+) \/ (\d+) 個單元$/))) return `${m[1]} of ${m[2]} units completed`;
   if ((m = text.match(/^(\d+) \/ (\d+) · (\d+) 小時$/))) return `${m[1]} / ${m[2]} · ${m[3]} hours`;
+  if ((m = text.match(/^· (\d+) 小時$/))) return Number(m[1]) === 1 ? '· 1 hour' : `· ${m[1]} hours`;
   if ((m = text.match(/^(\d+) 小時$/))) return Number(m[1]) === 1 ? '1 hour' : `${m[1]} hours`;
   if ((m = text.match(/^單元時數合計：(\d+) 小時$/))) return `Total unit hours: ${m[1]}`;
   if ((m = text.match(/^(\d+) 天後$/))) return Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`;
@@ -280,6 +296,7 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^證照批次 (\d+) 筆未發證$/))) return plural(m[1], 'certification batch', 'certification batches') + ' not yet issued';
   if ((m = text.match(/^考證日期（(.+)）$/))) return `Exam date (${m[1]})`;
   if ((m = text.match(/^證照辦件日期（(.+)）$/))) return `Certification application date (${translate(m[1])})`;
+  if ((m = text.match(/^答對 (\d+) \/ (\d+) 題$/))) return `${m[1]} of ${m[2]} correct`;
   if ((m = text.match(/^已(停用|啟用)「(.+)」$/))) return `${m[1] === '停用' ? 'Deactivated' : 'Activated'} "${translateLabel(m[2])}"`;
   if ((m = text.match(/^已刪除「(.+)」$/))) return `Deleted "${translateLabel(m[1])}"`;
   if ((m = text.match(/^確定刪除「(.+)」？此操作無法復原。$/))) return `Delete "${translateLabel(m[1])}"? This cannot be undone.`;

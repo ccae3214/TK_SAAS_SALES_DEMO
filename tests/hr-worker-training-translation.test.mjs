@@ -23,3 +23,9 @@ test('trainingEvents 產生的帶括號標籤都會被句型翻譯', () => {
   assert.equal(labels.exam, 'Exam date (Taipei)');
   assert.equal(labels.applied, 'Certification application date (Submitted)');
 });
+
+// 工人訓練課程卡片的「· 40 小時」（課程時數）。
+test('課程時數「· N 小時」有英文翻譯', () => {
+  assert.equal(translate('· 40 小時'), '· 40 hours');
+  assert.equal(translate('· 1 小時'), '· 1 hour');
+});

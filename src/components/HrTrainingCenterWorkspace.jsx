@@ -168,13 +168,14 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
     title: record ? '編輯單元' : '新增單元', hint: '詞彙、例句每行一筆，格式：中文 | 拼音 | 英文；對話每行開頭加 A： 或 B：（多義字用「；」分隔多個英文意思，後面可接造句：[意思編號] 中文 ＝ 拼音 ＝ 英文，例如：是 | shì | am / is / are；to be；yes, true | [1] 我是男生。＝ Wǒ shì nánshēng. ＝ I am a boy.）',
     fields: [
       { name: 'name', label: '單元名稱', required: true }, { name: 'nameEn', label: '英文單元名稱' },
+      { name: 'category', label: '場合分類', maxLength: 60 }, { name: 'categoryEn', label: '場合分類（英文）', maxLength: 120 },
       { name: 'position', label: '順序', type: 'number' }, { name: 'hours', label: '課程時數', type: 'number' },
       { name: 'topics', label: '學習重點', type: 'textarea', maxLength: 1000 }, { name: 'topicsEn', label: '學習重點（英文）', type: 'textarea', maxLength: 1000 },
       { name: 'vocabulary', label: '詞彙', type: 'textarea', rows: 8, maxLength: 4000 },
       { name: 'examples', label: '例句', type: 'textarea', rows: 6, maxLength: 2000 },
       { name: 'dialogue', label: '對話', type: 'textarea', rows: 8, maxLength: 4000 },
     ],
-    initial: { name: record?.name || '', nameEn: record?.name_en || '', position: record?.position ?? '', hours: record?.hours ?? '', topics: record?.topics || '', topicsEn: record?.topics_en || '', examples: record?.examples || '', vocabulary: record?.vocabulary || '', dialogue: record?.dialogue || '' },
+    initial: { name: record?.name || '', nameEn: record?.name_en || '', category: record?.category || '', categoryEn: record?.category_en || '', position: record?.position ?? '', hours: record?.hours ?? '', topics: record?.topics || '', topicsEn: record?.topics_en || '', examples: record?.examples || '', vocabulary: record?.vocabulary || '', dialogue: record?.dialogue || '' },
     submit: values => record
       ? save('PATCH', { resource: 'unit', id: record.id, courseId: unitCourse.id, ...values }, '已更新課程單元')
       : save('POST', { resource: 'unit', centerId, courseId: unitCourse.id, ...values }, '已新增課程單元'),
@@ -283,7 +284,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'courses' && unitCourse && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>{`課程單元：${unitCourse.name}`}</h2><p>{unitsOf(unitCourse.id).length ? `單元時數合計：${unitsOf(unitCourse.id).reduce((sum, item) => sum + (item.hours || 0), 0)} 小時` : '把課程內容拆成單元，每個單元可寫學習重點與例句。'}</p></div><div className={styles.rowActions}><button className={styles.primaryButton} onClick={() => unitModal(null)}>新增單元</button><button className={styles.smallButton} onClick={() => setUnitCourseId(null)}>關閉</button></div></div>
-      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>課程時數</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{row.hours ?? '—'}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
+      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>場合分類</th><th>課程時數</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{pick(row.category, row.category_en) || '—'}</td><td>{row.hours ?? '—'}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
     </section>}
 
     {tab === 'classes' && <section className={styles.panel}>

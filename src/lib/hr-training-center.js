@@ -75,6 +75,9 @@ export function ensureTrainingCenterSchema() {
     // 學習內容：詞彙與對話（每行「中文 | 拼音 | 英文」，對話行首可加 A：／B：）。
     await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS vocabulary TEXT NOT NULL DEFAULT ''");
     await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS dialogue TEXT NOT NULL DEFAULT ''");
+    // 場合分類（例如「購物與飲食」「職場溝通」）：學習頁依分類分組顯示單元；category_en 供英文介面。
+    await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''");
+    await pool.query("ALTER TABLE hr_tc_course_units ADD COLUMN IF NOT EXISTS category_en TEXT NOT NULL DEFAULT ''");
     // 工人的學習進度：讀完（標記）的單元；單元或工人刪除時一併刪除。
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_unit_progress (
       id BIGSERIAL PRIMARY KEY,

@@ -155,7 +155,10 @@ async function buildRecord(resource, body, centerId, existing) {
       topics_en: clean(body.topicsEn, 1000), examples: clean(body.examples, 2000),
       // 舊呼叫端沒帶詞彙／對話時保留原內容。
       vocabulary: body.vocabulary === undefined && existing ? existing.vocabulary : clean(body.vocabulary, 4000),
-      dialogue: body.dialogue === undefined && existing ? existing.dialogue : clean(body.dialogue, 4000) };
+      dialogue: body.dialogue === undefined && existing ? existing.dialogue : clean(body.dialogue, 4000),
+      // 舊呼叫端沒帶場合分類時保留原內容。
+      category: body.category === undefined && existing ? existing.category : clean(body.category, 60),
+      category_en: body.categoryEn === undefined && existing ? existing.category_en : clean(body.categoryEn, 120) };
   }
   if (resource === 'class') {
     if (!name) throw new Refuse('請輸入班別名稱。');

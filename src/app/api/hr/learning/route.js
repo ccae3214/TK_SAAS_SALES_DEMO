@@ -35,7 +35,7 @@ async function readableCourse(ctx, courseId) {
   return (await query(base, [courseId]))[0] || null;
 }
 
-const UNIT_COLUMNS = 'id, course_id, position, name, name_en, hours, topics, topics_en, examples, vocabulary, dialogue';
+const UNIT_COLUMNS = 'id, course_id, position, name, name_en, category, category_en, hours, topics, topics_en, examples, vocabulary, dialogue';
 const completedIdsOf = async (ctx, courseId) => ctx.role !== 'worker' ? [] : (await query(
   `SELECT p.unit_id FROM hr_tc_unit_progress p JOIN hr_tc_course_units u ON u.id=p.unit_id WHERE p.worker_id=$1 AND u.course_id=$2`,
   [ctx.workerId, courseId])).map(row => Number(row.unit_id));
