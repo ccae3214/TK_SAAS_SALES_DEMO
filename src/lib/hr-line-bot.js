@@ -336,7 +336,7 @@ const ADMIN_TEXT = {
     colon: '：', active: '啟用', inactive: '停用',
     genders: { male: '男', female: '女' },
     agencyTypes: { taiwan: '台灣仲介', philippines: '菲律賓仲介' },
-    employerTypes: { home_care: '家庭看護', factory: '工廠', domestic_helper: '家庭幫傭', other: '其他' },
+    employerTypes: { home_care: '家庭看護', factory: '工廠', domestic_helper: '家庭幫傭', nursing_home: '安養機構', other: '其他' },
     countries: {},
     types: { worker: '工作者', employer: '雇主', agency: '仲介', training_center: '訓練中心' },
     plural: { worker: '工作者', employer: '雇主', agency: '仲介', training_center: '訓練中心' },
@@ -357,7 +357,7 @@ const ADMIN_TEXT = {
     hints: {
       'worker:gender': '請輸入 male、female、男或女。',
       'worker:jobPreference': '請輸入：家庭幫傭、家庭看護、工廠技術工、農工或機構看護工。',
-      'employer:employerType': '請輸入 home_care、factory、domestic_helper 或 other。',
+      'employer:employerType': '請輸入 home_care、factory、domestic_helper、nursing_home 或 other。',
       'agency:agencyType': '請輸入 taiwan 或 philippines。',
     },
     menuTitle: '管理者資料管理選單：',
@@ -400,7 +400,7 @@ const ADMIN_TEXT = {
       genderInvalid: () => '性別請輸入 male、female、男或女。',
       agencyIdInvalid: () => '仲介 ID 請輸入正整數，或輸入「無」清空。',
       tooLong: ({ max }) => `內容過長，最多 ${max} 個字元。`,
-      employerTypeInvalid: () => '雇主類型請輸入 home_care、factory、domestic_helper 或 other。',
+      employerTypeInvalid: () => '雇主類型請輸入 home_care、factory、domestic_helper、nursing_home 或 other。',
       jobInvalid: () => '工作意向請輸入：家庭幫傭、家庭看護、工廠技術工、農工或機構看護工。',
       agencyCreateInvalid: () => '請填名稱，並將仲介類型設為 taiwan 或 philippines。',
       tcCreateInvalid: () => '請輸入訓練中心名稱及有效 Email。',
@@ -411,7 +411,7 @@ const ADMIN_TEXT = {
     colon: ': ', active: 'Active', inactive: 'Inactive',
     genders: { male: 'Male', female: 'Female' },
     agencyTypes: { taiwan: 'Taiwan agency', philippines: 'Philippines agency' },
-    employerTypes: { home_care: 'Home care', factory: 'Factory', domestic_helper: 'Domestic helper', other: 'Other' },
+    employerTypes: { home_care: 'Home care', factory: 'Factory', domestic_helper: 'Domestic helper', nursing_home: 'Nursing home', other: 'Other' },
     countries: { 台灣: 'Taiwan', 菲律賓: 'Philippines' },
     types: { worker: 'worker', employer: 'employer', agency: 'agency', training_center: 'training center' },
     plural: { worker: 'workers', employer: 'employers', agency: 'agencies', training_center: 'training centers' },
@@ -432,7 +432,7 @@ const ADMIN_TEXT = {
     hints: {
       'worker:gender': 'male or female',
       'worker:jobPreference': 'one of: Domestic helper, Home caregiver, Factory technician, Farm worker, Institutional caregiver',
-      'employer:employerType': 'home_care, factory, domestic_helper or other',
+      'employer:employerType': 'home_care, factory, domestic_helper, nursing_home or other',
       'agency:agencyType': 'taiwan or philippines',
     },
     menuTitle: 'Administrator data management:',
@@ -475,7 +475,7 @@ const ADMIN_TEXT = {
       genderInvalid: () => 'Gender must be male or female.',
       agencyIdInvalid: () => 'Agency ID must be a positive whole number, or send "none" to clear it.',
       tooLong: ({ max }) => `That is too long. The limit is ${max} characters.`,
-      employerTypeInvalid: () => 'Employer type must be home_care, factory, domestic_helper or other.',
+      employerTypeInvalid: () => 'Employer type must be home_care, factory, domestic_helper, nursing_home or other.',
       jobInvalid: () => 'Job preference must be one of: Domestic helper, Home caregiver, Factory technician, Farm worker, Institutional caregiver.',
       agencyCreateInvalid: () => 'Please give a name and set the agency type to taiwan or philippines.',
       tcCreateInvalid: () => 'Please enter the training center name and a valid email address.',
@@ -486,7 +486,7 @@ const ADMIN_TEXT = {
     colon: ': ', active: 'Aktibo', inactive: 'Hindi aktibo',
     genders: { male: 'Lalaki', female: 'Babae' },
     agencyTypes: { taiwan: 'Ahensya sa Taiwan', philippines: 'Ahensya sa Pilipinas' },
-    employerTypes: { home_care: 'Pangangalaga sa bahay', factory: 'Pabrika', domestic_helper: 'Kasambahay', other: 'Iba pa' },
+    employerTypes: { home_care: 'Pangangalaga sa bahay', factory: 'Pabrika', domestic_helper: 'Kasambahay', nursing_home: 'Nursing home', other: 'Iba pa' },
     countries: { 台灣: 'Taiwan', 菲律賓: 'Pilipinas' },
     types: { worker: 'manggagawa', employer: 'employer', agency: 'ahensya', training_center: 'sentro ng pagsasanay' },
     plural: { worker: 'mga manggagawa', employer: 'mga employer', agency: 'mga ahensya', training_center: 'mga sentro ng pagsasanay' },
@@ -507,7 +507,7 @@ const ADMIN_TEXT = {
     hints: {
       'worker:gender': 'male o female',
       'worker:jobPreference': 'pumili ng isa: Kasambahay, Tagapag-alaga sa bahay, Technician sa pabrika, Manggagawa sa bukid, Caregiver sa institusyon',
-      'employer:employerType': 'home_care, factory, domestic_helper o other',
+      'employer:employerType': 'home_care, factory, domestic_helper, nursing_home o other',
       'agency:agencyType': 'taiwan o philippines',
     },
     menuTitle: 'Pamamahala ng data para sa administrator:',
@@ -550,7 +550,7 @@ const ADMIN_TEXT = {
       genderInvalid: () => 'Ang kasarian ay dapat male o female.',
       agencyIdInvalid: () => 'Ang ID ng ahensya ay dapat positibong buong numero, o ipadala ang "wala" para i-clear.',
       tooLong: ({ max }) => `Masyadong mahaba. Hanggang ${max} character lang.`,
-      employerTypeInvalid: () => 'Ang uri ng employer ay dapat home_care, factory, domestic_helper o other.',
+      employerTypeInvalid: () => 'Ang uri ng employer ay dapat home_care, factory, domestic_helper, nursing_home o other.',
       jobInvalid: () => 'Pumili ng isa: Kasambahay, Tagapag-alaga sa bahay, Technician sa pabrika, Manggagawa sa bukid, Caregiver sa institusyon.',
       agencyCreateInvalid: () => 'Maglagay ng pangalan at itakda ang uri ng ahensya sa taiwan o philippines.',
       tcCreateInvalid: () => 'Ilagay ang pangalan ng training center at wastong email address.',
@@ -805,7 +805,7 @@ async function updateAdminRecord(type, id, key, rawValue) {
   const limits = { name: 160, display_name: 160, nationality: 80, phone: 50, email: 254, job_preference: 120, notes: 2000, contact_name: 120, address: 300, employer_type: 30 };
   const max = limits[column] || 500;
   if (value.length > max) throw new AdminInputError('tooLong', { max });
-  if (type === 'employer' && key === 'employerType' && !['home_care', 'factory', 'domestic_helper', 'other'].includes(value)) {
+  if (type === 'employer' && key === 'employerType' && !['home_care', 'factory', 'domestic_helper', 'nursing_home', 'other'].includes(value)) {
     throw new AdminInputError('employerTypeInvalid');
   }
   if (key === 'name') return updateLinkedAdminField(type, id, 'name', value.trim());
@@ -1024,7 +1024,7 @@ async function handleAdminManagement(lineUserId, text, principal, language = 'zh
       values[key] = job;
     }
     if (session.type === 'worker' && key === 'gender' && !parseAdminGender(values[key])) return adminCreatePrompt(session.type, key, tx);
-    if (session.type === 'employer' && key === 'employerType' && !['home_care', 'factory', 'domestic_helper', 'other'].includes(values[key])) return adminCreatePrompt(session.type, key, tx);
+    if (session.type === 'employer' && key === 'employerType' && !['home_care', 'factory', 'domestic_helper', 'nursing_home', 'other'].includes(values[key])) return adminCreatePrompt(session.type, key, tx);
     if (session.type === 'agency' && key === 'agencyType' && !['taiwan', 'philippines'].includes(values[key])) return adminCreatePrompt(session.type, key, tx);
     if (session.step + 1 < fields.length) {
       const next = fields[session.step + 1];

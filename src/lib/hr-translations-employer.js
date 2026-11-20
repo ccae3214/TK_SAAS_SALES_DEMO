@@ -41,6 +41,7 @@ export const EMPLOYER_PROFILE_EN = {
   '工廠登記證號': 'Factory registration number', '工作地點地址': 'Workplace address',
   '是否提供宿舍': 'Dormitory provided?', '宿舍地址': 'Dormitory address',
   '編輯雇主資料': 'Edit employer details',
+  '安養機構': 'Nursing home',
 
   // 被照顧人
   '被照顧人': 'Care recipient',

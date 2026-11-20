@@ -81,7 +81,7 @@ export const createMember = {
         await client.query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1', [workerId,JSON.stringify(resumeProfile)]);
         await insertWorkerDocuments(client,workerId,resumeProfile);
       } else if (role === 'employer') {
-        const employerType = ['home_care','factory','domestic_helper','other'].includes(body.employerType) ? body.employerType : '';
+        const employerType = ['home_care','factory','domestic_helper','nursing_home','other'].includes(body.employerType) ? body.employerType : '';
         if (!employerType) {
           await client.query('ROLLBACK');
           return NextResponse.json({ error: '請選擇雇主類型。' }, { status: 400 });

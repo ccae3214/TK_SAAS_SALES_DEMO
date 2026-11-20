@@ -34,6 +34,11 @@ test('factory requires company number and responsible person; gender/age optiona
   assert.equal(m.employerRecordError({...base,profile:{companyRegNo:'12345678'}}), m.MESSAGES.company);
   assert.equal(m.employerRecordError({...base,profile:{companyRegNo:'12345678',responsiblePerson:'王大明'}}), '');
 });
+test('nursing home is an institution, not a home employer, and has no extra requirements', () => {
+  assert.equal(m.isHomeEmployer('nursing_home'), false);
+  assert.equal(m.employerRecordError({employerType:'nursing_home',phone:'1',address:'a',profile:{}}), '');
+  assert.equal(m.employerRecordError({employerType:'nursing_home',phone:'',address:'a',profile:{}}), m.MESSAGES.contact);
+});
 test('other type has no extra requirements', () => {
   assert.equal(m.employerRecordError({employerType:'other',phone:'1',address:'a',profile:{}}), '');
 });

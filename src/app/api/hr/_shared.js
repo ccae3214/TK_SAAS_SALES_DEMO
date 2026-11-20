@@ -6,7 +6,7 @@ import { cleanEmployerProfile, employerRecordError } from '@/lib/hr-employer-pro
 // 履歷欄位的長度上限與選項清單放在同一支檔案，只維護這一份。
 import { WORKER_RESUME_FIELD_LIMITS as WORKER_RESUME_FIELDS } from '@/lib/hr-resume-fields';
 
-const EMPLOYER_TYPES = new Set(['home_care', 'factory', 'domestic_helper', 'other']);
+const EMPLOYER_TYPES = new Set(['home_care', 'factory', 'domestic_helper', 'nursing_home', 'other']);
 const TASK_CATEGORIES = new Set(['document', 'medical', 'training', 'other']);
 // 申請程序清單與工作者層級進度共用同一份定義（hr-worker-progress.js），避免兩邊不同步。
 const APPLICATION_STEPS = WORKER_PROGRESS_STEPS;
