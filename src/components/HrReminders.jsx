@@ -142,7 +142,7 @@ function collectDateReminders(data) {
   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
 }
 
-export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
+export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining, wide = false }) {
   const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
   const [expiryReminders, setExpiryReminders] = useState([]);
@@ -186,7 +186,7 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile,
   const reminderCount = unreadCount + dateReminders.length + expiryReminders.length + trainingReminders.length + profileReminders.length;
   // 沒有任何提醒（或還在讀取）時不顯示整個提醒視窗；有提醒時才出現。
   if (loading || reminderCount === 0) return null;
-  return <section className={styles.panel} aria-label="提醒">
+  return <section className={`${styles.panel} ${wide ? styles.panelWide : ''}`} aria-label="提醒">
     <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div><strong>{reminderCount}</strong></header>
     {unreadRooms.length > 0 && <div className={styles.group}><h3>聊天室未讀</h3>{unreadRooms.map(room => <button type="button" className={styles.item} key={room.id} onClick={() => onOpenChat?.(Number(room.id))}><span className={styles.dotChat}/><span className={styles.itemText}><strong>{room.title}</strong><small>{room.lastMessage || '有新訊息'}</small></span><b>{room.unreadCount}</b></button>)}</div>}
     {expiryReminders.length > 0 && <div className={styles.group}><h3>到期提醒</h3>{expiryReminders.map(item => <button type="button" className={styles.item} key={`${item.kind}:${item.workerId}`} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.overdue ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{REMINDER_LABELS[item.kind][item.overdue ? 'overdue' : 'upcoming']}</strong><small>{item.workerName} · {item.dueOn} · {item.overdue ? `逾期 ${Math.abs(item.daysLeft)} 天` : item.daysLeft === 0 ? '今天' : `剩 ${item.daysLeft} 天`}</small></span></button>)}</div>}

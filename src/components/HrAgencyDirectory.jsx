@@ -5,7 +5,7 @@ import { agencySnapshot } from '@/lib/hr-workflow';
 import HrAgencyCertifications from '@/components/HrAgencyCertifications';
 import styles from './HrJourney.module.css';
 
-export default function HrAgencyDirectory({ data, edit, update, navigate }) {
+export default function HrAgencyDirectory({ data, edit, update, remove, navigate }) {
   const [search, setSearch] = useState('');
   const [type, setType] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
@@ -19,7 +19,7 @@ export default function HrAgencyDirectory({ data, edit, update, navigate }) {
     <HrAgencyCertifications role="admin" />
     <div className={styles.agencyCards}>{visible.map(agency => {
       const snapshot = agencySnapshot(agency, data);
-      return <article key={agency.id} className={styles.agencyCard}><small>{agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'} · {agency.active ? '啟用' : '停用'}</small><h3>{agency.name}</h3><div className={styles.facts}><span>{snapshot.members.length} 位機構成員</span><span>{snapshot.orders.filter(order => order.status === 'open').length} 張進行中需求</span><span>{snapshot.cases.length} 件相關案件</span></div>{snapshot.unassigned > 0 && <p className={styles.notice}>{snapshot.unassigned} 張需求尚未指定負責業務</p>}<div className={styles.actions}><button type="button" aria-expanded={String(selectedId) === String(agency.id)} onClick={() => setSelectedId(agency.id)}>查看機構詳情</button><button type="button" onClick={() => edit(agency)}>編輯</button><button type="button" onClick={() => update({ type: 'agency', id: agency.id, active: !agency.active })}>{agency.active ? '停用' : '啟用'}</button></div></article>;
+      return <article key={agency.id} className={styles.agencyCard}><small>{agency.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介'} · {agency.active ? '啟用' : '停用'}</small><h3>{agency.name}</h3><div className={styles.facts}><span>{snapshot.members.length} 位機構成員</span><span>{snapshot.orders.filter(order => order.status === 'open').length} 張進行中需求</span><span>{snapshot.cases.length} 件相關案件</span></div>{snapshot.unassigned > 0 && <p className={styles.notice}>{snapshot.unassigned} 張需求尚未指定負責業務</p>}<div className={styles.actions}><button type="button" aria-expanded={String(selectedId) === String(agency.id)} onClick={() => setSelectedId(agency.id)}>查看機構詳情</button><button type="button" onClick={() => edit(agency)}>編輯</button><button type="button" onClick={() => update({ type: 'agency', id: agency.id, active: !agency.active })}>{agency.active ? '停用' : '啟用'}</button>{remove && <button type="button" onClick={async () => { if (await remove(agency) && String(selectedId) === String(agency.id)) setSelectedId(null); }}>刪除</button>}</div></article>;
     })}</div>
     {!visible.length && <p className={styles.empty}>找不到符合條件的機構，請調整名稱或類型。</p>}
     {selected && detail && <section className={styles.detail} aria-label="機構詳情"><div className={styles.detailHeader}><div><span className={styles.eyebrow}>機構詳情</span><h2>{selected.name}</h2><p>{selected.agency_type === 'taiwan' ? '台灣業務負責雇主需求、轉介與來台進度。' : '菲律賓承辦負責人選推薦、文件與申辦進度。'}</p></div><button type="button" onClick={() => setSelectedId(null)}>收起詳情</button></div>

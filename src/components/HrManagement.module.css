@@ -207,3 +207,17 @@
 @media(max-width:720px){
   .main{width:100%;margin-left:0}
 }
+
+.content{box-sizing:border-box;width:100%}
+.workspaceCanvas{display:grid;grid-auto-flow:row;align-content:start;gap:16px;width:100%;min-width:0;min-height:max(440px,min(680px,calc(100vh - 300px)))}
+.workspaceCanvas>*{width:100%;min-width:0}
+.workspaceCanvas>.dashboardQueues{margin-bottom:0}
+.overviewIntro{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;width:100%;min-width:0}
+.overviewIntro>*{width:100%;min-width:0}
+.overviewIntro>.statGrid{margin-bottom:0}
+.jobOrderWrap{overflow:auto}
+.jobOrderTable{min-width:1260px}
+.jobOrderTable th:last-child,.jobOrderTable td:last-child{position:sticky;right:0;z-index:1;background:#fff;box-shadow:-6px 0 10px rgba(15,45,33,.07)}
+.jobOrderTable th:last-child{z-index:3;background:#f6faf7}
+.jobOrderTable tbody tr:hover td:last-child{background:#f6faf8}
+@media(max-width:720px){.workspaceCanvas{gap:12px;min-height:max(400px,min(560px,calc(100svh - 260px)))}}

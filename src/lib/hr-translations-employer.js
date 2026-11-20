@@ -43,6 +43,10 @@ export const EMPLOYER_PROFILE_EN = {
   '編輯雇主資料': 'Edit employer details',
   '安養機構': 'Nursing home',
 
+  // 管理者刪除仲介機構
+  '找不到仲介機構。': 'Agency not found.',
+  '僅系統管理者可刪除雇主、工作者、案件與仲介機構。': 'Only system administrators can delete employers, workers, cases and agencies.',
+
   // 被照顧人
   '被照顧人': 'Care recipient',
   '為保護隱私，不需填寫被照顧人的全名或病歷資料；這些資訊會提供給負責的仲介作為配工參考。': 'To protect privacy, do not enter the care recipient’s full name or medical records. This information is shared with the responsible agencies to help match a suitable worker.',
@@ -65,8 +69,19 @@ export const EMPLOYER_PROFILE_EN = {
   [MESSAGES.salary]: 'The monthly salary is not valid. Enter a whole number from 1 to 1,000,000.',
 };
 
+const AGENCY_BLOCKERS_EN = { 成員帳號: 'member accounts', 待審申請: 'pending applications', 工作者: 'workers', 雇主: 'employers', 需求單: 'job orders' };
+
 // 提醒清單上的組合字串，例如「待補：性別、年齡」。逐項翻譯後再組回去；找不到的項目保留原文。
 export function translateEmployerPattern(text, translate) {
+  const agencyBlockers = text.match(/^此仲介機構還有(.+)，請先移轉或刪除後再刪除機構；若只是暫停使用，請改用「停用」。$/);
+  if (agencyBlockers) {
+    const items = agencyBlockers[1].split('、').map(item => AGENCY_BLOCKERS_EN[item] || translate(item)).join(', ');
+    return `This agency still has ${items}. Transfer or delete them before deleting the agency. To pause it instead, use “Inactive”.`;
+  }
+  const agencyConfirm = text.match(/^確定刪除仲介機構「(.+)」？機構資料、認證紀錄與機構聊天室會一併刪除（仍有成員、工作者、雇主或需求單的機構無法刪除）。此操作無法復原。$/);
+  if (agencyConfirm) return `Delete agency “${agencyConfirm[1]}”? Its profile, certifications and agency chat room will be deleted too (an agency that still has members, workers, employers or job orders cannot be deleted). This cannot be undone.`;
+  const agencyDeleted = text.match(/^已刪除仲介機構「(.+)」$/);
+  if (agencyDeleted) return `Deleted agency “${agencyDeleted[1]}”`;
   const missing = text.match(/^待補：(.+)$/);
   if (missing) return `Missing: ${missing[1].split('、').map(item => translate(item)).join(', ')}`;
   const employer = text.match(/^(.+) · 基本資料未完成$/);

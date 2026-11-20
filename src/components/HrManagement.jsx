@@ -100,6 +100,7 @@ const memberUnitLabel = row => {
 };
 
 export default function HrManagement({ actor }) {
+  const { lang } = useLanguage();
   const [data, setData] = useState(null);
   const [active, setActive] = useState('overview');
   const [search, setSearch] = useState('');
@@ -198,10 +199,10 @@ export default function HrManagement({ actor }) {
   }
 
   async function deleteRecord(type, record) {
-    const labels = { employer: '雇主／客戶', worker: '工作者', case: '案件' };
+    const labels = { employer: '雇主／客戶', worker: '工作者', case: '案件', agency: '仲介機構' };
     const name = type === 'case' ? record.case_number : record.name;
-    const warning = type === 'case' ? '案件的待辦、體檢訓練與申請程序紀錄會一併刪除（工作者的文件與雇主資料會保留）。' : type === 'worker' ? '工作者的文件、履歷資料與綁定的會員帳號會一併刪除。' : '雇主資料與綁定的會員帳號會一併刪除。';
-    if (!window.confirm(`確定刪除${labels[type]}「${name}」？${warning}此操作無法復原。`)) return false;
+    const warning = type === 'agency' ? '機構資料、認證紀錄與機構聊天室會一併刪除（仍有成員、工作者、雇主或需求單的機構無法刪除）。' : type === 'case' ? '案件的待辦、體檢訓練與申請程序紀錄會一併刪除（工作者的文件與雇主資料會保留）。' : type === 'worker' ? '工作者的文件、履歷資料與綁定的會員帳號會一併刪除。' : '雇主資料與綁定的會員帳號會一併刪除。';
+    if (!window.confirm(translateHrText(`確定刪除${labels[type]}「${name}」？${warning}此操作無法復原。`, lang))) return false;
     setSaving(true);
     try {
       const response = await fetch(`/api/hr?type=${type}&id=${encodeURIComponent(record.id)}`, { method: 'DELETE' });
@@ -246,11 +247,18 @@ export default function HrManagement({ actor }) {
     {mobileNav&&<button aria-label="關閉導覽" className={styles.scrim} onClick={()=>setMobileNav(false)}/>}
     <main className={styles.main}>
       <header className={styles.topbar}><button className={styles.menuButton} aria-label="開啟導覽" onClick={()=>setMobileNav(true)}><Menu size={20}/></button><div><span className={styles.breadcrumb}>克雷迅人力管理</span><span className={styles.breadcrumbSlash}>/</span><strong key={active}>{activeLabel}</strong></div><div className={styles.topActions}>{data?.role==='admin'&&<HrMemberRequestNotifications onOpen={openMemberRequest} blocked={saving||Boolean(modal)||Boolean(selectedCase)||Boolean(resumeWorker)}/>}{(data?.role==='admin'||data?.isAgencyAdmin)&&<span className={styles.adminBadge}><ShieldCheck size={14}/>{data.roleName}</span>}<span className={styles.localStatus}><i className={data?styles.connected:''}/>{data?'資料庫連線':'等待連線'}</span><button className={styles.iconButton} aria-label="重新整理資料" onClick={()=>void load()}><Activity size={17}/></button><button className={styles.topAvatar} title={actor.email}>{(actor.name||'管').slice(0,1)}</button></div></header>
-      <div className={`${styles.content} ${active==='documents'?styles.documentContent:''}`}>
+      <div className={styles.content}>
         {message&&<div className={`${styles.message} ${message.type==='error'?styles.messageError:styles.messageSuccess}`}><span>{message.type==='error'?<CircleAlert size={17}/>:<Check size={17}/>}</span>{message.text}<button aria-label="關閉訊息" onClick={()=>setMessage(null)}><X size={16}/></button></div>}
         <div className={styles.pageHeading} key={active}><div><p className={styles.kicker}>克雷迅人力仲介管理系統</p><h1>{activeLabel}</h1><p className={styles.subtitle}>{active==='overview'?'掌握案件、文件審核、體檢訓練與待辦進度。':`管理${activeLabel}。`}</p></div>{['cases','employers','workers','agencies','members'].includes(active)&&!(active==='members'&&data?.role==='agency'&&data?.isAgencyAdmin)&&<button className={styles.primaryButton} onClick={()=>openModal(({cases:'case',employers:'employer',workers:'worker',agencies:'agency',members:'member'})[active])}><Plus size={17}/>{({cases:'新增案件',employers:'新增雇主',workers:'新增工作者',agencies:'新增仲介',members:'新增會員帳號'})[active]}</button>}</div>
         {loading&&!data?<div className={styles.loading}>正在讀取管理資料…</div>:!data?<div className={styles.errorState}><h2>目前無法連接資料庫</h2><p>{message?.text||'請確認 Docker PostgreSQL 與網站服務正在執行。'}</p><button className={styles.primaryButton} onClick={()=>void load()}>重新連線</button></div>:<>
-          {active==='overview'&&<><HrReminders onOpenChat={roomId=>{setActive('chat');window.setTimeout(()=>window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}})),250);}} onOpenProgress={workerId=>{const item=data.cases.find(row=>Number(row.worker_id)===Number(workerId));if(item){setActive('cases');setSelectedCase(item);}}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker){setActive('workers');setResumeWorker(worker);}}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer){setActive('employers');openModal('employer',employer);}}else if(item.type==='agency'){const agency=data.agencies.find(row=>Number(row.id)===item.entityId);if(agency){setActive('agencies');openModal('agency',agency);}}}}/><Overview data={data} open={(section,filter='')=>{setActive(section);setQuickFilter(filter);setSearch('');}} selectCase={setSelectedCase} addCase={()=>openModal('case')}/></>}
+          <div className={styles.workspaceCanvas}>
+          {active==='overview'&&<>
+            <div className={styles.overviewIntro}>
+              <HrReminders wide onOpenChat={roomId=>{setActive('chat');window.setTimeout(()=>window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}})),250);}} onOpenProgress={workerId=>{const item=data.cases.find(row=>Number(row.worker_id)===Number(workerId));if(item){setActive('cases');setSelectedCase(item);}}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker){setActive('workers');setResumeWorker(worker);}}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer){setActive('employers');openModal('employer',employer);}}else if(item.type==='agency'){const agency=data.agencies.find(row=>Number(row.id)===item.entityId);if(agency){setActive('agencies');openModal('agency',agency);}}}}/>
+              <OverviewStatCards counts={data.counts} open={(section,filter='')=>{setActive(section);setQuickFilter(filter);setSearch('');}}/>
+            </div>
+            <Overview data={data} open={(section,filter='')=>{setActive(section);setQuickFilter(filter);setSearch('');}} selectCase={setSelectedCase} addCase={()=>openModal('case')}/>
+          </>}
           {active==='cases'&&<CaseList rows={filteredCases} initialStatus={quickFilter==='openCases'?'open':'all'} search={search} setSearch={setSearch} selectCase={setSelectedCase} add={()=>openModal('case')} clearQuickFilter={()=>setQuickFilter('')} tasks={data.tasks} agencies={data.agencies}/>}
           {active==='chat'&&<HrChat/>}
           {active==='job-orders'&&<JobOrderList orders={data.jobOrders||[]} assignments={data.orderAgencies||[]} routes={data.orderRoutes||[]} candidates={data.orderCandidates||[]} admin={data.role==='admin'} agencies={data.agencies||[]} agencyContacts={data.agencyContacts||[]} submit={submit} update={update}/>}
@@ -259,10 +267,11 @@ export default function HrManagement({ actor }) {
           {active==='tasks'&&<TaskList rows={quickFilter==='pendingTasks'?filteredTasks.filter(row=>row.status!=='done'):filteredTasks} cases={data.cases} search={search} setSearch={setSearch} update={update} saving={saving} add={()=>openModal('task')}/>}
           {active==='employers'&&<ContactList kind="雇主／客戶" rows={filteredEmployers} search={search} setSearch={setSearch} update={update} add={()=>openModal('employer')} edit={record=>openModal('employer',record)} remove={data.role==='admin'?record=>deleteRecord('employer',record):undefined} documents={data.role==='admin'?record=>setDocsEmployer(record):undefined}/>}
           {active==='workers'&&<WorkerList rows={filteredWorkers} search={search} setSearch={setSearch} update={update} add={()=>openModal('worker')} edit={record=>openModal('worker',record)} resume={setResumeWorker} remove={data.role==='admin'?record=>deleteRecord('worker',record):undefined}/>}
-          {active==='agencies'&&<HrAgencyDirectory data={data} update={update} edit={record=>openModal('agency',record)} navigate={setActive}/>}
+          {active==='agencies'&&<HrAgencyDirectory data={data} update={update} edit={record=>openModal('agency',record)} remove={data.role==='admin'?record=>deleteRecord('agency',record):undefined} navigate={setActive}/>}
           {active==='members'&&<MemberList rows={filteredMembers} search={search} setSearch={setSearch} update={update} review={record=>openModal('member-role',record)} edit={record=>openModal(record.modalType||'member-profile',record)} manageAdmin={data.role==='admin'} isRootAdmin={data.isRootAdmin} deleteMember={deleteMember} saving={saving}/>}
           {active==='training'&&data.role==='admin'&&<HrTrainingCenterWorkspace/>}
-    {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
+          {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
+          </div>
           <footer className={styles.footer}>克雷迅人力管理</footer>
         </>}
       </div>
@@ -274,9 +283,13 @@ export default function HrManagement({ actor }) {
   </div>;
 }
 
+function OverviewStatCards({counts,open}) {
+  const cards=[['進行中案件',counts.open_cases,'目前進行中的案件','cases','openCases'],['待審文件',counts.pending_documents,'等待文件審核','documents','pendingDocuments'],['待處理工作',counts.pending_tasks,'尚未完成的工作待辦','tasks','pendingTasks'],['雇主／客戶',counts.employers,'已建立的客戶資料','employers',''],['工作者',counts.workers,'已建立的工作者資料','workers','']];
+  return <div className={styles.statGrid}>{cards.map(([label,value,caption,section,filter],i)=><button type="button" className={styles.statCard} key={label} onClick={()=>open(section,filter)} aria-label={`前往${label}清單，共 ${value} 筆`}><span className={`${styles.statIcon} ${styles[`statIcon${i}`]}`}>{[<BriefcaseBusiness size={19}/>,<FileCheck2 size={19}/>,<ClipboardList size={19}/>,<Building2 size={19}/>,<UserRound size={19}/>][i]}</span><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>;
+}
+
 function Overview({data,open,selectCase,addCase}) {
   const counts=data.counts;
-  const cards=[['進行中案件',counts.open_cases,'目前進行中的案件','cases','openCases'],['待審文件',counts.pending_documents,'等待文件審核','documents','pendingDocuments'],['待處理工作',counts.pending_tasks,'尚未完成的工作待辦','tasks','pendingTasks'],['雇主／客戶',counts.employers,'已建立的客戶資料','employers',''],['工作者',counts.workers,'已建立的工作者資料','workers','']];
   const now=new Date();
   const today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
   const attention=data.tasks.filter(task=>task.status!=='done'&&(task.status==='blocked'||(task.due_date&&String(task.due_date).slice(0,10)<=today)))
@@ -296,7 +309,6 @@ function Overview({data,open,selectCase,addCase}) {
       <section className={styles.panel}><div className={styles.panelHeader}><div><h2>待補資料或指派案件</h2><p>先處理缺少必要文件或尚未指派負責業務的案件</p></div><button className={styles.linkButton} onClick={()=>open('cases')}>查看案件 <ChevronRight size={15}/></button></div>{needsAttentionCases.length?<div className={styles.attentionList}>{needsAttentionCases.map(item=>{const missing=(data.requirements||[]).filter(row=>Number(row.case_id)===Number(item.id)&&row.required&&row.applicable&&['missing','returned'].includes(row.status)).length;return <article className={styles.attentionItem} key={item.id}><span className={missing?styles.warnDot:styles.alertDot}/><div><strong>{item.case_number} · {item.worker_name}</strong><small>{missing?`必要文件待補 ${missing} 份`:'尚未指派負責業務'}</small></div><button type="button" className={styles.smallButton} onClick={()=>selectCase(item)}>處理案件</button></article>})}</div>:<p className={styles.queueEmpty}>目前沒有缺件或未指派的進行中案件。</p>}</section>
     </div>
     <section className={styles.panel}><div className={styles.panelHeader}><div><h2>最近更新案件</h2><p>依最後更新時間排序</p></div><button className={styles.linkButton} onClick={()=>open('cases')}>查看全部 <ChevronRight size={15}/></button></div>{recent.length?<div className={styles.tableWrap}><table><thead><tr><th>案件編號</th><th>工作者</th><th>雇主／客戶</th><th>案件階段</th><th>狀態</th><th>操作</th></tr></thead><tbody>{recent.map(row=><tr key={row.id}><td className={styles.caseNumber}>{row.case_number}</td><td>{row.worker_name}</td><td>{row.employer_name}</td><td>{stageLabel(row.stage)}</td><td><Status value={row.status} options={CASE_STATUSES}/></td><td><button type="button" className={styles.smallButton} onClick={()=>selectCase(row)}>查看案件</button></td></tr>)}</tbody></table></div>:<Empty title="尚未建立案件" text="新增第一筆案件後，案件進度會顯示在這裡。" action="新增案件" onClick={addCase}/>}</section>
-    <div className={styles.statGrid}>{cards.map(([label,value,caption,section,filter],i)=><button type="button" className={styles.statCard} key={label} onClick={()=>open(section,filter)} aria-label={`前往${label}清單，共 ${value} 筆`}><span className={`${styles.statIcon} ${styles[`statIcon${i}`]}`}>{[<BriefcaseBusiness size={19}/>,<FileCheck2 size={19}/>,<ClipboardList size={19}/>,<Building2 size={19}/>,<UserRound size={19}/>][i]}</span><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>
   </>;
 }
 
