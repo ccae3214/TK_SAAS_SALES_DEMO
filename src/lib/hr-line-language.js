@@ -22,3 +22,20 @@ export function fallbackReplyLanguage(text, principal, menuCommands) {
   const command = String(text || '').trim().replace(/\s+/g, ' ');
   return menuCommands?.has(command) ? roleDefaultLanguage(principal) : detectedLanguage(command);
 }
+
+// LINE 個人資料的 language（例如 zh-Hant、en、fil）轉成 LINE 機器人使用的語言代碼。
+// 不支援的語言（日文、泰文…）回傳 null，代表「不改現有設定」。
+export function profileLocaleToBotLanguage(locale) {
+  const value = String(locale || '').trim().toLowerCase().replace('_', '-');
+  if (/^zh(?:-|$)/.test(value)) return 'zh';
+  if (/^en(?:-|$)/.test(value)) return 'en';
+  if (/^(?:tl|fil)(?:-|$)/.test(value)) return 'tl';
+  return null;
+}
+
+// 網站介面目前只有中文與英文：LINE 語言是 Filipino（tl）時，網站用英文；其他語言不動。
+export function webLanguageForBotLanguage(botLanguage) {
+  if (botLanguage === 'zh') return 'zh';
+  if (botLanguage === 'en' || botLanguage === 'tl') return 'en';
+  return null;
+}

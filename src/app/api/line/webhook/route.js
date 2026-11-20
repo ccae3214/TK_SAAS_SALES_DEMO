@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { replyForHrLineEvent } from '@/lib/hr-line-bot';
 import { ensureLineSchema } from '@/lib/hr-schema';
+import { lineMemberPrincipalLoader, syncLineLanguageOnce } from '@/lib/hr-line-language-sync';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,17 @@ async function claimEvent(event) {
   return claimed.length > 0;
 }
 
+// 依 LINE 語言設定強制同步一次（每個 LINE 帳號只做一次，失敗不影響回覆）。
+// 必須在 replyForHrLineEvent 之前，這樣使用者第一則訊息就用 LINE 語言回覆。
+async function syncLanguageForEvent(event) {
+  const userId = event?.source?.userId;
+  if (!userId || event.source?.type !== 'user') return;
+  const isFollow = event.type === 'follow';
+  const isText = event.type === 'message' && event.message?.type === 'text';
+  if (!isFollow && !isText) return;
+  await syncLineLanguageOnce(userId, lineMemberPrincipalLoader(userId));
+}
+
 async function sendReply(replyToken, content) {
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error('missing_messaging_access_token');
@@ -77,6 +89,7 @@ export async function POST(request) {
     for (const event of payload.events) {
       if (!(await claimEvent(event))) { duplicates += 1; continue; }
       try {
+        await syncLanguageForEvent(event);
         let text = await replyForHrLineEvent(withLegacyCommandTerms(event));
         if (text === null) {
           text = '克雷迅人力仲介 LINE 服務。輸入「說明」查看查詢方式，輸入「會員網站」登入；新會員可輸入「註冊」。';

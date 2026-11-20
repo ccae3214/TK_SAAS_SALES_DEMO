@@ -13,6 +13,7 @@ import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { ensureEmployerDocumentsSchema } from '@/lib/hr-employer-documents';
 import { ensureNotificationSchema } from '@/lib/hr-notifications';
 import { ensureAuditSchema } from '@/lib/hr-audit';
+import { ensureLineLanguageSyncSchema } from '@/lib/hr-line-language-sync';
 import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-reminders-store';
 
 // 順序有相依：核心資料表 → 身分／會員 → 其餘功能。
@@ -29,6 +30,7 @@ export const MIGRATION_STEPS = [
   ['worker-progress', () => ensureWorkerProgressSchema()],
   ['chat', () => ensureChatSchema()],
   ['line-bot', () => ensureLineSchema()],
+  ['line-language-sync', () => ensureLineLanguageSyncSchema()],
   ['expiry-reminder-log', () => ensureExpiryReminderLog()],
 ];
 

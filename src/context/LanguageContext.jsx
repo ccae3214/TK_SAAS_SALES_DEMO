@@ -31,6 +31,16 @@ export const LanguageProvider = ({ children }) => {
     }
   }, []);
 
+  // 「依 LINE 語言同步一次」會用這個事件通知這裡切換語言（見 components/LineLanguageSync.jsx）。
+  useEffect(() => {
+    const onSetLanguage = (event) => {
+      const next = event?.detail;
+      if (next === 'zh' || next === 'en') handleSetLang(next);
+    };
+    window.addEventListener('kolecion:set-language', onSetLanguage);
+    return () => window.removeEventListener('kolecion:set-language', onSetLanguage);
+  }, [handleSetLang]);
+
   const t = translations[lang] || translations['zh'];
 
   if (!mounted) {
