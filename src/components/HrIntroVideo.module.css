@@ -1,4 +1,3 @@
-.launch{position:fixed;left:18px;bottom:66px;z-index:9980;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #176b54;background:#176b54;color:#fff;font:inherit;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(8,24,18,.22);cursor:pointer}
 .backdrop{position:fixed;inset:0;z-index:9995;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;background:rgba(8,24,18,.72)}
 .dialog{position:relative;width:min(760px,100%);max-height:100%;overflow:auto;border-radius:18px;background:#fff;color:#14231d;box-shadow:0 24px 70px rgba(8,24,18,.45);font-family:Inter,"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;outline:none}
 .close{position:absolute;top:10px;right:10px;z-index:3;display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:#14231d;cursor:pointer;box-shadow:0 2px 8px rgba(8,24,18,.2)}
@@ -96,7 +95,7 @@
 .dot{position:relative;flex:1 1 0;max-width:30px;height:8px;padding:0;border:0;border-radius:4px;background:#d2ddd7;overflow:hidden;cursor:pointer}
 .dotDone{background:#176b54}
 .dotOn i{position:absolute;inset:0 auto 0 0;background:#176b54}
-.close:focus-visible,.ctl:focus-visible,.dot:focus-visible,.launch:focus-visible,.seek:focus-visible{outline:3px solid #7fd6b8;outline-offset:2px}
+.close:focus-visible,.ctl:focus-visible,.dot:focus-visible,.seek:focus-visible{outline:3px solid #7fd6b8;outline-offset:2px}
 
 @keyframes sceneIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
@@ -110,7 +109,6 @@
 @keyframes cursorMove{0%{left:16%;top:20px;opacity:0}8%{opacity:1}30%{left:20%;top:22px}34%{transform:scale(.8)}38%{transform:scale(1)}65%{left:30%;top:128px}80%{left:30%;top:128px;transform:scale(1)}84%{transform:scale(.8)}100%{left:30%;top:128px;opacity:0}}
 
 @media (max-width:640px){
-  .launch{left:12px;bottom:60px}
   .backdrop{padding:0;align-items:flex-end}
   .dialog{border-radius:18px 18px 0 0}
   .caption p{min-height:5.1em}

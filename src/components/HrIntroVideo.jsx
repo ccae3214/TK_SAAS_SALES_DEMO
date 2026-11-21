@@ -11,9 +11,10 @@ import { useHrDialog } from '@/lib/use-hr-dialog';
 import {
   INTRO_SCENE_STARTS, INTRO_VIDEO_DURATION, INTRO_VIDEO_FILES, INTRO_VIDEO_SCENES, introVideoText, sceneIndexAt,
 } from '@/lib/hr-intro-video';
+import { HR_VIDEO_OPEN_EVENT } from '@/lib/hr-help-events';
 import styles from './HrIntroVideo.module.css';
 
-// 工作者介紹影片：按左下角「介紹影片」開啟。
+// 工作者介紹影片：按工作起點裡的「介紹影片」開啟。
 // 預設播放網站內建的動畫導覽（中英文隨網站語言切換）；
 // 如果 public/videos/ 底下有錄好的影片檔（見 hr-intro-video.js），就改播真實影片。
 
@@ -213,12 +214,13 @@ function Player({ onClose }) {
 }
 
 export default function HrIntroVideo() {
-  const { lang } = useLanguage();
-  const text = introVideoText(lang);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  return <>
-    <button type="button" className={styles.launch} onClick={() => setOpen(true)} aria-haspopup="dialog" data-tour="intro-video"><Clapperboard size={17} aria-hidden="true" />{text.open}</button>
-    {open && typeof document !== 'undefined' && createPortal(<Player onClose={close} />, document.body)}
-  </>;
+  // 工作起點裡的「介紹影片」按鈕會發出事件，這裡接到就開啟播放器。
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(HR_VIDEO_OPEN_EVENT, show);
+    return () => window.removeEventListener(HR_VIDEO_OPEN_EVENT, show);
+  }, []);
+  return open && typeof document !== 'undefined' ? createPortal(<Player onClose={close} />, document.body) : null;
 }

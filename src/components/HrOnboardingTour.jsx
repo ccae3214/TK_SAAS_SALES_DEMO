@@ -6,9 +6,11 @@ import HrIntroVideo from '@/components/HrIntroVideo';
 import { useLanguage } from '@/context/LanguageContext';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { ONBOARDING_VERSION, TOURS } from '@/lib/hr-onboarding';
+import { HR_INLINE_HELP_ROLES, HR_TOUR_START_EVENT } from '@/lib/hr-help-events';
 import styles from './HrOnboardingTour.module.css';
 
-// 新手導覽：第一次進入時自動開始，之後可按右下角「使用導覽」重看。
+// 新手導覽：第一次進入時自動開始，之後可按「使用導覽」重看。
+// 工作者／雇主／仲介的按鈕在工作起點裡；其他角色（管理員、訓練中心等）維持左下角浮動按鈕。
 // 看過的紀錄存在會員資料（跨裝置）；沒有會員資料的帳號則存在這個瀏覽器。
 
 const COPY = {
@@ -49,6 +51,12 @@ export default function HrOnboardingTour({ tourId }) {
   }, [tourId]);
 
   const finish = useCallback(() => { setOpen(false); markSeen(); }, [markSeen]);
+
+  // 工作起點裡的「使用導覽」按鈕會發出事件，這裡接到就開始導覽。
+  useEffect(() => {
+    window.addEventListener(HR_TOUR_START_EVENT, start);
+    return () => window.removeEventListener(HR_TOUR_START_EVENT, start);
+  }, [start]);
 
   // 第一次進入時自動開始（沒看過目前版本才會開）。
   useEffect(() => {
@@ -95,7 +103,7 @@ export default function HrOnboardingTour({ tourId }) {
   if (!open || !step) {
     return <>
       {tourId === 'worker' && <HrIntroVideo />}
-      <button type="button" className={styles.help} onClick={start}><CircleHelp size={17} aria-hidden="true" />{text.help}</button>
+      {!HR_INLINE_HELP_ROLES.includes(tourId) && <button type="button" className={styles.help} onClick={start}><CircleHelp size={17} aria-hidden="true" />{text.help}</button>}
     </>;
   }
 
