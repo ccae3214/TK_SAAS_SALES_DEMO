@@ -99,7 +99,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
 
     return <div className={styles.panel}>
       {header}
-      <p className={styles.muted}>{`${index + 1} / ${units.length}${unit.hours ? ` · ${unit.hours} 小時` : ''}`}</p>
+      <p className={styles.muted}>{`${index + 1} / ${units.length}${unit.hours ? ` · ${unit.hours} 小時` : ''}`}{vocabulary.length ? <>{' '}<span>{`· ${vocabulary.length} 個詞彙`}</span></> : null}</p>
       {pick(unit.category, unit.category_en) && <p className={styles.category}>{pick(unit.category, unit.category_en)}</p>}
       <h3>{pick(unit.name, unit.name_en)}</h3>
       {speech.supported && hasSpeakable && <div className={styles.speechBar}>
@@ -160,7 +160,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
           const isDone = completed.includes(Number(item.id));
           return <li key={item.id} className={`${styles.unitRow} ${isDone ? styles.unitDone : ''}`}>
             <span className={styles.unitNo}>{i + 1}</span>
-            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}</span>
+            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}{parseVocabularyEntries(item.vocabulary).length ? <small>{`${parseVocabularyEntries(item.vocabulary).length} 個詞彙`}</small> : null}</span>
             {!data.readOnly && <span className={`${styles.badge} ${isDone ? styles.badgeDone : ''}`}>{isDone ? '已讀完' : '未讀'}</span>}
             <button type="button" className={`${styles.button} ${!isDone && item.id === progress.nextUnitId ? styles.buttonPrimary : ''}`} onClick={() => setUnitId(item.id)}>{isDone ? '複習' : item.id === progress.nextUnitId && progress.done > 0 ? '繼續學習' : '開始學習'}</button>
           </li>;

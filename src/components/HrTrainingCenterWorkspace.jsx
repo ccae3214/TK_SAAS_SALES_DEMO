@@ -6,6 +6,7 @@ import { useHrDialog } from '@/lib/use-hr-dialog';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
+import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
@@ -284,7 +285,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'courses' && unitCourse && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>{`課程單元：${unitCourse.name}`}</h2><p>{unitsOf(unitCourse.id).length ? `單元時數合計：${unitsOf(unitCourse.id).reduce((sum, item) => sum + (item.hours || 0), 0)} 小時` : '把課程內容拆成單元，每個單元可寫學習重點與例句。'}</p></div><div className={styles.rowActions}><button className={styles.primaryButton} onClick={() => unitModal(null)}>新增單元</button><button className={styles.smallButton} onClick={() => setUnitCourseId(null)}>關閉</button></div></div>
-      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>場合分類</th><th>課程時數</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{pick(row.category, row.category_en) || '—'}</td><td>{row.hours ?? '—'}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
+      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>場合分類</th><th>課程時數</th><th>詞彙量</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{pick(row.category, row.category_en) || '—'}</td><td>{row.hours ?? '—'}</td><td>{parseVocabularyEntries(row.vocabulary).length}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
     </section>}
 
     {tab === 'classes' && <section className={styles.panel}>

@@ -65,6 +65,7 @@ export const TRAINING_CENTER_EN = {
   '課程': 'Course',
   '課程名稱': 'Course name',
   '課程時數': 'Course hours',
+  '詞彙量': 'Vocabulary count',
   '課程費用': 'Course fee',
   '詞彙': 'Vocabulary',
   '對話': 'Dialogue',
@@ -286,6 +287,7 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^(\d+) \/ (\d+) · (\d+) 小時$/))) return `${m[1]} / ${m[2]} · ${m[3]} hours`;
   if ((m = text.match(/^· (\d+) 小時$/))) return Number(m[1]) === 1 ? '· 1 hour' : `· ${m[1]} hours`;
   if ((m = text.match(/^(\d+) 小時$/))) return Number(m[1]) === 1 ? '1 hour' : `${m[1]} hours`;
+  if ((m = text.match(/^(?:· )?(\d+) 個詞彙$/))) return `${m[0].startsWith('· ') ? '· ' : ''}${m[1]} ${Number(m[1]) === 1 ? 'word' : 'words'}`;
   if ((m = text.match(/^單元時數合計：(\d+) 小時$/))) return `Total unit hours: ${m[1]}`;
   if ((m = text.match(/^(\d+) 天後$/))) return Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`;
   if ((m = text.match(/^已過 (\d+) 天$/))) return Number(m[1]) === 1 ? '1 day ago' : `${m[1]} days ago`;

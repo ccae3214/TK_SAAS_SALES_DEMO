@@ -18,13 +18,16 @@ function parseUnits(sql) {
 const sql = await read('../scripts/seed-mandarin-a1-course.sql');
 const units = parseUnits(sql);
 
-test('A1 課程 seed：13 個單元、120 小時、順序與名稱不重複，詞彙約 500 個', () => {
-  assert.equal(units.length, 13);
-  assert.deepEqual(units.map(unit => unit.position), Array.from({ length: 13 }, (_, index) => index + 1));
+test('A1 課程 seed：20 個單元、240 小時、順序與名稱不重複，不重複詞彙至少 800 個', () => {
+  assert.equal(units.length, 20);
+  assert.deepEqual(units.map(unit => unit.position), Array.from({ length: 20 }, (_, index) => index + 1));
   assert.equal(new Set(units.map(unit => unit.name)).size, units.length, '單元名稱不可重複');
-  assert.equal(units.reduce((sum, unit) => sum + unit.hours, 0), 120);
-  const vocabularyCount = units.reduce((sum, unit) => sum + unit.vocabulary.split('\n').length, 0);
-  assert.ok(vocabularyCount >= 480 && vocabularyCount <= 540, `詞彙總數 ${vocabularyCount}`);
+  assert.equal(units.reduce((sum, unit) => sum + unit.hours, 0), 240);
+  const words = units.flatMap(unit => unit.vocabulary.split('\n').map(line => line.split(' | ')[0]));
+  assert.ok(new Set(words).size >= 800, `不重複詞彙 ${new Set(words).size}`);
+  assert.equal(units.at(-1).category, '複習', '總複習放在最後');
+  const body = units.slice(0, -1).flatMap(unit => unit.vocabulary.split('\n').map(line => line.split(' | ')[0]));
+  assert.equal(new Set(body).size, body.length, '總複習以外的單元，詞彙不可重複出現');
 });
 
 test('A1 課程 seed：每個單元都有分類、英文名稱、詞彙、例句與對話，格式與拼音音節數正確', () => {

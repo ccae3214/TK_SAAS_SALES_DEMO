@@ -29,3 +29,11 @@ test('課程時數「· N 小時」有英文翻譯', () => {
   assert.equal(translate('· 40 小時'), '· 40 hours');
   assert.equal(translate('· 1 小時'), '· 1 hour');
 });
+
+// 單元的詞彙量（訓練中心單元表、工人學習頁的單元清單與單元內頁）。
+test('單元詞彙量有英文翻譯', () => {
+  assert.equal(translate('詞彙量'), 'Vocabulary count');
+  assert.equal(translate('35 個詞彙'), '35 words');
+  assert.equal(translate('· 35 個詞彙'), '· 35 words');
+  assert.equal(translate('1 個詞彙'), '1 word');
+});
