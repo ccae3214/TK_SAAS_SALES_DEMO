@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools } from '@/lib/hr-translations';
+import HrFilePicker from '@/components/HrFilePicker';
 import { progressText } from '@/lib/hr-worker-progress-text';
 import {
   CASE_STAGE_LABELS, DOCUMENT_STATUS_LABELS, HEALTH_TRAINING_STEP_KEYS, SINGLE_DATE_STEPS, STATUS_LABELS, STEP_DATE_LABELS, STEP_DETAILS, STEP_PAIR_LABELS, allowedNextStatuses,
@@ -118,7 +119,7 @@ function DocumentCard({ doc, viewer, t, disabled, onReview, onApplicability, onU
       )}
       {doc.applicable && (
         <form className={styles.uploadRow} onSubmit={event => onUpload(event, doc)}>
-          <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required disabled={disabled} />
+          <HrFilePicker name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required disabled={disabled} />
           <input name="note" placeholder={t('補件說明（選填）')} maxLength={300} disabled={disabled} />
           <button type="submit" disabled={disabled}>{t(doc.status === 'returned' ? '重新上傳' : doc.status === 'missing' ? '上傳文件' : '上傳新版本')}</button>
         </form>
