@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
 import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
 import { EMPLOYER_PROFILE_EN, translateEmployerPattern } from '@/lib/hr-translations-employer';
+import { MEMBER_TRASH_EN } from '@/lib/hr-member-trash-text';
 import { DEPOSIT_EN, translateDepositPattern } from '@/lib/hr-translations-deposit';
 
 const EN = {
@@ -458,6 +459,7 @@ export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
   let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed];
+  if (!translated) translated = MEMBER_TRASH_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;

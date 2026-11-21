@@ -9,6 +9,7 @@ import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
 import { notifyAfterDocumentReview, notifyAccountStatusChange, notifyApplicationRejected } from '@/lib/hr-member-notices';
 import { withAdminAudit } from '@/lib/hr-audit';
+import { trashMember, restoreTrashedMember } from '@/lib/hr-member-trash';
 import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, STEP_OWNERS, OWNER_LABELS, WORKFLOW_DENIED_MESSAGES } from '@/lib/hr-case-flow';
 import { refreshCaseStage as refreshStage } from '@/lib/hr-case-stage';
 import { isWithdrawnRecommendation } from '@/lib/hr-candidate-withdrawal';
@@ -81,7 +82,7 @@ export async function GET() {
         ORDER BY s.created_at DESC LIMIT 200`),
       query(`SELECT a.*, c.case_number FROM hr_case_activity a JOIN hr_cases c ON c.id=a.case_id ORDER BY a.created_at DESC LIMIT 100`),
       query('SELECT * FROM hr_agencies ORDER BY agency_type,name'),
-      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.requested_agency_id,requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.active,m.created_at,
+      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.requested_agency_id,requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.active,m.deleted_at,m.created_at,
         a.name AS agency_name,a.agency_type,w.name AS worker_name,w.agency_id AS worker_agency_id,worker_agency.name AS worker_agency_name,
         e.name AS employer_name,e.agency_id AS employer_agency_id,employer_agency.name AS employer_agency_name,
         COALESCE((SELECT array_agg(DISTINCT case_taiwan_agency.name ORDER BY case_taiwan_agency.name)
@@ -278,7 +279,7 @@ export async function GET() {
     if (reminderKinds) {
       try { expiryReminders = await collectExpiryReminders(query, { workerIds: workers.map(item => Number(item.id)), kinds: reminderKinds }); } catch (error) { console.error('hr_expiry_reminders_load_failed', error?.code || 'error'); }
     }
-    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, expiryReminders, trainingCourses, trainingEnrollments, agencies: visibleAgencies, members: protectedMembers, agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
+    return NextResponse.json({ role: principal.role, isRootAdmin, adminScope: principal.admin_scope || (principal.is_agency_admin ? 'agency' : null), isAgencyAdmin: !!principal.is_agency_admin, agencyType: principal.agency_type || null, agencyId: principal.agency_id || null, roleName: principal.role === 'admin' ? '系統管理者' : principal.is_agency_admin ? '仲介管理者' : ({ worker:'工作者', employer:'雇主', agency:'仲介', training_center:'訓練中心', system_admin:'系統管理者' })[principal.role], employers, workers, availableWorkers: employerAvailableWorkers, trainingRoster, expiryReminders, trainingCourses, trainingEnrollments, agencies: visibleAgencies, members: protectedMembers.filter(item => !item.deleted_at), trashedMembers: principal.role === 'admin' ? protectedMembers.filter(item => item.deleted_at) : [], agencyContacts, cases, tasks, requirements, submissions, applicationSteps, certifications, acknowledgments, jobOrders, orderAgencies, orderRoutes, orderCandidates, activity, counts, actor: { name: principal.name || session.user.name || session.user.email || 'LINE 帳號', email: session.user.email || 'LINE 登入' } });
   } catch (error) {
     console.error('hr_management_read_failed', error?.code || error?.name || 'Error', error?.message || '');
     return NextResponse.json({ error: '無法讀取人力仲介資料。請確認 PostgreSQL 已啟動。' }, { status: 503 });
@@ -561,7 +562,7 @@ async function handlePatch(request) {
         WHERE m.id=$1 AND (m.agency_id=$2 OR w.agency_id=$2 OR e.agency_id=$2)`,[memberId,principal.agency_id]);
       if (!inAgency.length || body.role !== undefined) return NextResponse.json({error:'仲介管理者只能管理所屬機構會員的啟用狀態。'},{status:403});
       const beforeMember=(await query('SELECT role,active,line_user_id,requested_role FROM hr_members WHERE id=$1',[memberId]))[0];
-      const result=await query(`UPDATE hr_members m SET active=$3,updated_at=NOW()
+      const result=await query(`UPDATE hr_members m SET active=$3,deleted_at=CASE WHEN $3 THEN NULL ELSE m.deleted_at END,updated_at=NOW()
         WHERE m.id=$1 AND (m.agency_id=$2 OR EXISTS(SELECT 1 FROM hr_workers w WHERE w.id=m.worker_id AND w.agency_id=$2)
           OR EXISTS(SELECT 1 FROM hr_employers e WHERE e.id=m.employer_id AND e.agency_id=$2))
         RETURNING m.id,m.email,m.display_name,m.role,m.active`,[memberId,principal.agency_id,body.active!==false]);
@@ -667,6 +668,33 @@ async function handlePatch(request) {
           [id,fields.displayName,fields.email || null,lineUserId,passwordHash])).rows[0],
       });
       return NextResponse.json(edited);
+    }
+    if (body.type === 'member-restore') {
+      if (principal.role !== 'admin') return NextResponse.json({ error: '只有系統管理者可以還原已刪除的會員帳號。' }, { status: 403 });
+      if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const found = await client.query('SELECT id,role,admin_scope FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+        if (!found.rowCount) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
+        }
+        if ((found.rows[0].admin_scope === 'system' || found.rows[0].role === 'system_admin') && !isRootAdmin) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以還原系統管理者帳號。' }, { status: 403 });
+        }
+        const restored = await restoreTrashedMember(client, id);
+        if (!restored) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: '此會員帳號不在「已刪除帳號」。' }, { status: 409 });
+        }
+        await client.query('COMMIT');
+        return NextResponse.json(restored);
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+      } finally { client.release(); }
     }
     if (body.type === 'member') {
       if (!validId(body.id)) return NextResponse.json({ error: '會員編號不正確。' }, { status: 400 });
@@ -783,7 +811,7 @@ async function handlePatch(request) {
       }
       if (body.active === false) await query('UPDATE hr_job_order_agencies SET broker_member_id=NULL WHERE broker_member_id=$1',[id]);
       const beforeMember = (await query('SELECT active,line_user_id,requested_role FROM hr_members WHERE id=$1',[id]))[0];
-      const result = await query('UPDATE hr_members SET active=$2,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
+      const result = await query('UPDATE hr_members SET active=$2,deleted_at=CASE WHEN $2 THEN NULL ELSE deleted_at END,updated_at=NOW() WHERE id=$1 RETURNING id,email,display_name,role,active', [id,body.active !== false]);
       if (!result.length) return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
       // 停用／重新啟用時通知會員；待審核的申請人被停用視同申請未通過。狀態沒有改變時不會發送。
       if (beforeMember) notifyAccountStatusChange({ lineUserId: beforeMember.line_user_id, role: target[0].role, requestedRole: beforeMember.requested_role, wasActive: beforeMember.active, nowActive: result[0].active })
@@ -974,7 +1002,7 @@ async function handleDelete(request) {
       const client=await pool.connect();
       try{
         await client.query('BEGIN');
-        const member=await client.query('SELECT id,email,line_user_id,role,admin_scope,worker_id,employer_id FROM hr_members WHERE id=$1 FOR UPDATE',[id]);
+        const member=await client.query('SELECT id,email,line_user_id,role,admin_scope,worker_id,employer_id,deleted_at FROM hr_members WHERE id=$1 FOR UPDATE',[id]);
         if(!member.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到會員帳號。'},{status:404});}
         const target=member.rows[0];
         const isSystemTarget = target.admin_scope==='system' || target.role==='system_admin';
@@ -984,6 +1012,16 @@ async function handleDelete(request) {
         const sameEmail=target.email&&session.user.email&&target.email.toLowerCase()===session.user.email.trim().toLowerCase();
         const sameLineUser=target.line_user_id&&session.user.lineUserId&&target.line_user_id===session.user.lineUserId;
         if(sameEmail||sameLineUser){await client.query('ROLLBACK');return NextResponse.json({error:'無法刪除目前登入中的管理者帳號。'},{status:400});}
+        // 已核准（有會員類型）的會員先移到「已刪除帳號」，隨時可還原；只有在「已刪除帳號」按「永久刪除」，
+        // 或是尚未審核通過、沒有資料可保留的申請人，才會真的刪除。
+        const permanent=url.searchParams.get('purge')==='1'||!target.role;
+        if(!permanent){
+          if(target.deleted_at){await client.query('ROLLBACK');return NextResponse.json({error:'此會員帳號已在「已刪除帳號」。'},{status:409});}
+          await trashMember(client,id);
+          await client.query('COMMIT');
+          return NextResponse.json({ok:true,trashed:true});
+        }
+        if(target.role&&!target.deleted_at){await client.query('ROLLBACK');return NextResponse.json({error:'請先將會員帳號移到「已刪除帳號」，再從那裡永久刪除。'},{status:409});}
         // 工作者／雇主會員與其資料是一組：沒有案件或需求單牽連時，一併刪除對應的工作者／雇主資料。
         if(target.worker_id){
           const used=(await client.query(`SELECT EXISTS(SELECT 1 FROM hr_cases WHERE worker_id=$1) AS has_cases,

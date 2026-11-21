@@ -49,3 +49,6 @@ certbot_www
 **/.auth/
 playwright-report/
 test-results/
+
+# Database backups hold personal data and encrypted documents; never commit.
+backups/

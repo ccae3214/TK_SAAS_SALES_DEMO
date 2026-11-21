@@ -1,4 +1,5 @@
 import pool, { get } from '@/lib/db';
+import { MEMBER_TRASH_COLUMN_SQL } from '@/lib/hr-member-trash';
 import { migrateOnce } from './migrate-once.js';
 
 export const HR_ROLES = new Set(['worker', 'employer', 'agency', 'training_center']);
@@ -101,6 +102,8 @@ async function migrateHrIdentitySchema() {
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_employer_id BIGINT REFERENCES hr_employers(id) ON DELETE SET NULL');
   // 新手導覽看過的紀錄：{ 導覽名稱: 版本 }
   await pool.query("ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS onboarding_seen JSONB NOT NULL DEFAULT '{}'::jsonb");
+  // 「已刪除帳號」（資源回收區）：刪除會員先標記 deleted_at 並停用，之後可還原。
+  await pool.query(MEMBER_TRASH_COLUMN_SQL);
   // One agency can have multiple member logins; worker and employer links stay unique.
   await pool.query('ALTER TABLE hr_members DROP CONSTRAINT IF EXISTS hr_members_agency_id_key');
   await pool.query('CREATE INDEX IF NOT EXISTS hr_members_agency_id_idx ON hr_members(agency_id) WHERE agency_id IS NOT NULL');

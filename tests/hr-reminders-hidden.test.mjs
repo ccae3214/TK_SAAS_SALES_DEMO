@@ -7,5 +7,5 @@ const source = readFileSync(new URL('../src/components/HrReminders.jsx', import.
 
 test('the reminders panel renders nothing while loading or when there are no reminders', () => {
   assert.match(source, /if \(loading \|\| reminderCount === 0\) return null;/);
-  assert.ok(source.indexOf('return null;') < source.indexOf('<section className={styles.panel}'));
+  assert.ok(source.indexOf('return null;') < source.indexOf('<section className={'));
 });

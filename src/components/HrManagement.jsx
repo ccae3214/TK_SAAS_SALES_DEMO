@@ -6,6 +6,7 @@ import { Activity, BriefcaseBusiness, Building2, Check, ChevronRight, CircleAler
 import styles from './HrManagement.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
+import { memberTrashText } from '@/lib/hr-member-trash-text';
 import { photoFileError } from '@/lib/hr-photo-file';
 import HrFilePicker from '@/components/HrFilePicker';
 import HrPhotoCropper from '@/components/HrPhotoCropper';
@@ -215,15 +216,48 @@ export default function HrManagement({ actor }) {
     finally { setSaving(false); }
   }
 
+  // 已核准的會員先移到「已刪除帳號」（可還原）；尚未審核通過的申請人沒有資料可保留，直接刪除。
   async function deleteMember(member) {
-    if (!window.confirm(`確定刪除會員帳號「${member.display_name}」？此操作無法復原；若為工作者／雇主會員，對應的工作者／雇主資料也會一併刪除（有案件或需求單時會拒絕刪除）。`)) return;
+    const pending = !member.role;
+    const name = member.display_name;
+    if (!window.confirm(memberTrashText(pending ? 'confirmDeletePending' : 'confirmTrash', lang, { name }))) return;
     setSaving(true);
     try {
       const response = await fetch(`/api/hr?type=member&id=${encodeURIComponent(member.id)}`, { method: 'DELETE' });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || '刪除會員帳號失敗');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || memberTrashText('failDelete', lang));
       await load();
-      setMessage({ type: 'success', text: '會員帳號已刪除' });
+      setMessage({ type: 'success', text: memberTrashText(pending ? 'deletedPending' : 'trashed', lang) });
+    } catch (error) { setMessage({ type: 'error', text: error.message }); }
+    finally { setSaving(false); }
+  }
+
+  async function restoreMember(member) {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/hr', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'member-restore', id: member.id }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || memberTrashText('failRestore', lang));
+      await load();
+      setMessage({ type: 'success', text: memberTrashText('restored', lang) });
+    } catch (error) { setMessage({ type: 'error', text: error.message }); }
+    finally { setSaving(false); }
+  }
+
+  // 永久刪除：只能從「已刪除帳號」進行，並且要輸入會員名稱確認後才會執行。
+  async function purgeMember(member) {
+    const name = member.display_name;
+    const warning = member.role === 'worker' ? memberTrashText('purgeWarnWorker', lang) : member.role === 'employer' ? memberTrashText('purgeWarnEmployer', lang) : '';
+    const typed = window.prompt(memberTrashText('purgePrompt', lang, { name, warning }));
+    if (typed === null) return;
+    if (typed.trim() !== String(name).trim()) { setMessage({ type: 'error', text: memberTrashText('purgeMismatch', lang) }); return; }
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/hr?type=member&id=${encodeURIComponent(member.id)}&purge=1`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || memberTrashText('failDelete', lang));
+      await load();
+      setMessage({ type: 'success', text: memberTrashText('purged', lang) });
     } catch (error) { setMessage({ type: 'error', text: error.message }); }
     finally { setSaving(false); }
   }
@@ -268,7 +302,7 @@ export default function HrManagement({ actor }) {
           {active==='employers'&&<ContactList kind="雇主／客戶" rows={filteredEmployers} search={search} setSearch={setSearch} update={update} add={()=>openModal('employer')} edit={record=>openModal('employer',record)} remove={data.role==='admin'?record=>deleteRecord('employer',record):undefined} documents={data.role==='admin'?record=>setDocsEmployer(record):undefined}/>}
           {active==='workers'&&<WorkerList rows={filteredWorkers} search={search} setSearch={setSearch} update={update} add={()=>openModal('worker')} edit={record=>openModal('worker',record)} resume={setResumeWorker} remove={data.role==='admin'?record=>deleteRecord('worker',record):undefined}/>}
           {active==='agencies'&&<HrAgencyDirectory data={data} update={update} edit={record=>openModal('agency',record)} remove={data.role==='admin'?record=>deleteRecord('agency',record):undefined} navigate={setActive}/>}
-          {active==='members'&&<MemberList rows={filteredMembers} search={search} setSearch={setSearch} update={update} review={record=>openModal('member-role',record)} edit={record=>openModal(record.modalType||'member-profile',record)} manageAdmin={data.role==='admin'} isRootAdmin={data.isRootAdmin} deleteMember={deleteMember} saving={saving}/>}
+          {active==='members'&&<MemberList rows={filteredMembers} search={search} setSearch={setSearch} update={update} review={record=>openModal('member-role',record)} edit={record=>openModal(record.modalType||'member-profile',record)} manageAdmin={data.role==='admin'} isRootAdmin={data.isRootAdmin} deleteMember={deleteMember} trashed={data.trashedMembers||[]} restoreMember={restoreMember} purgeMember={purgeMember} saving={saving}/>}
           {active==='training'&&data.role==='admin'&&<HrTrainingCenterWorkspace/>}
           {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
           </div>
@@ -513,21 +547,24 @@ function WorkflowList({rows,requirements,steps,enrollments,certifications,update
   return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>訓練與來台進度</h2><p>每位工作者一個小元件，點開同時查看訓練中心的訓練與仲介的進度。初步文件審核通過後由訓練中心安排訓練；訓練完成後由菲律賓仲介辦理 OEC 與簽證；抵台後由台灣仲介安排體檢並辦理在台文件。</p></div><span className={styles.rowCount}>{rows.length} 件案件</span></div><PortalStyles/><div className="hr-member-shell hr-embedded"><div className="hr-member-card"><HrWorkflowProgress rows={rows} requirements={requirements} steps={steps} enrollments={enrollments} certifications={certifications} update={update} saving={saving} search={search} setSearch={setSearch} stageLabel={stageLabel} nextActionForStage={nextActionForStage} trainingStatuses={TRAINING_STATUSES} medicalStatuses={MEDICAL_STATUSES}/></div></div></section>;
 }
 function AgencyList({rows,update,edit,search,setSearch}) {return <section className={styles.panel}><div className={`${styles.listToolbar} ${styles.filterToolbar}`}><SearchBar value={search} onChange={setSearch} placeholder="搜尋仲介名稱、類型或國家／地區"/><p className={styles.panelDescription}>仲介會員只能查看所屬工作者與相關雇主。</p><span className={styles.rowCount}>{rows.length} 間仲介</span></div>{rows.length?<div className={styles.tableWrap}><table><thead><tr><th>仲介名稱</th><th>類型</th><th>國家／地區</th><th>狀態</th><th>建立時間</th><th>操作</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong></td><td>{row.agency_type==='taiwan'?'台灣仲介':'菲律賓仲介'}</td><td>{row.country||'—'}</td><td><Status value={row.active?'active':'inactive'} options={RECORD_STATUSES}/></td><td>{dateLabel(row.created_at)}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={()=>edit(row)}>編輯</button><button className={styles.smallButton} onClick={()=>update({type:'agency',id:row.id,active:!row.active})}>{row.active?'停用':'啟用'}</button></div></td></tr>)}</tbody></table></div>:search.trim()?<Empty title="找不到符合的仲介機構" text="請調整關鍵字或清除搜尋。"/>:<Empty title="尚無仲介機構" text="建立仲介後可將工作者或雇主指派給所屬仲介。"/>}</section>}
-function MemberList({rows,update,review,edit,manageAdmin,isRootAdmin,deleteMember,saving,search,setSearch}) {
+function MemberList({rows,trashed=[],update,review,edit,manageAdmin,isRootAdmin,deleteMember,restoreMember,purgeMember,saving,search,setSearch}) {
   const {lang}=useLanguage();
   const roleNames=MEMBER_ROLE_NAMES;
   const [typeFilter,setTypeFilter]=useState('all');
   const activeFilter=MEMBER_TYPE_FILTERS.find(item=>item.key===typeFilter)||MEMBER_TYPE_FILTERS[0];
   const visibleRows=rows.filter(activeFilter.match);
   const pending=visibleRows.filter(row=>!row.role).length;
-  return <section className={styles.panel}>
+  const keyword=(search||'').trim().toLowerCase();
+  const trashedRows=manageAdmin?trashed.filter(row=>!keyword||[row.display_name,row.email].some(value=>String(value||'').toLowerCase().includes(keyword))):[];
+  return <><section className={styles.panel}>
     <div className={`${styles.listToolbar} ${styles.filterToolbar}`}><SearchBar value={search} onChange={setSearch} placeholder="搜尋會員、Email、會員類型或所屬仲介"/><div className={styles.quickFilters} role="group" aria-label={lang==='en'?'Quick filter by member type':'會員類型快速篩選'}>{MEMBER_TYPE_FILTERS.map(item=>{const count=rows.filter(item.match).length;return <button type="button" key={item.key} className={`${styles.quickChip} ${typeFilter===item.key?styles.quickChipActive:''}`} aria-pressed={typeFilter===item.key} onClick={()=>setTypeFilter(item.key)}>{lang==='en'?item.en:item.zh}<small>{count}</small></button>;})}</div><p className={styles.panelDescription}>仲介類型會員是仲介機構員工：台灣機構員工稱為「業務」，菲律賓機構員工稱為「Staff」。管理者將會員綁定所屬機構後，該機構可有多位員工帳號。</p><span className={styles.rowCount}>{pending?`${pending} 筆待審 · `:''}{visibleRows.length} 個會員帳號</span></div>
     {visibleRows.length?<div className={styles.tableWrap}><table><thead><tr><th>會員</th><th>登入 Email</th><th>申請類型</th><th>會員類型</th><th>所屬仲介</th><th>狀態</th><th>操作</th></tr></thead><tbody>{visibleRows.map(row=><tr key={row.id}>
       <td><strong>{row.display_name}</strong></td><td>{row.email||'LINE 登入'}</td><td>{roleNames[row.requested_role]||'—'}</td><td>{memberTypeLabel(row)}</td>
       <td>{memberUnitLabel(row)}</td><td><MemberStatus row={row}/></td>
       <td><div className={styles.rowActions}>{(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>edit(row)}>編輯資料</button>}{manageAdmin&&(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>edit({...row,modalType:'member-admin-scope'})}>管理權限</button>}{manageAdmin&&(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>review(row)}>{row.role?'變更類型':'審核／指派'}</button>}{(isRootAdmin||!(row.role==='system_admin'||row.admin_scope==='system'))&&<button className={styles.smallButton} onClick={()=>update({type:'member',id:row.id,active:!row.active})}>{lang==='en'?(row.active?'Deactivate account':'Activate account'):(row.active?'停用帳號':'啟用帳號')}</button>}{manageAdmin&&!row.protected_admin&&<button className={styles.smallButton} disabled={saving} onClick={()=>deleteMember(row)}>刪除帳號</button>}</div></td>
     </tr>)}</tbody></table></div>:(search.trim()||typeFilter!=='all')?<Empty title="找不到符合的會員帳號" text="請調整關鍵字或清除搜尋。"/>:<Empty title="尚無一般會員帳號" text="會員登入並申請類型後會列於此，管理者可審核並指派所屬仲介。"/>}
-  </section>;
+  </section>
+  {trashedRows.length>0&&<section className={styles.panel}><div className={styles.panelHeader}><div><h2>已刪除帳號</h2><p>這些帳號已停止登入，資料（履歷、文件、進度）都還保留。可以還原，或永久刪除；永久刪除後無法復原。</p></div><span className={styles.rowCount}>{trashedRows.length}</span></div><div className={styles.tableWrap}><table><thead><tr><th>會員</th><th>登入 Email</th><th>會員類型</th><th>刪除時間</th><th>操作</th></tr></thead><tbody>{trashedRows.map(row=><tr key={row.id}><td><strong>{row.display_name}</strong></td><td>{row.email||'LINE 登入'}</td><td>{memberTypeLabel(row)}</td><td>{new Date(row.deleted_at).toLocaleString(lang==='en'?'en-US':'zh-TW')}</td><td><div className={styles.rowActions}><button className={styles.smallButton} disabled={saving} onClick={()=>restoreMember(row)}>還原</button>{!row.protected_admin&&<button className={styles.smallButton} style={{color:'#b42318',borderColor:'#f1c0bb'}} disabled={saving} onClick={()=>purgeMember(row)}>永久刪除</button>}</div></td></tr>)}</tbody></table></div></section>}</>;
 }
 function AdminAuditList() {
   const [rows,setRows]=useState(null),[error,setError]=useState('');

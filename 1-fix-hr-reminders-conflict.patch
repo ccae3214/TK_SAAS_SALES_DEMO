@@ -1,0 +1,28 @@
+diff --git a/src/components/HrReminders.jsx b/src/components/HrReminders.jsx
+index 940ce60..67ba21a 100644
+--- a/src/components/HrReminders.jsx
++++ b/src/components/HrReminders.jsx
+@@ -145,12 +145,8 @@ function collectDateReminders(data) {
+   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
+ }
+ 
+-<<<<<<< ours
+ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining, wide = false }) {
+-=======
+-export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
+   const { lang } = useLanguage();
+->>>>>>> theirs
+   const [trainingReminders, setTrainingReminders] = useState([]);
+   const [dateReminders, setDateReminders] = useState([]);
+   const [expiryReminders, setExpiryReminders] = useState([]);
+diff --git a/tests/hr-reminders-hidden.test.mjs b/tests/hr-reminders-hidden.test.mjs
+index 248b17d..11817e0 100644
+--- a/tests/hr-reminders-hidden.test.mjs
++++ b/tests/hr-reminders-hidden.test.mjs
+@@ -7,5 +7,5 @@ const source = readFileSync(new URL('../src/components/HrReminders.jsx', import.
+ 
+ test('the reminders panel renders nothing while loading or when there are no reminders', () => {
+   assert.match(source, /if \(loading \|\| reminderCount === 0\) return null;/);
+-  assert.ok(source.indexOf('return null;') < source.indexOf('<section className={styles.panel}'));
++  assert.ok(source.indexOf('return null;') < source.indexOf('<section className={'));
+ });

@@ -9,6 +9,8 @@
     "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
     "test:hr": "node --test tests/*.test.mjs scripts/test-hr-requirements.mjs",
+    "db:backup": "node scripts/backup-db.mjs",
+    "db:restore": "node scripts/restore-db.mjs",
     "test:e2e": "playwright test",
     "notifications:once": "node scripts/hr-notification-worker.mjs --once",
     "docker:build": "docker-compose build",

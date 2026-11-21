@@ -145,12 +145,8 @@ function collectDateReminders(data) {
   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
 }
 
-<<<<<<< ours
 export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining, wide = false }) {
-=======
-export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
   const { lang } = useLanguage();
->>>>>>> theirs
   const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
   const [expiryReminders, setExpiryReminders] = useState([]);

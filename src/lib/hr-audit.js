@@ -42,7 +42,7 @@ async function lookupTarget(type, id) {
       case 'employer': return await one('SELECT name, status FROM hr_employers WHERE id=$1', [id]);
       case 'worker': case 'worker-resume': return await one('SELECT name, status FROM hr_workers WHERE id=$1', [id]);
       case 'agency': return await one('SELECT name, CASE WHEN active THEN \'active\' ELSE \'inactive\' END AS status FROM hr_agencies WHERE id=$1', [id]);
-      case 'member': case 'member-profile': case 'member-admin-scope':
+      case 'member': case 'member-profile': case 'member-admin-scope': case 'member-restore':
         return await one('SELECT display_name AS name, role, admin_scope, CASE WHEN active THEN \'active\' ELSE \'inactive\' END AS status FROM hr_members WHERE id=$1', [id]);
       case 'case': case 'workflow': case 'application-step': return await one('SELECT case_number AS name, status FROM hr_cases WHERE id=$1', [id]);
       case 'task': return await one('SELECT t.title AS name, c.case_number FROM hr_case_tasks t JOIN hr_cases c ON c.id=t.case_id WHERE t.id=$1', [id]);
@@ -77,7 +77,9 @@ function describe(method, type, body, name, before, created) {
     return null;
   }
   if (method === 'DELETE') {
-    if (type === 'member') return { action: '刪除', name, phrase: `刪除了${name}會員帳號` };
+    if (type === 'member') return before?.role && !body.purge
+      ? { action: '移到已刪除帳號', name, phrase: `將${name}會員帳號移到「已刪除帳號」（可還原）` }
+      : { action: '刪除', name, phrase: `${body.purge ? '永久' : ''}刪除了${name}會員帳號` };
     if (type === 'employer' || type === 'worker' || type === 'agency') return { action: '刪除', name, phrase: `刪除了${name}${label}` };
     if (type === 'case') return { action: '刪除', name, phrase: `刪除了案件 ${name}` };
     return null;
@@ -98,6 +100,7 @@ function describe(method, type, body, name, before, created) {
       return body.active === false
         ? { action: '停用', name, phrase: `停用了${name}會員帳號` }
         : { action: '啟用', name, phrase: `啟用了${name}會員帳號` };
+    case 'member-restore': return { action: '還原', name, phrase: `還原了${name}會員帳號` };
     case 'member-profile': return { action: '編輯', name, phrase: `編輯了${name}會員帳號的資料` };
     case 'member-admin-scope': return { action: '調整權限', name, phrase: `將${name}的管理者權限調整為${SCOPE_NAMES[body.adminScope] || body.adminScope}` };
     case 'case': return { action: '更新', name, phrase: `將案件 ${name} 的狀態變更為${CASE_STATUS_NAMES[body.status] || body.status}` };
@@ -123,6 +126,7 @@ async function prepare(request, method) {
     const url = new URL(request.url);
     type = url.searchParams.get('type') || '';
     id = idOf(url.searchParams.get('id'));
+    body = { purge: url.searchParams.get('purge') === '1' };
   } else {
     try { body = (await request.clone().json()) || {}; } catch { return null; }
     type = typeof body.type === 'string' ? body.type : '';
