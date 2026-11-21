@@ -8,6 +8,7 @@ import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-tra
 import { EMPLOYER_PROFILE_EN, translateEmployerPattern } from '@/lib/hr-translations-employer';
 import { MEMBER_TRASH_EN } from '@/lib/hr-member-trash-text';
 import { DEPOSIT_EN, translateDepositPattern } from '@/lib/hr-translations-deposit';
+import { WORKER_MESSAGES_EN, translateWorkerMessagePattern } from '@/lib/hr-translations-worker-messages';
 
 const EN = {
   '克雷迅人力管理': 'Kolecion HR', '克雷迅人力仲介管理系統': 'Kolecion Employment Agency Management',
@@ -458,7 +459,7 @@ const HR_TEXT_ORIGINALS = new WeakMap();
 export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
-  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed];
+  let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed] || WORKER_MESSAGES_EN[trimmed];
   if (!translated) translated = MEMBER_TRASH_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
@@ -526,6 +527,7 @@ export function translateHrText(value, lang = 'zh') {
   if (!translated) translated = translateTrainingCenterPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
   if (!translated) translated = translateEmployerPattern(trimmed, text => translateHrText(text, 'en')) || undefined;
   if (!translated) translated = translateDepositPattern(trimmed) || undefined;
+  if (!translated) translated = translateWorkerMessagePattern(trimmed) || undefined;
   if (!translated) return value;
   const leading = value.match(/^\s*/)?.[0] || '';
   const trailing = value.match(/\s*$/)?.[0] || '';
