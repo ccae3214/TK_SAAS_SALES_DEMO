@@ -483,7 +483,7 @@ export function PortalStyles() {
   --shadow-sm:0 1px 2px rgba(15,45,33,.05),0 3px 10px rgba(15,45,33,.05);
   --shadow-md:0 10px 30px rgba(15,45,33,.10);
   --ring:0 0 0 3px rgba(31,131,102,.24);
-  min-height:100vh;padding:clamp(14px,3.5vw,44px);color:var(--ink);line-height:1.55;
+  min-height:100vh;padding:clamp(14px,3.5vw,44px);padding-top:12px;color:var(--ink);line-height:1.55;
   font-family:Inter,"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",sans-serif;
   background:radial-gradient(900px 420px at 8% -8%,#d6eee2 0,transparent 60%),radial-gradient(760px 380px at 100% 0,#e5eef8 0,transparent 55%),#f2f6f3;}
 /* 內嵌在其他頁面（例如管理員的文件審核）時，不帶整頁背景與邊距 */
@@ -503,6 +503,9 @@ export function PortalStyles() {
 .hr-member-shell .hr-member-header button{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;min-height:40px;padding:9px 16px;border:1px solid rgba(255,255,255,.3);border-radius:11px;background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:background .18s,transform .18s}
 .hr-member-shell .hr-member-header button:hover{background:rgba(255,255,255,.26);transform:translateY(-1px)}
 .hr-member-shell .hr-member-header button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.hr-member-shell .hr-member-header-actions{display:flex;align-items:center;gap:10px;flex:none}
+/* 語言按鈕放在頁首內（不再浮在頁面頂端），所以頁面頂部不必再留空 */
+.hr-member-shell .hr-member-header-actions button[data-tour="language"]{min-height:40px;padding:9px 14px!important;border-radius:11px!important;box-shadow:none!important}
 .hr-member-shell .workspace-tabs{position:sticky;top:10px;z-index:20;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px;max-width:1100px;margin:0 auto 20px;padding:6px;overflow:visible;border:1px solid rgba(255,255,255,.9);border-radius:18px;background:rgba(255,255,255,.82);box-shadow:var(--shadow-sm),0 12px 30px rgba(15,45,33,.06);backdrop-filter:blur(14px)}
 .hr-member-shell .workspace-tabs::-webkit-scrollbar{display:none}
 .hr-member-shell .workspace-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:0;min-height:44px;padding:9px 18px;border:0;border-radius:13px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:700;line-height:1.35;white-space:normal;cursor:pointer;transition:background .18s,color .18s,box-shadow .18s}
@@ -898,10 +901,11 @@ export function PortalStyles() {
 .hr-member-shell .hr-member-pending h2::before{display:none}
 .hr-member-shell .hr-member-card .application-form-hero>p{color:#e3f2e9}
 @media(max-width:900px){.hr-member-shell .resume-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.hr-member-shell{padding:58px 12px 12px}
+@media(max-width:700px){.hr-member-shell{padding:12px}
 .hr-member-shell .hr-member-header{padding:18px;border-radius:18px;align-items:flex-start}
 .hr-member-shell .hr-member-header .hr-member-avatar{width:44px;height:44px;font-size:18px;border-radius:13px}
 .hr-member-shell .hr-member-header button{padding:9px 12px}
+.hr-member-shell .hr-member-header-actions button[data-tour="language"]{padding:9px 12px!important}
 .hr-member-shell .workspace-tabs{top:6px;margin-bottom:14px;padding:5px;border-radius:15px}
 .hr-member-shell .workspace-tabs button{min-height:42px;padding:8px 14px}
 .hr-member-shell .hr-member-card{padding:16px;border-radius:16px}
@@ -1306,7 +1310,7 @@ export default function HrMemberPortal({ actor }) {
       } catch (err) { setError(err.message); }
       finally { setRequesting(false); }
     }
-    return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><HrLanguageTools /><PortalStyles />{!data.requestedRole&&<HrOnboardingTour tourId="pending" />}<header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><section className="hr-member-card hr-member-pending">
+    return <main className="hr-member-shell hr-member-registration" data-hr-translatable-root><PortalStyles />{!data.requestedRole&&<HrOnboardingTour tourId="pending" />}<header className="hr-member-header application-header"><div><span>克雷迅人力管理</span><h1>會員類型審核</h1><p>{data.actor?.name || actor.name} · 尚未指派會員類型</p></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></div></header><section className="hr-member-card hr-member-pending">
       {data.requestedRole ? <div className="application-review">
         {requestSubmitted&&<p role="status" aria-live="polite" className="hr-request-success application-submit-success"><span aria-hidden="true">✓ </span>{`送出成功！你的${roles[data.requestedRole]||''}會員申請已送交管理團隊，審核完成後會開通你的工作區。`}</p>}
         <div className="application-review-heading">
@@ -1359,7 +1363,7 @@ export default function HrMemberPortal({ actor }) {
   }
 
   if (data.role === 'training_center') {
-    return <main className="hr-member-shell" data-hr-translatable-root><HrLanguageTools /><PortalStyles /><HrOnboardingTour tourId="training_center" /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></header><HrTrainingCenterWorkspace self /><TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
+    return <main className="hr-member-shell" data-hr-translatable-root><PortalStyles /><HrOnboardingTour tourId="training_center" /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></div></header><HrTrainingCenterWorkspace self /><TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
   }
 
   const viewedWorker = data.role === 'worker' ? data.workers[0] : null;
@@ -1379,8 +1383,8 @@ export default function HrMemberPortal({ actor }) {
   const renderCompactDocument = item => renderDocumentItem(item, undefined, true);
   const canUpdateCertification = data.role === 'agency' || data.role === 'admin';
   const activeTaiwanAgencies=data.agencies.filter(item=>item.active&&item.agency_type==='taiwan');
-  return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><HrLanguageTools /><PortalStyles />{['worker','employer','agency'].includes(data.role)&&<HrOnboardingTour tourId={data.role} />}
-    <header className="hr-member-header"><div className="hr-member-header-main"><span className="hr-member-avatar" aria-hidden="true">{String(actor.name||'?').trim().charAt(0)||'?'}</span><div><span>克雷迅人力管理</span><h1>{data.role==='agency'?(data.agencyType==='taiwan'?'業務':'Staff'):(labels[data.role] || data.roleName)}工作區</h1><p>{actor.name}</p></div></div><button onClick={() => signOut({ callbackUrl: '/' })}><LogOut size={16} aria-hidden="true" />登出</button></header>
+  return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><PortalStyles />{['worker','employer','agency'].includes(data.role)&&<HrOnboardingTour tourId={data.role} />}
+    <header className="hr-member-header"><div className="hr-member-header-main"><span className="hr-member-avatar" aria-hidden="true">{String(actor.name||'?').trim().charAt(0)||'?'}</span><div><span>克雷迅人力管理</span><h1>{data.role==='agency'?(data.agencyType==='taiwan'?'業務':'Staff'):(labels[data.role] || data.roleName)}工作區</h1><p>{actor.name}</p></div></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}><LogOut size={16} aria-hidden="true" />登出</button></div></header>
     <HrReminders onOpenTraining={()=>setActiveWorkspaceTab('training')} onOpenChat={roomId=>{setActiveWorkspaceTab('chat');window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}}));}} onOpenProgress={workerId=>{const worker=data.workers.find(item=>Number(item.id)===Number(workerId));if(worker)setProgressWorker(worker);}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker&&(data.role==='worker'||Number(worker.agency_id)===Number(data.agencyId)))void beginWorkerEdit(worker);}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer&&(data.role==='employer'||Number(employer.agency_id)===Number(data.agencyId)))beginEmployerEdit(employer);}else if(item.type==='agency'){setActiveWorkspaceTab('basic');}}} />
     <nav className="workspace-tabs" aria-label="工作區分頁">{[['start','工作起點',LayoutDashboard],['home','工作摘要',LayoutDashboard],...(['agency','employer'].includes(data.role)?[['matching','需求與配對',Building2]]:[]),['basic','基本資料',UserRound],['agencyEmployer',data.role==='agency'?'雇主資料':'仲介／雇主資料',Building2],['documents','必要文件',FileText],['process','來台程序',Route],...(data.role==='worker'?[['training','訓練課程',GraduationCap]]:[]),['chat','聊天室',MessagesSquare]].map(([tab,label,Icon])=><button key={tab} type="button" data-tour={`tab-${tab}`} className={activeWorkspaceTab===tab?'active':''} aria-current={activeWorkspaceTab===tab?'page':undefined} onClick={()=>setActiveWorkspaceTab(tab)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
     {activeWorkspaceTab==='start'&&<WorkspaceStart data={data} onNavigate={setActiveWorkspaceTab}/>}
