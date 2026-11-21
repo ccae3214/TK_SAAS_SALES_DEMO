@@ -32,7 +32,7 @@ export const TOURS = {
   ],
   worker: [
     { title: T('歡迎來到你的工作區', 'Welcome to your workspace'),
-      body: T('這裡可以填寫履歷、上傳必要文件、查看來台程序的進度，並和仲介聯絡。我們用一分鐘帶你認識每個分頁。', 'Here you can fill in your resume, upload required documents, follow your progress toward coming to Taiwan, and contact your agency. This one-minute tour introduces each tab.') },
+      body: T('這裡可以填寫履歷、上傳必要文件、查看來台程序的進度，並和仲介聯絡。我們用一分鐘帶你認識每個分頁；也可以按左下角的「介紹影片」觀看完整說明。', 'Here you can fill in your resume, upload required documents, follow your progress toward coming to Taiwan, and contact your agency. This one-minute tour introduces each tab; you can also press "Intro video" at the bottom left for a full walkthrough.') },
     { target: '[data-tour="tab-start"]', title: T('工作起點', 'Start here'),
       body: T('每次進來先看這裡，系統會告訴你現在最需要做的下一件事。', 'Check here first every time. It tells you the most important next thing to do.') },
     { target: '[data-tour="tab-basic"]', title: T('基本資料', 'Basic information'),
