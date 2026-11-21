@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CircleHelp } from 'lucide-react';
+import HrIntroVideo from '@/components/HrIntroVideo';
 import { useLanguage } from '@/context/LanguageContext';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { ONBOARDING_VERSION, TOURS } from '@/lib/hr-onboarding';
@@ -92,7 +93,10 @@ export default function HrOnboardingTour({ tourId }) {
   }, [step]);
 
   if (!open || !step) {
-    return <button type="button" className={styles.help} onClick={start}><CircleHelp size={17} aria-hidden="true" />{text.help}</button>;
+    return <>
+      {tourId === 'worker' && <HrIntroVideo />}
+      <button type="button" className={styles.help} onClick={start}><CircleHelp size={17} aria-hidden="true" />{text.help}</button>
+    </>;
   }
 
   return <TourDialog step={step} steps={steps} index={index} setIndex={setIndex} finish={finish} text={text} copyKey={key} rect={rect} viewport={viewport} />;
