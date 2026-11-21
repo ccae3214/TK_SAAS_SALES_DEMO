@@ -7,10 +7,13 @@ import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
 import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
+import HrTrainingCenterAuditLog from '@/components/HrTrainingCenterAuditLog';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
 const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名']];
+// 操作紀錄分頁：系統管理者看所選訓練中心的紀錄，訓練中心帳號看自己那一份（伺服器端會依身分擋）。
+const AUDIT_TAB = ['audit', '操作紀錄'];
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
 const CURRENCY_OPTIONS = [['PHP', '菲律賓披索 (PHP)'], ['TWD', '新台幣 (TWD)'], ['USD', '美元 (USD)']];
 // 課程費用顯示：幣別代碼 + 千分位，例如「PHP 35,000」；沒填費用顯示「—」。
@@ -233,7 +236,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
-        {TABS.map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{label}</button>)}
+        {[...TABS, AUDIT_TAB].map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{id === 'audit' && lang === 'en' ? 'Activity log' : label}</button>)}
       </div>
     </section>
 
@@ -304,6 +307,8 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
       {classes.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>訓練日期</th><th>報名人數</th><th>學員</th><th>操作</th></tr></thead><tbody>{classes.map(row => { const list = enrollments.filter(item => Number(item.class_id) === Number(row.id)); const full = Boolean(row.capacity) && list.length >= row.capacity; return <tr key={row.id}><td><strong>{row.name}</strong><br />{row.certification_name}</td><td>{dateText(row.training_start_date)} ~ {dateText(row.training_end_date)}</td><td>{list.length}{row.capacity ? ` / ${row.capacity}` : ''}</td><td>{list.length ? list.map(item => <span key={item.id} style={{ display: 'inline-block', marginRight: 8 }}>{item.worker_name} <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => remove('enrollment', item.id, `${item.worker_name}的報名`)}>取消</button></span>) : '—'}</td><td><button type="button" className={styles.primaryButton} disabled={saving || !students.length || full} onClick={() => enrollModal(row)}>報名工人</button>{full && <><br /><small>已額滿</small></>}</td></tr>; })}</tbody></table></div>
         : <Empty title="還沒有班別" text="請先到「開班與日期」建立班別，再報名工人。" />}
     </section>}
+
+    {tab === 'audit' && <HrTrainingCenterAuditLog key={center.id} centerId={center.id} centerName={center.display_name} />}
 
     {modal && <FormModal key={modal.title} title={modal.title} hint={modal.hint} fields={modal.fields} initial={modal.initial} onSubmit={modal.submit} close={() => setModal(null)} saving={saving} />}
   </div>;

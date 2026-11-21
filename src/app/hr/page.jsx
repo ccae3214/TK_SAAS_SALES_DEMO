@@ -3,6 +3,8 @@ import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import HrManagement from '@/components/HrManagement';
 import HrMemberPortal from '@/components/HrMemberPortal';
+import HrMemberNavScroll from '@/components/HrMemberNavScroll';
+import '@/components/hr-member-mobile-nav.css';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '克雷迅人力仲介管理系統' };
@@ -14,7 +16,12 @@ export default async function HrPage() {
   const email = session.user.email || 'LINE 帳號';
   const principal = await getHrPrincipal(session);
   if (principal?.role !== 'admin') {
-    return <HrMemberPortal actor={{ name: session.user.name || email, email }} />;
+    return (
+      <>
+        <HrMemberPortal actor={{ name: session.user.name || email, email }} />
+        <HrMemberNavScroll />
+      </>
+    );
   }
   return <HrManagement actor={{ name: session.user.name || email, email }} />;
 }

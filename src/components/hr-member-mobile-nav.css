@@ -1,0 +1,59 @@
+/*
+ * 手機版會員頁面：功能菜單（.workspace-tabs）固定在畫面最底部。
+ * 這裡只改手機（寬度 700px 以下）的版面，桌機維持原本的置頂分頁。
+ * 選擇器刻意寫得比 HrMemberPortal 內嵌的 <style> 具體，不論載入順序都會蓋過去。
+ */
+@media (max-width: 700px) {
+  body .hr-member-shell:not(.hr-embedded) {
+    /* 留出底部選單與 iPhone 底部安全區的空間，最後一張卡片才不會被蓋住 */
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 900;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    max-width: none;
+    margin: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 0;
+    border-top: 1px solid var(--line, #e1e9e4);
+    border-radius: 16px 16px 0 0;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -6px 24px rgba(15, 45, 33, 0.12);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs button {
+    flex: 1 0 auto;
+    flex-direction: column;
+    gap: 3px;
+    width: auto;
+    min-width: 66px;
+    min-height: 52px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs button svg {
+    width: 20px;
+    height: 20px;
+  }
+}

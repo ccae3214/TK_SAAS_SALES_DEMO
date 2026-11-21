@@ -5,6 +5,7 @@ import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { recordAdminAction } from '@/lib/hr-audit';
+import { recordTrainingCenterAction } from '@/lib/hr-tc-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -211,11 +212,15 @@ function friendly(error) {
   return fail('儲存失敗，請稍後再試。', 500);
 }
 
-// 操作紀錄只記錄系統管理員的操作；訓練中心會員自己維護自己的資料不記在這裡。
-async function audit(ctx, action, resource, row, phrase) {
-  if (ctx.self) return;
-  await recordAdminAction({ principal: ctx.principal, session: ctx.session, action, type: `training-${resource}`, id: row?.id, name: nameOf(resource, row || {}), phrase });
+// 操作紀錄：訓練中心的每一筆操作（系統管理者，或訓練中心會員自己）都寫入該訓練中心的操作紀錄，
+// 只有系統管理者看得到（見 /api/hr/training-center/audit）；系統管理者的操作另外照舊寫入全站的系統管理員操作紀錄。
+// 紀錄失敗只會寫 log，不影響原本的操作。
+const ADMIN_LOG_ACTIONS = { create: '新增', update: '編輯', status: '更新', activate: '啟用', deactivate: '停用', delete: '刪除', register: '更新', enroll: '新增', unenroll: '刪除' };
+async function record(ctx, { centerId, action, resource, id, name, phrase, detail = '' }) {
+  if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: ADMIN_LOG_ACTIONS[action], type: `training-${resource}`, id, name, phrase });
+  await recordTrainingCenterAction({ ctx, centerId, action, type: resource, id, name, phrase, detail });
 }
+const audit = (ctx, centerId, action, resource, row, phrase, detail = '') => record(ctx, { centerId, action, resource, id: row?.id, name: nameOf(resource, row || {}), phrase, detail });
 
 export async function POST(request) {
   if (!requestIsSameOrigin(request)) return fail('Invalid request origin', 403);
@@ -239,7 +244,7 @@ export async function POST(request) {
         VALUES($1,$2,$3,$4,$5) ON CONFLICT(teacher_id,certification_id)
         DO UPDATE SET certificate_no=EXCLUDED.certificate_no, issued_date=EXCLUDED.issued_date, expires_date=EXCLUDED.expires_date RETURNING id`,
         [teacher.id, certification.id, clean(body.certificateNo, 80), issued, expires]);
-      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '更新', type: 'training-teacher-certification', id: saved.id, name: teacher.name,
+      await record(ctx, { centerId: center.id, action: 'register', resource: 'teacher-certification', id: saved.id, name: teacher.name, detail: certification.name,
         phrase: `登記${center.display_name}的${teacher.name}老師持有${certification.name}證照` });
       return NextResponse.json({ ok: true, id: saved.id });
     }
@@ -255,7 +260,7 @@ export async function POST(request) {
         if (used.n >= cls.capacity) throw new Refuse('這個班別已額滿。', 409);
       }
       const saved = await one('INSERT INTO hr_tc_enrollments(class_id, worker_id) VALUES($1,$2) ON CONFLICT(class_id, worker_id) DO NOTHING RETURNING id', [cls.id, worker.id]);
-      if (saved && !ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '新增', type: 'training-enrollment', id: saved.id, name: worker.name, phrase: `將${worker.name}報名到${cls.name}班` });
+      if (saved) await record(ctx, { centerId: cls.center_id, action: 'enroll', resource: 'enrollment', id: saved.id, name: worker.name, detail: cls.name, phrase: `將${worker.name}報名到${cls.name}班` });
       return NextResponse.json({ ok: true, id: saved?.id || null });
     }
     if (!TABLES[resource]) throw new Refuse('不支援的項目。');
@@ -272,7 +277,7 @@ export async function POST(request) {
     const keys = Object.keys(all);
     const created = await one(`INSERT INTO ${TABLES[resource]}(${keys.join(',')}) VALUES(${keys.map((_, i) => `$${i + 1}`).join(',')}) RETURNING *`, keys.map(key => all[key]));
     const center = await one("SELECT display_name FROM hr_members WHERE id=$1", [centerId]);
-    await audit(ctx, '新增', resource, created, `新增了${center?.display_name || ''}的${nameOf(resource, created)}${LABELS[resource]}`);
+    await audit(ctx, centerId, 'create', resource, created, `新增了${center?.display_name || ''}的${nameOf(resource, created)}${LABELS[resource]}`);
     return NextResponse.json({ ok: true, id: created.id });
   } catch (error) { return friendly(error); }
 }
@@ -303,9 +308,9 @@ export async function PATCH(request) {
     const keys = Object.keys(record);
     const updated = await one(`UPDATE ${TABLES[resource]} SET ${keys.map((key, i) => `${key}=$${i + 2}`).join(',')}, updated_at=NOW() WHERE id=$1 RETURNING *`, [existing.id, ...keys.map(key => record[key])]);
     const label = LABELS[resource], n = nameOf(resource, updated);
-    if (body.toggleActive) await audit(ctx, updated.active ? '啟用' : '停用', resource, updated, `${updated.active ? '啟用' : '停用'}了${n}${label}`);
-    else if (resource === 'batch') await audit(ctx, '更新', resource, updated, `將證照批次 ${n} 的狀態設為${BATCH_STATUS_NAMES[updated.status]}`);
-    else await audit(ctx, '編輯', resource, updated, `編輯了${n}${label}的資料`);
+    if (body.toggleActive) await audit(ctx, centerId, updated.active ? 'activate' : 'deactivate', resource, updated, `${updated.active ? '啟用' : '停用'}了${n}${label}`);
+    else if (resource === 'batch') await audit(ctx, centerId, 'status', resource, updated, `將證照批次 ${n} 的狀態設為${BATCH_STATUS_NAMES[updated.status]}`, updated.status);
+    else await audit(ctx, centerId, 'update', resource, updated, `編輯了${n}${label}的資料`);
     return NextResponse.json({ ok: true });
   } catch (error) { return friendly(error); }
 }
@@ -328,7 +333,7 @@ export async function DELETE(request) {
       const inUse = await one('SELECT name FROM hr_tc_classes WHERE teacher_id=$1 AND certification_id=$2 LIMIT 1', [row.teacher_id, row.certification_id]);
       if (inUse) throw new Refuse(`${row.teacher_name}老師仍是「${inUse.name}」班的授課老師，請先更換授課老師後再移除證照。`, 409);
       await pool.query('DELETE FROM hr_tc_teacher_certifications WHERE id=$1', [id]);
-      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-teacher-certification', id: row.id, name: row.teacher_name,
+      await record(ctx, { centerId: row.center_id, action: 'delete', resource: 'teacher-certification', id: row.id, name: row.teacher_name, detail: row.certification_name,
         phrase: `移除了${row.teacher_name}老師的${row.certification_name}證照` });
       return NextResponse.json({ ok: true });
     }
@@ -338,15 +343,16 @@ export async function DELETE(request) {
       if (!row) throw new Refuse('找不到這筆報名。', 404);
       scope(ctx, row.center_id);
       await pool.query('DELETE FROM hr_tc_enrollments WHERE id=$1', [id]);
-      if (!ctx.self) await recordAdminAction({ principal: ctx.principal, session: ctx.session, action: '刪除', type: 'training-enrollment', id: row.id, name: row.worker_name, phrase: `取消${row.worker_name}在${row.class_name}班的報名` });
+      await record(ctx, { centerId: row.center_id, action: 'unenroll', resource: 'enrollment', id: row.id, name: row.worker_name, detail: row.class_name, phrase: `取消${row.worker_name}在${row.class_name}班的報名` });
       return NextResponse.json({ ok: true });
     }
     if (!TABLES[resource]) throw new Refuse('不支援的項目。');
     const existing = await one(`SELECT * FROM ${TABLES[resource]} WHERE id=$1`, [id]);
     if (!existing) throw new Refuse('找不到這筆資料。', 404);
-    scope(ctx, resource === 'batch' ? (await one('SELECT center_id FROM hr_tc_classes WHERE id=$1', [existing.class_id]))?.center_id : existing.center_id);
+    const centerId = resource === 'batch' ? (await one('SELECT center_id FROM hr_tc_classes WHERE id=$1', [existing.class_id]))?.center_id : existing.center_id;
+    scope(ctx, centerId);
     await pool.query(`DELETE FROM ${TABLES[resource]} WHERE id=$1`, [id]);
-    await audit(ctx, '刪除', resource, existing, `刪除了${nameOf(resource, existing)}${LABELS[resource]}`);
+    await audit(ctx, centerId, 'delete', resource, existing, `刪除了${nameOf(resource, existing)}${LABELS[resource]}`);
     return NextResponse.json({ ok: true });
   } catch (error) { return friendly(error); }
 }

@@ -16,6 +16,6 @@
 .help{position:fixed;left:18px;bottom:18px;z-index:9980;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid #b9d3c8;background:#fff;color:#176b54;font:inherit;font-size:14px;font-weight:700;box-shadow:0 6px 20px rgba(8,24,18,.18);cursor:pointer}
 @media (max-width:640px){
   .card{left:12px;right:12px;bottom:12px;top:auto;width:auto;transform:none}
-  .help{left:12px;bottom:12px}
+  .help{left:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 @media (prefers-reduced-motion:reduce){.spot{transition:none}}
