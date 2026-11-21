@@ -6,6 +6,9 @@ import { REMINDER_LABELS } from '@/lib/hr-expiry-reminders';
 import { employerMissingLabels } from '@/lib/hr-employer-profile';
 import { collectTrainingReminders, whenLabel } from '@/lib/hr-worker-training';
 import { readJson } from '@/lib/hr-read-json';
+import { useLanguage } from '@/context/LanguageContext';
+import { translateHrText } from '@/lib/hr-translations';
+import { translateChatSystemMessage } from '@/lib/hr-translations-chat';
 
 const DAYS_AHEAD = 7;
 const WORKER_RESUME_FIELDS = [
@@ -142,7 +145,12 @@ function collectDateReminders(data) {
   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
 }
 
+<<<<<<< ours
 export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining, wide = false }) {
+=======
+export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining }) {
+  const { lang } = useLanguage();
+>>>>>>> theirs
   const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
   const [expiryReminders, setExpiryReminders] = useState([]);
@@ -188,7 +196,7 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile,
   if (loading || reminderCount === 0) return null;
   return <section className={`${styles.panel} ${wide ? styles.panelWide : ''}`} aria-label="提醒">
     <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div><strong>{reminderCount}</strong></header>
-    {unreadRooms.length > 0 && <div className={styles.group}><h3>聊天室未讀</h3>{unreadRooms.map(room => <button type="button" className={styles.item} key={room.id} onClick={() => onOpenChat?.(Number(room.id))}><span className={styles.dotChat}/><span className={styles.itemText}><strong>{room.title}</strong><small>{room.lastMessage || '有新訊息'}</small></span><b>{room.unreadCount}</b></button>)}</div>}
+    {unreadRooms.length > 0 && <div className={styles.group}><h3>聊天室未讀</h3>{unreadRooms.map(room => <button type="button" className={styles.item} key={room.id} onClick={() => onOpenChat?.(Number(room.id))}><span className={styles.dotChat}/><span className={styles.itemText}><strong>{room.title}</strong><small>{translateChatSystemMessage(room.lastMessage, lang, text => translateHrText(text, 'en')) || '有新訊息'}</small></span><b>{room.unreadCount}</b></button>)}</div>}
     {expiryReminders.length > 0 && <div className={styles.group}><h3>到期提醒</h3>{expiryReminders.map(item => <button type="button" className={styles.item} key={`${item.kind}:${item.workerId}`} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.overdue ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{REMINDER_LABELS[item.kind][item.overdue ? 'overdue' : 'upcoming']}</strong><small>{item.workerName} · {item.dueOn} · {item.overdue ? `逾期 ${Math.abs(item.daysLeft)} 天` : item.daysLeft === 0 ? '今天' : `剩 ${item.daysLeft} 天`}</small></span></button>)}</div>}
     {trainingReminders.length > 0 && <div className={styles.group}><h3>訓練課程與證照日期</h3>{trainingReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenTraining?.()}><span className={styles.dotDate}/><span className={styles.itemText}><strong>{whenLabel(item.days)} · {item.title}</strong><small>{item.course} · {item.className} · {item.date}</small></span></button>)}</div>}
     {dateReminders.length > 0 && <div className={styles.group}><h3>近期案件日期</h3>{dateReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.days < 0 ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{item.days < 0 ? `逾期 ${Math.abs(item.days)} 天` : item.days === 0 ? '今天' : `${item.days} 天後`} · {item.step}</strong><small>{item.worker} · {item.caseNumber} · {item.date}</small></span></button>)}</div>}

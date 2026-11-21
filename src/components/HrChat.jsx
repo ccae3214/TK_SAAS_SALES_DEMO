@@ -5,11 +5,14 @@ import { MessageCircle, RefreshCw, Send, Users } from 'lucide-react';
 import styles from './HrChat.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
+import { translateChatSystemMessage } from '@/lib/hr-translations-chat';
 import { readJson } from '@/lib/hr-read-json';
 
 export default function HrChat() {
   const {lang}=useLanguage();
   const localizeError=error=>lang==='en'?(error.en||translateHrText(error.message,'en')):error.message;
+  // 系統訊息（指派／挑選）由伺服器以中文存入，英文介面在顯示時翻譯；使用者自己輸入的訊息不會被改動。
+  const localizeMessage=body=>translateChatSystemMessage(body,lang,text=>translateHrText(text,'en'));
   const [rooms,setRooms]=useState([]);
   const [selectedRoomId,setSelectedRoomId]=useState(null);
   const [messages,setMessages]=useState([]);
@@ -82,11 +85,11 @@ export default function HrChat() {
     {error&&<p className={styles.error} role="alert">{error}</p>}
     {loading?<div className={styles.empty}>{text.loading}</div>:rooms.length===0?<div className={styles.empty}>{text.none}</div>:
       <div className={styles.layout}>
-        <nav className={styles.roomList} aria-label={text.list}>{rooms.map(room=><button type="button" key={room.id} className={`${styles.room} ${selectedRoomId===room.id?styles.roomActive:''}`} onClick={()=>{setSelectedRoomId(room.id);void markRoomRead(room.id);}}><strong>{room.roomType==='agency'?text.agency:room.roomType==='direct'?text.direct:text.case}{room.unreadCount>0&&<i className={styles.unreadBadge}>{room.unreadCount>99?'99+':room.unreadCount}</i>}</strong><span>{displayRoomTitle(room)}</span><small>{room.lastMessage||(room.roomType==='agency'?text.agencySubtitle:room.roomType==='direct'?text.direct:text.caseSubtitle)}</small></button>)}</nav>
+        <nav className={styles.roomList} aria-label={text.list}>{rooms.map(room=><button type="button" key={room.id} className={`${styles.room} ${selectedRoomId===room.id?styles.roomActive:''}`} onClick={()=>{setSelectedRoomId(room.id);void markRoomRead(room.id);}}><strong>{room.roomType==='agency'?text.agency:room.roomType==='direct'?text.direct:text.case}{room.unreadCount>0&&<i className={styles.unreadBadge}>{room.unreadCount>99?'99+':room.unreadCount}</i>}</strong><span>{displayRoomTitle(room)}</span><small>{localizeMessage(room.lastMessage)||(room.roomType==='agency'?text.agencySubtitle:room.roomType==='direct'?text.direct:text.caseSubtitle)}</small></button>)}</nav>
         <div className={styles.conversation}>
           <div className={styles.conversationHeader}><div><strong>{selectedRoom&&displayRoomTitle(selectedRoom)}</strong><small>{selectedRoom&&(selectedRoom.roomType==='agency'?text.agencySubtitle:selectedRoom.roomType==='direct'?text.direct:text.caseSubtitle)} · {text.recent}</small></div>{selectedRoom&&selectedRoom.roomType!=='direct'&&<button type="button" className={styles.memberToggle} onClick={()=>setShowMembers(value=>!value)}><Users size={16}/>{text.members} ({members.length})</button>}</div>
           {showMembers&&selectedRoom?.roomType!=='direct'&&<div className={styles.memberList}><strong>{text.members}</strong>{members.length?members.map(member=><div className={styles.member} key={member.id}><span><b>{member.name}</b><small>{member.role==='agency'?(member.agencyName||'仲介'):member.role==='worker'?'工作者':member.role==='employer'?'雇主':member.role||''}</small></span><button type="button" onClick={()=>void openDirectChat(member.id)}>{text.privateChat}</button></div>):<p className={styles.empty}>—</p>}</div>}
-          <div className={styles.messageList} aria-live="polite" ref={messageListRef} onScroll={event=>{const panel=event.currentTarget;followLatestRef.current=panel.scrollHeight-panel.scrollTop-panel.clientHeight<80;}}>{messages.length?messages.map(message=><article className={styles.message} key={message.id}><div className={styles.messageMeta}><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleString(lang==='en'?'en-US':'zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p>{message.body}</p></article>):<div className={styles.empty}>{text.empty}</div>}</div>
+          <div className={styles.messageList} aria-live="polite" ref={messageListRef} onScroll={event=>{const panel=event.currentTarget;followLatestRef.current=panel.scrollHeight-panel.scrollTop-panel.clientHeight<80;}}>{messages.length?messages.map(message=><article className={styles.message} key={message.id}><div className={styles.messageMeta}><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleString(lang==='en'?'en-US':'zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p>{localizeMessage(message.body)}</p></article>):<div className={styles.empty}>{text.empty}</div>}</div>
           <form className={styles.composer} onSubmit={send}><textarea aria-label={text.placeholder} value={draft} onChange={event=>setDraft(event.target.value)} maxLength={3000} rows={2} placeholder={text.placeholder}/><button type="submit" disabled={sending||!draft.trim()}><Send size={16}/>{sending?text.sending:text.send}</button></form>
         </div>
       </div>}
