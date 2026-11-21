@@ -10,6 +10,7 @@ import {
 } from '@/lib/hr-case-flow';
 import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { ensureWorkerProgressSchema } from '@/lib/hr-schema';
 
@@ -127,6 +128,14 @@ export async function GET(request, { params }) {
   }
 }
 
+// 仲介成員的變更寫入該仲介的操作紀錄（系統管理員、訓練中心不在此記錄）。
+async function auditWorkerChange(principal, session, workerId, zh, en) {
+  if (principal?.role !== 'agency') return;
+  let name = '';
+  try { name = (await query('SELECT name FROM hr_workers WHERE id=$1', [workerId]))[0]?.name || ''; } catch { /* 紀錄用，查不到名字也不影響操作 */ }
+  await recordAgencyAction({ principal, session, action: 'update', type: 'worker-progress', id: workerId, name, zh: `${zh}：${name}`, en: `${en}: ${name}` });
+}
+
 export async function PATCH(request, { params }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -177,6 +186,7 @@ export async function PATCH(request, { params }) {
         [workerId, actor, `${step[1]} · ${completedOn || startedOn || '更新備註'}`]);
         await refreshWorkerCases(async (sql, params) => (await client.query(sql, params)).rows, workerId);
         await client.query('COMMIT');
+        await auditWorkerChange(principal, session, workerId, `更新了申請程序「${step[1]}」`, `Updated application step "${step[1]}"`);
         return NextResponse.json({ ok: true });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -222,6 +232,7 @@ export async function PATCH(request, { params }) {
         [workerId, actor, kind === 'medical' ? '更新抵台體檢安排' : '更新訓練安排', status]);
         await refreshWorkerCases(runInTransaction, workerId);
         await client.query('COMMIT');
+        await auditWorkerChange(principal, session, workerId, `${kind === 'medical' ? '更新了抵台體檢安排' : '更新了訓練安排'}（${status}）`, `${kind === 'medical' ? 'Updated arrival medical exam arrangement' : 'Updated training arrangement'} (${status})`);
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;

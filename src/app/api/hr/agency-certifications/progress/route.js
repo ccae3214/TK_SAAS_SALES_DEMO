@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureCertificationSchema } from '@/lib/hr-agency-certification-store';
 import { ensureProgressSchema, readProgress, saveProgress } from '@/lib/hr-agency-auth-progress-store';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
@@ -48,6 +49,11 @@ export async function POST(request) {
     await ensureTables();
     const principal = await getHrPrincipal(session);
     const result = await saveProgress(pool, principal, body);
+    if (principal?.role === 'agency' && result.status >= 200 && result.status < 300) {
+      const item = String(result.body?.item_key || '').slice(0, 60), stage = String(result.body?.stage || '').slice(0, 40);
+      await recordAgencyAction({ principal, session, action: 'update', type: 'agency-certification-progress', id: body?.certificationId, name: item,
+        zh: `更新了相互認證文件的辦理進度（${item}：${stage}）`, en: `Updated mutual-certification document progress (${item}: ${stage})` });
+    }
     return NextResponse.json(result.body, { status: result.status });
   } catch (error) {
     console.error('hr_agency_auth_progress_write_failed', error?.code || error?.name || 'Error');

@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureAuditSchema } from '@/lib/hr-audit';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 import { applyCertificationAction, ensureCertificationSchema, listCertifications } from '@/lib/hr-agency-certification-store';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 export const runtime = 'nodejs';
@@ -60,6 +61,9 @@ export async function POST(request) {
             result.body?.certification?.id || null, '相互認證', `${actorName}系統管理員${result.audit.phrase}`.slice(0, 500)],
         );
       } catch (error) { console.error('hr_agency_certification_audit_failed', error?.name || 'Error'); }
+    }
+    if (principal.role === 'agency' && result.audit?.zh && result.status >= 200 && result.status < 300) {
+      await recordAgencyAction({ principal, session, action: result.audit.key, type: 'agency-certification', id: result.body?.certification?.id, name: '相互認證', zh: result.audit.zh, en: result.audit.en });
     }
     return NextResponse.json(result.body, { status: result.status });
   } catch (error) {

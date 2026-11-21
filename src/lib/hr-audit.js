@@ -2,6 +2,8 @@ import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { migrateOnce } from './migrate-once.js';
+import { describeAgencyOperation, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
+import { recordAgencyAction } from './hr-agency-audit.js';
 
 // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
 // 紀錄失敗只會寫 log，不會影響原本的操作。
@@ -120,7 +122,9 @@ async function prepare(request, method) {
   const session = await auth();
   if (!session?.user) return null;
   const principal = await getHrPrincipal(session);
-  if (principal?.role !== 'admin') return null;
+  // 系統管理員寫入「系統管理員操作紀錄」；仲介機構的成員寫入「仲介機構操作紀錄」（只有該仲介的仲介管理者看得到）。
+  const kind = principal?.role === 'admin' ? 'admin' : shouldRecordAgencyAudit(principal) ? 'agency' : null;
+  if (!kind) return null;
   let body = {}, type = '', id = null;
   if (method === 'DELETE') {
     const url = new URL(request.url);
@@ -132,14 +136,21 @@ async function prepare(request, method) {
     type = typeof body.type === 'string' ? body.type : '';
     id = method === 'POST' ? null : targetIdOf(type, body);
   }
-  const before = await lookupTarget(type, id);
-  return { principal, session, method, type, body, id, before };
+  // 推薦工作者：操作對象是工作者（編號在 workerId），先查名字才記得到。
+  const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : type, type === 'job-order-candidate' ? idOf(body.workerId) : id);
+  return { principal, session, method, type, body, id, before, kind };
 }
 
 async function write(ctx, response) {
   let created = null;
   if (ctx.method === 'POST') { try { created = await response.clone().json(); } catch { created = null; } }
   const targetName = ctx.before?.name || '';
+  if (ctx.kind === 'agency') {
+    const agencyEntry = describeAgencyOperation({ method: ctx.method, type: ctx.type, body: ctx.body, name: targetName, before: ctx.before, created });
+    if (!agencyEntry) return;
+    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en });
+    return;
+  }
   const entry = describe(ctx.method, ctx.type, ctx.body, targetName || (ctx.id ? `#${ctx.id}` : ''), ctx.before, created);
   if (!entry) return;
   const actorName = String(ctx.principal.name || ctx.session.user.name || ctx.session.user.email || '系統管理員').slice(0, 160);
@@ -182,7 +193,7 @@ export async function recordLineAdminAction({ principal, lineUserId, action, typ
   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
 }
 
-// 包住 route handler：只在系統管理員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
+// 包住 route handler：只在系統管理員或仲介成員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
 export function withAdminAudit(method, handler) {
   return async function auditedHandler(request) {
     let ctx = null;

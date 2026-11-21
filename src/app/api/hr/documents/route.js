@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getHrPrincipal } from '@/lib/hr-access';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
@@ -86,6 +87,10 @@ export async function POST(request) {
     await client.query("UPDATE hr_worker_documents SET status='submitted',review_reason='',updated_at=NOW() WHERE id=$1", [requirementId]);
     await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [requirement.worker_id,actor,'收到文件',`${requirement.name} · 第 ${submission.version_number} 版`]);
     await client.query('COMMIT');
+    if (principal.role === 'agency') {
+      await recordAgencyAction({ principal, session, action: 'upload', type: 'worker-document', id: requirement.worker_id, name: requirement.name,
+        zh: `為工作者上傳了文件「${requirement.name}」第 ${submission.version_number} 版（${originalFilename}）`, en: `Uploaded document "${requirement.name}" v${submission.version_number} for a worker (${originalFilename})` });
+    }
     return NextResponse.json({ ok: true, submissionId: submission.id, version: submission.version_number }, { status: 201 });
   } catch (error) {
     await client.query('ROLLBACK');

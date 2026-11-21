@@ -1,0 +1,826 @@
+diff --git a/src/app/api/hr/agency-audit/route.js b/src/app/api/hr/agency-audit/route.js
+new file mode 100644
+index 0000000..7f8ee49
+--- /dev/null
++++ b/src/app/api/hr/agency-audit/route.js
+@@ -0,0 +1,26 @@
++import { NextResponse } from 'next/server';
++import { auth } from '@/auth';
++import { getHrPrincipal } from '@/lib/hr-access';
++import { readAgencyAudit } from '@/lib/hr-agency-audit';
++import { canViewAgencyAudit, normalizeAgencyAuditFilters } from '@/lib/hr-agency-audit-core';
++export const runtime = 'nodejs';
++export const dynamic = 'force-dynamic';
++
++// 仲介機構的操作紀錄。只有該機構自己的仲介管理者可以讀取，而且一律只回傳登入者所屬機構的紀錄
++// （不接受 agencyId 參數，也沒有任何新增、修改、刪除的介面）。
++//   GET ?actor=會員編號&q=關鍵字&before=上一頁最後一筆編號 → { rows, hasMore, actors }
++export async function GET(request) {
++  const session = await auth();
++  if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
++  try {
++    const principal = await getHrPrincipal(session);
++    if (!canViewAgencyAudit(principal)) {
++      return NextResponse.json({ error: '只有該仲介機構的仲介管理者可以查看操作紀錄。', code: 'forbidden' }, { status: 403 });
++    }
++    const filters = normalizeAgencyAuditFilters(new URL(request.url).searchParams);
++    return NextResponse.json(await readAgencyAudit(principal.agency_id, filters));
++  } catch (error) {
++    console.error('hr_agency_audit_read_failed', error?.name || 'Error');
++    return NextResponse.json({ error: '讀取操作紀錄失敗，請稍後再試。', code: 'server' }, { status: 500 });
++  }
++}
+diff --git a/src/app/api/hr/agency-certificates/route.js b/src/app/api/hr/agency-certificates/route.js
+index 81b987c..1e7cba4 100644
+--- a/src/app/api/hr/agency-certificates/route.js
++++ b/src/app/api/hr/agency-certificates/route.js
+@@ -11,6 +11,7 @@ import {
+   normalizeExpiry, resolveAgencyId,
+ } from '@/lib/hr-agency-profile';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ 
+ export const runtime = 'nodejs';
+ export const dynamic = 'force-dynamic';
+@@ -73,6 +74,9 @@ export async function POST(request) {
+     [agencyId, certType, filename, contentType, plain.length, createHash('sha256').update(plain).digest('hex'), iv, cipher.getAuthTag(), encrypted, expiresOn, clean(form.get('note')), actor]);
+     if (principal.role === 'admin') {
+       await recordAdminAction({ principal, session, action: '新增', type: 'agency', id: agencyId, name: agency.name, phrase: `為仲介機構「${agency.name}」上傳了${AGENCY_CERTIFICATE_TYPES[certType].zh}` });
++    } else {
++      await recordAgencyAction({ principal, session, action: 'upload', type: 'agency-certificate', id: inserted.rows[0].id, name: AGENCY_CERTIFICATE_TYPES[certType].zh,
++        zh: `上傳了機構證書「${AGENCY_CERTIFICATE_TYPES[certType].zh}」（${filename}）`, en: `Uploaded agency certificate "${AGENCY_CERTIFICATE_TYPES[certType].en}" (${filename})` });
+     }
+     return NextResponse.json({ ok: true, id: inserted.rows[0].id }, { status: 201 });
+   } catch (error) {
+@@ -97,6 +101,10 @@ export async function DELETE(request) {
+     if (principal.role === 'admin') {
+       await recordAdminAction({ principal, session, action: '刪除', type: 'agency', id: doc.agency_id, name: doc.agency_name,
+         phrase: `刪除了仲介機構「${doc.agency_name}」的${(AGENCY_CERTIFICATE_TYPES[doc.cert_type] || AGENCY_CERTIFICATE_TYPES.other).zh}（${doc.original_filename}）` });
++    } else {
++      const certType = AGENCY_CERTIFICATE_TYPES[doc.cert_type] || AGENCY_CERTIFICATE_TYPES.other;
++      await recordAgencyAction({ principal, session, action: 'delete', type: 'agency-certificate', id: doc.id, name: certType.zh,
++        zh: `刪除了機構證書「${certType.zh}」（${doc.original_filename}）`, en: `Deleted agency certificate "${certType.en}" (${doc.original_filename})` });
+     }
+     return NextResponse.json({ ok: true });
+   } catch (error) {
+diff --git a/src/app/api/hr/agency-certifications/progress/route.js b/src/app/api/hr/agency-certifications/progress/route.js
+index a20414c..fc58254 100644
+--- a/src/app/api/hr/agency-certifications/progress/route.js
++++ b/src/app/api/hr/agency-certifications/progress/route.js
+@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/hr-schema';
+ import { getHrPrincipal } from '@/lib/hr-access';
+ import { ensureCertificationSchema } from '@/lib/hr-agency-certification-store';
+ import { ensureProgressSchema, readProgress, saveProgress } from '@/lib/hr-agency-auth-progress-store';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
+ 
+ export const runtime = 'nodejs';
+@@ -48,6 +49,11 @@ export async function POST(request) {
+     await ensureTables();
+     const principal = await getHrPrincipal(session);
+     const result = await saveProgress(pool, principal, body);
++    if (principal?.role === 'agency' && result.status >= 200 && result.status < 300) {
++      const item = String(result.body?.item_key || '').slice(0, 60), stage = String(result.body?.stage || '').slice(0, 40);
++      await recordAgencyAction({ principal, session, action: 'update', type: 'agency-certification-progress', id: body?.certificationId, name: item,
++        zh: `更新了相互認證文件的辦理進度（${item}：${stage}）`, en: `Updated mutual-certification document progress (${item}: ${stage})` });
++    }
+     return NextResponse.json(result.body, { status: result.status });
+   } catch (error) {
+     console.error('hr_agency_auth_progress_write_failed', error?.code || error?.name || 'Error');
+diff --git a/src/app/api/hr/agency-certifications/route.js b/src/app/api/hr/agency-certifications/route.js
+index 8a69b06..8a7e276 100644
+--- a/src/app/api/hr/agency-certifications/route.js
++++ b/src/app/api/hr/agency-certifications/route.js
+@@ -4,6 +4,7 @@ import { auth } from '@/auth';
+ import { ensureSchema } from '@/lib/hr-schema';
+ import { getHrPrincipal } from '@/lib/hr-access';
+ import { ensureAuditSchema } from '@/lib/hr-audit';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ import { applyCertificationAction, ensureCertificationSchema, listCertifications } from '@/lib/hr-agency-certification-store';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
+ export const runtime = 'nodejs';
+@@ -61,6 +62,9 @@ export async function POST(request) {
+         );
+       } catch (error) { console.error('hr_agency_certification_audit_failed', error?.name || 'Error'); }
+     }
++    if (principal.role === 'agency' && result.audit?.zh && result.status >= 200 && result.status < 300) {
++      await recordAgencyAction({ principal, session, action: result.audit.key, type: 'agency-certification', id: result.body?.certification?.id, name: '相互認證', zh: result.audit.zh, en: result.audit.en });
++    }
+     return NextResponse.json(result.body, { status: result.status });
+   } catch (error) {
+     if (error?.code === '23505') return NextResponse.json({ error: '認證資料剛剛被其他人更新，請重新整理後再試。' }, { status: 409 });
+diff --git a/src/app/api/hr/agency-profile/route.js b/src/app/api/hr/agency-profile/route.js
+index 0728a97..6e54355 100644
+--- a/src/app/api/hr/agency-profile/route.js
++++ b/src/app/api/hr/agency-profile/route.js
+@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/hr-schema';
+ import { getHrPrincipal } from '@/lib/hr-access';
+ import { recordAdminAction } from '@/lib/hr-audit';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ import {
+   AGENCY_PROFILE_ERRORS, canManageAgencyProfile, canViewAgencyProfile, ensureAgencyProfileSchema, normalizeAgencyProfileInput,
+   readAgencyProfile, resolveAgencyId, saveAgencyProfile,
+@@ -72,6 +73,9 @@ export async function PUT(request) {
+     if (saved.error) return fail(saved.error, saved.error === 'name_taken' ? 409 : 404);
+     if (principal.role === 'admin') {
+       await recordAdminAction({ principal, session, action: '編輯', type: 'agency', id: agencyId, name: parsed.value.name, phrase: `編輯了仲介機構「${parsed.value.name}」的基本資料` });
++    } else {
++      await recordAgencyAction({ principal, session, action: 'edit', type: 'agency', id: agencyId, name: parsed.value.name,
++        zh: `編輯了機構基本資料「${parsed.value.name}」`, en: `Edited agency profile "${parsed.value.name}"` });
+     }
+     return NextResponse.json({ ...(await readAgencyProfile(pool, agencyId)), canManage: true, ok: true });
+   } catch (error) {
+diff --git a/src/app/api/hr/agency-workers/[id]/route.js b/src/app/api/hr/agency-workers/[id]/route.js
+index 3057954..efa2d5d 100644
+--- a/src/app/api/hr/agency-workers/[id]/route.js
++++ b/src/app/api/hr/agency-workers/[id]/route.js
+@@ -10,6 +10,7 @@ import {
+ } from '@/lib/hr-case-flow';
+ import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
+ import { entryGateClosedSql } from '@/lib/hr-requirements';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
+ import { ensureWorkerProgressSchema } from '@/lib/hr-schema';
+ 
+@@ -127,6 +128,14 @@ export async function GET(request, { params }) {
+   }
+ }
+ 
++// 仲介成員的變更寫入該仲介的操作紀錄（系統管理員、訓練中心不在此記錄）。
++async function auditWorkerChange(principal, session, workerId, zh, en) {
++  if (principal?.role !== 'agency') return;
++  let name = '';
++  try { name = (await query('SELECT name FROM hr_workers WHERE id=$1', [workerId]))[0]?.name || ''; } catch { /* 紀錄用，查不到名字也不影響操作 */ }
++  await recordAgencyAction({ principal, session, action: 'update', type: 'worker-progress', id: workerId, name, zh: `${zh}：${name}`, en: `${en}: ${name}` });
++}
++
+ export async function PATCH(request, { params }) {
+   const session = await auth();
+   if (!session?.user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+@@ -177,6 +186,7 @@ export async function PATCH(request, { params }) {
+         [workerId, actor, `${step[1]} · ${completedOn || startedOn || '更新備註'}`]);
+         await refreshWorkerCases(async (sql, params) => (await client.query(sql, params)).rows, workerId);
+         await client.query('COMMIT');
++        await auditWorkerChange(principal, session, workerId, `更新了申請程序「${step[1]}」`, `Updated application step "${step[1]}"`);
+         return NextResponse.json({ ok: true });
+       } catch (error) {
+         await client.query('ROLLBACK');
+@@ -222,6 +232,7 @@ export async function PATCH(request, { params }) {
+         [workerId, actor, kind === 'medical' ? '更新抵台體檢安排' : '更新訓練安排', status]);
+         await refreshWorkerCases(runInTransaction, workerId);
+         await client.query('COMMIT');
++        await auditWorkerChange(principal, session, workerId, `${kind === 'medical' ? '更新了抵台體檢安排' : '更新了訓練安排'}（${status}）`, `${kind === 'medical' ? 'Updated arrival medical exam arrangement' : 'Updated training arrangement'} (${status})`);
+       } catch (error) {
+         await client.query('ROLLBACK');
+         throw error;
+diff --git a/src/app/api/hr/documents/route.js b/src/app/api/hr/documents/route.js
+index e3bfb7d..80b87a4 100644
+--- a/src/app/api/hr/documents/route.js
++++ b/src/app/api/hr/documents/route.js
+@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
+ import pool from '@/lib/db';
+ import { auth } from '@/auth';
+ import { ensureHrIdentitySchema, getHrPrincipal } from '@/lib/hr-access';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
+ 
+ export const runtime = 'nodejs';
+@@ -86,6 +87,10 @@ export async function POST(request) {
+     await client.query("UPDATE hr_worker_documents SET status='submitted',review_reason='',updated_at=NOW() WHERE id=$1", [requirementId]);
+     await client.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1', [requirement.worker_id,actor,'收到文件',`${requirement.name} · 第 ${submission.version_number} 版`]);
+     await client.query('COMMIT');
++    if (principal.role === 'agency') {
++      await recordAgencyAction({ principal, session, action: 'upload', type: 'worker-document', id: requirement.worker_id, name: requirement.name,
++        zh: `為工作者上傳了文件「${requirement.name}」第 ${submission.version_number} 版（${originalFilename}）`, en: `Uploaded document "${requirement.name}" v${submission.version_number} for a worker (${originalFilename})` });
++    }
+     return NextResponse.json({ ok: true, submissionId: submission.id, version: submission.version_number }, { status: 201 });
+   } catch (error) {
+     await client.query('ROLLBACK');
+diff --git a/src/app/api/hr/employer-documents/route.js b/src/app/api/hr/employer-documents/route.js
+index 40a6c4b..5d93803 100644
+--- a/src/app/api/hr/employer-documents/route.js
++++ b/src/app/api/hr/employer-documents/route.js
+@@ -10,6 +10,7 @@ import {
+ } from '@/lib/hr-employer-documents';
+ import { APPROVAL_MESSAGES, validateApprovalFields } from '@/lib/hr-employer-approval';
+ import { requestIsSameOrigin } from '@/lib/request-origin';
++import { recordAgencyAction } from '@/lib/hr-agency-audit';
+ 
+ export const runtime = 'nodejs';
+ export const dynamic = 'force-dynamic';
+@@ -94,6 +95,9 @@ export async function POST(request) {
+     if (principal.role === 'admin') {
+       await recordAdminAction({ principal, session, action: '新增', type: 'employer-document', id: inserted.rows[0].id, name: employer.name,
+         phrase: `為${employer.name}雇主上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}（文號 ${approval.number}）` });
++    } else {
++      await recordAgencyAction({ principal, session, action: 'upload', type: 'employer-document', id: inserted.rows[0].id, name: employer.name,
++        zh: `為雇主「${employer.name}」上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}（文號 ${approval.number}）`, en: `Uploaded ${EMPLOYER_DOCUMENT_TYPES[docType].en} for employer "${employer.name}" (No. ${approval.number})` });
+     }
+     return NextResponse.json({ ok: true, id: inserted.rows[0].id }, { status: 201 });
+   } catch (error) {
+@@ -119,6 +123,10 @@ export async function DELETE(request) {
+     if (principal.role === 'admin') {
+       await recordAdminAction({ principal, session, action: '刪除', type: 'employer-document', id: doc.id, name: doc.employer_name,
+         phrase: `刪除了${doc.employer_name}雇主的${(EMPLOYER_DOCUMENT_TYPES[doc.doc_type] || EMPLOYER_DOCUMENT_TYPES.approval_letter).zh}（${doc.original_filename}）` });
++    } else {
++      const docType = EMPLOYER_DOCUMENT_TYPES[doc.doc_type] || EMPLOYER_DOCUMENT_TYPES.approval_letter;
++      await recordAgencyAction({ principal, session, action: 'delete', type: 'employer-document', id: doc.id, name: doc.employer_name,
++        zh: `刪除了雇主「${doc.employer_name}」的${docType.zh}（${doc.original_filename}）`, en: `Deleted ${docType.en} of employer "${doc.employer_name}" (${doc.original_filename})` });
+     }
+     return NextResponse.json({ ok: true });
+   } catch (error) {
+diff --git a/src/components/HrAgencyAuditLog.jsx b/src/components/HrAgencyAuditLog.jsx
+new file mode 100644
+index 0000000..f90aa28
+--- /dev/null
++++ b/src/components/HrAgencyAuditLog.jsx
+@@ -0,0 +1,108 @@
++"use client";
++
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { useLanguage } from '@/context/LanguageContext';
++import { AGENCY_AUDIT_ACTIONS } from '@/lib/hr-agency-audit-core';
++import styles from './HrAgencyAuditLog.module.css';
++
++// 仲介機構的操作紀錄（只有該機構的仲介管理者看得到；後端另外驗證，這裡只是不顯示入口）。
++const COPY = {
++  zh: {
++    title: '操作紀錄', lead: '這裡記錄貴機構成員在系統中的新增、修改、刪除與上傳操作，最新的在最上面。紀錄只有貴機構的仲介管理者可以查看，無法修改或刪除。',
++    member: '操作人員', all: '全部成員', search: '搜尋', searchPlaceholder: '輸入人員、對象或內容關鍵字', apply: '搜尋', clear: '清除',
++    loading: '讀取中…', empty: '目前沒有符合條件的操作紀錄。', more: '載入更多', admin: '管理者',
++    failRead: '無法讀取操作紀錄，請稍後再試。', forbidden: '只有該仲介機構的仲介管理者可以查看操作紀錄。',
++  },
++  en: {
++    title: 'Activity log', lead: 'This log records the create, edit, delete and upload actions taken by members of your agency. The newest entries are first. Only your agency administrators can view it, and entries cannot be edited or deleted.',
++    member: 'Member', all: 'All members', search: 'Search', searchPlaceholder: 'Member, target or keyword', apply: 'Search', clear: 'Clear',
++    loading: 'Loading…', empty: 'No activity matches these filters.', more: 'Load more', admin: 'Admin',
++    failRead: 'Unable to load the activity log. Please try again later.', forbidden: 'Only administrators of this agency can view the activity log.',
++  },
++};
++
++const timeText = (value, lang) => {
++  const date = new Date(value);
++  if (Number.isNaN(date.getTime())) return '';
++  return date.toLocaleString(lang === 'en' ? 'en-US' : 'zh-TW', { hour12: false, timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
++};
++
++export default function HrAgencyAuditLog() {
++  const { lang } = useLanguage();
++  const language = lang === 'en' ? 'en' : 'zh';
++  const t = COPY[language];
++  const [rows, setRows] = useState([]);
++  const [actors, setActors] = useState([]);
++  const [hasMore, setHasMore] = useState(false);
++  const [actorId, setActorId] = useState('');
++  const [q, setQ] = useState('');
++  const [applied, setApplied] = useState({ actor: '', q: '' });
++  const [state, setState] = useState('loading');
++  const [error, setError] = useState('');
++  const seq = useRef(0);
++
++  const load = useCallback(async (filters, before) => {
++    const mine = ++seq.current;
++    setState(before ? 'more' : 'loading');
++    setError('');
++    try {
++      const params = new URLSearchParams();
++      if (filters.actor) params.set('actor', filters.actor);
++      if (filters.q) params.set('q', filters.q);
++      if (before) params.set('before', String(before));
++      const response = await fetch(`/api/hr/agency-audit?${params}`, { cache: 'no-store' });
++      const payload = await response.json().catch(() => ({}));
++      if (mine !== seq.current) return;
++      if (!response.ok) { setError(response.status === 403 ? t.forbidden : t.failRead); setState('error'); return; }
++      setRows(prev => before ? [...prev, ...(payload.rows || [])] : (payload.rows || []));
++      setActors(payload.actors || []);
++      setHasMore(!!payload.hasMore);
++      setState('ready');
++    } catch {
++      if (mine !== seq.current) return;
++      setError(t.failRead); setState('error');
++    }
++  }, [t.failRead, t.forbidden]);
++
++  useEffect(() => { load(applied, null); }, [applied, load]);
++
++  const submit = event => { event.preventDefault(); setApplied({ actor: actorId, q: q.trim() }); };
++  const clear = () => { setActorId(''); setQ(''); setApplied({ actor: '', q: '' }); };
++  const last = rows[rows.length - 1];
++
++  return <section className="hr-member-card">
++    <h2>{t.title}</h2>
++    <p>{t.lead}</p>
++    <form className={styles.filters} onSubmit={submit}>
++      <label className={styles.field}>{t.member}
++        <select value={actorId} onChange={event => setActorId(event.target.value)}>
++          <option value="">{t.all}</option>
++          {actors.map(actor => <option key={actor.id} value={actor.id}>{actor.name}</option>)}
++        </select>
++      </label>
++      <label className={`${styles.field} ${styles.search}`}>{t.search}
++        <input value={q} maxLength={80} placeholder={t.searchPlaceholder} onChange={event => setQ(event.target.value)} />
++      </label>
++      <button type="submit">{t.apply}</button>
++      <button type="button" onClick={clear}>{t.clear}</button>
++    </form>
++    {error && <p className="hr-request-error" role="alert">{error}</p>}
++    {state === 'loading' && <p className={styles.empty}>{t.loading}</p>}
++    {state !== 'loading' && !error && rows.length === 0 && <p className={styles.empty}>{t.empty}</p>}
++    {rows.length > 0 && <ul className={styles.list}>
++      {rows.map(row => {
++        const action = AGENCY_AUDIT_ACTIONS[row.action];
++        return <li key={row.id} className={styles.item}>
++          <div className={styles.head}>
++            <strong>{row.actor_name}</strong>
++            {row.actor_is_admin && <span className={`${styles.badge} ${styles.badgeAdmin}`}>{t.admin}</span>}
++            {action && <span className={styles.badge}>{action[language]}</span>}
++            <time dateTime={new Date(row.created_at).toISOString()}>{timeText(row.created_at, language)}</time>
++          </div>
++          <p className={styles.summary}>{(language === 'en' ? row.summary_en : '') || row.summary_zh}</p>
++        </li>;
++      })}
++    </ul>}
++    {hasMore && last && <div className={styles.more}><button type="button" disabled={state === 'more'} onClick={() => load(applied, last.id)}>{state === 'more' ? t.loading : t.more}</button></div>}
++  </section>;
++}
+diff --git a/src/components/HrAgencyAuditLog.module.css b/src/components/HrAgencyAuditLog.module.css
+new file mode 100644
+index 0000000..e304338
+--- /dev/null
++++ b/src/components/HrAgencyAuditLog.module.css
+@@ -0,0 +1,13 @@
++.filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin:0 0 16px}
++.field{display:grid;gap:6px;min-width:0;font-size:13px;font-weight:600;color:var(--ink-2,#425449)}
++.search{flex:1 1 220px}
++.list{display:grid;gap:10px;margin:0 0 16px;padding:0;list-style:none}
++.item{display:grid;gap:4px;padding:12px 16px;border:1px solid var(--line-soft,#edf2ee);border-radius:12px;background:var(--g-50,#f2f9f5)}
++.head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;color:var(--ink-3,#72837a)}
++.head strong{color:var(--ink,#14231d);font-size:14px}
++.summary{margin:0;font-size:14.5px;line-height:1.55;overflow-wrap:anywhere}
++.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;background:#dcf3e5;color:#14532d;font-size:12px;font-weight:700;line-height:1.5;white-space:nowrap}
++.badgeAdmin{background:#e6ecfb;color:#1d3a8a}
++.empty{color:var(--ink-3,#72837a);font-size:14px}
++.more{display:flex;justify-content:center}
++@media (max-width:720px){.filters{flex-direction:column;align-items:stretch}}
+diff --git a/src/components/HrMemberPortal.jsx b/src/components/HrMemberPortal.jsx
+index e2e59b9..b0b826f 100644
+--- a/src/components/HrMemberPortal.jsx
++++ b/src/components/HrMemberPortal.jsx
+@@ -3,7 +3,7 @@
+ import { useEffect, useRef, useState } from 'react';
+ import { useAutoRefresh } from '@/lib/use-auto-refresh';
+ import { signOut } from 'next-auth/react';
+-import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, GraduationCap, LogOut, ChevronDown, Check } from 'lucide-react';
++import { LayoutDashboard, UserRound, Building2, FileText, Route, MessagesSquare, GraduationCap, LogOut, ChevronDown, Check, History } from 'lucide-react';
+ import { useLanguage } from '@/context/LanguageContext';
+ import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
+ import { photoFileError } from '@/lib/hr-photo-file';
+@@ -30,6 +30,7 @@ import HrCandidateDeposit from '@/components/HrCandidateDeposit';
+ import HrAgencyCertifications from '@/components/HrAgencyCertifications';
+ import HrEmployerDocuments from '@/components/HrEmployerDocuments';
+ import HrAgencyProfile from '@/components/HrAgencyProfile';
++import HrAgencyAuditLog from '@/components/HrAgencyAuditLog';
+ import { useHrDialog } from '@/lib/use-hr-dialog';
+ import { WORKER_STAGES, DOCUMENT_GUIDE, STAGE_NOTICE, STAGE_HELP, DOCUMENT_STATUS_FILTERS, documentGroup, stageOfRequirement, stageOfStep } from '@/lib/hr-worker-stages';
+ import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
+@@ -1386,11 +1387,12 @@ export default function HrMemberPortal({ actor }) {
+   return <main className="hr-member-shell" data-hr-translatable-root data-hr-language-profile={isPhilippinesOperator ? 'philippines-agency' : undefined}><PortalStyles />{['worker','employer','agency'].includes(data.role)&&<HrOnboardingTour tourId={data.role} />}
+     <header className="hr-member-header"><div className="hr-member-header-main"><span className="hr-member-avatar" aria-hidden="true">{String(actor.name||'?').trim().charAt(0)||'?'}</span><div><span>克雷迅人力管理</span><h1>{data.role==='agency'?(data.agencyType==='taiwan'?'業務':'Staff'):(labels[data.role] || data.roleName)}工作區</h1><p>{actor.name}</p></div></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}><LogOut size={16} aria-hidden="true" />登出</button></div></header>
+     <HrReminders onOpenTraining={()=>setActiveWorkspaceTab('training')} onOpenChat={roomId=>{setActiveWorkspaceTab('chat');window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}}));}} onOpenProgress={workerId=>{const worker=data.workers.find(item=>Number(item.id)===Number(workerId));if(worker)setProgressWorker(worker);}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker&&(data.role==='worker'||Number(worker.agency_id)===Number(data.agencyId)))void beginWorkerEdit(worker);}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer&&(data.role==='employer'||Number(employer.agency_id)===Number(data.agencyId)))beginEmployerEdit(employer);}else if(item.type==='agency'){setActiveWorkspaceTab('basic');}}} />
+-    <nav className="workspace-tabs" aria-label="工作區分頁">{[['start','工作起點',LayoutDashboard],['home','工作摘要',LayoutDashboard],...(['agency','employer'].includes(data.role)?[['matching','需求與配對',Building2]]:[]),['basic','基本資料',UserRound],['agencyEmployer',data.role==='agency'?'雇主資料':'仲介／雇主資料',Building2],['documents','必要文件',FileText],['process','來台程序',Route],...(data.role==='worker'?[['training','訓練課程',GraduationCap]]:[]),['chat','聊天室',MessagesSquare]].map(([tab,label,Icon])=><button key={tab} type="button" data-tour={`tab-${tab}`} className={activeWorkspaceTab===tab?'active':''} aria-current={activeWorkspaceTab===tab?'page':undefined} onClick={()=>setActiveWorkspaceTab(tab)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
++    <nav className="workspace-tabs" aria-label="工作區分頁">{[['start','工作起點',LayoutDashboard],['home','工作摘要',LayoutDashboard],...(['agency','employer'].includes(data.role)?[['matching','需求與配對',Building2]]:[]),['basic','基本資料',UserRound],['agencyEmployer',data.role==='agency'?'雇主資料':'仲介／雇主資料',Building2],['documents','必要文件',FileText],['process','來台程序',Route],...(data.role==='worker'?[['training','訓練課程',GraduationCap]]:[]),['chat','聊天室',MessagesSquare],...(data.role==='agency'&&data.isAgencyAdmin?[['auditLog','操作紀錄',History]]:[])].map(([tab,label,Icon])=><button key={tab} type="button" data-tour={`tab-${tab}`} className={activeWorkspaceTab===tab?'active':''} aria-current={activeWorkspaceTab===tab?'page':undefined} onClick={()=>setActiveWorkspaceTab(tab)}><Icon size={17} aria-hidden="true" />{label}</button>)}</nav>
+     {activeWorkspaceTab==='start'&&<WorkspaceStart data={data} onNavigate={setActiveWorkspaceTab}/>}
+     {activeWorkspaceTab==='home'&&<MemberRoleHome data={data} cases={workerCases} requirements={workerRequirements} openTab={setActiveWorkspaceTab}/>}
+     {activeWorkspaceTab==='basic'&&data.role!=='worker'&&<section className="hr-member-card"><h2>基本資料</h2><dl className="workspace-basic-fields"><div><dt>姓名</dt><dd>{data.actor?.name||actor.name||'—'}</dd></div><div><dt>Email</dt><dd>{data.actor?.email||actor.email||'—'}</dd></div><div><dt>會員類型</dt><dd>{data.role==='agency'?(data.agencyType==='taiwan'?'台灣仲介業務':'菲律賓仲介 Staff'):data.roleName||'會員'}</dd></div>{data.role==='employer'&&data.employers[0]&&<div><dt>雇主／客戶</dt><dd>{data.employers[0].name}</dd></div>}{data.role==='employer'&&data.employers[0]&&<EmployerProfileItems employer={data.employers[0]}/>}{data.role==='agency'&&<><div><dt>所屬仲介</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.name||'—'}</dd></div><div><dt>國家／地區</dt><dd>{data.agencies.find(item=>Number(item.id)===Number(data.agencyId))?.country||'尚未填寫，請由仲介管理者在下方「仲介機構資料」補上'}</dd></div></>}</dl>{data.role==='employer'&&data.employers[0]&&<div className="candidate-actions" style={{marginTop:12}}><button type="button" onClick={()=>beginEmployerEdit(data.employers[0])}>編輯雇主資料</button></div>}</section>}
+     {activeWorkspaceTab==='basic'&&data.role==='agency'&&<HrAgencyProfile onSaved={refresh}/>}
++    {activeWorkspaceTab==='auditLog'&&data.role==='agency'&&data.isAgencyAdmin&&<HrAgencyAuditLog/>}
+     {activeWorkspaceTab==='basic'&&data.role==='agency'&&<HrAgencyCertifications role={data.role} onChanged={refresh}/>}
+     {error&&<p className="hr-request-error" role="alert">{error}</p>}
+     {operationMessage&&<p className="hr-request-success" role="status">{operationMessage}</p>}
+diff --git a/src/lib/hr-agency-audit-core.js b/src/lib/hr-agency-audit-core.js
+new file mode 100644
+index 0000000..ab898f1
+--- /dev/null
++++ b/src/lib/hr-agency-audit-core.js
+@@ -0,0 +1,128 @@
++// 仲介機構的「操作紀錄」：記錄仲介機構的成員在系統裡做了什麼操作。
++// 不 import '@/…'，所以 node:test 可以直接測試（資料庫的讀寫在 hr-agency-audit.js）。
++//
++// 誰能看：只有「該仲介機構自己的仲介管理者」（會員類型 agency、管理者權限 agency、且屬於同一個機構）。
++//   一般仲介成員、其他仲介、雇主、工作者、訓練中心都不能看；系統管理者也不在這個畫面看（系統管理者另有「系統管理員操作紀錄」）。
++// 誰會被記錄：仲介機構的所有成員（管理者與一般成員）。系統管理者的操作仍然記在原本的系統管理員操作紀錄。
++
++export const AGENCY_AUDIT_PAGE_SIZE = 100;
++
++const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
++
++// 看得到操作紀錄：必須是仲介管理者，而且有所屬機構。
++export function canViewAgencyAudit(principal) {
++  return principal?.role === 'agency' && !!principal.is_agency_admin && validId(principal.agency_id);
++}
++
++// 會被寫入操作紀錄：任何有所屬機構的仲介成員。
++export function shouldRecordAgencyAudit(principal) {
++  return principal?.role === 'agency' && validId(principal.agency_id);
++}
++
++// action 存代碼，畫面再依語言顯示。
++export const AGENCY_AUDIT_ACTIONS = {
++  create: { zh: '新增', en: 'Created' },
++  edit: { zh: '編輯', en: 'Edited' },
++  update: { zh: '更新', en: 'Updated' },
++  delete: { zh: '刪除', en: 'Deleted' },
++  remove: { zh: '移除', en: 'Removed' },
++  enable: { zh: '啟用', en: 'Enabled' },
++  disable: { zh: '停用', en: 'Disabled' },
++  approve: { zh: '核准', en: 'Approved' },
++  return: { zh: '退回', en: 'Returned' },
++  recommend: { zh: '推薦', en: 'Recommended' },
++  withdraw: { zh: '撤回', en: 'Withdrawn' },
++  upload: { zh: '上傳', en: 'Uploaded' },
++  certify: { zh: '相互認證', en: 'Mutual certification' },
++  request: { zh: '申請', en: 'Requested' },
++};
++
++const CASE_STATUS = { open: ['進行中', 'In progress'], on_hold: ['暫停', 'On hold'], closed: ['結案', 'Closed'] };
++const TASK_STATUS = { todo: ['待處理', 'To do'], in_progress: ['進行中', 'In progress'], done: ['完成', 'Done'], blocked: ['卡關', 'Blocked'] };
++
++const pickStatus = (map, status, index) => (map[status] || [status || '', status || ''])[index];
++const label = (name, fallback) => String(name || fallback || '').trim();
++
++// 依操作內容產生「做了什麼」的中英文敘述；回傳 null 代表不需要記錄。
++// input: { method, type, body, name, before, created }
++export function describeAgencyOperation({ method, type, body = {}, name = '', before = null, created = null }) {
++  const n = label(name, before?.name);
++  const q = value => `「${value}」`;
++  const e = value => `"${value}"`;
++  const result = (action, targetName, zh, en) => ({ action, name: targetName, zh, en });
++
++  if (method === 'POST') {
++    if (type === 'worker') {
++      const created_name = label(created?.name, body.name);
++      return created_name ? result('create', created_name, `新增了工作者${q(created_name)}`, `Added worker ${e(created_name)}`) : null;
++    }
++    if (type === 'job-order-candidate') {
++      return n ? result('recommend', n, `推薦了工作者${q(n)}給雇主的工作需求`, `Recommended worker ${e(n)} for an employer job order`) : null;
++    }
++    return null;
++  }
++
++  if (method === 'DELETE') {
++    if (type === 'worker') return n ? result('remove', n, `將工作者${q(n)}從本仲介機構移除`, `Removed worker ${e(n)} from this agency`) : null;
++    return null;
++  }
++
++  switch (type) {
++    case 'worker':
++      if (!n) return null;
++      if (body.name !== undefined) return result('edit', n, `編輯了工作者${q(n)}的資料`, `Edited the details of worker ${e(n)}`);
++      return body.active === false
++        ? result('disable', n, `停用了工作者${q(n)}`, `Deactivated worker ${e(n)}`)
++        : result('enable', n, `啟用了工作者${q(n)}`, `Activated worker ${e(n)}`);
++    case 'worker-resume':
++      return n ? result('edit', n, `更新了工作者${q(n)}的履歷`, `Updated the resume of worker ${e(n)}`) : null;
++    case 'employer':
++      return n ? result('edit', n, `編輯了雇主${q(n)}的資料`, `Edited the details of employer ${e(n)}`) : null;
++    case 'member':
++      if (!n) return null;
++      return body.active === false
++        ? result('disable', n, `停用了會員帳號${q(n)}`, `Deactivated member account ${e(n)}`)
++        : result('enable', n, `啟用了會員帳號${q(n)}`, `Activated member account ${e(n)}`);
++    case 'member-profile':
++      return n ? result('edit', n, `編輯了會員帳號${q(n)}的資料`, `Edited the details of member account ${e(n)}`) : null;
++    case 'case':
++      return n ? result('update', n, `將案件 ${n} 的狀態變更為${pickStatus(CASE_STATUS, body.status, 0)}`, `Changed the status of case ${n} to ${pickStatus(CASE_STATUS, body.status, 1)}`) : null;
++    case 'task':
++      return n ? result('update', n, `將待辦${q(n)}的狀態更新為${pickStatus(TASK_STATUS, body.status, 0)}`, `Changed the status of task ${e(n)} to ${pickStatus(TASK_STATUS, body.status, 1)}`) : null;
++    case 'review': {
++      if (!n) return null;
++      return body.decision === 'approved'
++        ? result('approve', n, `核准了${q(n)}`, `Approved ${e(n)}`)
++        : result('return', n, `退回了${q(n)}`, `Returned ${e(n)}`);
++    }
++    case 'workflow':
++      return n ? result('update', n, `更新了案件 ${n} 的${body.workflowType === 'medical' ? '體檢' : '訓練'}狀態`, `Updated the ${body.workflowType === 'medical' ? 'medical exam' : 'training'} status of case ${n}`) : null;
++    case 'certification':
++      return n ? result('update', n, `更新了案件 ${n} 的證照取證進度`, `Updated the certification progress of case ${n}`) : null;
++    case 'application-step':
++      return n ? result('update', n, `更新了案件 ${n} 的申請程序`, `Updated the application steps of case ${n}`) : null;
++    case 'requirement-applicability':
++      return n ? result('update', n, `調整了${q(n)}的適用設定`, `Changed the applicability of ${e(n)}`) : null;
++    case 'job-order-candidate-deposit':
++      return body.paid === false
++        ? result('update', n, '取消了雇主已付訂金的登記', 'Cancelled the recorded employer deposit')
++        : result('update', n, '登記了雇主已付訂金', 'Recorded an employer deposit as paid');
++    case 'job-order-candidate-withdraw':
++      return result('withdraw', n, '撤回了推薦的工作者', 'Withdrew a recommended worker');
++    default:
++      return null;
++  }
++}
++
++// 篩選條件整理：actor 是會員編號、q 是關鍵字、before 是上一頁最後一筆的編號。
++export function normalizeAgencyAuditFilters(params) {
++  const get = key => (typeof params?.get === 'function' ? params.get(key) : params?.[key]) ?? '';
++  const actor = String(get('actor')).trim();
++  const q = String(get('q')).trim().slice(0, 80);
++  const before = String(get('before')).trim();
++  return {
++    actorId: validId(actor) ? Number(actor) : null,
++    q,
++    beforeId: validId(before) ? Number(before) : null,
++  };
++}
+diff --git a/src/lib/hr-agency-audit.js b/src/lib/hr-agency-audit.js
+new file mode 100644
+index 0000000..b671f8a
+--- /dev/null
++++ b/src/lib/hr-agency-audit.js
+@@ -0,0 +1,64 @@
++import pool, { query } from '@/lib/db';
++import { migrateOnce } from './migrate-once.js';
++import { AGENCY_AUDIT_PAGE_SIZE, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
++
++// 仲介機構的操作紀錄（資料庫的部分）。誰能看、怎麼描述操作在 hr-agency-audit-core.js。
++// 紀錄失敗只會寫 log，不會影響原本的操作；紀錄只新增、不提供修改或刪除的介面。
++// agency_id 刻意不設外鍵：仲介機構被刪除後，紀錄仍然保留。
++
++export function ensureAgencyAuditSchema() {
++  return migrateOnce('agency-audit', async () => {
++    await pool.query(`CREATE TABLE IF NOT EXISTS hr_agency_audit_log (
++      id BIGSERIAL PRIMARY KEY,
++      agency_id BIGINT NOT NULL,
++      agency_name TEXT NOT NULL DEFAULT '',
++      actor_member_id BIGINT,
++      actor_name TEXT NOT NULL,
++      actor_email TEXT NOT NULL DEFAULT '',
++      actor_is_admin BOOLEAN NOT NULL DEFAULT FALSE,
++      action TEXT NOT NULL,
++      target_type TEXT NOT NULL DEFAULT '',
++      target_id BIGINT,
++      target_name TEXT NOT NULL DEFAULT '',
++      summary_zh TEXT NOT NULL,
++      summary_en TEXT NOT NULL DEFAULT '',
++      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
++    )`);
++    await pool.query('CREATE INDEX IF NOT EXISTS hr_agency_audit_log_agency ON hr_agency_audit_log(agency_id, id DESC)');
++  });
++}
++
++const idOf = value => { const n = Number(value); return Number.isInteger(n) && n > 0 ? n : null; };
++
++// 寫入一筆仲介操作紀錄。principal 必須是有所屬機構的仲介成員，否則直接略過。
++export async function recordAgencyAction({ principal, session, action, type, id, name, zh, en }) {
++  try {
++    if (!shouldRecordAgencyAudit(principal) || !action || !zh) return;
++    const actorName = String(principal.name || session?.user?.name || session?.user?.email || '仲介成員').slice(0, 160);
++    await ensureAgencyAuditSchema();
++    await pool.query(
++      `INSERT INTO hr_agency_audit_log(agency_id,agency_name,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_id,target_name,summary_zh,summary_en)
++       VALUES($1,COALESCE((SELECT name FROM hr_agencies WHERE id=$1),''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
++      [Number(principal.agency_id), idOf(principal.id), actorName, String(session?.user?.email || principal.email || '').slice(0, 254), !!principal.is_agency_admin,
++        String(action).slice(0, 40), String(type || '').slice(0, 60), idOf(id), String(name || '').slice(0, 200), String(zh).slice(0, 500), String(en || '').slice(0, 500)],
++    );
++  } catch (error) { console.error('hr_agency_audit_write_failed', error?.name || 'Error'); }
++}
++
++// 讀取某個仲介機構的操作紀錄（agencyId 一律由呼叫端用登入者的機構決定，不接受前端傳入）。
++export async function readAgencyAudit(agencyId, { actorId = null, q = '', beforeId = null, limit = AGENCY_AUDIT_PAGE_SIZE } = {}) {
++  await ensureAgencyAuditSchema();
++  const params = [Number(agencyId)];
++  const where = ['agency_id=$1'];
++  if (actorId) { params.push(actorId); where.push(`actor_member_id=$${params.length}`); }
++  if (beforeId) { params.push(beforeId); where.push(`id<$${params.length}`); }
++  if (q) { params.push(`%${q.replace(/[\\%_]/g, '\\$&')}%`); where.push(`(summary_zh ILIKE $${params.length} OR summary_en ILIKE $${params.length} OR actor_name ILIKE $${params.length} OR target_name ILIKE $${params.length})`); }
++  params.push(limit + 1);
++  const rows = await query(
++    `SELECT id,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_name,summary_zh,summary_en,created_at
++     FROM hr_agency_audit_log WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT $${params.length}`, params);
++  const actors = await query(
++    `SELECT actor_member_id AS id, (array_agg(actor_name ORDER BY id DESC))[1] AS name
++     FROM hr_agency_audit_log WHERE agency_id=$1 AND actor_member_id IS NOT NULL GROUP BY actor_member_id ORDER BY 2`, [Number(agencyId)]);
++  return { rows: rows.slice(0, limit), hasMore: rows.length > limit, actors };
++}
+diff --git a/src/lib/hr-agency-certification-store.js b/src/lib/hr-agency-certification-store.js
+index 40f31fb..876ec25 100644
+--- a/src/lib/hr-agency-certification-store.js
++++ b/src/lib/hr-agency-certification-store.js
+@@ -174,29 +174,30 @@ async function requestOrCertify(client, ctx, principal, action, input, stamp) {
+   const memberId = principal?.id || null;
+   const base = { taiwan_agency_id: Number(taiwanId), philippines_agency_id: Number(philippinesId), requested_by_member_id: memberId, decided_by_member_id: null };
+   const names = `台灣仲介「${taiwan.name}」與菲律賓仲介「${philippines.name}」`;
++  const namesEn = `Taiwan agency "${taiwan.name}" and Philippines agency "${philippines.name}"`;
+ 
+   const fresh = ctx.admin
+     ? { ...base, status: 'certified', requested_by_side: null, taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId }
+     : { ...base, status: 'pending', requested_by_side: side, taiwan_confirmed_at: side === 'taiwan' ? stamp : null, philippines_confirmed_at: side === 'philippines' ? stamp : null, source: 'request' };
+   const insertedId = await insertRow(client, fresh);
+-  if (insertedId) return done(201, await reload(client, insertedId, side), { action: ctx.admin ? '直接認證' : '申請認證', phrase: `${ctx.admin ? '直接認證了' : '代為申請認證：'}${names}` });
++  if (insertedId) return done(201, await reload(client, insertedId, side), { action: ctx.admin ? '直接認證' : '申請認證', phrase: `${ctx.admin ? '直接認證了' : '代為申請認證：'}${names}`, zh: `申請了相互認證：${names}`, en: `Requested mutual certification: ${namesEn}`, key: 'request' });
+ 
+   const existing = (await client.query('SELECT * FROM hr_agency_certifications WHERE taiwan_agency_id=$1 AND philippines_agency_id=$2 FOR UPDATE', [taiwanId, philippinesId])).rows?.[0];
+   if (!existing) return fail(409, '認證資料剛剛被其他人更新，請重新整理後再試。');
+   if (existing.status === 'certified') return done(200, await reload(client, existing.id, side), null, { already: 'certified' });
+   if (ctx.admin) {
+     await updateRow(client, { ...existing, status: 'certified', taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId });
+-    return done(200, await reload(client, existing.id, side), { action: '直接認證', phrase: `直接認證了${names}` });
++    return done(200, await reload(client, existing.id, side), { action: '直接認證', phrase: `直接認證了${names}`, zh: `直接認證了${names}`, en: `Directly certified ${namesEn}`, key: 'approve' });
+   }
+   if (existing.status === 'pending') {
+     if (existing.requested_by_side === side) return done(200, await reload(client, existing.id, side), null, { already: 'pending' });
+     // 對方早已申請，我方再申請等同同意：雙方都確認，認證完成。
+     await updateRow(client, { ...existing, status: 'certified', [STAMP[side]]: stamp, decided_by_member_id: memberId });
+-    return done(200, await reload(client, existing.id, side), null, { completed: true });
++    return done(200, await reload(client, existing.id, side), { action: '同意認證', phrase: `同意並完成了${names}的相互認證`, zh: `同意並完成了${names}的相互認證`, en: `Approved and completed mutual certification with ${namesEn}`, key: 'approve' }, { completed: true });
+   }
+   // rejected／revoked：重新開始一輪申請。
+   await updateRow(client, { ...existing, status: 'pending', requested_by_side: side, requested_by_member_id: memberId, decided_by_member_id: null, taiwan_confirmed_at: side === 'taiwan' ? stamp : null, philippines_confirmed_at: side === 'philippines' ? stamp : null, source: 'request' });
+-  return done(200, await reload(client, existing.id, side), null, { reopened: true });
++  return done(200, await reload(client, existing.id, side), { action: '申請認證', phrase: `重新申請認證：${names}`, zh: `重新申請了相互認證：${names}`, en: `Re-requested mutual certification: ${namesEn}`, key: 'request' }, { reopened: true });
+ }
+ 
+ async function decide(client, ctx, principal, action, input, stamp) {
+@@ -208,7 +209,9 @@ async function decide(client, ctx, principal, action, input, stamp) {
+     if (!owns) return fail(404, '找不到這筆認證紀錄。'); // 不透露其他機構的紀錄是否存在
+   }
+   const memberId = principal?.id || null;
+-  const names = async () => { const full = await reload(client, row.id, null); return `台灣仲介「${full?.taiwan_agency_name}」與菲律賓仲介「${full?.philippines_agency_name}」`; };
++  const nameParts = async () => { const full = await reload(client, row.id, null); return [full?.taiwan_agency_name, full?.philippines_agency_name]; };
++  const names = async () => { const [t, p] = await nameParts(); return `台灣仲介「${t}」與菲律賓仲介「${p}」`; };
++  const namesEn = async () => { const [t, p] = await nameParts(); return `Taiwan agency "${t}" and Philippines agency "${p}"`; };
+ 
+   if (action === 'approve') {
+     if (row.status !== 'pending') return fail(409, '這筆申請已不在等待確認狀態，請重新整理。');
+@@ -217,19 +220,20 @@ async function decide(client, ctx, principal, action, input, stamp) {
+       ? { ...row, status: 'certified', taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId }
+       : { ...row, status: 'certified', [STAMP[ctx.side]]: stamp, decided_by_member_id: memberId };
+     await updateRow(client, next);
+-    return done(200, await reload(client, row.id, ctx.side), { action: '同意認證', phrase: `同意並完成了${await names()}的相互認證` });
++    return done(200, await reload(client, row.id, ctx.side), { action: '同意認證', phrase: `同意並完成了${await names()}的相互認證`, zh: `同意並完成了${await names()}的相互認證`, en: `Approved and completed mutual certification with ${await namesEn()}`, key: 'approve' });
+   }
+   if (action === 'reject') {
+     if (row.status !== 'pending') return fail(409, '這筆申請已不在等待確認狀態，請重新整理。');
+     if (!ctx.admin && row.requested_by_side === ctx.side) return fail(409, '這筆申請由貴機構提出，如要取消請使用「撤回申請」。');
+     await updateRow(client, { ...row, status: 'rejected', decided_by_member_id: memberId });
+-    return done(200, await reload(client, row.id, ctx.side), { action: '拒絕認證', phrase: `拒絕了${await names()}的認證申請` });
++    return done(200, await reload(client, row.id, ctx.side), { action: '拒絕認證', phrase: `拒絕了${await names()}的認證申請`, zh: `拒絕了${await names()}的認證申請`, en: `Rejected the certification request from ${await namesEn()}`, key: 'return' });
+   }
+   // revoke：解除已完成的認證，或撤回自己提出、尚未被確認的申請。
+   const canRevoke = row.status === 'certified' || (row.status === 'pending' && (ctx.admin || row.requested_by_side === ctx.side));
+   if (!canRevoke) return fail(409, row.status === 'pending' ? '這筆申請由對方提出，請使用「拒絕」。' : '這筆認證目前不是有效狀態。');
+   await updateRow(client, { ...row, status: 'revoked', decided_by_member_id: memberId });
+-  return done(200, await reload(client, row.id, ctx.side), { action: row.status === 'certified' ? '解除認證' : '撤回申請', phrase: `${row.status === 'certified' ? '解除了' : '撤回了'}${await names()}的認證` });
++  return done(200, await reload(client, row.id, ctx.side), { action: row.status === 'certified' ? '解除認證' : '撤回申請', phrase: `${row.status === 'certified' ? '解除了' : '撤回了'}${await names()}的認證`,
++    zh: `${row.status === 'certified' ? '解除了' : '撤回了'}${await names()}的認證`, en: `${row.status === 'certified' ? 'Revoked' : 'Withdrew'} certification of ${await namesEn()}`, key: row.status === 'certified' ? 'disable' : 'withdraw' });
+ }
+ 
+ export async function applyCertificationAction(pool, principal, input = {}, now = () => new Date()) {
+diff --git a/src/lib/hr-audit.js b/src/lib/hr-audit.js
+index 32dfa0c..a785c33 100644
+--- a/src/lib/hr-audit.js
++++ b/src/lib/hr-audit.js
+@@ -2,6 +2,8 @@ import pool, { query } from '@/lib/db';
+ import { auth } from '@/auth';
+ import { getHrPrincipal } from '@/lib/hr-access';
+ import { migrateOnce } from './migrate-once.js';
++import { describeAgencyOperation, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
++import { recordAgencyAction } from './hr-agency-audit.js';
+ 
+ // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
+ // 紀錄失敗只會寫 log，不會影響原本的操作。
+@@ -120,7 +122,9 @@ async function prepare(request, method) {
+   const session = await auth();
+   if (!session?.user) return null;
+   const principal = await getHrPrincipal(session);
+-  if (principal?.role !== 'admin') return null;
++  // 系統管理員寫入「系統管理員操作紀錄」；仲介機構的成員寫入「仲介機構操作紀錄」（只有該仲介的仲介管理者看得到）。
++  const kind = principal?.role === 'admin' ? 'admin' : shouldRecordAgencyAudit(principal) ? 'agency' : null;
++  if (!kind) return null;
+   let body = {}, type = '', id = null;
+   if (method === 'DELETE') {
+     const url = new URL(request.url);
+@@ -132,14 +136,21 @@ async function prepare(request, method) {
+     type = typeof body.type === 'string' ? body.type : '';
+     id = method === 'POST' ? null : targetIdOf(type, body);
+   }
+-  const before = await lookupTarget(type, id);
+-  return { principal, session, method, type, body, id, before };
++  // 推薦工作者：操作對象是工作者（編號在 workerId），先查名字才記得到。
++  const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : type, type === 'job-order-candidate' ? idOf(body.workerId) : id);
++  return { principal, session, method, type, body, id, before, kind };
+ }
+ 
+ async function write(ctx, response) {
+   let created = null;
+   if (ctx.method === 'POST') { try { created = await response.clone().json(); } catch { created = null; } }
+   const targetName = ctx.before?.name || '';
++  if (ctx.kind === 'agency') {
++    const agencyEntry = describeAgencyOperation({ method: ctx.method, type: ctx.type, body: ctx.body, name: targetName, before: ctx.before, created });
++    if (!agencyEntry) return;
++    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en });
++    return;
++  }
+   const entry = describe(ctx.method, ctx.type, ctx.body, targetName || (ctx.id ? `#${ctx.id}` : ''), ctx.before, created);
+   if (!entry) return;
+   const actorName = String(ctx.principal.name || ctx.session.user.name || ctx.session.user.email || '系統管理員').slice(0, 160);
+@@ -182,7 +193,7 @@ export async function recordLineAdminAction({ principal, lineUserId, action, typ
+   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
+ }
+ 
+-// 包住 route handler：只在系統管理員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
++// 包住 route handler：只在系統管理員或仲介成員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
+ export function withAdminAudit(method, handler) {
+   return async function auditedHandler(request) {
+     let ctx = null;
+diff --git a/src/lib/hr-migrations.js b/src/lib/hr-migrations.js
+index 5beec75..35d004f 100644
+--- a/src/lib/hr-migrations.js
++++ b/src/lib/hr-migrations.js
+@@ -13,6 +13,7 @@ import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
+ import { ensureEmployerDocumentsSchema } from '@/lib/hr-employer-documents';
+ import { ensureNotificationSchema } from '@/lib/hr-notifications';
+ import { ensureAuditSchema } from '@/lib/hr-audit';
++import { ensureAgencyAuditSchema } from '@/lib/hr-agency-audit';
+ import { ensureLineLanguageSyncSchema } from '@/lib/hr-line-language-sync';
+ import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-reminders-store';
+ 
+@@ -27,6 +28,7 @@ export const MIGRATION_STEPS = [
+   ['employer-documents', () => ensureEmployerDocumentsSchema()],
+   ['notifications', () => ensureNotificationSchema(pool)],
+   ['audit', () => ensureAuditSchema()],
++  ['agency-audit', () => ensureAgencyAuditSchema()],
+   ['worker-progress', () => ensureWorkerProgressSchema()],
+   ['chat', () => ensureChatSchema()],
+   ['line-bot', () => ensureLineSchema()],
+diff --git a/src/lib/hr-translations.jsx b/src/lib/hr-translations.jsx
+index 8dc870e..8c30754 100644
+--- a/src/lib/hr-translations.jsx
++++ b/src/lib/hr-translations.jsx
+@@ -323,7 +323,7 @@ const EN_MORE = {
+   '移除工人': 'Remove Worker', '移除工人失敗': 'Failed to remove the worker.', '關閉移除確認': 'Close removal confirmation',
+   '移除失敗，請確認網路連線後再試。': 'Removal failed. Check your connection and try again.',
+   '姓氏': 'Surname', '名字': 'Given name', '中間名': 'Middle name', '請填寫其他宗教': 'Enter other religion', '天主教': 'Catholic', '基督教': 'Christian', '其他：': 'Other: ',
+-  '仲介／雇主資料': 'Agency / employer records', '來台程序': 'Taiwan application process', '目前沒有必要文件項目。': 'There are no required documents yet.', '目前沒有來台申請程序。': 'There is no Taiwan application process yet.', '所屬仲介業務': 'Taiwan agency representative', '菲律賓仲介 Staff': 'Philippines agency staff',
++  '仲介／雇主資料': 'Agency / employer records', '來台程序': 'Taiwan application process', '操作紀錄': 'Activity log', '目前沒有必要文件項目。': 'There are no required documents yet.', '目前沒有來台申請程序。': 'There is no Taiwan application process yet.', '所屬仲介業務': 'Taiwan agency representative', '菲律賓仲介 Staff': 'Philippines agency staff',
+   '下載履歷 PDF': 'Download resume PDF', '下載 PDF': 'Download PDF', '編輯履歷': 'Edit resume', '履歷照片': 'Resume photo', '履歷編號': 'Resume reference number', '家庭資料': 'Family information', '個人資料問答': 'Personal questionnaire', '膚色': 'Complexion', '家庭狀況': 'Family status', '配偶姓名': 'Spouse name', '配偶職業': 'Spouse occupation', '配偶年齡': 'Spouse age', '子女人數': 'Number of children', '子女年齡': 'Children’s ages', '父親姓名': 'Father’s name', '父親職業': 'Father’s occupation', '父親出生日期': 'Father’s date of birth', '母親姓名': 'Mother’s name', '母親職業': 'Mother’s occupation', '母親出生日期': 'Mother’s date of birth', '兄弟人數': 'Number of brothers', '兄弟年齡': 'Brothers’ ages', '姊妹人數': 'Number of sisters', '姊妹年齡': 'Sisters’ ages', '請用逗號分隔，並由大到小排列。例如：18,5,2,1': 'Separate ages with commas and list them from oldest to youngest. Example: 18,5,2,1', '家中排行': 'Birth order in family', '出國工作期間子女照顧者': 'Who will care for children while abroad', '完成課程': 'Courses completed', '是否有刺青': 'Do you have a tattoo?', '是否吸菸': 'Do you smoke?', '是否飲酒': 'Do you drink alcohol?', '寵物照護經驗與種類': 'Pet care experience and types of pets', '是否願意在有寵物的家庭工作': 'Willing to work in a home with pets?', '是否曾有重大疾病': 'History of serious illness?', '過去 12 個月是否接受手術': 'Surgery in the past 12 months?', '是否有過敏': 'Do you have allergies?', '休假日是否願意完成家務': 'Willing to complete household chores on a day off?', '外出前是否完成家務': 'Will you finish household chores before going out?', '休假日是否可於晚上 8 點前返家': 'Can you return home by 8 PM on a day off?', '工作時是否化妝': 'Do you wear makeup at work?', '是否願意於休假日加班': 'Willing to work overtime on a day off?', '是否曾在海外工作': 'Have you worked abroad before?', '海外工作地點與期間': 'Overseas work location and dates', '雇主、職務、期間、離職原因與工作內容': 'Employer, position, dates, reason for leaving, and duties', '備註': 'Notes', '產生中…': 'Generating…', '履歷照片請使用 JPG 或 PNG，檔案需小於 1.5 MB。': 'Resume photo must be a JPG or PNG under 1.5 MB.', '讀取履歷照片失敗。': 'Could not read resume photo.',
+   '編輯履歷': 'Edit resume', '完善履歷資料，讓合作仲介與雇主了解你的技能和工作經驗。': 'Complete your resume so partner agencies and employers can learn about your skills and work experience.', '基本聯絡資料': 'Contact details', '基本資料': 'Personal details', '教育與語言': 'Education and languages', '技能與照護經驗': 'Skills and care experience', '工作經歷': 'Work experience', '尚未填寫履歷資料。': 'No resume details added yet.',
+   '出生日期': 'Date of birth', '婚姻狀況': 'Marital status', '其他說明': 'Additional information', '性別': 'Gender', '出生地': 'Place of birth', '身高': 'Height', '體重': 'Weight', '膚色': 'Complexion', '白': 'White', '黃': 'Yellow', '黑': 'Black', '宗教': 'Religion', '興趣': 'Hobbies', '子女人數': 'Number of children', '教育背景': 'Education', '教育程度': 'Education level', '身高（cm）': 'Height (cm)', '體重（kg）': 'Weight (kg)', '國中': 'Junior high school', '專科': 'Associate degree', '研究所': 'Graduate school', '單身': 'Single', '有伴侶': 'In a relationship', '已結婚': 'Married', '145以下': 'Below 145 cm', '181以上': 'Above 180 cm', '39以下': 'Below 40 kg', '71以上': 'Above 70 kg', '小學': 'Elementary', '高中': 'High school', '大學': 'College', '職業培訓': 'Vocational training', '農工': 'Farm worker', '機構看護工': 'Institutional caregiver', 'Male': 'Male', 'Female': 'Female', '語言能力': 'Languages', 'English': 'English', 'Tagalog': 'Tagalog', 'Cantonese': 'Cantonese', 'Mandarin': 'Mandarin', 'Others': 'Others', '基礎': 'Basic', '中等': 'Medium', '本地': 'Native', '台灣': 'Taiwanese', '廣東': 'Cantonese', '中國': 'Chinese', '日本': 'Japanese', '泰國': 'Thai', '印度': 'Indian', '韓國': 'Korean', '菲律賓': 'Filipino', 'Washing Machine': 'Washing machine', 'Oven': 'Oven', 'Vacuum Cleaner': 'Vacuum cleaner', 'Microwave Oven': 'Microwave oven', 'Dish Washer': 'Dishwasher', 'Bathing': 'Bathing', 'Changing diapers': 'Changing diapers', 'Sterilizing utensils': 'Sterilizing utensils', 'Feeding': 'Feeding', 'Taking temperature': 'Taking temperature', '烹飪技能': 'Cooking skills', '家電操作': 'Home appliance skills', '嬰幼兒照護技能': 'Baby and childcare skills', '新生兒照護經驗': 'Newborn care experience', '兒童照護經驗': 'Childcare experience', '長者照護經驗': 'Elder care experience', '身心障礙者照護經驗': 'Care experience for people with disabilities', '聯絡電話': 'Phone number', '儲存工作者': 'Save worker', '編輯工作者': 'Edit worker', '新增工作者': 'Add worker',
+diff --git a/tests/hr-agency-audit.test.mjs b/tests/hr-agency-audit.test.mjs
+new file mode 100644
+index 0000000..614261e
+--- /dev/null
++++ b/tests/hr-agency-audit.test.mjs
+@@ -0,0 +1,52 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { AGENCY_AUDIT_ACTIONS, canViewAgencyAudit, describeAgencyOperation, normalizeAgencyAuditFilters, shouldRecordAgencyAudit } from '../src/lib/hr-agency-audit-core.js';
++
++const agencyAdmin = { role: 'agency', is_agency_admin: true, agency_id: 7 };
++const agencyStaff = { role: 'agency', is_agency_admin: false, agency_id: 7 };
++
++test('only the agency administrator of an agency can view the log', () => {
++  assert.equal(canViewAgencyAudit(agencyAdmin), true);
++  assert.equal(canViewAgencyAudit(agencyStaff), false);
++  assert.equal(canViewAgencyAudit({ role: 'admin', is_agency_admin: true, agency_id: 7 }), false);
++  assert.equal(canViewAgencyAudit({ role: 'employer', is_agency_admin: true, agency_id: 7 }), false);
++  assert.equal(canViewAgencyAudit({ ...agencyAdmin, agency_id: null }), false);
++  assert.equal(canViewAgencyAudit(null), false);
++});
++
++test('every agency member action is recorded, system admins are not', () => {
++  assert.equal(shouldRecordAgencyAudit(agencyStaff), true);
++  assert.equal(shouldRecordAgencyAudit(agencyAdmin), true);
++  assert.equal(shouldRecordAgencyAudit({ role: 'admin' }), false);
++  assert.equal(shouldRecordAgencyAudit({ role: 'agency', agency_id: 0 }), false);
++});
++
++test('operations are described in Chinese and English with a known action', () => {
++  const cases = [
++    { method: 'POST', type: 'worker', created: { name: 'Maria' } },
++    { method: 'DELETE', type: 'worker', name: 'Maria' },
++    { method: 'PATCH', type: 'worker', name: 'Maria', body: { name: 'Maria' } },
++    { method: 'PATCH', type: 'worker', name: 'Maria', body: { active: false } },
++    { method: 'PATCH', type: 'case', name: 'C-1', body: { status: 'closed' } },
++    { method: 'PATCH', type: 'review', name: 'Passport', body: { decision: 'approved' } },
++  ];
++  for (const input of cases) {
++    const out = describeAgencyOperation(input);
++    assert.ok(out, JSON.stringify(input));
++    assert.ok(AGENCY_AUDIT_ACTIONS[out.action], out.action);
++    assert.match(out.zh, /[一-鿿]/);
++    assert.doesNotMatch(out.en, /[一-鿿]/);
++  }
++  assert.equal(describeAgencyOperation({ method: 'PATCH', type: 'unknown', name: 'x' }), null);
++});
++
++test('filters are normalised', () => {
++  const f = normalizeAgencyAuditFilters(new URLSearchParams({ actor: '12', q: ' ab ', before: '50' }));
++  assert.equal(f.actorId, 12);
++  assert.equal(f.q, 'ab');
++  assert.equal(f.beforeId, 50);
++  const bad = normalizeAgencyAuditFilters(new URLSearchParams({ actor: 'x', before: '-1', q: 'a'.repeat(200) }));
++  assert.equal(bad.actorId, null);
++  assert.equal(bad.beforeId, null);
++  assert.equal(bad.q.length, 80);
++});

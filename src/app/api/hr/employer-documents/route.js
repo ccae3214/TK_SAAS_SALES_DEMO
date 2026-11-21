@@ -10,6 +10,7 @@ import {
 } from '@/lib/hr-employer-documents';
 import { APPROVAL_MESSAGES, validateApprovalFields } from '@/lib/hr-employer-approval';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -94,6 +95,9 @@ export async function POST(request) {
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '新增', type: 'employer-document', id: inserted.rows[0].id, name: employer.name,
         phrase: `為${employer.name}雇主上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}（文號 ${approval.number}）` });
+    } else {
+      await recordAgencyAction({ principal, session, action: 'upload', type: 'employer-document', id: inserted.rows[0].id, name: employer.name,
+        zh: `為雇主「${employer.name}」上傳了${EMPLOYER_DOCUMENT_TYPES[docType].zh}（文號 ${approval.number}）`, en: `Uploaded ${EMPLOYER_DOCUMENT_TYPES[docType].en} for employer "${employer.name}" (No. ${approval.number})` });
     }
     return NextResponse.json({ ok: true, id: inserted.rows[0].id }, { status: 201 });
   } catch (error) {
@@ -119,6 +123,10 @@ export async function DELETE(request) {
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '刪除', type: 'employer-document', id: doc.id, name: doc.employer_name,
         phrase: `刪除了${doc.employer_name}雇主的${(EMPLOYER_DOCUMENT_TYPES[doc.doc_type] || EMPLOYER_DOCUMENT_TYPES.approval_letter).zh}（${doc.original_filename}）` });
+    } else {
+      const docType = EMPLOYER_DOCUMENT_TYPES[doc.doc_type] || EMPLOYER_DOCUMENT_TYPES.approval_letter;
+      await recordAgencyAction({ principal, session, action: 'delete', type: 'employer-document', id: doc.id, name: doc.employer_name,
+        zh: `刪除了雇主「${doc.employer_name}」的${docType.zh}（${doc.original_filename}）`, en: `Deleted ${docType.en} of employer "${doc.employer_name}" (${doc.original_filename})` });
     }
     return NextResponse.json({ ok: true });
   } catch (error) {

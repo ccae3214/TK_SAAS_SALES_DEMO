@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { recordAdminAction } from '@/lib/hr-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 import {
   AGENCY_PROFILE_ERRORS, canManageAgencyProfile, canViewAgencyProfile, ensureAgencyProfileSchema, normalizeAgencyProfileInput,
   readAgencyProfile, resolveAgencyId, saveAgencyProfile,
@@ -72,6 +73,9 @@ export async function PUT(request) {
     if (saved.error) return fail(saved.error, saved.error === 'name_taken' ? 409 : 404);
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '編輯', type: 'agency', id: agencyId, name: parsed.value.name, phrase: `編輯了仲介機構「${parsed.value.name}」的基本資料` });
+    } else {
+      await recordAgencyAction({ principal, session, action: 'edit', type: 'agency', id: agencyId, name: parsed.value.name,
+        zh: `編輯了機構基本資料「${parsed.value.name}」`, en: `Edited agency profile "${parsed.value.name}"` });
     }
     return NextResponse.json({ ...(await readAgencyProfile(pool, agencyId)), canManage: true, ok: true });
   } catch (error) {

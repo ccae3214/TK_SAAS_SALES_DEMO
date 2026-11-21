@@ -11,6 +11,7 @@ import {
   normalizeExpiry, resolveAgencyId,
 } from '@/lib/hr-agency-profile';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { recordAgencyAction } from '@/lib/hr-agency-audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,9 @@ export async function POST(request) {
     [agencyId, certType, filename, contentType, plain.length, createHash('sha256').update(plain).digest('hex'), iv, cipher.getAuthTag(), encrypted, expiresOn, clean(form.get('note')), actor]);
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '新增', type: 'agency', id: agencyId, name: agency.name, phrase: `為仲介機構「${agency.name}」上傳了${AGENCY_CERTIFICATE_TYPES[certType].zh}` });
+    } else {
+      await recordAgencyAction({ principal, session, action: 'upload', type: 'agency-certificate', id: inserted.rows[0].id, name: AGENCY_CERTIFICATE_TYPES[certType].zh,
+        zh: `上傳了機構證書「${AGENCY_CERTIFICATE_TYPES[certType].zh}」（${filename}）`, en: `Uploaded agency certificate "${AGENCY_CERTIFICATE_TYPES[certType].en}" (${filename})` });
     }
     return NextResponse.json({ ok: true, id: inserted.rows[0].id }, { status: 201 });
   } catch (error) {
@@ -97,6 +101,10 @@ export async function DELETE(request) {
     if (principal.role === 'admin') {
       await recordAdminAction({ principal, session, action: '刪除', type: 'agency', id: doc.agency_id, name: doc.agency_name,
         phrase: `刪除了仲介機構「${doc.agency_name}」的${(AGENCY_CERTIFICATE_TYPES[doc.cert_type] || AGENCY_CERTIFICATE_TYPES.other).zh}（${doc.original_filename}）` });
+    } else {
+      const certType = AGENCY_CERTIFICATE_TYPES[doc.cert_type] || AGENCY_CERTIFICATE_TYPES.other;
+      await recordAgencyAction({ principal, session, action: 'delete', type: 'agency-certificate', id: doc.id, name: certType.zh,
+        zh: `刪除了機構證書「${certType.zh}」（${doc.original_filename}）`, en: `Deleted agency certificate "${certType.en}" (${doc.original_filename})` });
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
