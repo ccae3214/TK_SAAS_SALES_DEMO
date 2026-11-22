@@ -14,6 +14,8 @@ export const TRAINING_CENTER_EN = {
 
   // 總覽
   '▶ 介紹影片': '▶ Intro video',
+  '訓練狀態分類': 'Training status groups',
+  '這個分類目前沒有工人。': 'No workers in this group.',
   '結訓（未取證）': 'Completed training (not yet certified)',
   '結訓已取證': 'Completed training, certified',
   '訓練中心介紹影片': 'Training center intro video',

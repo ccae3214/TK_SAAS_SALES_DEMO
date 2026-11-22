@@ -1016,7 +1016,10 @@ const TRAINING_OPTIONS = ['not_scheduled', 'in_progress', 'completed', 'certifie
 const TRAINING_NEXT = { not_scheduled: ['in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'], in_progress: ['completed', 'certified'], completed: ['certified'], certified: [] };
 
 // 訓練中心工作區：只列出「必要文件全部核准」或已在訓練中的工人，並讓訓練中心更新訓練狀態。
+// 名單分類：舊資料的「已安排」歸在「未安排」一起顯示。
+const trainingGroup = status => (status === 'scheduled' ? 'not_scheduled' : status);
 function TrainingCenterRoster({ roster, refresh }) {
+  const [group, setGroup] = useState('not_scheduled');
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
   async function setStatus(worker, status) {
@@ -1029,13 +1032,18 @@ function TrainingCenterRoster({ roster, refresh }) {
     } catch (err) { setError(err.message); }
     finally { setBusyId(null); }
   }
+  const counts = Object.fromEntries(TRAINING_OPTIONS.map(value => [value, roster.filter(worker => trainingGroup(worker.training_status) === value).length]));
+  const visible = roster.filter(worker => trainingGroup(worker.training_status) === group);
   return <section className="hr-member-card">
     <h2>訓練安排</h2>
     <p>工人的初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）通過後，會出現在這裡，由訓練中心安排訓練；其他文件可以同時繼續備齊。訓練完成後，由菲律賓仲介辦理 OEC 與簽證。</p>
     {error && <p role="alert">{error}</p>}
-    {roster.length ? <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div role="group" aria-label="訓練狀態分類" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
+      {TRAINING_OPTIONS.map(value => <button key={value} type="button" aria-pressed={group === value} onClick={() => setGroup(value)} style={{ fontWeight: group === value ? 700 : 400 }}><span>{TRAINING_LABELS[value]}</span> ({counts[value]})</button>)}
+    </div>
+    {roster.length ? (visible.length ? <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead><tr><th align="left">工作者</th><th align="left">職類</th><th align="left">菲律賓仲介</th><th align="left">必要文件</th><th align="left">訓練狀態</th><th align="left">更新狀態</th></tr></thead>
-      <tbody>{roster.map(worker => <tr key={worker.id}>
+      <tbody>{visible.map(worker => <tr key={worker.id}>
         <td>{worker.name}</td><td>{worker.job_preference || '—'}</td><td>{worker.agency_name || '—'}</td>
         <td>{worker.documents_ready ? '初審已通過' : '初審有變動'}</td>
         <td>{TRAINING_LABELS[worker.training_status] || worker.training_status}</td>
@@ -1044,7 +1052,7 @@ function TrainingCenterRoster({ roster, refresh }) {
           {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value} disabled={value !== worker.training_status && !(TRAINING_NEXT[worker.training_status] || []).includes(value)}>{TRAINING_LABELS[value] || value}</option>)}
         </select></td>
       </tr>)}</tbody>
-    </table></div> : <p>目前沒有初審通過、可安排訓練的工人。</p>}
+    </table></div> : <p>這個分類目前沒有工人。</p>) : <p>目前沒有初審通過、可安排訓練的工人。</p>}
   </section>;
 }
 
