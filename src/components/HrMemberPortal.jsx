@@ -1010,8 +1010,10 @@ export function PortalStyles() {
     `}</style>;
 }
 
-const TRAINING_LABELS = { not_scheduled: '尚未安排', scheduled: '已安排', in_progress: '訓練中', completed: '已完成' };
-const TRAINING_NEXT = { not_scheduled: ['scheduled'], scheduled: ['in_progress', 'completed'], in_progress: ['completed'], completed: [] };
+const TRAINING_LABELS = { not_scheduled: '未安排', scheduled: '已安排', in_progress: '訓練中', completed: '結訓（未取證）', certified: '結訓已取證' };
+// 下拉選單的選項；舊資料的「已安排」只在目前就是這個狀態時才會出現。訓練只能往前，已結訓不能退回。
+const TRAINING_OPTIONS = ['not_scheduled', 'in_progress', 'completed', 'certified'];
+const TRAINING_NEXT = { not_scheduled: ['in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'], in_progress: ['completed', 'certified'], completed: ['certified'], certified: [] };
 
 // 訓練中心工作區：只列出「必要文件全部核准」或已在訓練中的工人，並讓訓練中心更新訓練狀態。
 function TrainingCenterRoster({ roster, refresh }) {
@@ -1037,7 +1039,10 @@ function TrainingCenterRoster({ roster, refresh }) {
         <td>{worker.name}</td><td>{worker.job_preference || '—'}</td><td>{worker.agency_name || '—'}</td>
         <td>{worker.documents_ready ? '初審已通過' : '初審有變動'}</td>
         <td>{TRAINING_LABELS[worker.training_status] || worker.training_status}</td>
-        <td>{(TRAINING_NEXT[worker.training_status] || []).map(next => <button key={next} type="button" disabled={busyId === worker.id || !worker.documents_ready} onClick={() => setStatus(worker, next)} style={{ marginRight: 6 }}>{TRAINING_LABELS[next]}</button>)}</td>
+        <td><select aria-label={`${worker.name} 訓練狀態`} value={worker.training_status} disabled={busyId === worker.id || !worker.documents_ready}
+          onChange={event => { if (event.target.value !== worker.training_status) void setStatus(worker, event.target.value); }}>
+          {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value} disabled={value !== worker.training_status && !(TRAINING_NEXT[worker.training_status] || []).includes(value)}>{TRAINING_LABELS[value] || value}</option>)}
+        </select></td>
       </tr>)}</tbody>
     </table></div> : <p>目前沒有初審通過、可安排訓練的工人。</p>}
   </section>;

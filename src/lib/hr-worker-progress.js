@@ -78,7 +78,7 @@ export function cleanStepDetail(stepKey, value) {
 export const HEALTH_TRAINING_STEP_KEYS = new Set(['training']);
 
 export const MEDICAL_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'passed', 'retest', 'failed'];
-export const TRAINING_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'completed'];
+export const TRAINING_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'completed', 'certified'];
 
 // 與案件層級（/api/hr 的 workflow）相同的狀態轉換規則。
 export const MEDICAL_TRANSITIONS = {
@@ -87,12 +87,13 @@ export const MEDICAL_TRANSITIONS = {
   failed: ['retest'], passed: ['retest'],
 };
 export const TRAINING_TRANSITIONS = {
-  not_scheduled: ['scheduled'], scheduled: ['in_progress', 'completed'], in_progress: ['completed'], completed: [],
+  not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'],
+  in_progress: ['completed', 'certified'], completed: ['certified'], certified: [],
 };
 
 export const STATUS_LABELS = {
   medical: { not_scheduled: '尚未安排', scheduled: '已安排', in_progress: '進行中', passed: '已通過', retest: '需複檢', failed: '未通過' },
-  training: { not_scheduled: '尚未安排', scheduled: '已安排', in_progress: '訓練中', completed: '已完成' },
+  training: { not_scheduled: '尚未安排', scheduled: '已安排', in_progress: '訓練中', completed: '結訓（未取證）', certified: '結訓已取證' },
 };
 
 export const DOCUMENT_STATUS_LABELS = { missing: '待收件', submitted: '待審核', approved: '已合格', returned: '退件待修正' };

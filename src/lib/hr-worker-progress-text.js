@@ -57,6 +57,8 @@ const EN = {
   "未通過": "Failed",
   "訓練中": "In training",
   "已完成": "Completed",
+  "結訓（未取證）": "Completed training (not yet certified)",
+  "結訓已取證": "Completed training, certified",
   "配工／雇主面試日期": "Matching / employer interview date",
   "護照確認": "Passport confirmation",
   "文件到達 D/C": "Documents arrived (D/C)",
