@@ -1037,6 +1037,7 @@ function TrainingCenterRoster({ roster, refresh }) {
   return <section className="hr-member-card">
     <h2>訓練安排</h2>
     <p>工人的初步文件審核（LCR Form 1-A、PSA 出生證明、護照三項中有兩項核准）通過後，會出現在這裡，由訓練中心安排訓練；其他文件可以同時繼續備齊。訓練完成後，由菲律賓仲介辦理 OEC 與簽證。</p>
+    <p>尚未報名班別的工人，請用下拉選單手動更新訓練狀態；報名班別後會自動判斷。</p>
     {error && <p role="alert">{error}</p>}
     <div role="group" aria-label="訓練狀態分類" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
       {TRAINING_OPTIONS.map(value => <button key={value} type="button" aria-pressed={group === value} onClick={() => setGroup(value)} style={{ fontWeight: group === value ? 700 : 400 }}><span>{TRAINING_LABELS[value]}</span> ({counts[value]})</button>)}
@@ -1047,7 +1048,7 @@ function TrainingCenterRoster({ roster, refresh }) {
         <td>{worker.name}</td><td>{worker.job_preference || '—'}</td><td>{worker.agency_name || '—'}</td>
         <td>{worker.documents_ready ? '初審已通過' : '初審有變動'}</td>
         <td>{TRAINING_LABELS[worker.training_status] || worker.training_status}</td>
-        <td><select aria-label={`${worker.name} 訓練狀態`} value={worker.training_status} disabled={busyId === worker.id || !worker.documents_ready}
+        <td><select aria-label={`${worker.name} 訓練狀態`} value={worker.training_status} disabled={busyId === worker.id || !worker.documents_ready || worker.training_status_auto} title={worker.training_status_auto ? '已報名班別，訓練狀態依訓練結束日與取證情況自動判斷' : undefined}
           onChange={event => { if (event.target.value !== worker.training_status) void setStatus(worker, event.target.value); }}>
           {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value} disabled={value !== worker.training_status && !(TRAINING_NEXT[worker.training_status] || []).includes(value)}>{TRAINING_LABELS[value] || value}</option>)}
         </select></td>
