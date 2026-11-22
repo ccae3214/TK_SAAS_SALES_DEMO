@@ -1378,7 +1378,7 @@ export default function HrMemberPortal({ actor }) {
   }
 
   if (data.role === 'training_center') {
-    return <main className="hr-member-shell" data-hr-translatable-root><PortalStyles /><HrOnboardingTour tourId="training_center" /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></div></header><HrTrainingCenterWorkspace self /><TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
+    return <main className="hr-member-shell" data-hr-translatable-root><PortalStyles /><HrOnboardingTour tourId="training_center" /><header className="hr-member-header"><div><span>克雷迅人力管理</span><h1>訓練中心工作區</h1><p>{actor.name}</p></div><div className="hr-member-header-actions"><HrLanguageTools inline /><button onClick={() => signOut({ callbackUrl: '/' })}>登出</button></div></header><HrTrainingCenterWorkspace self extraTabs={[{ id: 'arrangement', label: '訓練安排', render: () => <TrainingCenterRoster roster={data.trainingRoster || []} refresh={refresh} /> }]} /><section className="hr-member-card"><h2>訓練中心會員</h2><p>此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。</p></section></main>;
   }
 
   const viewedWorker = data.role === 'worker' ? data.workers[0] : null;
