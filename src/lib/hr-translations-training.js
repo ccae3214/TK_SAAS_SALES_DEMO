@@ -277,6 +277,37 @@ export const TRAINING_CENTER_EN = {
   '這位工人尚未通過初步文件審核，暫時不能報名班別。': 'This worker has not passed the preliminary document review yet and cannot be enrolled in a class for now.',
   '請選擇工人。': 'Please select a worker.',
   '這個班別已額滿。': 'This class is full.',
+
+  // 學習與成績：訓練中心查看學員的學習狀況與小測驗成績
+  '學習與成績': 'Learning & Scores',
+  '學員學習狀況與測驗成績': 'Student learning progress and quiz scores',
+  '查看已報名學員的單元學習進度與小測驗成績；測驗成績取每個單元最佳的一次，並顯示作答次數。': 'View enrolled students\' unit learning progress and quiz scores. Scores use the best attempt for each unit, and the number of attempts is shown.',
+  '全部班別': 'All classes',
+  '學員人數': 'Enrolled students',
+  '學習中': 'Learning',
+  '全體測驗平均': 'Overall quiz average',
+  '學習進度': 'Learning progress',
+  '學習時數': 'Study hours',
+  '通過測驗': 'Quizzes passed',
+  '測驗平均': 'Quiz average',
+  '最近學習': 'Last activity',
+  '課程尚無單元': 'Course has no units',
+  '查看明細': 'View details',
+  '收合明細': 'Hide details',
+  '單元': 'Unit',
+  '學習狀態': 'Study status',
+  '最佳成績': 'Best score',
+  '作答次數': 'Attempts',
+  '最近一次': 'Latest attempt',
+  '測驗結果': 'Quiz result',
+  '達標': 'Passed',
+  '未達標': 'Below pass mark',
+  '尚未測驗': 'Not taken',
+  '尚無學員': 'No students yet',
+  '這個班別還沒有學員報名。': 'No students are enrolled in this class yet.',
+  '這個班別的課程還沒有單元內容，學員暫時無法學習。': 'This class\'s course has no units yet, so students cannot study for now.',
+  '測驗成績會記錄給訓練中心，可以重複作答。': 'Quiz scores are recorded for the training center. You can try as many times as you like.',
+  '無法記錄測驗成績，請稍後再試。': 'Unable to save your quiz score. Please try again later.',
 };
 
 const OWNER_EN = { 訓練中心: 'training center', 菲律賓仲介: 'Philippines agency', 台灣仲介: 'Taiwan agency', 指定單位: 'designated party' };
@@ -305,6 +336,10 @@ export function translateTrainingCenterPattern(text, translate = value => value)
   if ((m = text.match(/^考證日期（(.+)）$/))) return `Exam date (${m[1]})`;
   if ((m = text.match(/^證照辦件日期（(.+)）$/))) return `Certification application date (${translate(m[1])})`;
   if ((m = text.match(/^答對 (\d+) \/ (\d+) 題$/))) return `${m[1]} of ${m[2]} correct`;
+  if ((m = text.match(/^(\d+) 位學員$/))) return plural(m[1], 'student', 'students');
+  if ((m = text.match(/^(\d+) \/ (\d+) 個單元$/))) return `${m[1]} / ${m[2]} units`;
+  if ((m = text.match(/^(\d+) \/ (\d+) 小時$/))) return `${m[1]} / ${m[2]} hours`;
+  if ((m = text.match(/^及格標準為答對 (\d+)% 以上。$/))) return `Pass mark: ${m[1]}% or more correct.`;
   if ((m = text.match(/^已(停用|啟用)「(.+)」$/))) return `${m[1] === '停用' ? 'Deactivated' : 'Activated'} "${translateLabel(m[2])}"`;
   if ((m = text.match(/^已刪除「(.+)」$/))) return `Deleted "${translateLabel(m[1])}"`;
   if ((m = text.match(/^確定刪除「(.+)」？此操作無法復原。$/))) return `Delete "${translateLabel(m[1])}"? This cannot be undone.`;

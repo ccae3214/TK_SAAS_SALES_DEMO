@@ -64,6 +64,15 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     finally { setSaving(false); }
   }
 
+  // 工人送出小測驗後，把成績記錄下來給訓練中心查看；失敗時丟出錯誤，由測驗元件顯示。
+  async function recordQuiz(target, result) {
+    const response = await fetch('/api/hr/learning', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'quiz', unitId: target.id, correct: result.correct, total: result.total }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || '無法記錄測驗成績，請稍後再試。');
+  }
+
   const header = <div className={styles.header}>
     <h3>{`學習：${data?.course?.name || ''}`}</h3>
     <button type="button" className={styles.button} onClick={onClose}>回到課程</button>
@@ -133,7 +142,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
         </div>)}
       </div></div>}
       {!topics && !vocabulary.length && !examples.length && !dialogue.length && <p className={styles.muted}>這個單元還沒有學習內容。</p>}
-      <HrUnitQuiz key={unit.id} vocabulary={unit.vocabulary} poolText={units.map(item => item.vocabulary).join('\n')} />
+      <HrUnitQuiz key={unit.id} vocabulary={unit.vocabulary} poolText={units.map(item => item.vocabulary).join('\n')} onResult={data.readOnly ? undefined : result => recordQuiz(unit, result)} />
       {error && <p className={styles.error}>{error}</p>}
       <div className={styles.actions}>
         <button type="button" className={styles.button} onClick={() => setUnitId(null)}>回到單元清單</button>

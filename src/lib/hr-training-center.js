@@ -86,6 +86,18 @@ export function ensureTrainingCenterSchema() {
       completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(worker_id, unit_id)
     )`);
+    // 單元小測驗成績：工人每送出一次測驗就記一筆（可重複作答），訓練中心用來查看學員的測驗成績。
+    await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_quiz_results (
+      id BIGSERIAL PRIMARY KEY,
+      worker_id BIGINT NOT NULL REFERENCES hr_workers(id) ON DELETE CASCADE,
+      unit_id BIGINT NOT NULL REFERENCES hr_tc_course_units(id) ON DELETE CASCADE,
+      correct INTEGER NOT NULL CHECK (correct >= 0),
+      total INTEGER NOT NULL CHECK (total > 0),
+      percent INTEGER NOT NULL CHECK (percent BETWEEN 0 AND 100),
+      passed BOOLEAN NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await pool.query('CREATE INDEX IF NOT EXISTS hr_tc_quiz_results_worker_unit ON hr_tc_quiz_results(worker_id, unit_id, created_at DESC)');
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_tc_classes (
       id BIGSERIAL PRIMARY KEY,
       center_id BIGINT NOT NULL REFERENCES hr_members(id) ON DELETE CASCADE,

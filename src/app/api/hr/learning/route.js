@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { quizResultOf } from '@/lib/hr-learning';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export async function GET(request) {
   }
 }
 
-// 工人標記單元「已讀完」或取消標記。
+// 工人標記單元「已讀完」或取消標記；或送出單元小測驗的成績（action: 'quiz'，每次作答記一筆，訓練中心可查看）。
 export async function POST(request) {
   if (!requestIsSameOrigin(request)) return fail('Invalid origin', 403);
   const ctx = await accessContext();
@@ -64,12 +65,19 @@ export async function POST(request) {
   if (ctx.role !== 'worker') return fail('只有工人可以記錄學習進度。', 403);
   let body;
   try { body = await request.json(); } catch { return fail('Invalid JSON'); }
-  if (!validId(body?.unitId) || typeof body?.completed !== 'boolean') return fail('資料格式不正確。');
+  const isQuiz = body?.action === 'quiz';
+  const quiz = isQuiz ? quizResultOf(body) : null;
+  if (!validId(body?.unitId) || (isQuiz ? !quiz : typeof body?.completed !== 'boolean')) return fail('資料格式不正確。');
   try {
     await ensureTrainingCenterSchema();
     const unit = (await query('SELECT id, course_id FROM hr_tc_course_units WHERE id=$1', [body.unitId]))[0];
     // 單元所屬課程必須是這位工人已報名的課程。
     if (!unit || !(await readableCourse(ctx, unit.course_id))) return fail('找不到這個單元，或您沒有報名這門課程。', 404);
+    if (isQuiz) {
+      await pool.query('INSERT INTO hr_tc_quiz_results(worker_id, unit_id, correct, total, percent, passed) VALUES($1,$2,$3,$4,$5,$6)',
+        [ctx.workerId, unit.id, quiz.correct, quiz.total, quiz.percent, quiz.passed]);
+      return NextResponse.json({ ok: true, quiz });
+    }
     if (body.completed) {
       await pool.query('INSERT INTO hr_tc_unit_progress(worker_id, unit_id) VALUES($1,$2) ON CONFLICT(worker_id, unit_id) DO NOTHING', [ctx.workerId, unit.id]);
     } else {

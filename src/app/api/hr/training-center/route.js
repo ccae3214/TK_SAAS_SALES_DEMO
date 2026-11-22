@@ -58,6 +58,9 @@ const ELIGIBLE_WORKERS_SQL = `SELECT w.id, w.name FROM hr_workers w LEFT JOIN hr
     AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')})
   ORDER BY w.name, w.id`;
 
+// 工人必須報名了該單元所屬課程的班別，才算這個課程的學員（取消報名後就不再顯示學習紀錄）。
+const enrolledInCourseSql = alias => `EXISTS(SELECT 1 FROM hr_tc_enrollments e JOIN hr_tc_classes cl ON cl.id=e.class_id WHERE e.worker_id=${alias}.worker_id AND cl.course_id=u.course_id)`;
+
 const one = async (sql, params) => (await query(sql, params))[0] || null;
 // pg 會把 DATE 欄位轉成本機時間的 Date；統一轉回 YYYY-MM-DD 字串，避免時區造成差一天。
 const fmtDate = value => value instanceof Date ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}` : value;
@@ -85,7 +88,7 @@ export async function GET(request) {
     const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });
-    const [certifications, teachers, holdings, courses, units, classes, batches, enrollments, students] = await Promise.all([
+    const [certifications, teachers, holdings, courses, units, classes, batches, enrollments, students, progress, quizzes] = await Promise.all([
       query('SELECT * FROM hr_tc_certifications WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query('SELECT * FROM hr_tc_teachers WHERE center_id=$1 ORDER BY active DESC, name', [center.id]),
       query(`SELECT tc.*, c.name AS certification_name FROM hr_tc_teacher_certifications tc
@@ -104,9 +107,20 @@ export async function GET(request) {
              JOIN hr_tc_classes cl ON cl.id=e.class_id JOIN hr_workers w ON w.id=e.worker_id
              WHERE cl.center_id=$1 ORDER BY w.name, e.id`, [center.id]),
       query(ELIGIBLE_WORKERS_SQL),
+      // 學員的學習進度與小測驗成績：只回傳「已報名這門課程班別」的工人，且單元屬於這個訓練中心。
+      query(`SELECT p.worker_id, p.unit_id, p.completed_at FROM hr_tc_unit_progress p JOIN hr_tc_course_units u ON u.id=p.unit_id
+             WHERE u.center_id=$1 AND ${enrolledInCourseSql('p')}`, [center.id]),
+      query(`SELECT q.worker_id, q.unit_id, COUNT(*)::int AS attempts, MAX(q.percent)::int AS best_percent, BOOL_OR(q.passed) AS passed,
+               (ARRAY_AGG(q.percent ORDER BY q.created_at DESC, q.id DESC))[1] AS last_percent,
+               (ARRAY_AGG(q.correct ORDER BY q.created_at DESC, q.id DESC))[1] AS last_correct,
+               (ARRAY_AGG(q.total ORDER BY q.created_at DESC, q.id DESC))[1] AS last_total,
+               MAX(q.created_at) AS last_at
+             FROM hr_tc_quiz_results q JOIN hr_tc_course_units u ON u.id=q.unit_id
+             WHERE u.center_id=$1 AND ${enrolledInCourseSql('q')}
+             GROUP BY q.worker_id, q.unit_id`, [center.id]),
     ]);
     return NextResponse.json({
-      centers, center, certifications, teachers, courses, units, enrollments, students,
+      centers, center, certifications, teachers, courses, units, enrollments, students, progress, quizzes,
       holdings: withDates(holdings, ['issued_date', 'expires_date']),
       classes: withDates(classes, ['training_start_date', 'training_end_date', 'exam_date', 'certificate_issue_date']),
       batches: withDates(batches, ['applied_date']),

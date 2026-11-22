@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import styles from './HrManagement.module.css';
 import { useHrDialog } from '@/lib/use-hr-dialog';
 import { useLanguage } from '@/context/LanguageContext';
@@ -8,10 +8,12 @@ import { translateHrText } from '@/lib/hr-translations';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
 import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 import HrTrainingCenterAuditLog from '@/components/HrTrainingCenterAuditLog';
+import { buildStudentProgress } from '@/lib/hr-tc-student-progress';
+import { QUIZ_PASS_PERCENT } from '@/lib/hr-learning';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
-const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名']];
+const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名'], ['progress', '學習與成績']];
 // 操作紀錄分頁：系統管理者看所選訓練中心的紀錄，訓練中心帳號看自己那一份（伺服器端會依身分擋）。
 const AUDIT_TAB = ['audit', '操作紀錄'];
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
@@ -21,6 +23,9 @@ const feeText = row => row.fee == null ? '—' : `${row.currency || 'PHP'} ${Num
 // 例句每行一句：「中文 | 拼音 | 英文」。拼音與英文可省略。
 const exampleLines = text => String(text || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => line.split(/\s*[|｜]\s*/));
 const dateText = value => value ? String(value).slice(0, 10) : '—';
+// 時間戳記（學習、測驗時間）依瀏覽器所在時區顯示成 YYYY-MM-DD。
+const dayText = value => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '—'; };
+const PROGRESS_STATUS = { not_started: ['尚未開始', 'warn'], learning: ['學習中', 'neutral'], done: ['已完成', 'open'], no_units: ['課程尚無單元', 'neutral'] };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 // 班別進度由日期推算，不另外存狀態，避免和日期不一致。
@@ -100,6 +105,9 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [unitCourseId, setUnitCourseId] = useState(null);
+  // 學習與成績分頁：目前篩選的班別（空字串＝全部）與展開明細的學員。
+  const [progressClassId, setProgressClassId] = useState('');
+  const [openStudent, setOpenStudent] = useState('');
   // 學習預覽：用工人看到的學習頁預覽課程內容（管理者與訓練中心為唯讀）。
   const [learningCourseId, setLearningCourseId] = useState(null);
   const learningRef = useRef(null);
@@ -322,6 +330,63 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
       {classes.length ? <div className={styles.tableWrap}><table><thead><tr><th>班別</th><th>訓練日期</th><th>報名人數</th><th>學員</th><th>操作</th></tr></thead><tbody>{classes.map(row => { const list = enrollments.filter(item => Number(item.class_id) === Number(row.id)); const full = Boolean(row.capacity) && list.length >= row.capacity; return <tr key={row.id}><td><strong>{row.name}</strong><br />{row.certification_name}</td><td>{dateText(row.training_start_date)} ~ {dateText(row.training_end_date)}</td><td>{list.length}{row.capacity ? ` / ${row.capacity}` : ''}</td><td>{list.length ? list.map(item => <span key={item.id} style={{ display: 'inline-block', marginRight: 8 }}>{item.worker_name} <button type="button" className={styles.secondaryButton} disabled={saving} onClick={() => remove('enrollment', item.id, `${item.worker_name}的報名`)}>取消</button></span>) : '—'}</td><td><button type="button" className={styles.primaryButton} disabled={saving || !students.length || full} onClick={() => enrollModal(row)}>報名工人</button>{full && <><br /><small>已額滿</small></>}</td></tr>; })}</tbody></table></div>
         : <Empty title="還沒有班別" text="請先到「開班與日期」建立班別，再報名工人。" />}
     </section>}
+
+    {tab === 'progress' && (() => {
+      const shown = classes.filter(item => !progressClassId || String(item.id) === String(progressClassId));
+      const groups = buildStudentProgress({ classes: shown, enrollments, units, progress: data.progress || [], quizzes: data.quizzes || [] });
+      const all = groups.flatMap(group => group.students);
+      const averages = all.map(item => item.quiz.average).filter(value => value !== null);
+      const cards = [
+        ['學員人數', all.length],
+        ['學習中', all.filter(item => item.status === 'learning').length],
+        ['已完成', all.filter(item => item.status === 'done').length],
+        ['全體測驗平均', averages.length ? `${Math.round(averages.reduce((a, b) => a + b, 0) / averages.length)}%` : '—'],
+      ];
+      return <>
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div><h2>學員學習狀況與測驗成績</h2><p>查看已報名學員的單元學習進度與小測驗成績；測驗成績取每個單元最佳的一次，並顯示作答次數。</p></div>
+            <label className={styles.filterField}>班別<select className={styles.inlineSelect} value={progressClassId} onChange={event => { setProgressClassId(event.target.value); setOpenStudent(''); }}><option value="">全部班別</option>{classes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          </div>
+          <div className={styles.statGrid} style={{ padding: '16px 20px 0', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>{cards.map(([label, value]) => <div key={label} className={styles.statCard} style={{ cursor: 'default', minHeight: 96 }}><p>{label}</p><strong>{value}</strong></div>)}</div>
+          <p className={styles.formHint} style={{ padding: '0 20px' }}>{`及格標準為答對 ${QUIZ_PASS_PERCENT}% 以上。`}</p>
+        </section>
+        {classes.length ? groups.map(({ cls, totalUnits, students: list }) => <section className={styles.panel} key={cls.id}>
+          <div className={styles.panelHeader}><div><h2>{cls.name}</h2><p>{`${cls.certification_name} · ${cls.course_name}`}</p></div><span className={styles.rowCount}>{`${list.length} 位學員`}</span></div>
+          {!totalUnits && <p className={styles.formHint} style={{ padding: '0 20px' }}>這個班別的課程還沒有單元內容，學員暫時無法學習。</p>}
+          {list.length ? <div className={styles.tableWrap}><table><thead><tr><th>學員</th><th>學習進度</th><th>學習時數</th><th>通過測驗</th><th>測驗平均</th><th>最近學習</th><th>狀態</th><th>操作</th></tr></thead><tbody>{list.map(student => {
+            const rowKey = `${cls.id}:${student.workerId}`;
+            const open = openStudent === rowKey;
+            const [statusLabel, statusTone] = PROGRESS_STATUS[student.status];
+            return <Fragment key={rowKey}>
+              <tr>
+                <td><strong>{student.name}</strong></td>
+                <td><div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 150 }}>
+                  <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={student.percent} style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--line)', overflow: 'hidden' }}><div style={{ width: `${student.percent}%`, height: '100%', background: 'var(--green)' }} /></div>
+                  <small>{`${student.percent}%`}</small>
+                </div><small>{`${student.done} / ${student.total} 個單元`}</small></td>
+                <td>{`${student.hoursDone} / ${student.hoursTotal} 小時`}</td>
+                <td>{`${student.quiz.passed} / ${student.quiz.taken} 個單元`}</td>
+                <td>{student.quiz.average === null ? '—' : `${student.quiz.average}%`}</td>
+                <td>{dayText(student.lastActivity)}</td>
+                <td><Pill tone={statusTone}>{statusLabel}</Pill></td>
+                <td><button type="button" className={styles.smallButton} disabled={!student.total} onClick={() => setOpenStudent(open ? '' : rowKey)}>{open ? '收合明細' : '查看明細'}</button></td>
+              </tr>
+              {open && <tr><td colSpan={8} style={{ background: '#fafbfb' }}>
+                <table style={{ width: '100%' }}><thead><tr><th>單元</th><th>學習狀態</th><th>最佳成績</th><th>作答次數</th><th>最近一次</th><th>測驗結果</th></tr></thead><tbody>{student.units.map(row => <tr key={row.unit.id}>
+                  <td><strong>{pick(row.unit.name, row.unit.name_en)}</strong></td>
+                  <td>{row.completed ? <>{'已讀完'} <small>{dayText(row.completedAt)}</small></> : '未讀'}</td>
+                  <td>{row.quiz ? `${row.quiz.best_percent}%` : '—'}</td>
+                  <td>{row.quiz ? row.quiz.attempts : '—'}</td>
+                  <td>{row.quiz ? <>{`${row.quiz.last_correct} / ${row.quiz.last_total}`} <small>{dayText(row.quiz.last_at)}</small></> : '—'}</td>
+                  <td>{row.quiz ? <Pill tone={row.quiz.passed ? 'open' : 'warn'}>{row.quiz.passed ? '達標' : '未達標'}</Pill> : '尚未測驗'}</td>
+                </tr>)}</tbody></table>
+              </td></tr>}
+            </Fragment>;
+          })}</tbody></table></div> : <Empty title="尚無學員" text="這個班別還沒有學員報名。" />}
+        </section>) : <section className={styles.panel}><Empty title="尚無班別" text="請先到「開班與日期」建立班別。" /></section>}
+      </>;
+    })()}
 
     {tab === 'audit' && <HrTrainingCenterAuditLog key={center.id} centerId={center.id} centerName={center.display_name} />}
 

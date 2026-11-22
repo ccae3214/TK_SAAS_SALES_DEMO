@@ -85,3 +85,13 @@ export function scoreQuiz(questions = [], answers = {}) {
   const percent = total ? Math.round((correct / total) * 100) : 0;
   return { total, correct, percent, passed: total > 0 && percent >= QUIZ_PASS_PERCENT };
 }
+
+// 驗證並整理工人送出的測驗成績（答對題數／總題數），格式不對回傳 null。
+// 題目是在畫面上隨機出的，伺服器無法重算答案，所以只檢查數字合理：總題數 1～QUIZ_QUESTION_COUNT、答對題數 0～總題數的整數。
+export function quizResultOf(input) {
+  const correct = Number(input?.correct), total = Number(input?.total);
+  if (!Number.isInteger(correct) || !Number.isInteger(total)) return null;
+  if (total < 1 || total > QUIZ_QUESTION_COUNT || correct < 0 || correct > total) return null;
+  const percent = Math.round((correct / total) * 100);
+  return { correct, total, percent, passed: percent >= QUIZ_PASS_PERCENT };
+}
