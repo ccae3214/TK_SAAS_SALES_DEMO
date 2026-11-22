@@ -6,7 +6,7 @@
 //                              （入國通報、勞健保加保、居留證 ARC）
 // 管理者可處理所有環節。
 
-export const TRAINING_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'completed'];
+export const TRAINING_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'completed', 'certified'];
 export const MEDICAL_STATUSES = ['not_scheduled', 'scheduled', 'in_progress', 'passed', 'retest', 'failed'];
 
 // 這些申請程序有固定的負責單位；其他程序（配工日期、護照、文件到達…）維持兩種仲介都能編輯。
@@ -62,7 +62,8 @@ export function workflowBlockReason(workflowType, { gateClosed, arrived }) {
 
 export const WORKFLOW_TRANSITIONS = {
   medical: { not_scheduled: ['scheduled'], scheduled: ['in_progress', 'passed', 'retest', 'failed'], in_progress: ['passed', 'retest', 'failed'], retest: ['scheduled', 'passed', 'failed'], failed: ['retest'], passed: ['retest'] },
-  training: { not_scheduled: ['scheduled'], scheduled: ['in_progress', 'completed'], in_progress: ['completed'], completed: [] },
+  // 訓練只能往前：未安排 → 訓練中 → 結訓（未取證）→ 結訓已取證；下拉選單可以跳過中間步驟，已結訓不能退回。
+  training: { not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'], in_progress: ['completed', 'certified'], completed: ['certified'], certified: [] },
 };
 
 export function canTransition(workflowType, from, to) {
@@ -87,7 +88,7 @@ export function summarizeSteps(steps) {
 export function computeCaseStage({ gateClosed, documentsOpen, trainingStatus, certificationOpen, medicalStatus, oecDone, visaDone, arrived, arrivalDocsDone }) {
   if (gateClosed) return 'intake';
   if (documentsOpen) return 'documents';
-  if (trainingStatus !== 'completed' || certificationOpen) return 'medical_training';
+  if (!['completed', 'certified'].includes(trainingStatus) || certificationOpen) return 'medical_training';
   if (!oecDone || !visaDone) return 'application';
   if (!arrived || medicalStatus !== 'passed' || !arrivalDocsDone) return 'arrangement';
   return 'completed';

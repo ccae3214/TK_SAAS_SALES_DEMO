@@ -13,7 +13,7 @@ import styles from './HrWorkerProgress.module.css';
 
 const shortDate = value => value ? String(value).slice(0, 10) : '—';
 const TONES = { submitted: 'warn', returned: 'danger', missing: 'muted', approved: 'ok', na: 'muted' };
-const STATUS_TONES = { passed: 'ok', completed: 'ok', failed: 'danger', retest: 'warn', in_progress: 'warn', scheduled: 'info', not_scheduled: 'muted' };
+const STATUS_TONES = { passed: 'ok', completed: 'ok', certified: 'ok', failed: 'danger', retest: 'warn', in_progress: 'warn', scheduled: 'info', not_scheduled: 'muted' };
 
 function StepForm({ step, t, disabled, onSave }) {
   const single = SINGLE_DATE_STEPS.has(step.step_key);

@@ -23,7 +23,7 @@ function stepKeyOf(caseId, key) { return `${caseId}:${key}`; }
 
 function progressCount(row, doneMap) {
   const agencyDone = AGENCY_STEPS.filter(([key]) => doneMap[key]).length;
-  return agencyDone + (row.training_status === 'completed' ? 1 : 0) + (row.medical_status === 'passed' ? 1 : 0);
+  return agencyDone + (['completed', 'certified'].includes(row.training_status) ? 1 : 0) + (row.medical_status === 'passed' ? 1 : 0);
 }
 export const WORKFLOW_PROGRESS_TOTAL = AGENCY_STEPS.length + 2;
 
@@ -99,8 +99,8 @@ export default function HrWorkflowProgress({
               <ChevronDown size={16} aria-hidden="true" className="doc-worker-chevron" />
               <span className="doc-worker-badges">
                 <span className="doc-badge">{stageLabel(row.stage)}</span>
-                {row.training_status === 'completed'
-                  ? <span className="doc-badge doc-badge-done">訓練完成</span>
+                {['completed', 'certified'].includes(row.training_status)
+                  ? <span className="doc-badge doc-badge-done">{row.training_status === 'certified' ? '結訓已取證' : '訓練完成'}</span>
                   : <span className="doc-badge doc-badge-submitted">{TRAINING_BADGES[row.training_status || 'not_scheduled'] || '訓練未安排'}</span>}
               </span>
             </button>

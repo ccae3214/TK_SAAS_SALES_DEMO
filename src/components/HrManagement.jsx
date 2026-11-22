@@ -54,7 +54,7 @@ const TASK_CATEGORIES = [['document','文件'],['medical','體檢'],['training',
 const TASK_STATUSES = [['todo','待處理'],['in_progress','處理中'],['blocked','受阻'],['done','完成']];
 const RECORD_STATUSES = [['active','啟用'],['inactive','停用']];
 const MEDICAL_STATUSES = [['not_scheduled','未安排'],['scheduled','已安排'],['in_progress','進行中'],['passed','合格'],['retest','複檢'],['failed','未通過']];
-const TRAINING_STATUSES = [['not_scheduled','未安排'],['scheduled','已安排'],['in_progress','進行中'],['completed','已完成']];
+const TRAINING_STATUSES = [['not_scheduled','未安排'],['scheduled','已安排'],['in_progress','訓練中'],['completed','結訓（未取證）'],['certified','結訓已取證']];
 const RESUME_GROUPS = [
   { title:'基本資料', fields:[['referenceNo','履歷編號'],['birthDate','出生日期'],['gender','性別'],['birthplace','出生地'],['address','地址'],['height','身高（cm）'],['weight','體重（kg）'],['skinComplexion','膚色'],['maritalStatus','婚姻狀況'],['religion','宗教'],['hobby','興趣']] },
   { title:'家庭資料', fields:[['spouseName','配偶姓名'],['spouseOccupation','配偶職業'],['spouseAge','配偶年齡'],['numberOfChildren','子女人數'],['childrenAges','子女年齡'],['fatherName','父親姓名'],['fatherOccupation','父親職業'],['fatherBirthDate','父親出生日期'],['motherName','母親姓名'],['motherOccupation','母親職業'],['motherBirthDate','母親出生日期'],['brotherCount','兄弟人數'],['brotherAges','兄弟年齡'],['sisterCount','姊妹人數'],['sisterAges','姊妹年齡'],['familyRank','家中排行'],['caregiverDuringOverseas','出國工作期間子女照顧者']] },

@@ -32,7 +32,7 @@ export const dynamic = 'force-dynamic';
 const CASE_STATUSES = new Set(['open', 'on_hold', 'closed']);
 const TASK_STATUSES = new Set(['todo', 'in_progress', 'done', 'blocked']);
 const MEDICAL_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'passed', 'retest', 'failed']);
-const TRAINING_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'completed']);
+const TRAINING_STATUSES = new Set(['not_scheduled', 'scheduled', 'in_progress', 'completed', 'certified']);
 
 // 履歷變更後，重新套用「自動判斷」的文件適用性（仲介手動調整過的不會被覆寫）。
 async function resyncRequirements(workerId) {
@@ -208,7 +208,7 @@ export async function GET() {
         FROM hr_workers w LEFT JOIN hr_agencies a ON a.id=w.agency_id LEFT JOIN hr_worker_health_training h ON h.worker_id=w.id
         WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.entry_gate AND d.applicable)
           AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')})
-        ORDER BY (COALESCE(h.training_status,'not_scheduled')='completed'),w.name`);
+        ORDER BY (COALESCE(h.training_status,'not_scheduled') IN ('completed','certified')),w.name`);
       employers = [];
       workers = [];
       cases = [];

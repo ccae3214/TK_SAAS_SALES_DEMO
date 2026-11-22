@@ -14,6 +14,8 @@ export const TRAINING_CENTER_EN = {
 
   // 總覽
   '▶ 介紹影片': '▶ Intro video',
+  '結訓（未取證）': 'Completed training (not yet certified)',
+  '結訓已取證': 'Completed training, certified',
   '訓練中心介紹影片': 'Training center intro video',
   '近 60 天日程': 'Schedule for the next 60 days',
   '近 60 天沒有日程': 'Nothing scheduled in the next 60 days',

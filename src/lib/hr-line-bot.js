@@ -1480,10 +1480,10 @@ export async function replyForHrLineEvent(event) {
     const training = activeLanguage === 'en' ? 'Training' : activeLanguage === 'tl' ? 'Pagsasanay' : '訓練';
     const notScheduled = activeLanguage === 'en' ? 'Not scheduled' : activeLanguage === 'tl' ? 'Hindi nakaiskedyul' : '未安排';
     const workflowLabels = activeLanguage === 'en'
-      ? { not_scheduled: notScheduled, scheduled: 'Scheduled', in_progress: 'In progress', passed: 'Passed', retest: 'Retest', failed: 'Failed', completed: 'Completed' }
+      ? { not_scheduled: notScheduled, scheduled: 'Scheduled', in_progress: 'In progress', passed: 'Passed', retest: 'Retest', failed: 'Failed', completed: 'Completed (not yet certified)', certified: 'Completed, certified' }
       : activeLanguage === 'tl'
-        ? { not_scheduled: notScheduled, scheduled: 'Naka iskedyul', in_progress: 'Isinasagawa', passed: 'Pumasa', retest: 'Ulit na pagsusuri', failed: 'Hindi pumasa', completed: 'Kumpleto' }
-        : { not_scheduled: notScheduled, scheduled: '已安排', in_progress: '處理中', passed: '合格', retest: '複檢', failed: '未通過', completed: '已完成' };
+        ? { not_scheduled: notScheduled, scheduled: 'Naka iskedyul', in_progress: 'Isinasagawa', passed: 'Pumasa', retest: 'Ulit na pagsusuri', failed: 'Hindi pumasa', completed: 'Kumpleto (wala pang sertipiko)', certified: 'Kumpleto, may sertipiko' }
+        : { not_scheduled: notScheduled, scheduled: '已安排', in_progress: '處理中', passed: '合格', retest: '複檢', failed: '未通過', completed: '結訓（未取證）', certified: '結訓已取證' };
     return [header, ...cases.map(item => `${item.case_number}｜${training}: ${workflowLabels[item.training_status] || item.training_status || notScheduled}｜${medical}: ${workflowLabels[item.medical_status] || item.medical_status || notScheduled}`)].join('\n');
   }
   if (/仲介|雇主|案件|進度|狀態|我的工作者|agency|employer|case|progress|progreso|status|worker|ahensya|employer|manggagawa|kaso/.test(lower)) {
