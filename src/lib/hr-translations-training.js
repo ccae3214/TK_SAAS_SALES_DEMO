@@ -13,6 +13,8 @@ export const TRAINING_CENTER_EN = {
   '請先到「會員帳號」把會員類型設為訓練中心，再回來管理老師、課程與班別。': 'First set the member type to Training Center under "Member accounts", then come back to manage teachers, courses and classes.',
 
   // 總覽
+  '▶ 介紹影片': '▶ Intro video',
+  '訓練中心介紹影片': 'Training center intro video',
   '近 60 天日程': 'Schedule for the next 60 days',
   '近 60 天沒有日程': 'Nothing scheduled in the next 60 days',
   '即將開訓、考證與取證的班別。': 'Classes about to start training, take the exam or receive certificates.',

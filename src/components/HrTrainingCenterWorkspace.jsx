@@ -50,6 +50,19 @@ function Empty({ title, text }) {
   return <div className={styles.empty}><strong>{title}</strong><p>{text}</p></div>;
 }
 
+// 訓練中心介紹影片：影片內已有中英文字幕，不分語言共用同一支。
+const TRAINING_INTRO_VIDEO = '/videos/training-center-intro.mp4';
+function TrainingIntroVideoModal({ close }) {
+  const dialogRef = useRef(null);
+  const handleKeyDown = useHrDialog(dialogRef, close);
+  return <div className={styles.modalBackdrop} onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
+    <section ref={dialogRef} tabIndex={-1} onKeyDown={handleKeyDown} className={styles.modal} style={{ width: 'min(860px, 100%)' }} role="dialog" aria-modal="true" aria-labelledby="tc-intro-title">
+      <header className={styles.modalHeader}><div><span className={styles.kicker}>訓練中心</span><h2 id="tc-intro-title">訓練中心介紹影片</h2></div><button type="button" className={styles.iconButton} onClick={close} aria-label="關閉">×</button></header>
+      <video src={TRAINING_INTRO_VIDEO} controls autoPlay playsInline style={{ width: '100%', borderRadius: 12, background: '#102a54', aspectRatio: '16 / 9' }} />
+    </section>
+  </div>;
+}
+
 function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSubmit, close, saving }) {
   const dialogRef = useRef(null);
   const handleKeyDown = useHrDialog(dialogRef, close);
@@ -83,6 +96,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   const [centerId, setCenterId] = useState('');
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
+  const [introOpen, setIntroOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [unitCourseId, setUnitCourseId] = useState(null);
@@ -256,6 +270,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
         ['待取證', phases.filter(item => item === '待取證').length, `證照批次 ${batches.filter(item => item.status !== 'issued').length} 筆未發證`, 'batches'],
       ];
       return <>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button type="button" className={styles.secondaryButton} onClick={() => setIntroOpen(true)}>▶ 介紹影片</button></div>
         <div className={styles.statGrid}>{cards.map(([label, value, caption, target]) => <button type="button" key={label} className={styles.statCard} onClick={() => setTab(target)}><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>
         <section className={styles.panel}>
           <div className={styles.panelHeader}><div><h2>近 60 天日程</h2><p>即將開訓、考證與取證的班別。</p></div><span className={styles.rowCount}>{upcoming.length} 項</span></div>
@@ -310,6 +325,7 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
 
     {tab === 'audit' && <HrTrainingCenterAuditLog key={center.id} centerId={center.id} centerName={center.display_name} />}
 
+    {introOpen && <TrainingIntroVideoModal close={() => setIntroOpen(false)} />}
     {modal && <FormModal key={modal.title} title={modal.title} hint={modal.hint} fields={modal.fields} initial={modal.initial} onSubmit={modal.submit} close={() => setModal(null)} saving={saving} />}
   </div>;
 }
