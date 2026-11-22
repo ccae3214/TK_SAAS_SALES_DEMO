@@ -10,7 +10,7 @@ import { HR_INLINE_HELP_ROLES, HR_TOUR_START_EVENT } from '@/lib/hr-help-events'
 import styles from './HrOnboardingTour.module.css';
 
 // 新手導覽：第一次進入時自動開始，之後可按「使用導覽」重看。
-// 工作者／雇主／仲介的按鈕在工作起點裡；其他角色（管理員、訓練中心等）維持左下角浮動按鈕。
+// 工作者／雇主／仲介的按鈕在工作起點裡、訓練中心的按鈕在總覽裡；其他角色（管理員等）維持左下角浮動按鈕。
 // 看過的紀錄存在會員資料（跨裝置）；沒有會員資料的帳號則存在這個瀏覽器。
 
 const COPY = {

@@ -8,6 +8,8 @@ import { translateHrText } from '@/lib/hr-translations';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
 import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 import HrTrainingCenterAuditLog from '@/components/HrTrainingCenterAuditLog';
+import { Award, BookOpen, CalendarDays, CircleHelp, ClipboardCheck, GraduationCap, LayoutDashboard, ScrollText, UserRound } from 'lucide-react';
+import { HR_TOUR_START_EVENT } from '@/lib/hr-help-events';
 import { buildStudentProgress } from '@/lib/hr-tc-student-progress';
 import { QUIZ_PASS_PERCENT } from '@/lib/hr-learning';
 
@@ -16,6 +18,8 @@ import { QUIZ_PASS_PERCENT } from '@/lib/hr-learning';
 const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses', '課程'], ['classes', '開班與日期'], ['batches', '證照批次'], ['students', '學員報名'], ['progress', '學習與成績']];
 // 操作紀錄分頁：系統管理者看所選訓練中心的紀錄，訓練中心帳號看自己那一份（伺服器端會依身分擋）。
 const AUDIT_TAB = ['audit', '操作紀錄'];
+// 訓練中心會員頁的功能選單（和工作者頁面一樣，手機放在畫面底部）用的圖示。
+const TAB_ICONS = { overview: LayoutDashboard, teachers: UserRound, courses: BookOpen, classes: CalendarDays, batches: Award, students: GraduationCap, progress: ClipboardCheck, audit: ScrollText };
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
 const CURRENCY_OPTIONS = [['PHP', '菲律賓披索 (PHP)'], ['TWD', '新台幣 (TWD)'], ['USD', '美元 (USD)']];
 // 課程費用顯示：幣別代碼 + 千分位，例如「PHP 35,000」；沒填費用顯示「—」。
@@ -251,15 +255,18 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
   });
 
   return <div style={{ ...THEME, display: 'grid', gap: 16 }}>
+    {self && <nav className="workspace-tabs" aria-label={lang === 'en' ? 'Workspace tabs' : '工作區分頁'}>
+      {[...TABS, AUDIT_TAB].map(([id, label]) => { const Icon = TAB_ICONS[id]; return <button key={id} type="button" data-tour={`tc-tab-${id}`} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17} aria-hidden="true" />{id === 'audit' && lang === 'en' ? 'Activity log' : label}</button>; })}
+    </nav>}
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
         <div><h2>{self ? center.display_name : '訓練中心工作區'}</h2><p>管理訓練中心老師持有的證照、證照課程、依證照開班的訓練／考證／取證日期，以及班別的證照批次。</p></div>
         {!self && <label className={styles.filterField}>訓練中心<select className={styles.inlineSelect} value={centerId} onChange={event => { setData(null); setLearningCourseId(null); void load(event.target.value); }}>{data.centers.map(item => <option key={item.id} value={item.id}>{item.display_name}{item.active ? '' : '（停用）'}</option>)}</select></label>}
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
+      {!self && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
         {[...TABS, AUDIT_TAB].map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{id === 'audit' && lang === 'en' ? 'Activity log' : label}</button>)}
-      </div>
+      </div>}
     </section>
 
     {tab === 'overview' && (() => {
@@ -278,7 +285,10 @@ export default function HrTrainingCenterWorkspace({ self = false }) {
         ['待取證', phases.filter(item => item === '待取證').length, `證照批次 ${batches.filter(item => item.status !== 'issued').length} 筆未發證`, 'batches'],
       ];
       return <>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button type="button" className={styles.secondaryButton} onClick={() => setIntroOpen(true)}>▶ 介紹影片</button></div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+          {self && <button type="button" className={styles.secondaryButton} onClick={() => window.dispatchEvent(new CustomEvent(HR_TOUR_START_EVENT))}><CircleHelp size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6 }} />{lang === 'en' ? 'Quick tour' : '使用導覽'}</button>}
+          <button type="button" className={styles.secondaryButton} onClick={() => setIntroOpen(true)}>▶ 介紹影片</button>
+        </div>
         <div className={styles.statGrid}>{cards.map(([label, value, caption, target]) => <button type="button" key={label} className={styles.statCard} onClick={() => setTab(target)}><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>
         <section className={styles.panel}>
           <div className={styles.panelHeader}><div><h2>近 60 天日程</h2><p>即將開訓、考證與取證的班別。</p></div><span className={styles.rowCount}>{upcoming.length} 項</span></div>
