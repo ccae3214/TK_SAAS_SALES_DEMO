@@ -15,6 +15,8 @@ export const TRAINING_CENTER_EN = {
   // 總覽
   '▶ 介紹影片': '▶ Intro video',
   '訓練狀態分類': 'Training status groups',
+  '已報名班別，訓練狀態依訓練結束日與取證情況自動判斷': 'Enrolled in a class: training status is set automatically from the training end date and certification.',
+  '尚未報名班別的工人，請用下拉選單手動更新訓練狀態；報名班別後會自動判斷。': 'For workers not yet enrolled in a class, update the training status with the dropdown. It is set automatically once they are enrolled.',
   '這個分類目前沒有工人。': 'No workers in this group.',
   '結訓（未取證）': 'Completed training (not yet certified)',
   '結訓已取證': 'Completed training, certified',

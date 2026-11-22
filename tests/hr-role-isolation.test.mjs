@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { deriveTrainingStatus, taipeiToday, TRAINING_STATUS_RANK } from '../src/lib/hr-training-auto-status.js';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const source = await readFile(new URL('../src/app/api/hr/route.js', import.meta.url), 'utf8');
@@ -83,6 +84,7 @@ async function callGet(principal, user = { email: 'viewer@example.test' }) {
     getAdminLineUserIds: () => [],
     ensureSchema: async () => {},
     ensureTrainingCenterSchema: async () => {},
+    deriveTrainingStatus, taipeiToday, TRAINING_STATUS_RANK, syncTrainingStatuses: async () => {},
     certifiedPhilippinesAgencyIds: async () => new Set([20]),
     entryGateClosedSql: () => 'FALSE',
     reminderKindsForRole: () => null,

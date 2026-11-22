@@ -17,6 +17,8 @@ import { withdrawRecommendation } from '@/lib/hr-candidate-withdrawal-store';
 import { recordCandidateDeposit } from '@/lib/hr-candidate-deposit-store';
 import { isRouteCertified, certifiedPhilippinesAgencyIds } from '@/lib/hr-agency-certification-store';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
+import { deriveTrainingStatus, taipeiToday, TRAINING_STATUS_RANK } from '@/lib/hr-training-auto-status';
+import { syncTrainingStatuses } from '@/lib/hr-training-auto-sync';
 import { cleanStepDetail } from '@/lib/hr-worker-progress';
 import { collectExpiryReminders, reminderKindsForRole } from '@/lib/hr-expiry-reminders-store';
 import { LinkedRecordError, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
@@ -202,13 +204,30 @@ export async function GET() {
       }
     } else if (principal.role === 'training_center') {
       // 訓練中心只看得到「初步文件審核通過、可以排訓練」或已在訓練中的工人，且只有排訓練需要的基本欄位。
+      await ensureTrainingCenterSchema();
       trainingRoster = await query(`SELECT w.id,w.name,w.nationality,w.job_preference,a.name AS agency_name,
           COALESCE(h.training_status,'not_scheduled') AS training_status,
-          NOT ${entryGateClosedSql('w.id')} AS documents_ready
+          NOT ${entryGateClosedSql('w.id')} AS documents_ready,
+          COALESCE((SELECT json_agg(json_build_object('end', to_char(cl.training_end_date,'YYYY-MM-DD'),
+              'issued', EXISTS(SELECT 1 FROM hr_tc_batches b WHERE b.class_id=cl.id AND b.status='issued')))
+            FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id WHERE en.worker_id=w.id), '[]'::json) AS enrolled_classes,
+          EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.name='CAV／NC2 TESDA' AND d.applicable AND d.status='approved') AS certificate_approved
         FROM hr_workers w LEFT JOIN hr_agencies a ON a.id=w.agency_id LEFT JOIN hr_worker_health_training h ON h.worker_id=w.id
         WHERE EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=w.id AND d.entry_gate AND d.applicable)
-          AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')})
+          AND (COALESCE(h.training_status,'not_scheduled')<>'not_scheduled' OR NOT ${entryGateClosedSql('w.id')}
+            OR EXISTS(SELECT 1 FROM hr_tc_enrollments en WHERE en.worker_id=w.id))
         ORDER BY (COALESCE(h.training_status,'not_scheduled') IN ('completed','certified')),w.name`);
+      // 訓練狀態依「是否報名班別、訓練結束日、是否取得證照」自動判斷；沒有報名資料時才沿用手動更新的狀態。
+      {
+        const today = taipeiToday();
+        const advance = [];
+        trainingRoster = trainingRoster.map(({ enrolled_classes: classes, certificate_approved: certificateApproved, ...row }) => {
+          const { status, auto } = deriveTrainingStatus({ manualStatus: row.training_status, classes, certificateApproved, today });
+          if (auto && row.documents_ready && (TRAINING_STATUS_RANK[status] ?? 0) > (TRAINING_STATUS_RANK[row.training_status] ?? 0)) advance.push({ workerId: row.id, status });
+          return { ...row, training_status: status, training_status_auto: auto };
+        });
+        if (advance.length) await syncTrainingStatuses(advance);
+      }
       employers = [];
       workers = [];
       cases = [];
