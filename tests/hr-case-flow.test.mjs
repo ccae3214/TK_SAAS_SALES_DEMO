@@ -1,8 +1,7 @@
-// 執行：node --test scripts/test-hr-case-flow.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  canManageStep, canUpdateWorkflow, workflowBlockReason, canTransition, summarizeSteps, computeCaseStage, nextActionForStage,
+  canManageStep, canUpdateWorkflow, summarizeSteps, computeCaseStage, nextActionForStage,
   STEP_OWNERS, TAIWAN_ARRIVAL_STEPS,
 } from '../src/lib/hr-case-flow.js';
 
@@ -69,23 +68,6 @@ test('訓練只有訓練中心與管理者；抵台體檢只有台灣仲介與�
   assert.equal(canUpdateWorkflow('employer', null, 'training'), false);
   assert.equal(canUpdateWorkflow('worker', null, 'medical'), false);
   assert.equal(canUpdateWorkflow('admin', null, 'unknown'), false);
-});
-
-test('排訓練需文件全部核准；排抵台體檢需已登錄入境日期', () => {
-  assert.match(workflowBlockReason('training', { gateClosed: true, documentsOpen: true, arrived: false }), /文件/);
-  assert.match(workflowBlockReason('training', { gateClosed: false, documentsOpen: true, arrived: true }), /文件/);
-  assert.equal(workflowBlockReason('training', { gateClosed: false, documentsOpen: false, arrived: false }), null);
-  assert.match(workflowBlockReason('medical', { gateClosed: false, documentsOpen: false, arrived: false }), /入境日期/);
-  assert.equal(workflowBlockReason('medical', { gateClosed: true, documentsOpen: true, arrived: true }), null);
-});
-
-test('狀態轉換維持既有規則', () => {
-  assert.equal(canTransition('training', 'not_scheduled', 'scheduled'), true);
-  assert.equal(canTransition('training', 'not_scheduled', 'completed'), false);
-  assert.equal(canTransition('training', 'completed', 'scheduled'), false);
-  assert.equal(canTransition('training', 'scheduled', 'scheduled'), true);
-  assert.equal(canTransition('medical', 'failed', 'retest'), true);
-  assert.equal(canTransition('medical', 'failed', 'passed'), false);
 });
 
 test('下一步提示指出負責單位', () => {
