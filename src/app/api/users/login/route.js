@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { get } from '@/lib/db';
+import { isLoginLocked, recordLoginFailure, clearLoginFailures, LOGIN_LOCK_MINUTES } from '@/lib/login-rate-limit';
 import { createShopSessionToken, shopSessionCookie, isHttpsRequest } from '@/lib/shop-session';
 
 export async function POST(request) {
@@ -13,9 +14,18 @@ export async function POST(request) {
       );
     }
 
+    const lockKey = `shop:${String(email).trim().toLowerCase()}`;
+    if (isLoginLocked(lockKey)) {
+      return NextResponse.json(
+        { error: `Too many failed attempts. Try again in ${LOGIN_LOCK_MINUTES} minutes.` },
+        { status: 429 }
+      );
+    }
+
     const user = await get('SELECT * FROM users WHERE email = $1', [email]);
     
     if (!user) {
+      recordLoginFailure(lockKey);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 401 }
@@ -24,6 +34,7 @@ export async function POST(request) {
 
     try {
       if (user.password !== password) {
+        recordLoginFailure(lockKey);
         return NextResponse.json(
           { error: 'Invalid password' },
           { status: 401 }
@@ -36,6 +47,7 @@ export async function POST(request) {
       );
     }
 
+    clearLoginFailures(lockKey);
     const response = NextResponse.json({
       success: true,
       user: {

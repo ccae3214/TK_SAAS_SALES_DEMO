@@ -4,6 +4,7 @@ import LINE from "next-auth/providers/line";
 import Credentials from "next-auth/providers/credentials";
 import { get } from '@/lib/db';
 import { verifyPassword } from '@/lib/passwords';
+import { isLoginLocked, recordLoginFailure, clearLoginFailures } from '@/lib/login-rate-limit';
 
 const providers = [];
 
@@ -18,10 +19,16 @@ providers.push(Credentials({
     const email = String(credentials?.email || '').trim().toLowerCase();
     const password = String(credentials?.password || '');
     if (!email || !password) return null;
+    // 同一個 email 連續輸錯太多次就暫時拒絕登入（連密碼都不比對）。
+    if (isLoginLocked(email)) return null;
     try {
       const member = await get(`SELECT id,email,display_name,password_hash,active
         FROM hr_members WHERE lower(email)=$1`, [email]);
-      if (!member?.active || !member.password_hash || !await verifyPassword(password, member.password_hash)) return null;
+      if (!member?.active || !member.password_hash || !await verifyPassword(password, member.password_hash)) {
+        recordLoginFailure(email);
+        return null;
+      }
+      clearLoginFailures(email);
       return { id: String(member.id), email: member.email, name: member.display_name };
     } catch (error) {
       console.error('hr_member_sign_in_failed', error?.name || 'Error');
@@ -63,6 +70,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    // 登入憑證 8 小時後失效，必須重新登入；updateAge 等於 maxAge，不會因為一直在用而自動延長。
+    maxAge: 8 * 60 * 60,
+    updateAge: 8 * 60 * 60,
   },
   events: {
     // 會員審核通過後「第一次登入」時，用 LINE 發一則歡迎訊息（只發一次；失敗不影響登入）。

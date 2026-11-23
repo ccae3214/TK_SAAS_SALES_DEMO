@@ -24,7 +24,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:3000"
+      # 只開給本機。對外一律經過 nginx（有 rate limit 與安全標頭），不要直接曝露 app。
+      - "127.0.0.1:8080:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:8080}
