@@ -91,7 +91,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* 頁首右側：管理者徽章與資料庫連線狀態、裝飾用的頭像在手機不顯示，留出空間 */
+  /* 頁首右側：管理者徽章、裝飾用的頭像在手機不顯示，留出空間 */
   div[data-hr-translatable-root] > main > header > div:last-child > span,
   div[data-hr-translatable-root] > main > header > div:last-child > button:last-child { display: none; }
 

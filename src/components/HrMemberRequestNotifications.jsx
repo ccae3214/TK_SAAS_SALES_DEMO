@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { UserRoundCheck } from 'lucide-react';
 import styles from './HrMemberRequestNotifications.module.css';
 
 export default function HrMemberRequestNotifications({ onOpen, blocked = false }) {
@@ -45,8 +46,10 @@ export default function HrMemberRequestNotifications({ onOpen, blocked = false }
     finally { setOpening(false); }
   };
   return <div className={styles.root} data-testid="member-request-notifications">
-    <button type="button" className={styles.trigger} aria-label={`會員申請通知，待審 ${summary?.total ?? '讀取中'} 筆`} aria-expanded={open} aria-controls="member-request-notification-panel" onClick={() => setOpen(value => !value)}>
-      待審會員 <span aria-live="polite">{summary?.total ?? '…'}</span>{failed && <span title="更新失敗，保留上次結果">！</span>}
+    <button type="button" className={styles.trigger} title="待審會員" aria-label={`會員申請通知，待審 ${summary?.total ?? '讀取中'} 筆`} aria-expanded={open} aria-controls="member-request-notification-panel" onClick={() => setOpen(value => !value)}>
+      <UserRoundCheck size={17} aria-hidden="true" />
+      {Number(summary?.total) > 0 && <b className={styles.badge} aria-hidden="true">{summary.total > 99 ? '99+' : summary.total}</b>}
+      {failed && <span className={styles.failedMark} title="更新失敗，保留上次結果" aria-hidden="true">!</span>}
     </button>
     {open && <section id="member-request-notification-panel" className={styles.panel} aria-label="會員申請通知">
       <header><strong>會員申請通知</strong><button type="button" onClick={() => setOpen(false)} aria-label="關閉會員通知">關閉</button></header>
