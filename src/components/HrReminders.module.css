@@ -18,3 +18,11 @@
 .dotOverdue{background:#b42318;box-shadow:0 0 0 4px rgba(180,35,24,.16)}
 .dotProfile{background:#176b54;box-shadow:0 0 0 4px rgba(23,107,84,.16)}
 .empty{margin:14px 0 0;padding:16px;border:1px dashed #cbd9d1;border-radius:13px;background:#fafcfb;color:#72837a;font-size:13.5px;text-align:center}
+
+/* 頁首小鈴鐺：按鈕、紅色數量徽章，以及點開後的提醒清單 */
+.bellRoot{position:relative;display:inline-flex}
+.bellButton{position:relative;display:grid;place-items:center;width:35px;height:35px;border:1px solid var(--line,#dbe6df);border-radius:11px;background:#fff;color:#65747a;cursor:pointer;transition:background .16s,border-color .16s,color .16s}
+.bellButton:hover,.bellButton[aria-expanded="true"]{background:#f2f9f5;border-color:#cfe8dc;color:#176b54}
+.bellBadge{position:absolute;top:-6px;right:-6px;display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border:2px solid #fff;border-radius:999px;background:linear-gradient(135deg,#e5484d,#d13438);color:#fff;font-size:10.5px;font-weight:800;line-height:1;box-sizing:content-box}
+.popover{position:absolute;top:calc(100% + 10px);right:0;z-index:40;width:min(420px,calc(100vw - 32px));max-height:min(70vh,640px);overflow:auto;padding:18px;background:#fff;border:1px solid #e1e9e4;border-radius:16px;box-shadow:0 12px 32px rgba(15,45,33,.16);color:#14231d;text-align:left}
+@media(max-width:720px){.popover{position:fixed;top:72px;right:16px;left:16px;width:auto}}

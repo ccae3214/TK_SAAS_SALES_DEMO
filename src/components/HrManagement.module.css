@@ -221,3 +221,7 @@
 .jobOrderTable th:last-child{z-index:3;background:#f6faf7}
 .jobOrderTable tbody tr:hover td:last-child{background:#f6faf8}
 @media(max-width:720px){.workspaceCanvas{gap:12px;min-height:max(400px,min(560px,calc(100svh - 260px)))}}
+
+/* 頁首「待我審核的文件」圖示與數量徽章 */
+.reviewButton{position:relative}
+.iconBadge{position:absolute;top:-6px;right:-6px;display:grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border:2px solid #fff;border-radius:999px;background:linear-gradient(135deg,#e5484d,#d13438);color:#fff;font-size:10.5px;font-weight:800;line-height:1;box-sizing:content-box}

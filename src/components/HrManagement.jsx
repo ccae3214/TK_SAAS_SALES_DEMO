@@ -16,6 +16,7 @@ import HrEmployerDocuments from '@/components/HrEmployerDocuments';
 import HrOnboardingTour from '@/components/HrOnboardingTour';
 import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrReminders from '@/components/HrReminders';
+import HrAdminCalendar from '@/components/HrAdminCalendar';
 import HrMemberRequestNotifications from '@/components/HrMemberRequestNotifications';
 import HrAgencyDirectory from '@/components/HrAgencyDirectory';
 import { OrderJourney } from '@/components/HrJourney';
@@ -271,6 +272,16 @@ export default function HrManagement({ actor }) {
   const filteredAgencies = useMemo(() => active !== 'agencies' ? [] : (data?.agencies || []).filter(item => matchesSearch([item.name, item.country, item.agency_type === 'taiwan' ? '台灣仲介' : '菲律賓仲介', item.active ? '啟用' : '停用'], search)), [data,search,active]);
   const filteredWorkflow = useMemo(() => active !== 'workflow' ? [] : (data?.cases || []).filter(item => matchesSearch([item.case_number, item.worker_name, item.employer_name, stageLabel(item.stage), statusLabel(item.medical_status || 'not_scheduled', MEDICAL_STATUSES), statusLabel(item.training_status || 'not_scheduled', TRAINING_STATUSES)], search)), [data,search,active]);
   const activeLabel = NAV.find(item => item.id === active)?.label || '總覽';
+  // 頁首鈴鐺裡的提醒點選後要前往的頁面。
+  const reminderProps = {
+    onOpenChat: roomId => { setActive('chat'); window.setTimeout(() => window.dispatchEvent(new CustomEvent('hr:open-chat-room', { detail: { roomId } })), 250); },
+    onOpenProgress: workerId => { const item = data.cases.find(row => Number(row.worker_id) === Number(workerId)); if (item) { setActive('cases'); setSelectedCase(item); } },
+    onOpenProfile: item => {
+      if (item.type === 'worker') { const worker = data.workers.find(row => Number(row.id) === item.entityId); if (worker) { setActive('workers'); setResumeWorker(worker); } }
+      else if (item.type === 'employer') { const employer = data.employers.find(row => Number(row.id) === item.entityId); if (employer) { setActive('employers'); openModal('employer', employer); } }
+      else if (item.type === 'agency') { const agency = data.agencies.find(row => Number(row.id) === item.entityId); if (agency) { setActive('agencies'); openModal('agency', agency); } }
+    },
+  };
 
   return <div className={styles.app} data-hr-translatable-root><HrOnboardingTour tourId="admin" />
     <aside className={`${styles.sidebar} ${mobileNav ? styles.sidebarOpen : ''}`}>
@@ -281,7 +292,7 @@ export default function HrManagement({ actor }) {
     </aside>
     {mobileNav&&<button aria-label="關閉導覽" className={styles.scrim} onClick={()=>setMobileNav(false)}/>}
     <main className={styles.main}>
-      <header className={styles.topbar}><button className={styles.menuButton} aria-label="開啟導覽" onClick={()=>setMobileNav(true)}><Menu size={20}/></button><div><span className={styles.breadcrumb}>克雷迅人力管理</span><span className={styles.breadcrumbSlash}>/</span><strong key={active}>{activeLabel}</strong></div><div className={styles.topActions}>{data?.role==='admin'&&<HrMemberRequestNotifications onOpen={openMemberRequest} blocked={saving||Boolean(modal)||Boolean(selectedCase)||Boolean(resumeWorker)}/>}<span className={styles.localStatus}><i className={data?styles.connected:''}/>{data?'資料庫連線':'等待連線'}</span><button className={styles.iconButton} aria-label="重新整理資料" onClick={()=>void load()}><Activity size={17}/></button><button className={styles.topAvatar} title={actor.email}>{(actor.name||'管').slice(0,1)}</button></div></header>
+      <header className={styles.topbar}><button className={styles.menuButton} aria-label="開啟導覽" onClick={()=>setMobileNav(true)}><Menu size={20}/></button><div><span className={styles.breadcrumb}>克雷迅人力管理</span><span className={styles.breadcrumbSlash}>/</span><strong key={active}>{activeLabel}</strong></div><div className={styles.topActions}>{data?.role==='admin'&&<HrMemberRequestNotifications onOpen={openMemberRequest} blocked={saving||Boolean(modal)||Boolean(selectedCase)||Boolean(resumeWorker)}/>}{data&&<HrReminders variant="bell" {...reminderProps}/>}{data&&<button type="button" className={`${styles.iconButton} ${styles.reviewButton}`} aria-label="待我審核的文件" title="待我審核的文件" onClick={()=>{setActive('documents');setQuickFilter('pendingDocuments');setSearch('');}}><FileCheck2 size={17}/>{Number(data.counts?.pending_documents)>0&&<b className={styles.iconBadge}>{Number(data.counts.pending_documents)>99?'99+':data.counts.pending_documents}</b>}</button>}<button className={styles.iconButton} aria-label="重新整理資料" onClick={()=>void load()}><Activity size={17}/></button><button className={styles.topAvatar} title={actor.email}>{(actor.name||'管').slice(0,1)}</button></div></header>
       <div className={styles.content}>
         {message&&<div className={`${styles.message} ${message.type==='error'?styles.messageError:styles.messageSuccess}`}><span>{message.type==='error'?<CircleAlert size={17}/>:<Check size={17}/>}</span>{message.text}<button aria-label="關閉訊息" onClick={()=>setMessage(null)}><X size={16}/></button></div>}
         <div className={styles.pageHeading} key={active}><div><p className={styles.kicker}>克雷迅人力仲介管理系統</p><h1>{activeLabel}</h1><p className={styles.subtitle}>{active==='overview'?'掌握案件、文件審核、體檢訓練與待辦進度。':`管理${activeLabel}。`}</p></div>{['cases','employers','workers','agencies','members'].includes(active)&&!(active==='members'&&data?.role==='agency'&&data?.isAgencyAdmin)&&<button className={styles.primaryButton} onClick={()=>openModal(({cases:'case',employers:'employer',workers:'worker',agencies:'agency',members:'member'})[active])}><Plus size={17}/>{({cases:'新增案件',employers:'新增雇主',workers:'新增工作者',agencies:'新增仲介',members:'新增會員帳號'})[active]}</button>}</div>
@@ -289,7 +300,6 @@ export default function HrManagement({ actor }) {
           <div className={styles.workspaceCanvas}>
           {active==='overview'&&<>
             <div className={styles.overviewIntro}>
-              <HrReminders wide onOpenChat={roomId=>{setActive('chat');window.setTimeout(()=>window.dispatchEvent(new CustomEvent('hr:open-chat-room',{detail:{roomId}})),250);}} onOpenProgress={workerId=>{const item=data.cases.find(row=>Number(row.worker_id)===Number(workerId));if(item){setActive('cases');setSelectedCase(item);}}} onOpenProfile={item=>{if(item.type==='worker'){const worker=data.workers.find(row=>Number(row.id)===item.entityId);if(worker){setActive('workers');setResumeWorker(worker);}}else if(item.type==='employer'){const employer=data.employers.find(row=>Number(row.id)===item.entityId);if(employer){setActive('employers');openModal('employer',employer);}}else if(item.type==='agency'){const agency=data.agencies.find(row=>Number(row.id)===item.entityId);if(agency){setActive('agencies');openModal('agency',agency);}}}}/>
               <OverviewStatCards counts={data.counts} open={(section,filter='')=>{setActive(section);setQuickFilter(filter);setSearch('');}}/>
             </div>
             <Overview data={data} open={(section,filter='')=>{setActive(section);setQuickFilter(filter);setSearch('');}} selectCase={setSelectedCase} addCase={()=>openModal('case')}/>
@@ -332,7 +342,6 @@ function Overview({data,open,selectCase,addCase}) {
       const priority=task=>{const due=task.due_date?String(task.due_date).slice(0,10):'';return due&&due<today?0:due===today?1:2;};
       return priority(a)-priority(b);
     }).slice(0,6);
-  const pendingDocuments=(data.requirements||[]).filter(requirement=>requirement.status==='submitted').slice(0,5);
   const recent=data.cases.slice(0,7);
   const needsAttentionCases=(data.cases||[]).filter(item=>item.status==='open'&&(
     !item.assigned_member_id||(data.requirements||[]).some(requirement=>Number(requirement.worker_id)===Number(item.worker_id)&&requirement.required&&requirement.applicable&&['missing','returned'].includes(requirement.status))
@@ -340,9 +349,9 @@ function Overview({data,open,selectCase,addCase}) {
   return <>
     <div className={styles.dashboardQueues}>
       <section className={styles.panel}><div className={styles.panelHeader}><div><h2>今日工作佇列</h2><p>逾期、今天到期或受阻的待辦，選取後可直接開啟案件</p></div><button className={styles.linkButton} onClick={()=>open('tasks')}>所有待辦 <ChevronRight size={15}/></button></div>{attention.length?<div className={styles.attentionList}>{attention.map(task=>{const due=task.due_date?String(task.due_date).slice(0,10):'';const daysLate=due&&due<today?Math.floor((Date.parse(`${today}T00:00:00Z`)-Date.parse(`${due}T00:00:00Z`))/86400000):0;const dueText=due===today?'今天到期':daysLate?`逾期 ${daysLate} 天`:'';const dueLabel=task.status==='blocked'?(dueText?`受阻 · ${dueText}`:'受阻'):dueText;return <article className={styles.attentionItem} key={task.id}><span className={task.status==='blocked'?styles.alertDot:styles.warnDot}/><div><strong>{task.title}</strong><small>{task.case_number} · {task.worker_name}</small></div><span>{dueLabel}</span><button type="button" className={styles.smallButton} onClick={()=>{const item=data.cases.find(row=>Number(row.id)===Number(task.case_id));if(item)selectCase(item);}}>查看案件</button></article>})}</div>:<p className={styles.queueEmpty}>今天沒有逾期、到期或受阻的待辦。</p>}</section>
-      <section className={styles.panel}><div className={styles.panelHeader}><div><h2>待我審核的文件</h2><p>{counts.pending_documents} 份文件等待審核</p></div><button className={styles.linkButton} onClick={()=>open('documents','pendingDocuments')}>前往審核 <ChevronRight size={15}/></button></div>{pendingDocuments.length?<div className={styles.attentionList}>{pendingDocuments.map(requirement=><article className={styles.attentionItem} key={requirement.id}><span className={styles.warnDot}/><div><strong>{requirement.name}</strong><small>{requirement.case_number} · {requirement.worker_name}</small></div><span>待審</span><button type="button" className={styles.smallButton} onClick={()=>open('documents','pendingDocuments')}>審核文件</button></article>)}</div>:<p className={styles.queueEmpty}>目前沒有待審文件。</p>}</section>
       <section className={styles.panel}><div className={styles.panelHeader}><div><h2>待補資料或指派案件</h2><p>先處理缺少必要文件或尚未指派負責業務的案件</p></div><button className={styles.linkButton} onClick={()=>open('cases')}>查看案件 <ChevronRight size={15}/></button></div>{needsAttentionCases.length?<div className={styles.attentionList}>{needsAttentionCases.map(item=>{const missing=(data.requirements||[]).filter(row=>Number(row.case_id)===Number(item.id)&&row.required&&row.applicable&&['missing','returned'].includes(row.status)).length;return <article className={styles.attentionItem} key={item.id}><span className={missing?styles.warnDot:styles.alertDot}/><div><strong>{item.case_number} · {item.worker_name}</strong><small>{missing?`必要文件待補 ${missing} 份`:'尚未指派負責業務'}</small></div><button type="button" className={styles.smallButton} onClick={()=>selectCase(item)}>處理案件</button></article>})}</div>:<p className={styles.queueEmpty}>目前沒有缺件或未指派的進行中案件。</p>}</section>
     </div>
+    <HrAdminCalendar data={data} onOpenCase={selectCase} onOpenOrders={()=>open('job-orders')}/>
     <section className={styles.panel}><div className={styles.panelHeader}><div><h2>最近更新案件</h2><p>依最後更新時間排序</p></div><button className={styles.linkButton} onClick={()=>open('cases')}>查看全部 <ChevronRight size={15}/></button></div>{recent.length?<div className={styles.tableWrap}><table><thead><tr><th>案件編號</th><th>工作者</th><th>雇主／客戶</th><th>案件階段</th><th>狀態</th><th>操作</th></tr></thead><tbody>{recent.map(row=><tr key={row.id}><td className={styles.caseNumber}>{row.case_number}</td><td>{row.worker_name}</td><td>{row.employer_name}</td><td>{stageLabel(row.stage)}</td><td><Status value={row.status} options={CASE_STATUSES}/></td><td><button type="button" className={styles.smallButton} onClick={()=>selectCase(row)}>查看案件</button></td></tr>)}</tbody></table></div>:<Empty title="尚未建立案件" text="新增第一筆案件後，案件進度會顯示在這裡。" action="新增案件" onClick={addCase}/>}</section>
   </>;
 }
