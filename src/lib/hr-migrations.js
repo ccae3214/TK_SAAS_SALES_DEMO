@@ -15,6 +15,7 @@ import { ensureNotificationSchema } from '@/lib/hr-notifications';
 import { ensureAuditSchema } from '@/lib/hr-audit';
 import { ensureAgencyAuditSchema } from '@/lib/hr-agency-audit';
 import { ensureTrainingCenterAuditSchema } from '@/lib/hr-tc-audit';
+import { ensureWorkerLogSchema } from '@/lib/hr-worker-log';
 import { ensureLineLanguageSyncSchema } from '@/lib/hr-line-language-sync';
 import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-reminders-store';
 
@@ -31,6 +32,7 @@ export const MIGRATION_STEPS = [
   ['audit', () => ensureAuditSchema()],
   ['agency-audit', () => ensureAgencyAuditSchema()],
   ['training-center-audit', () => ensureTrainingCenterAuditSchema()],
+  ['worker-log', () => ensureWorkerLogSchema()],
   ['worker-progress', () => ensureWorkerProgressSchema()],
   ['chat', () => ensureChatSchema()],
   ['line-bot', () => ensureLineSchema()],
