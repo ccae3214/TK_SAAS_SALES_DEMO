@@ -13,7 +13,6 @@ import HrPhotoCropper from '@/components/HrPhotoCropper';
 import PersonNameFields from '@/components/PersonNameFields';
 import HrChat from '@/components/HrChat';
 import HrEmployerDocuments from '@/components/HrEmployerDocuments';
-import HrOnboardingTour from '@/components/HrOnboardingTour';
 import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrReminders from '@/components/HrReminders';
 import HrPendingDocuments from '@/components/HrPendingDocuments';
@@ -284,7 +283,7 @@ export default function HrManagement({ actor }) {
     },
   };
 
-  return <div className={styles.app} data-hr-translatable-root><HrOnboardingTour tourId="admin" />
+  return <div className={styles.app} data-hr-translatable-root>
     <aside className={`${styles.sidebar} ${mobileNav ? styles.sidebarOpen : ''}`}>
       <div className={styles.brand}><span className={styles.brandMark}>K</span><span>克雷迅<strong>人力管理</strong></span><HrLanguageTools inline /></div>
       <div className={styles.workspaceLabel}>工作區</div>
