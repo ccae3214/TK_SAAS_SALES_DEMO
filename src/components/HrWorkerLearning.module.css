@@ -52,3 +52,10 @@
 .quizBad { margin: 8px 0 0; color: #b42318; }
 .quizResult { margin-top: 14px; padding: 12px; border-radius: 10px; background: var(--line-soft, #edf2ee); }
 .quizResult p { margin: 4px 0 0; }
+.videoCard { margin-top: 14px; padding: 14px; border: 1px solid #1e3a8a; border-radius: 12px; background: #0c1c38; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.videoHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.videoHeader h4 { margin: 0; color: #f59e0b; font-size: 16px; font-weight: 600; }
+.videoPlayer { width: 100%; border-radius: 8px; background: #000; aspect-ratio: 16 / 9; max-height: 480px; display: block; }
+.videoAudio { width: 100%; margin-top: 6px; }
+.unitBadgeVideo { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-weight: 600; margin-left: 6px; }
+

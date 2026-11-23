@@ -28,7 +28,7 @@ database.sqlite
 private.pem
 public.pem
 .next
-
+tmp
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
