@@ -22,9 +22,11 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
+          // 同源可嵌入：文件預覽用同源 iframe 顯示 PDF／圖片，DENY 會讓預覽被瀏覽器擋掉。
+          // 與 nginx.conf、CSP frame-ancestors 'self' 的設定一致。
           {
             key: "X-Frame-Options",
-            value: "DENY",
+            value: "SAMEORIGIN",
           },
           {
             key: "X-Content-Type-Options",
@@ -36,7 +38,7 @@ const nextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            value: "geolocation=(), microphone=(), camera=(), payment=()",
           },
         ],
       },

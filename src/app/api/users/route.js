@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, run, get } from '@/lib/db';
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwords';
 
 export async function POST(request) {
   try {
@@ -13,9 +14,9 @@ export async function POST(request) {
       );
     }
 
-    if (password.length < 6) {
+    if (password.length < MIN_PASSWORD_LENGTH) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
         { status: 400 }
       );
     }
