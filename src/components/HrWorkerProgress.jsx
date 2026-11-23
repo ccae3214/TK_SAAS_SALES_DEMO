@@ -9,6 +9,7 @@ import {
   CASE_STAGE_LABELS, DOCUMENT_STATUS_LABELS, HEALTH_TRAINING_STEP_KEYS, SINGLE_DATE_STEPS, STATUS_LABELS, STEP_DATE_LABELS, STEP_DETAILS, STEP_PAIR_LABELS, allowedNextStatuses,
 } from '@/lib/hr-worker-progress';
 import { OWNER_LABELS, STEP_OWNERS } from '@/lib/hr-case-flow';
+import { AUTO_SOURCE_LABELS } from '@/lib/hr-worker-progress-auto';
 import styles from './HrWorkerProgress.module.css';
 
 const shortDate = value => value ? String(value).slice(0, 10) : '—';
@@ -21,6 +22,11 @@ function StepForm({ step, t, disabled, onSave }) {
   const [startLabel, endLabel] = STEP_PAIR_LABELS[step.step_key] || ['開始日期', '完成日期'];
   return (
     <form className={styles.stepForm} onSubmit={event => onSave(event, step)}>
+      {step.auto_source && (
+        <p className={styles.autoNote}>
+          <span className={styles.autoBadge}>{t('自動帶入')}</span> {t(AUTO_SOURCE_LABELS[step.auto_source] || '依系統資料自動帶入')} · {t('按「儲存」可改為手動記錄，也可以直接修改日期。')}
+        </p>
+      )}
       {single ? (
         <label>{t(STEP_DATE_LABELS[step.step_key] || '辦理日期')}<input type="date" name="completedOn" defaultValue={step.completed_on || ''} disabled={disabled} /></label>
       ) : (
@@ -69,7 +75,7 @@ function HealthCard({ kind, title, status, canUpdate, blockReason, step, t, disa
       )}
       {!canUpdate && <p className={styles.gateNote}>{t(READ_ONLY_NOTES[kind])}</p>}
       {canUpdate && blockReason && status === 'not_scheduled' && <p className={styles.gateNote}>{t(blockReason)}</p>}
-      {step && <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={disabled || !canEditStep(step.step_key)} onSave={onSaveStep} />}
+      {step && <StepForm key={step.updated_at || `new-${step.started_on}-${step.completed_on}`} step={step} t={t} disabled={disabled || !canEditStep(step.step_key)} onSave={onSaveStep} />}
     </section>
   );
 }
@@ -210,7 +216,7 @@ export function WorkerProgressView({ data, message, busy, t, onReview, onApplica
           {programSteps.map(step => (
             <div key={step.step_key} className={styles.stepRow}>
               <strong>{t(step.label)}{STEP_OWNERS[step.step_key] && <small className={styles.hint}> · {t(`${OWNER_LABELS[STEP_OWNERS[step.step_key]]}辦理`)}</small>}</strong>
-              <StepForm key={step.updated_at || 'new'} step={step} t={t} disabled={busy || !canEditStep(step.step_key)} onSave={onSaveStep} />
+              <StepForm key={step.updated_at || `new-${step.started_on}-${step.completed_on}`} step={step} t={t} disabled={busy || !canEditStep(step.step_key)} onSave={onSaveStep} />
             </div>
           ))}
         </div>

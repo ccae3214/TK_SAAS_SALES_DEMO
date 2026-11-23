@@ -135,6 +135,14 @@ const EN = {
   "訓練狀態由訓練中心或管理者管理。": "Training status is managed by the training center or administrators.",
   "抵台體檢狀態由台灣仲介或管理者管理。": "The arrival medical status is managed by the Taiwan agency or administrators.",
   "訓練或抵台體檢狀態不正確。": "The training or arrival medical status is invalid.",
+  "自動帶入": "Auto-filled",
+  "按「儲存」可改為手動記錄，也可以直接修改日期。": "Press Save to keep it as a manual record, or change the date directly.",
+  "依系統資料自動帶入": "Filled in automatically from system data",
+  "依案件建立日期自動帶入": "Filled in automatically from the case creation date",
+  "依核准函上傳日期自動帶入": "Filled in automatically from the approval letter upload date",
+  "依護照文件核准日期自動帶入": "Filled in automatically from the passport approval date",
+  "依必要文件全數核准的日期自動帶入": "Filled in automatically from the date all required documents were approved",
+  "依報名班別的訓練日期自動帶入": "Filled in automatically from the enrolled class training dates",
 };
 
 export function progressText(text, lang) {

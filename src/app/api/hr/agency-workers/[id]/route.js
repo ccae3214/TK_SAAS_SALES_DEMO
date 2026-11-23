@@ -11,6 +11,7 @@ import {
 import { refreshWorkerCases, workerHasArrived } from '@/lib/hr-case-stage';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { recordAgencyAction } from '@/lib/hr-agency-audit';
+import { applyAutoStep, deriveAutoSteps } from '@/lib/hr-worker-progress-auto';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { ensureWorkerProgressSchema } from '@/lib/hr-schema';
 
@@ -23,6 +24,15 @@ export const dynamic = 'force-dynamic';
 const clean = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const validId = value => /^\d+$/.test(String(value ?? '')) && Number(value) > 0;
 const DOCUMENT_ORDER = { submitted: 0, returned: 1, missing: 2, approved: 3 };
+
+// 自動帶入用的來源資料：資料表還沒建立（42P01）或查詢失敗時不影響整頁，只是不帶入。
+async function optionalRows(sql, params) {
+  try { return await query(sql, params); }
+  catch (error) {
+    if (error?.code !== '42P01') console.error('hr_worker_progress_auto_source_failed', error?.code || error?.name || 'Error');
+    return [];
+  }
+}
 
 // 回傳 { worker } 或 { response }（錯誤回應）。
 async function authorize(principal, workerId, { trainingCenterOk = false } = {}) {
@@ -55,7 +65,7 @@ export async function GET(request, { params }) {
     const access = await authorize(principal, workerId);
     if (access.response) return access.response;
 
-    const [documents, submissions, workerSteps, caseSteps, health, cases, gate, docsOpen, arrived] = await Promise.all([
+    const [documents, submissions, workerSteps, caseSteps, health, cases, gate, docsOpen, arrived, caseDates, approvalLetters, enrolledClasses] = await Promise.all([
       query('SELECT d.* FROM hr_worker_documents d WHERE d.worker_id=$1 ORDER BY d.id', [workerId]),
       query(`SELECT s.id,s.requirement_id,s.version_number,s.filename,s.note,s.submitted_by,s.created_at,
           v.decision,v.reason AS review_reason,v.reviewer,v.created_at AS reviewed_at,
@@ -76,6 +86,11 @@ export async function GET(request, { params }) {
       query(`SELECT ${entryGateClosedSql('$1')} AS gate_closed`, [workerId]),
       query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]),
       workerHasArrived(query, workerId),
+      optionalRows('SELECT created_at FROM hr_cases WHERE worker_id=$1', [workerId]),
+      optionalRows(`SELECT d.created_at FROM hr_employer_documents d WHERE d.doc_type='approval_letter'
+        AND d.employer_id IN (SELECT employer_id FROM hr_cases WHERE worker_id=$1)`, [workerId]),
+      optionalRows(`SELECT to_char(c.training_start_date,'YYYY-MM-DD') AS start, to_char(c.training_end_date,'YYYY-MM-DD') AS "end"
+        FROM hr_tc_enrollments e JOIN hr_tc_classes c ON c.id=e.class_id WHERE e.worker_id=$1`, [workerId]),
     ]);
 
     const submissionsByDocument = new Map();
@@ -92,16 +107,30 @@ export async function GET(request, { params }) {
       || (DOCUMENT_ORDER[a.status] ?? 9) - (DOCUMENT_ORDER[b.status] ?? 9)
       || Number(Boolean(b.entry_gate)) - Number(Boolean(a.entry_gate)) || Number(a.id) - Number(b.id));
 
+    // 文件核准時間：每份文件最近一次「核准」的審核時間。
+    const approvedAt = new Map();
+    for (const item of submissions) {
+      if (item.decision !== 'approved' || !item.reviewed_at) continue;
+      const key = Number(item.requirement_id);
+      if (!approvedAt.has(key) || new Date(item.reviewed_at) > new Date(approvedAt.get(key))) approvedAt.set(key, item.reviewed_at);
+    }
+    const autoSteps = deriveAutoSteps({
+      documents: documents.map(item => ({ name: item.name, required: item.required, applicable: item.applicable, status: item.status, approved_at: approvedAt.get(Number(item.id)) || null })),
+      caseCreatedAt: caseDates.map(item => item.created_at),
+      approvalLetterUploadedAt: approvalLetters.map(item => item.created_at),
+      classes: enrolledClasses,
+    });
+
     const workerStepMap = new Map(workerSteps.map(item => [item.step_key, item]));
     const caseStepMap = new Map(caseSteps.map(item => [item.step_key, item]));
     const steps = WORKER_PROGRESS_STEPS.map(([stepKey, label]) => {
       const picked = pickLatestStep(workerStepMap.get(stepKey), caseStepMap.get(stepKey));
-      return {
+      return applyAutoStep({
         step_key: stepKey, label,
         started_on: picked?.started_on || '', completed_on: picked?.completed_on || '', note: picked?.note || '', detail: picked?.detail || '',
         updated_at: picked?.updated_at || null, source: picked?.source || null,
         updated_by: access.isAdmin ? (picked?.updated_by || '') : undefined,
-      };
+      }, autoSteps[stepKey]);
     });
 
     return NextResponse.json({
