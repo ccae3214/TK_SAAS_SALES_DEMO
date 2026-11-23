@@ -1,0 +1,131 @@
+/*
+ * 系統管理員頁面（HrManagement）手機版：功能菜單固定在畫面最底部。
+ * 只改手機（寬度 720px 以下，與 HrManagement.module.css 的手機斷點相同）；桌機維持原本的左側選單。
+ * HrManagement 的樣式是 CSS Module（class 會被改名），所以這裡用 HTML 結構選擇器：
+ *   div[data-hr-translatable-root] > aside > nav   = 左側選單（手機改成底部選單）
+ *   div[data-hr-translatable-root] > main > header = 頁首（topbar）
+ * 結構若有改動，tests/hr-admin-mobile-menu.test.mjs 會提醒。
+ * 語言切換與登出按鈕在手機版會從側邊欄移到頁首右側，由 HrAdminMobileBar 提供。
+ */
+
+/* 桌機：手機專用的語言／登出按鈕不顯示 */
+.hr-admin-mobile-actions { display: none; }
+
+@media (max-width: 720px) {
+  /* 側邊欄 → 底部選單 */
+  div[data-hr-translatable-root] > aside {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    /* 低於頁首（z-index 10），會員申請通知的下拉面板才會蓋在選單上方 */
+    z-index: 9;
+    display: block;
+    width: auto;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+    transform: none;
+    transition: none;
+    border: 0;
+    border-top: 1px solid #e1e9e4;
+    border-radius: 16px 16px 0 0;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -6px 24px rgba(15, 45, 33, 0.12);
+  }
+
+  /* 品牌、「工作區」標題、帳號與登出區塊在手機不顯示（語言與登出改放頁首右側） */
+  div[data-hr-translatable-root] > aside > div { display: none; }
+
+  div[data-hr-translatable-root] > aside > nav {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    min-height: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  div[data-hr-translatable-root] > aside > nav::-webkit-scrollbar { display: none; }
+
+  div[data-hr-translatable-root] > aside > nav > button,
+  div[data-hr-translatable-root] > aside > nav > button:hover {
+    flex: 1 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 66px;
+    min-height: 52px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+    color: #5c6e65;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+  }
+  div[data-hr-translatable-root] > aside > nav > button[class*="navActive"],
+  div[data-hr-translatable-root] > aside > nav > button[class*="navActive"]:hover {
+    background: #e4f3ec;
+    color: #0f5a46;
+    box-shadow: none;
+  }
+  div[data-hr-translatable-root] > aside > nav > button > svg { width: 20px; height: 20px; flex: none; }
+  /* 桌機選到項目右邊的小箭頭，手機不需要 */
+  div[data-hr-translatable-root] > aside > nav > button > [class*="navArrow"] { display: none; }
+
+  /* 頁首：拿掉開側邊欄的漢堡按鈕，右側留位置給語言與登出按鈕 */
+  div[data-hr-translatable-root] > main > header { padding-right: 118px; }
+  div[data-hr-translatable-root] > main > header > button:first-child { display: none; }
+  div[data-hr-translatable-root] > main > header > div:first-of-type { min-width: 0; }
+  div[data-hr-translatable-root] > main > header > div:first-of-type > strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 頁首右側：管理者徽章與資料庫連線狀態、裝飾用的頭像在手機不顯示，留出空間 */
+  div[data-hr-translatable-root] > main > header > div:last-child > span,
+  div[data-hr-translatable-root] > main > header > div:last-child > button:last-child { display: none; }
+
+  /* 內容最後一塊不要被底部選單蓋住 */
+  div[data-hr-translatable-root] > main > div {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 左下角的「使用導覽」浮動按鈕抬高到底部選單上方 */
+  div[data-hr-translatable-root] > button {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 頁首右側的語言與登出按鈕（HrAdminMobileBar） */
+  .hr-admin-mobile-actions {
+    position: fixed;
+    top: 11px;
+    right: 12px;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hr-admin-mobile-signout {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #e1e9e4;
+    border-radius: 11px;
+    background: #fff;
+    color: #65747a;
+    cursor: pointer;
+  }
+  .hr-admin-mobile-signout:active { background: #f2f9f5; color: #176b54; }
+}
