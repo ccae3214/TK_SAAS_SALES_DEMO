@@ -27,6 +27,9 @@ jobs:
           cache: npm
       # --no-audit --no-fund：安裝時不去查安全公告與贊助訊息，只裝套件。
       - run: npm ci --no-audit --no-fund
+      # HR 影音測試需要 ffprobe；明確安裝依賴，不依賴 runner 預裝或跳過測試。
+      - name: Install HR test tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg python3 unzip
       - run: npm run test:hr
       # Next.js 的 build 快取：程式沒大改時，build 可以重用上次的編譯結果。
       # 快取只在同一個 PR 的第二次以後推送（或重跑）才會命中；套件或原始碼改了就自動換新的。

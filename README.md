@@ -4,7 +4,7 @@
 
 基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
 
-本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](docs/AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。遠端 CI 以精確 PR head 為準。
+本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](docs/AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。PR #62 首輪 CI 因 runner 缺 ffprobe，HR 458 通過／1 失敗、未執行雲端 build；記帳 Bot job 通過。已補 CI 安裝 ffmpeg／Python／unzip，不刪減測試；更新後 CI 以精確 PR head 為準。
 
 
 最新本機候選（2026-11-13）：`feature/hr-member-request-notifications` 已整合 main `52b0d7c` 並解決 PR #22 衝突，完成會員送審站內通知、可靠 LINE 入列／重試與可重跑會員流程。Node 20：110 通過；真實 PostgreSQL＋受控傳輸：13 通過；桌機／390px Chromium：16 通過，均無失敗／跳過。本機容器已重建並運作，入口 http://localhost:8088/hr/login 。審查與限制：[MEMBER_NOTIFICATION_REVIEW](docs/MEMBER_NOTIFICATION_REVIEW.md)；唯一操作入口：[LOCAL_REVIEW](docs/LOCAL_REVIEW.md)。

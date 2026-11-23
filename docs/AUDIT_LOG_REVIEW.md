@@ -21,7 +21,7 @@
 2. Node 20.20.2／Python 3.12.16／ffmpeg：完整 `npm run test:hr`，459 通過、0 失敗、0 跳過。
 3. Docker build：`tk-saas-sales-demo-review:organization-audit` 成功，Next.js 15.5.29。既有設定跳過 lint／型別；不能列為通過。安裝回報 9 項依賴警告（7 moderate、2 high），沒有自動升級或修復；不是本輪獨立 production audit。
 4. Chromium 元件測試（Playwright image 的 Node 26.13.1）：1280px／390px × 中／英文，各檢查分頁、來源切換、搜尋空結果、錯誤、恢復，共 20 項檢查通過、0 失敗，各組 pageerror=0。
-5. `git diff --check` 通過。遠端 CI 以精確 PR head 讀回為準。
+5. `git diff --check` 通過。PR #62 首輪 CI 的 HR 測試 458 通過／1 失敗（缺 ffprobe），雲端 build 未執行；記帳 Bot job 通過。已在 `.github/workflows/ci.yml` 明確安裝 ffmpeg／Python／unzip，保留所有測試及 build；更新後結果以精確 PR head 讀回為準。
 
 保留失敗紀錄：完整測試最初 458 通過／1 失敗，原因為最新 main 的影音測試需要 ffprobe；只補測試容器工具，完整重跑全通過。元件 harness 最初 SWC 行程退出 135，未確認根因；改用 Next 既有 Babel 編譯後發現 runtime alias 缺漏，補齊 harness alias 後四組全通過，未改產品或降低斷言。
 
