@@ -5,6 +5,8 @@ import { getHrPrincipal } from '@/lib/hr-access';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { quizResultOf } from '@/lib/hr-learning';
+import { recordWorkerLog } from '@/lib/hr-worker-log';
+import { describeLearningUnit, describeQuiz } from '@/lib/hr-worker-log-core';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +20,7 @@ async function accessContext() {
   const session = await auth();
   if (!session?.user) return { error: fail('Authentication required', 401) };
   const principal = await getHrPrincipal(session);
-  if (principal?.role === 'worker' && principal.worker_id) return { role: 'worker', workerId: principal.worker_id };
+  if (principal?.role === 'worker' && principal.worker_id) return { role: 'worker', workerId: principal.worker_id, principal, session };
   if (principal?.role === 'admin') return { role: 'admin' };
   if (principal?.role === 'training_center' && principal.id) return { role: 'training_center', centerId: principal.id };
   return { error: fail('僅工人、系統管理者或訓練中心會員可使用學習系統。', 403) };
@@ -70,18 +72,23 @@ export async function POST(request) {
   if (!validId(body?.unitId) || (isQuiz ? !quiz : typeof body?.completed !== 'boolean')) return fail('資料格式不正確。');
   try {
     await ensureTrainingCenterSchema();
-    const unit = (await query('SELECT id, course_id FROM hr_tc_course_units WHERE id=$1', [body.unitId]))[0];
+    const unit = (await query('SELECT id, course_id, name, name_en FROM hr_tc_course_units WHERE id=$1', [body.unitId]))[0];
     // 單元所屬課程必須是這位工人已報名的課程。
     if (!unit || !(await readableCourse(ctx, unit.course_id))) return fail('找不到這個單元，或您沒有報名這門課程。', 404);
     if (isQuiz) {
       await pool.query('INSERT INTO hr_tc_quiz_results(worker_id, unit_id, correct, total, percent, passed) VALUES($1,$2,$3,$4,$5,$6)',
         [ctx.workerId, unit.id, quiz.correct, quiz.total, quiz.percent, quiz.passed]);
+      await recordWorkerLog({ workerId: ctx.workerId, principal: ctx.principal, session: ctx.session, targetType: 'quiz', targetName: unit.name,
+        entry: describeQuiz({ name: unit.name, nameEn: unit.name_en, correct: quiz.correct, total: quiz.total, passed: quiz.passed }) });
       return NextResponse.json({ ok: true, quiz });
     }
-    if (body.completed) {
-      await pool.query('INSERT INTO hr_tc_unit_progress(worker_id, unit_id) VALUES($1,$2) ON CONFLICT(worker_id, unit_id) DO NOTHING', [ctx.workerId, unit.id]);
-    } else {
-      await pool.query('DELETE FROM hr_tc_unit_progress WHERE worker_id=$1 AND unit_id=$2', [ctx.workerId, unit.id]);
+    // 只有真的改變了進度才記一筆（重複按「已讀」不會重複記錄）。
+    const changed = body.completed
+      ? await pool.query('INSERT INTO hr_tc_unit_progress(worker_id, unit_id) VALUES($1,$2) ON CONFLICT(worker_id, unit_id) DO NOTHING', [ctx.workerId, unit.id])
+      : await pool.query('DELETE FROM hr_tc_unit_progress WHERE worker_id=$1 AND unit_id=$2', [ctx.workerId, unit.id]);
+    if (changed.rowCount) {
+      await recordWorkerLog({ workerId: ctx.workerId, principal: ctx.principal, session: ctx.session, targetType: 'learning-unit', targetName: unit.name,
+        entry: describeLearningUnit({ completed: body.completed, name: unit.name, nameEn: unit.name_en }) });
     }
     return NextResponse.json({ ok: true, completedUnitIds: await completedIdsOf(ctx, unit.course_id) });
   } catch (error) {

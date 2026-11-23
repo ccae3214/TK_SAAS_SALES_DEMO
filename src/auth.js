@@ -75,6 +75,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       } catch (error) {
         console.error('hr_first_login_welcome_failed', error?.message || 'Error');
       }
+      try {
+        // 工人會員的活動紀錄：記一筆登入（只記工作者會員；失敗不影響登入）。
+        const lineUserId = account?.provider === "line" ? (profile?.sub || account.providerAccountId || null) : null;
+        const { recordWorkerLogin } = await import('@/lib/hr-worker-log');
+        void recordWorkerLogin({ lineUserId, email: user?.email || null });
+      } catch (error) {
+        console.error('hr_worker_log_login_failed', error?.message || 'Error');
+      }
     },
   },
   callbacks: {

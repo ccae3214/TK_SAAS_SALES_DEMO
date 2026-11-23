@@ -1,0 +1,29 @@
+/* 工人活動紀錄：自成一張卡片，不依賴會員頁的 .hr-member-shell 樣式，可以放在任何頁面底下。 */
+.card { max-width: 1100px; margin: 24px auto 48px; padding: 20px 22px; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; color: #0f172a; box-sizing: border-box; }
+.card h2 { margin: 0 0 6px; font-size: 1.25rem; }
+.lead { margin: 0 0 14px; color: #475569; font-size: 0.92rem; line-height: 1.55; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; color: #334155; }
+.field select, .field input { min-width: 180px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; font-weight: 400; background: #fff; color: #0f172a; }
+.search { flex: 1 1 220px; }
+.search input { width: 100%; box-sizing: border-box; }
+.filters button, .more button { padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; font: inherit; font-weight: 600; cursor: pointer; }
+.filters button[type='submit'] { background: #2563eb; border-color: #2563eb; color: #fff; }
+.filters button:disabled, .more button:disabled { opacity: 0.6; cursor: default; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.item { padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.88rem; }
+.head time { margin-left: auto; color: #64748b; font-size: 0.8rem; }
+.badge { padding: 2px 8px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-size: 0.75rem; font-weight: 700; }
+.badgeRole { background: #e2e8f0; color: #334155; }
+.badgeSelf { background: #dcfce7; color: #166534; }
+.summary { margin: 6px 0 0; font-size: 0.92rem; line-height: 1.5; word-break: break-word; }
+.empty { margin: 8px 0; color: #64748b; }
+.error { margin: 8px 0; color: #b91c1c; }
+.more { margin-top: 12px; text-align: center; }
+@media (max-width: 640px) {
+  .card { margin: 16px 10px 40px; padding: 16px 14px; }
+  .field select, .field input { min-width: 0; width: 100%; box-sizing: border-box; }
+  .field { flex: 1 1 100%; }
+  .head time { margin-left: 0; width: 100%; }
+}

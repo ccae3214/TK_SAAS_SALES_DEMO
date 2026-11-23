@@ -4,6 +4,8 @@ import pool from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getHrPrincipal } from '@/lib/hr-access';
 import { recordAgencyAction } from '@/lib/hr-agency-audit';
+import { recordWorkerLog } from '@/lib/hr-worker-log';
+import { describeDocumentUpload } from '@/lib/hr-worker-log-core';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 
 export const runtime = 'nodejs';
@@ -91,6 +93,9 @@ export async function POST(request) {
       await recordAgencyAction({ principal, session, action: 'upload', type: 'worker-document', id: requirement.worker_id, name: requirement.name,
         zh: `為工作者上傳了文件「${requirement.name}」第 ${submission.version_number} 版（${originalFilename}）`, en: `Uploaded document "${requirement.name}" v${submission.version_number} for a worker (${originalFilename})` });
     }
+    // 工人活動紀錄：工人本人、仲介或管理者替這位工人上傳文件都會記一筆。
+    await recordWorkerLog({ workerId: requirement.worker_id, principal, session, targetType: 'worker-document', targetName: requirement.name,
+      entry: describeDocumentUpload({ name: requirement.name, version: submission.version_number, filename: originalFilename }) });
     return NextResponse.json({ ok: true, submissionId: submission.id, version: submission.version_number }, { status: 201 });
   } catch (error) {
     await client.query('ROLLBACK');

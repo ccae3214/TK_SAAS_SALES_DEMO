@@ -11,6 +11,16 @@ import HrLessonVocabulary from '@/components/HrLessonVocabulary';
 import HrUnitQuiz from '@/components/HrUnitQuiz';
 import styles from './HrWorkerLearning.module.css';
 
+const LEGACY_UNIT_MEDIA = {
+  1: { video: '/videos/mandarin-a1-unit-1.mp4', audio: '/videos/mandarin-a1-unit-1.mp3' },
+  2: { video: '/videos/mandarin-a1-unit-2.mp4', audio: '/videos/mandarin-a1-unit-2.mp3' },
+  3: { video: '/videos/mandarin-a1-unit-3.mp4', audio: '/videos/mandarin-a1-unit-3.mp3' },
+};
+const unitMediaUrls = position => LEGACY_UNIT_MEDIA[position] || {
+  video: `/videos/mandarin-a1-unit-${position}.mp4`,
+  audio: `/videos/mandarin-a1-unit-${position}.mp3`,
+};
+
 // 工人的學習頁：單元清單（含進度）→ 單元內容（學習重點、詞彙、例句、對話）→ 標記讀完。
 // 系統管理者與訓練中心預覽時為唯讀（不能標記進度）。
 // 單元內容可朗讀：每個詞彙／例句／對話旁有播放鈕，也可以朗讀整個單元（瀏覽器內建語音）。
@@ -27,6 +37,8 @@ export default function HrWorkerLearning({ courseId, onClose }) {
   const [slow, setSlow] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const speechText = SPEECH_TEXT[lang === 'en' ? 'en' : 'zh'];
+
+  const isMandarinA1Course = /mandarin a1 course|中文a1/i.test(`${data?.course?.name || ''} ${data?.course?.certification_name || ''}`);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,8 +104,14 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     const topics = pick(unit.topics, unit.topics_en);
 
     const isUnit1 = Number(unit.position) === 1 || String(unit.name).includes('發音') || String(unit.name_en || '').toLowerCase().includes('pronunciation');
-    const unitVideoUrl = isUnit1 ? '/videos/mandarin-a1-unit-1.mp4' : null;
-    const unitAudioUrl = isUnit1 ? '/videos/mandarin-a1-unit-1.mp3' : null;
+    const isUnit2 = Number(unit.position) === 2 || String(unit.name).includes('問候') || String(unit.name_en || '').toLowerCase().includes('greetings');
+    const isUnit3 = Number(unit.position) === 3 || String(unit.name).includes('數字') || String(unit.name_en || '').toLowerCase().includes('numbers');
+    const unitPosition = Number(unit.position);
+    const isAvailableA1Video = isMandarinA1Course && Number.isInteger(unitPosition) && unitPosition >= 1 && unitPosition <= 20;
+    const videoUnitPosition = isAvailableA1Video ? unitPosition : isUnit1 ? 1 : isUnit2 ? 2 : isUnit3 ? 3 : null;
+    const unitMedia = videoUnitPosition ? unitMediaUrls(videoUnitPosition) : null;
+    const unitVideoUrl = unitMedia?.video || null;
+    const unitAudioUrl = unitMedia?.audio || null;
 
     const rate = slow ? SPEECH_RATES.slow : SPEECH_RATES.normal;
     const hasSpeakable = [...vocabulary, ...examples, ...dialogue].some(row => row.zh);
@@ -124,7 +142,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       </div>}
       {unitVideoUrl && showVideo && <div className={styles.videoCard}>
         <div className={styles.videoHeader}>
-          <h4>🎬 {lang === 'en' ? 'Mandarin A1 Unit 1 - Lesson Video (Kokoro AI Voiceover)' : '華語 A1 第 1 單元教學影片（Kokoro 本地語音合成）'}</h4>
+          <h4>🎬 {lang === 'en' ? `Mandarin A1 Unit ${unit.position} - Lesson Video (Kokoro AI Voiceover)` : `華語 A1 第 ${unit.position} 單元教學影片（Kokoro 本地語音合成）`}</h4>
           <button type="button" className={styles.button} style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => setShowVideo(false)}>✕ {lang === 'en' ? 'Close' : '關閉'}</button>
         </div>
         <video src={unitVideoUrl} controls autoPlay playsInline className={styles.videoPlayer} />
@@ -189,9 +207,13 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       <ol className={styles.unitList}>
         {group.items.map(({ unit: item, index: i }) => {
           const isDone = completed.includes(Number(item.id));
+          const itemPosition = Number(item.position);
+          const hasVideo = (isMandarinA1Course && Number.isInteger(itemPosition) && itemPosition >= 1 && itemPosition <= 20)
+            || [1, 2, 3].includes(itemPosition)
+            || ['發音', '問候', '數字'].some(term => String(item.name).includes(term));
           return <li key={item.id} className={`${styles.unitRow} ${isDone ? styles.unitDone : ''}`}>
             <span className={styles.unitNo}>{i + 1}</span>
-            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}{parseVocabularyEntries(item.vocabulary).length ? <small>{`${parseVocabularyEntries(item.vocabulary).length} 個詞彙`}</small> : null}{(Number(item.position) === 1 || String(item.name).includes('發音')) ? <span className={styles.unitBadgeVideo}>🎬 {lang === 'en' ? 'Video' : '教學影音'}</span> : null}</span>
+            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}{parseVocabularyEntries(item.vocabulary).length ? <small>{`${parseVocabularyEntries(item.vocabulary).length} 個詞彙`}</small> : null}{hasVideo ? <span className={styles.unitBadgeVideo}>🎬 {lang === 'en' ? 'Video' : '教學影音'}</span> : null}</span>
             {!data.readOnly && <span className={`${styles.badge} ${isDone ? styles.badgeDone : ''}`}>{isDone ? '已讀完' : '未讀'}</span>}
             <button type="button" className={`${styles.button} ${!isDone && item.id === progress.nextUnitId ? styles.buttonPrimary : ''}`} onClick={() => setUnitId(item.id)}>{isDone ? '複習' : item.id === progress.nextUnitId && progress.done > 0 ? '繼續學習' : '開始學習'}</button>
           </li>;

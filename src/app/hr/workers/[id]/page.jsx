@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import HrWorkerProgress from '@/components/HrWorkerProgress';
+import HrWorkerActivityLog from '@/components/HrWorkerActivityLog';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '工作者文件與進度' };
@@ -17,5 +18,10 @@ export default async function HrWorkerProgressPage({ params }) {
   const principal = await getHrPrincipal(session);
   const isPhilippinesAgency = principal?.role === 'agency' && principal.agency_type === 'philippines';
   if (principal?.role !== 'admin' && !isPhilippinesAgency) redirect('/');
-  return <HrWorkerProgress workerId={workerId} />;
+  return (
+    <>
+      <HrWorkerProgress workerId={workerId} />
+      {principal?.role === 'admin' && <HrWorkerActivityLog workerId={workerId} />}
+    </>
+  );
 }

@@ -4,6 +4,7 @@ import { getHrPrincipal } from '@/lib/hr-access';
 import { migrateOnce } from './migrate-once.js';
 import { describeAgencyOperation, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
 import { recordAgencyAction } from './hr-agency-audit.js';
+import { prepareWorkerLog, writeWorkerLog } from './hr-worker-log.js';
 
 // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
 // 紀錄失敗只會寫 log，不會影響原本的操作。
@@ -193,14 +194,20 @@ export async function recordLineAdminAction({ principal, lineUserId, action, typ
   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
 }
 
-// 包住 route handler：只在系統管理員或仲介成員操作成功（2xx）後記錄，記錄失敗不影響操作結果。
+// 包住 route handler：只在系統管理員或仲介成員操作成功（2xx）後記錄（另外工人相關的操作也會記到工人活動紀錄），記錄失敗不影響操作結果。
 export function withAdminAudit(method, handler) {
   return async function auditedHandler(request) {
     let ctx = null;
+    let workerCtx = null;
     try { ctx = await prepare(request, method); } catch (error) { console.error('hr_audit_prepare_failed', error?.name || 'Error'); }
+    // 工人會員的活動紀錄：不論是誰操作（工人本人、仲介、管理者、雇主），只要對象是某位工人就記一筆。
+    try { workerCtx = await prepareWorkerLog(request, method); } catch (error) { console.error('hr_worker_log_prepare_failed', error?.name || 'Error'); }
     const response = await handler(request);
     if (ctx && response.status >= 200 && response.status < 300) {
       try { await write(ctx, response); } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
+    }
+    if (workerCtx && response.status >= 200 && response.status < 300) {
+      try { await writeWorkerLog(workerCtx, response); } catch (error) { console.error('hr_worker_log_write_failed', error?.name || 'Error'); }
     }
     return response;
   };
