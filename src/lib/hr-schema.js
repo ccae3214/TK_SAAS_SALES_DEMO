@@ -68,6 +68,10 @@ export function ensureSchema() {
     await pool.query("ALTER TABLE hr_employers ADD COLUMN IF NOT EXISTS employer_profile JSONB NOT NULL DEFAULT '{}'::jsonb");
     await pool.query("ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS care_recipient JSONB NOT NULL DEFAULT '{}'::jsonb");
     await pool.query('ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS monthly_salary INTEGER');
+    // 工作天數（幾個月 + 幾日，最多 36 個月 + 0 日）與發文日（自發文日起 6+3 個月有效期限），皆選填。只新增欄位，不改動既有資料。
+    await pool.query('ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS work_months INTEGER');
+    await pool.query('ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS work_days INTEGER');
+    await pool.query('ALTER TABLE hr_job_orders ADD COLUMN IF NOT EXISTS issue_date DATE');
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_job_order_routes (
       id BIGSERIAL PRIMARY KEY, order_agency_id BIGINT NOT NULL REFERENCES hr_job_order_agencies(id) ON DELETE CASCADE,
       philippines_agency_id BIGINT NOT NULL REFERENCES hr_agencies(id), notes TEXT NOT NULL DEFAULT '',

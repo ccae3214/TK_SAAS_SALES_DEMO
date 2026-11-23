@@ -103,3 +103,42 @@ test('jobOrderExtrasError', () => {
   assert.equal(m.jobOrderExtrasError({jobType:'工廠技術工',monthlySalary:'29500',careRecipient:undefined}), '');
   assert.equal(m.jobOrderExtrasError({jobType:'工廠技術工',monthlySalary:'abc',careRecipient:undefined}), m.MESSAGES.salary);
 });
+test('work period（選填，幾個月 + 幾日，最多 36 個月 + 0 日）', () => {
+  assert.deepEqual(m.parseWorkPeriod('', ''), {ok:true,months:null,days:null});
+  assert.deepEqual(m.parseWorkPeriod(undefined, undefined), {ok:true,months:null,days:null});
+  assert.deepEqual(m.parseWorkPeriod('0', '0'), {ok:true,months:null,days:null});
+  assert.deepEqual(m.parseWorkPeriod('6', ''), {ok:true,months:6,days:0});
+  assert.deepEqual(m.parseWorkPeriod('', '15'), {ok:true,months:0,days:15});
+  assert.deepEqual(m.parseWorkPeriod(12, 30), {ok:true,months:12,days:30});
+  assert.deepEqual(m.parseWorkPeriod(' 35 ', ' 30 '), {ok:true,months:35,days:30});
+  assert.deepEqual(m.parseWorkPeriod('36', '0'), {ok:true,months:36,days:0});
+  assert.deepEqual(m.parseWorkPeriod('36', ''), {ok:true,months:36,days:0});
+  for (const [mo, da] of [['36','1'],['37','0'],['-1','0'],['1.5','0'],['abc','1'],['3','31'],['3','-1'],['3','x'],['100','0'],['1e1','0']]) assert.equal(m.parseWorkPeriod(mo, da).ok, false, `${mo}/${da}`);
+});
+test('issue date（選填，YYYY-MM-DD 且為真實日期）', () => {
+  assert.deepEqual(m.parseIssueDate(''), {ok:true,value:null});
+  assert.deepEqual(m.parseIssueDate(undefined), {ok:true,value:null});
+  assert.deepEqual(m.parseIssueDate('2026-11-23'), {ok:true,value:'2026-11-23'});
+  for (const bad of ['2026-02-30','2026/11/23','20261123','abc','2026-13-01']) assert.equal(m.parseIssueDate(bad).ok, false, bad);
+});
+test('newborn and share-room options are independent booleans', () => {
+  assert.deepEqual(m.CARE_NEED_OPTIONS.map(([key]) => key), ['newborn', 'shareRoom']);
+  assert.equal(m.EMPTY_CARE_RECIPIENT.newborn, false);
+  assert.equal(m.EMPTY_CARE_RECIPIENT.shareRoom, false);
+  const cleaned = m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:true,shareRoom:true});
+  assert.equal(cleaned.newborn, true);
+  assert.equal(cleaned.shareRoom, true);
+  assert.deepEqual(cleaned.conditions, ['healthy']);
+  assert.equal(m.careRecipientError({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:true}), '');
+  const loose = m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:'true',shareRoom:1});
+  assert.equal(loose.newborn, false);
+  assert.equal(loose.shareRoom, false);
+  assert.equal(m.cleanCareRecipient({}).newborn, false);
+});
+test('jobOrderExtrasError checks work period and issue date', () => {
+  const care = {relation:'mother',age:'80',gender:'female',conditions:['dementia']};
+  assert.equal(m.jobOrderExtrasError({jobType:'家庭看護',monthlySalary:'',workMonths:'3',workDays:'10',issueDate:'2026-11-23',careRecipient:care}), '');
+  assert.equal(m.jobOrderExtrasError({jobType:'工廠技術工',workMonths:'36',workDays:'1'}), m.MESSAGES.workPeriod);
+  assert.equal(m.jobOrderExtrasError({jobType:'工廠技術工',issueDate:'2026-02-30'}), m.MESSAGES.issueDate);
+  assert.equal(m.jobOrderExtrasError({jobType:'工廠技術工',monthlySalary:'abc',workMonths:'36',workDays:'1'}), m.MESSAGES.salary);
+});

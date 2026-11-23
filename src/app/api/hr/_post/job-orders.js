@@ -4,7 +4,7 @@ import pool, { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { WITHDRAWAL_MARKER } from '@/lib/hr-candidate-withdrawal';
 import { isAgencyPairCertified, assertPhilippinesAgenciesCertified } from '@/lib/hr-agency-certification-store';
-import { cleanCareRecipient, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
+import { cleanCareRecipient, jobOrderExtrasError, needsCareRecipient, parseIssueDate, parseMonthlySalary, parseWorkPeriod } from '@/lib/hr-employer-profile';
 import { clean, validId, validDate } from '../_shared';
 
 export const createJobOrder = {
@@ -19,8 +19,9 @@ export const createJobOrder = {
     const headcount = Number(body.headcount), jobType = clean(body.jobType,120);
     if (!validId(employerId) || agencyAssignments.length!==1 || !agencyIds.length || !agencyIds.every(validId) || !Number.isInteger(headcount) || headcount < 1 || headcount > 100 || !jobType || !validDate(body.expectedStartDate)) return NextResponse.json({error:'工作需求單只能指定一家所屬台灣仲介，並請填寫工作類型與需求人數。'},{status:400});
     const orderSalary=parseMonthlySalary(body.monthlySalary);
+    const orderWorkPeriod=parseWorkPeriod(body.workMonths,body.workDays),orderIssueDate=parseIssueDate(body.issueDate);
     const orderCare=needsCareRecipient(jobType)?cleanCareRecipient(body.careRecipient):{};
-    const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,careRecipient:orderCare});
+    const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,workMonths:body.workMonths,workDays:body.workDays,issueDate:body.issueDate,careRecipient:orderCare});
     if(orderExtrasError)return NextResponse.json({error:orderExtrasError},{status:400});
     if (agencyAssignments.some(item=>item.brokerMemberId!==null&&!validId(item.brokerMemberId))) return NextResponse.json({error:'業務資料格式不正確。'},{status:400});
     const employerRecord=await query('SELECT id,agency_id,status FROM hr_employers WHERE id=$1',[employerId]);
@@ -41,7 +42,7 @@ export const createJobOrder = {
       if(!employer.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到雇主資料。'},{status:404});}
       if(employer.rows[0].status!=='active'){await client.query('ROLLBACK');return NextResponse.json({error:'雇主資料目前已停用，請聯絡管理者啟用後再建立工作需求單。'},{status:409});}
       if(Number(employer.rows[0].agency_id)!==agencyIds[0]){await client.query('ROLLBACK');return NextResponse.json({error:'雇主所屬仲介已變更，請重新整理後再建立需求單。'},{status:409});}
-      const order=await client.query(`INSERT INTO hr_job_orders(employer_id,job_type,headcount,description,expected_start_date,monthly_salary,care_recipient) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING *`,[employerId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare)]);
+      const order=await client.query(`INSERT INTO hr_job_orders(employer_id,job_type,headcount,description,expected_start_date,monthly_salary,care_recipient,work_months,work_days,issue_date) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10) RETURNING *`,[employerId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare),orderWorkPeriod.months,orderWorkPeriod.days,orderIssueDate.value]);
       for(const assignment of agencyAssignments) await client.query('INSERT INTO hr_job_order_agencies(job_order_id,taiwan_agency_id,broker_member_id) VALUES($1,$2,$3)',[order.rows[0].id,assignment.agencyId,assignment.brokerMemberId]);
       await client.query('COMMIT'); return NextResponse.json(order.rows[0],{status:201});
     } catch(error){await client.query('ROLLBACK');throw error;} finally{client.release();}

@@ -1,7 +1,7 @@
 // 雇主補充資料、家庭成員、被照顧人、月薪的英文對照。
 // 由 hr-translations.jsx 的 translateHrText 串接使用（已有的翻譯優先，這裡只補新增文字）。
 import {
-  CARE_RELATION_OPTIONS, DORM_OPTIONS, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS, HEALTH_CONDITION_OPTIONS, MESSAGES,
+  CARE_NEED_OPTIONS, CARE_RELATION_OPTIONS, DORM_OPTIONS, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS, HEALTH_CONDITION_OPTIONS, MESSAGES,
 } from '@/lib/hr-employer-profile';
 
 // 選項文字依 key 對照，這樣修改選項時不會漏掉翻譯（hr-employer-profile 測試會檢查每個選項都有英文）。
@@ -12,6 +12,7 @@ export const OPTION_EN = {
     sibling: 'Sibling', parent_in_law: 'Parent-in-law', other: 'Other',
   },
   care: { self: 'The employer' },
+  careNeed: { newborn: 'The care recipient is a newborn', shareRoom: 'Must share a room with the care recipient' },
   health: {
     healthy: 'Healthy, no special care needs', bedridden: 'Bedridden', mobility_aid: 'Uses a wheelchair or walker',
     transfer: 'Needs help with transfers or turning', dementia: 'Dementia', stroke: 'Stroke or physical disability',
@@ -28,6 +29,7 @@ export const EMPLOYER_PROFILE_EN = {
   ...fromOptions(FAMILY_RELATION_OPTIONS, OPTION_EN.family),
   ...fromOptions(CARE_RELATION_OPTIONS.filter(([key]) => key === 'self'), OPTION_EN.care),
   ...fromOptions(HEALTH_CONDITION_OPTIONS, OPTION_EN.health),
+  ...fromOptions(CARE_NEED_OPTIONS, OPTION_EN.careNeed),
   ...fromOptions(DORM_OPTIONS, OPTION_EN.dorm),
 
   // 雇主補充資料
@@ -55,6 +57,15 @@ export const EMPLOYER_PROFILE_EN = {
   '被照顧人身體狀況（可複選）': 'Care recipient’s health condition (select all that apply)',
   '診斷或身體狀況補充說明': 'Diagnosis or additional health details',
 
+  // 被照顧人其他照護需求
+  '其他照護需求（可複選）': 'Other care needs (select all that apply)',
+
+  // 需求單工作天數與發文日
+  '工作天數（選填）': 'Work period (optional)', '工作天數': 'Work period', '工作天數：': 'Work period: ', '個月': 'months', '日': 'days', '最多 36 個月 + 0 日': 'Up to 36 months + 0 days',
+  '發文日（選填）': 'Issue date (optional)', '發文日': 'Issue date', '發文日：': 'Issue date: ',
+  '備註：自發文日起 6+3 個月有效期限': 'Note: valid for 6+3 months from the issue date',
+  '自發文日起 6+3 個月有效期限': 'Valid for 6+3 months from the issue date',
+
   // 需求單月薪
   '預計月薪（新臺幣，選填）': 'Expected monthly salary (NTD, optional)', '預計月薪': 'Expected monthly salary',
 
@@ -66,6 +77,8 @@ export const EMPLOYER_PROFILE_EN = {
   [MESSAGES.familyRow]: 'Household member details are incomplete. Enter each member’s relationship, age and gender.',
   [MESSAGES.company]: 'Factory employers must enter the business registration number and responsible person.',
   [MESSAGES.care]: 'Home care and domestic helper job orders require the care recipient’s relationship, age, gender and health condition.',
+  [MESSAGES.workPeriod]: 'The work period is not valid. Choose 0 to 36 months and 0 to 30 days, up to a maximum of 36 months + 0 days.',
+  [MESSAGES.issueDate]: 'The issue date is not valid. Please select the date again.',
   [MESSAGES.salary]: 'The monthly salary is not valid. Enter a whole number from 1 to 1,000,000.',
 };
 

@@ -5,7 +5,7 @@
 // 顯示文字都是中文，英文由 hr-translations-employer.js 依文字節點自動對照。
 
 import {
-  CARE_RELATION_OPTIONS, DORM_OPTIONS, EMPTY_CARE_RECIPIENT, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS,
+  CARE_NEED_OPTIONS, CARE_RELATION_OPTIONS, DORM_OPTIONS, WORK_DAYS_MAX, WORK_MONTHS_MAX, EMPTY_CARE_RECIPIENT, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS,
   HEALTH_CONDITION_OPTIONS, MAX_FAMILY_MEMBERS, cleanEmployerProfile, isHomeEmployer,
 } from '@/lib/hr-employer-profile';
 
@@ -98,6 +98,10 @@ export function CareRecipientFields({ value, onChange, cls = PORTAL_CLASSES }) {
       <legend>被照顧人身體狀況（可複選）</legend>
       {HEALTH_CONDITION_OPTIONS.map(([key, text]) => <CheckInput key={key} label={text} checked={care.conditions.includes(key)} onChange={checked => toggle(key, checked)} />)}
     </fieldset>
+    <fieldset style={{ ...FIELDSET_STYLE, gridColumn: 'auto' }}>
+      <legend>其他照護需求（可複選）</legend>
+      {CARE_NEED_OPTIONS.map(([key, text]) => <CheckInput key={key} label={text} checked={care[key] === true} onChange={checked => set({ [key]: checked })} />)}
+    </fieldset>
     <label className={cls.field || undefined}>診斷或身體狀況補充說明<textarea rows="3" maxLength={500} value={care.diagnosis} onChange={event => set({ diagnosis: event.target.value })} /></label>
   </fieldset>;
 }
@@ -107,7 +111,8 @@ export function CareRecipientSummary({ value }) {
   const care = value && typeof value === 'object' ? value : {};
   const conditions = Array.isArray(care.conditions) ? care.conditions : [];
   const hasAge = care.age !== '' && care.age !== undefined && care.age !== null;
-  if (!care.relation && !hasAge && !care.gender && conditions.length === 0) return null;
+  const needs = CARE_NEED_OPTIONS.filter(([key]) => care[key] === true);
+  if (!care.relation && !hasAge && !care.gender && conditions.length === 0 && needs.length === 0) return null;
   return <div style={{ margin: '8px 0', fontSize: 13.5 }}>
     <strong>被照顧人</strong>
     <p style={{ margin: '4px 0' }}>
@@ -116,7 +121,38 @@ export function CareRecipientSummary({ value }) {
       {care.gender && <span> · {labelOf(GENDER_OPTIONS, care.gender)}</span>}
     </p>
     {conditions.length > 0 && <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{conditions.map(key => <li key={key}>{labelOf(HEALTH_CONDITION_OPTIONS, key)}</li>)}</ul>}
+    {needs.length > 0 && <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{needs.map(([key, text]) => <li key={key}>{text}</li>)}</ul>}
     {care.diagnosis && <p style={{ margin: '4px 0' }}>{care.diagnosis}</p>}
+  </div>;
+}
+
+// 工作天數：選擇「幾個月 + 幾日」，最多 36 個月 + 0 日（選 36 個月時，日只能是 0）。選填，兩個都留空代表沒填。
+export function WorkPeriodFields({ months, days, onChange }) {
+  const atMax = String(months) === String(WORK_MONTHS_MAX);
+  const monthOptions = Array.from({ length: WORK_MONTHS_MAX + 1 }, (_, index) => index);
+  const dayOptions = Array.from({ length: atMax ? 1 : WORK_DAYS_MAX + 1 }, (_, index) => index);
+  return <label>工作天數（選填）
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <select value={months} onChange={event => onChange({ workMonths: event.target.value, workDays: String(event.target.value) === String(WORK_MONTHS_MAX) ? '0' : days })}>
+        <option value="">--</option>{monthOptions.map(value => <option key={value} value={String(value)}>{value}</option>)}
+      </select><span>個月</span>
+      <select value={atMax ? '0' : days} onChange={event => onChange({ workDays: event.target.value })}>
+        <option value="">--</option>{dayOptions.map(value => <option key={value} value={String(value)}>{value}</option>)}
+      </select><span>日</span>
+    </span>
+    <small>最多 36 個月 + 0 日</small>
+  </label>;
+}
+
+// 需求單上的工作天數與發文日摘要（唯讀）。每個片段各自是一個文字節點，英文才翻得到。
+export function OrderExtraSummary({ order }) {
+  const months = order?.work_months, days = order?.work_days;
+  const hasPeriod = (months !== null && months !== undefined) || (days !== null && days !== undefined);
+  const issue = order?.issue_date ? String(order.issue_date).slice(0, 10) : '';
+  if (!hasPeriod && !issue) return null;
+  return <div style={{ margin: '8px 0', fontSize: 13.5 }}>
+    {hasPeriod ? <p style={{ margin: '4px 0' }}><span>工作天數：</span><span>{months || 0}</span><span> 個月</span><span> · </span><span>{days || 0}</span><span> 日</span></p> : null}
+    {issue ? <p style={{ margin: '4px 0' }}><span>發文日：</span><span>{issue}</span><span> · </span><span>自發文日起 6+3 個月有效期限</span></p> : null}
   </div>;
 }
 

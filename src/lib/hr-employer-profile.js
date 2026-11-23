@@ -29,6 +29,11 @@ export const HEALTH_CONDITION_OPTIONS = [
   ['night_care', '夜間需要照護'],
   ['other', '其他（請於下方說明）'],
 ];
+// 被照顧人的其他照護需求（獨立的勾選項，不與「身體健康」互斥）。key 存進 care_recipient JSON。
+export const CARE_NEED_OPTIONS = [['newborn', '被照顧人為新生兒'], ['shareRoom', '需與被照顧人同住一房']];
+// 工作天數：幾個月 + 幾日，最多 36 個月 + 0 日。
+export const WORK_MONTHS_MAX = 36;
+export const WORK_DAYS_MAX = 30;
 export const DORM_OPTIONS = [['yes', '提供宿舍'], ['no', '不提供宿舍']];
 
 export const MESSAGES = {
@@ -40,6 +45,8 @@ export const MESSAGES = {
   company: '工廠雇主需填寫統一編號與負責人姓名。',
   care: '家庭看護或家庭幫傭需求單需填寫被照顧人的關係、年紀、性別與身體狀況。',
   salary: '預計月薪格式不正確，請填寫 1 至 1,000,000 的整數。',
+  workPeriod: '工作天數不正確，請選擇 0 至 36 個月、0 至 30 日，最多 36 個月 + 0 日。',
+  issueDate: '發文日格式不正確，請重新選擇日期。',
 };
 
 const text = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
@@ -111,7 +118,7 @@ export function employerMissingLabels(employer) {
   return missing;
 }
 
-export const EMPTY_CARE_RECIPIENT = { relation: '', age: '', gender: '', conditions: [], diagnosis: '' };
+export const EMPTY_CARE_RECIPIENT = { relation: '', age: '', gender: '', conditions: [], diagnosis: '', newborn: false, shareRoom: false };
 
 export function cleanCareRecipient(value) {
   const source = isObject(value) ? value : {};
@@ -125,6 +132,8 @@ export function cleanCareRecipient(value) {
     gender: optionKey(source.gender, GENDER_OPTIONS),
     conditions,
     diagnosis: text(source.diagnosis, 500),
+    newborn: source.newborn === true,
+    shareRoom: source.shareRoom === true,
   };
 }
 
@@ -142,9 +151,34 @@ export function parseMonthlySalary(value) {
   return number >= 1 && number <= 1000000 ? { ok: true, value: number } : { ok: false, value: null };
 }
 
-// 需求單附加欄位（月薪、被照顧人）的共用檢查；回傳第一個錯誤訊息，沒有錯誤回傳空字串。
-export function jobOrderExtrasError({ jobType, monthlySalary, careRecipient }) {
+// 工作天數（選填）：幾個月 + 幾日。回傳 { ok, months, days }；月與日都沒填（或都是 0）代表沒填，months、days 為 null。
+// 月 0–36、日 0–30，且總長度最多 36 個月 + 0 日（36 個月時日必須是 0）。
+export function parseWorkPeriod(months, days) {
+  const read = value => (typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : '');
+  const monthText = read(months), dayText = read(days);
+  if (!monthText && !dayText) return { ok: true, months: null, days: null };
+  if ((monthText && !/^\d{1,2}$/.test(monthText)) || (dayText && !/^\d{1,2}$/.test(dayText))) return { ok: false, months: null, days: null };
+  const m = monthText ? Number(monthText) : 0, d = dayText ? Number(dayText) : 0;
+  if (m > WORK_MONTHS_MAX || d > WORK_DAYS_MAX || (m === WORK_MONTHS_MAX && d > 0)) return { ok: false, months: null, days: null };
+  if (m === 0 && d === 0) return { ok: true, months: null, days: null };
+  return { ok: true, months: m, days: d };
+}
+
+// 發文日（YYYY-MM-DD，選填）。回傳 { ok, value }；空字串代表沒填，value 為 null。
+// 備註：自發文日起 6+3 個月有效期限（畫面上以文字提醒，系統不自動計算到期日）。
+export function parseIssueDate(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return { ok: true, value: null };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { ok: false, value: null };
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === raw ? { ok: true, value: raw } : { ok: false, value: null };
+}
+
+// 需求單附加欄位（月薪、工作天數、發文日、被照顧人）的共用檢查；回傳第一個錯誤訊息，沒有錯誤回傳空字串。
+export function jobOrderExtrasError({ jobType, monthlySalary, workMonths, workDays, issueDate, careRecipient }) {
   if (!parseMonthlySalary(monthlySalary).ok) return MESSAGES.salary;
+  if (!parseWorkPeriod(workMonths, workDays).ok) return MESSAGES.workPeriod;
+  if (!parseIssueDate(issueDate).ok) return MESSAGES.issueDate;
   if (needsCareRecipient(jobType)) return careRecipientError(careRecipient);
   return '';
 }

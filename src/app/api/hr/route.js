@@ -23,7 +23,7 @@ import { cleanStepDetail } from '@/lib/hr-worker-progress';
 import { collectExpiryReminders, reminderKindsForRole } from '@/lib/hr-expiry-reminders-store';
 import { LinkedRecordError, updateLinkedRecord, updateLinkedMemberProfile } from '@/lib/hr-linked-record-store';
 import { normalizePersonName } from '@/lib/person-name';
-import { cleanCareRecipient, jobOrderExtrasError, needsCareRecipient, parseMonthlySalary } from '@/lib/hr-employer-profile';
+import { cleanCareRecipient, jobOrderExtrasError, needsCareRecipient, parseIssueDate, parseMonthlySalary, parseWorkPeriod } from '@/lib/hr-employer-profile';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { ensureSchema } from '@/lib/hr-schema';
 import { dispatchPost } from './_post';
@@ -352,8 +352,9 @@ async function handlePatch(request) {
       const orderId=Number(body.id),jobType=clean(body.jobType,120),headcount=Number(body.headcount),brokerMemberId=body.brokerMemberId?Number(body.brokerMemberId):null;
       if(!validId(orderId)||!jobType||!Number.isInteger(headcount)||headcount<1||headcount>100||!validDate(body.expectedStartDate)||(brokerMemberId!==null&&!validId(brokerMemberId)))return NextResponse.json({error:'工作類型、需求人數或日期格式不正確。'},{status:400});
       const orderSalary=parseMonthlySalary(body.monthlySalary);
+      const orderWorkPeriod=parseWorkPeriod(body.workMonths,body.workDays),orderIssueDate=parseIssueDate(body.issueDate);
       const orderCare=needsCareRecipient(jobType)?cleanCareRecipient(body.careRecipient):{};
-      const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,careRecipient:orderCare});
+      const orderExtrasError=jobOrderExtrasError({jobType,monthlySalary:body.monthlySalary,workMonths:body.workMonths,workDays:body.workDays,issueDate:body.issueDate,careRecipient:orderCare});
       if(orderExtrasError)return NextResponse.json({error:orderExtrasError},{status:400});
       const client=await pool.connect();
       try{
@@ -369,7 +370,7 @@ async function handlePatch(request) {
           const broker=await client.query("SELECT id FROM hr_members WHERE id=$1 AND role='agency' AND agency_id=$2 AND active=TRUE",[brokerMemberId,order.rows[0].agency_id]);
           if(!broker.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'指定業務必須是所屬仲介的有效會員。'},{status:400});}
         }
-        const updated=await client.query(`UPDATE hr_job_orders SET job_type=$2,headcount=$3,description=$4,expected_start_date=$5,monthly_salary=$6,care_recipient=$7::jsonb,updated_at=NOW() WHERE id=$1 RETURNING *`,[orderId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare)]);
+        const updated=await client.query(`UPDATE hr_job_orders SET job_type=$2,headcount=$3,description=$4,expected_start_date=$5,monthly_salary=$6,care_recipient=$7::jsonb,work_months=$8,work_days=$9,issue_date=$10,updated_at=NOW() WHERE id=$1 RETURNING *`,[orderId,jobType,headcount,clean(body.description,3000),body.expectedStartDate||null,orderSalary.value,JSON.stringify(orderCare),orderWorkPeriod.months,orderWorkPeriod.days,orderIssueDate.value]);
         const assignment=await client.query('UPDATE hr_job_order_agencies SET broker_member_id=$3 WHERE job_order_id=$1 AND taiwan_agency_id=$2 RETURNING id',[orderId,order.rows[0].agency_id,brokerMemberId]);
         if(!assignment.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'需求單的仲介資料已變更，請重新整理後再試。'},{status:409});}
         await client.query('COMMIT');
