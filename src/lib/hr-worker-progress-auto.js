@@ -5,7 +5,6 @@
 // 在畫面上按「儲存」才會變成手動記錄。
 //
 //   match_date                 ← 這位工作者最早的案件建立日期（配工）
-//   employer_approval_received ← 雇主核准函最近一次上傳日期
 //   passport                   ← 「新護照」文件核准日期
 //   personal_documents         ← 全部必要文件核准的日期（取最晚一份的核准日期）
 //   training                   ← 報名班別的訓練開始日／最晚結訓日（結訓日已過才帶入完成日）
@@ -13,7 +12,6 @@ import { taipeiToday } from './hr-training-auto-status.js';
 
 export const AUTO_SOURCE_LABELS = {
   case_created: '依案件建立日期自動帶入',
-  approval_letter: '依核准函上傳日期自動帶入',
   passport_approved: '依護照文件核准日期自動帶入',
   documents_approved: '依必要文件全數核准的日期自動帶入',
   training_classes: '依報名班別的訓練日期自動帶入',
@@ -33,17 +31,14 @@ const earliest = list => list.filter(Boolean).sort()[0] || '';
 const latest = list => list.filter(Boolean).sort().at(-1) || '';
 
 // documents: [{ name, required, applicable, status, approved_at }]（approved_at：最近一次核准時間）
-// caseCreatedAt / approvalLetterUploadedAt: 時間或日期的陣列
+// caseCreatedAt: 時間或日期的陣列
 // classes: [{ start, end }]（YYYY-MM-DD）
 // 回傳 { [stepKey]: { started_on, completed_on, source } }
-export function deriveAutoSteps({ documents = [], caseCreatedAt = [], approvalLetterUploadedAt = [], classes = [], today = taipeiToday() } = {}) {
+export function deriveAutoSteps({ documents = [], caseCreatedAt = [], classes = [], today = taipeiToday() } = {}) {
   const result = {};
 
   const matchDate = earliest(caseCreatedAt.map(toTaipeiDate));
   if (matchDate) result.match_date = { started_on: '', completed_on: matchDate, source: 'case_created' };
-
-  const letterDate = latest(approvalLetterUploadedAt.map(toTaipeiDate));
-  if (letterDate) result.employer_approval_received = { started_on: '', completed_on: letterDate, source: 'approval_letter' };
 
   const passport = documents.find(doc => doc.name === PASSPORT_DOCUMENT && doc.applicable && doc.status === 'approved');
   const passportDate = toTaipeiDate(passport?.approved_at);

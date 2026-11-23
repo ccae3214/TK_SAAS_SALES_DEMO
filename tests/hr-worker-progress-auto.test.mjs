@@ -16,14 +16,14 @@ test('時間轉成台灣日期：UTC 晚上 8 點已經是台灣隔天', () => {
   assert.equal(toTaipeiDate('not-a-date'), '');
 });
 
-test('配工日期取最早的案件建立日期；核准函取最近一次上傳日期', () => {
+test('配工日期取最早的案件建立日期；核准函MECO領件日不自動帶入', () => {
   const auto = deriveAutoSteps({
     caseCreatedAt: ['2026-10-05T01:00:00Z', '2026-09-01T01:00:00Z'],
-    approvalLetterUploadedAt: ['2026-10-20T01:00:00Z', '2026-11-02T01:00:00Z'],
     today: '2026-11-23',
   });
   assert.deepEqual(auto.match_date, { started_on: '', completed_on: '2026-09-01', source: 'case_created' });
-  assert.deepEqual(auto.employer_approval_received, { started_on: '', completed_on: '2026-11-02', source: 'approval_letter' });
+  assert.equal(auto.employer_approval_received, undefined);
+  assert.equal(auto.employer_approval_submit, undefined);
 });
 
 test('護照：「新護照」核准才帶入，不適用或未核准都不帶入', () => {
@@ -67,7 +67,7 @@ test('手動日期永遠優先；沒有手動日期（只有備註）時才補�
 test('每個來源代碼都有中文說明', () => {
   const sources = new Set(Object.values(deriveAutoSteps({
     documents: [doc('新護照', 'approved', '2026-10-10T02:00:00Z')],
-    caseCreatedAt: ['2026-09-01'], approvalLetterUploadedAt: ['2026-10-01'], classes: [{ start: '2026-10-01', end: '2026-11-01' }], today: '2026-11-23',
+    caseCreatedAt: ['2026-09-01'], classes: [{ start: '2026-10-01', end: '2026-11-01' }], today: '2026-11-23',
   })).map(item => item.source));
   for (const source of sources) assert.ok(AUTO_SOURCE_LABELS[source], source);
 });

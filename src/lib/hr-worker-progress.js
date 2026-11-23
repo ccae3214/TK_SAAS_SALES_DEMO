@@ -4,7 +4,7 @@
 
 export const WORKER_PROGRESS_STEPS = [
   ['match_date', '配工／雇主面試日期'],
-  ['employer_approval_submit', '雇主核准函送件'], ['employer_approval_received', '收到雇主核准函'], ['approval_mailed_ph', '核准函寄送菲律賓（寄件日）'],
+  ['employer_approval_submit', '核准函MECO送件日'], ['employer_approval_received', '核准函MECO領件日'], ['approval_mailed_ph', '核准函寄送菲律賓（寄件日）'],
   ['passport', '護照確認'], ['document_arrival', '文件到達 D/C'],
   ['personal_documents', '個人文件和證件 P/D'], ['pdos', 'PDOS 台灣文化講習（1 日）'], ['medical', '體檢 MED'], ['medical_expiry', '體檢過期日'],
   ['accr_in', 'ACCR 引進權入件'], ['accr_out', 'ACCR 引進權出件'],
@@ -39,7 +39,7 @@ export const SINGLE_DATE_STEPS = new Set([
 ]);
 
 export const STEP_DATE_LABELS = {
-  match_date: '配工／面試日期', employer_approval_submit: '核准函送件日期', employer_approval_received: '收到核准函日期', approval_mailed_ph: '核准函寄件日期', passport: '護照確認日期', document_arrival: '文件到達日期',
+  match_date: '配工／面試日期', employer_approval_submit: '核准函MECO送件日', employer_approval_received: '核准函MECO領件日', approval_mailed_ph: '核准函寄件日期', passport: '護照確認日期', document_arrival: '文件到達日期',
   personal_documents: '個人文件確認日期', pdos: 'PDOS 講習日', medical: '體檢日期', medical_expiry: '體檢過期日期', accr_in: '入件日期',
   accr_out: '出件日期', contract_arrival: '到達菲律賓日期', contract_issue: '核准函發函日期', wage_attestation: '認證領出日期',
   ticket: '實際出境日期', expected_entry: '預定入境日期', actual_entry: '實際入境日期',

@@ -65,7 +65,7 @@ export async function GET(request, { params }) {
     const access = await authorize(principal, workerId);
     if (access.response) return access.response;
 
-    const [documents, submissions, workerSteps, caseSteps, health, cases, gate, docsOpen, arrived, caseDates, approvalLetters, enrolledClasses] = await Promise.all([
+    const [documents, submissions, workerSteps, caseSteps, health, cases, gate, docsOpen, arrived, caseDates, enrolledClasses] = await Promise.all([
       query('SELECT d.* FROM hr_worker_documents d WHERE d.worker_id=$1 ORDER BY d.id', [workerId]),
       query(`SELECT s.id,s.requirement_id,s.version_number,s.filename,s.note,s.submitted_by,s.created_at,
           v.decision,v.reason AS review_reason,v.reviewer,v.created_at AS reviewed_at,
@@ -87,8 +87,6 @@ export async function GET(request, { params }) {
       query(`SELECT EXISTS(SELECT 1 FROM hr_worker_documents d WHERE d.worker_id=$1 AND d.required AND d.applicable AND d.status<>'approved') AS documents_open`, [workerId]),
       workerHasArrived(query, workerId),
       optionalRows('SELECT created_at FROM hr_cases WHERE worker_id=$1', [workerId]),
-      optionalRows(`SELECT d.created_at FROM hr_employer_documents d WHERE d.doc_type='approval_letter'
-        AND d.employer_id IN (SELECT employer_id FROM hr_cases WHERE worker_id=$1)`, [workerId]),
       optionalRows(`SELECT to_char(c.training_start_date,'YYYY-MM-DD') AS start, to_char(c.training_end_date,'YYYY-MM-DD') AS "end"
         FROM hr_tc_enrollments e JOIN hr_tc_classes c ON c.id=e.class_id WHERE e.worker_id=$1`, [workerId]),
     ]);
@@ -117,7 +115,6 @@ export async function GET(request, { params }) {
     const autoSteps = deriveAutoSteps({
       documents: documents.map(item => ({ name: item.name, required: item.required, applicable: item.applicable, status: item.status, approved_at: approvedAt.get(Number(item.id)) || null })),
       caseCreatedAt: caseDates.map(item => item.created_at),
-      approvalLetterUploadedAt: approvalLetters.map(item => item.created_at),
       classes: enrolledClasses,
     });
 
