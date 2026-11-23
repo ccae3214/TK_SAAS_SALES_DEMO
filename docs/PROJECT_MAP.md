@@ -1,5 +1,22 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
+## 現行候選：仲介／訓練中心紀錄整合
+
+基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
+
+本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。遠端 CI 以精確 PR head 為準。
+
+### 本輪新增檔案
+
+- `src/app/api/hr/organization-audit/route.js`：全站管理員專用唯讀路由。
+- `src/lib/hr-organization-audit.js`：登入／角色關卡、來源白名單、綁定搜尋參數、100 筆游標查詢。
+- `src/components/HrOrganizationAuditLog.jsx`：管理員操作紀錄中的機構來源切換／查詢面板。
+- `tests/hr-organization-audit.test.mjs`：handler 權限與查詢回歸。
+- `scripts/test-organization-audit-ui.mjs`：受控 HTTP／空 CSS 的獨立 Chromium 元件檢查，不是登入 DB E2E。
+- `docs/AUDIT_LOG_REVIEW.md`：本輪自我審查、重跑與放行限制。
+- 既有 `HrManagement.jsx` 接入面板；`hr-migrations.js` 補登記既有訓練中心紀錄初始化，未新增 DDL。
+
+
 起始基底 main `809259b`，已整合／驗證 main `52b0d7c`，工作分支 `feature/hr-member-request-notifications`。使用者已批准本輪新增通知表及必要索引、僅在本機隔離 DB 套用 main 既有 schema 與虛構資料測試；先備份／實際驗證還原。已另外授權 push／更新 Draft PR #22，不含正式 LINE、secrets、main 合併或部署。
 
 ## main 52b0d7c 整合保留

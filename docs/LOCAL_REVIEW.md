@@ -1,5 +1,12 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
+## 現行候選：仲介／訓練中心紀錄整合
+
+基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
+
+本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。遠端 CI 以精確 PR head 為準。
+
+
 > 2026-11-13 現行入口：feature/hr-member-request-notifications 已整合 main 52b0d7c 並解決本機衝突，隔離 app 已重建並運作。本輪先備份／實還原，再依明確授權套用通知表與 main 既有 schema。Node 20 110／真實 DB 13／桌機與手機 E2E 16 通過，均無失敗／跳過；LINE 使用受控測試，沒有真實投遞。本次先備份／實際還原，再由 main 新增 onboarding_seen 欄位；登入後進 `/` 並有首次導覽，測試透過 UI 正常略過並確認伺服器紀錄。完整限制見 MEMBER_NOTIFICATION_REVIEW.md；更新同一 Draft PR #22，不合併 main／部署，GitHub 狀態以 PR 讀回為準。
 
 ## 本輪怎麼驗：會員送審通知

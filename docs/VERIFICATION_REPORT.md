@@ -1,5 +1,12 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+## 現行候選：仲介／訓練中心紀錄整合
+
+基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
+
+本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。遠端 CI 以精確 PR head 為準。
+
+
 ## PR #22：遵循 main 的衝突整合與驗證（目前候選）
 
 - 本輪依使用者「遵循 main」確認，整合 main `52b0d7cfda4aaf378c8232c4fcec62d34f49d789`，僅更新 feature／同一 Draft PR；不合併 main、不部署。
