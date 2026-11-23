@@ -1,5 +1,12 @@
 # TK SaaS Sales Demo
 
+## 現行候選：仲介／訓練中心紀錄整合
+
+基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
+
+本輪可重跑指令、限制及人工流程：[AUDIT_LOG_REVIEW.md](docs/AUDIT_LOG_REVIEW.md)。下方舊候選、已運作容器與 PR #22 狀態均為歷史，不代表這輪網站已啟動或正式放行。PR #62 首輪 CI 因 runner 缺 ffprobe，HR 458 通過／1 失敗、未執行雲端 build；記帳 Bot job 通過。已補 CI 安裝 ffmpeg／Python／unzip，不刪減測試；更新後 CI 以精確 PR head 為準。
+
+
 最新本機候選（2026-11-13）：`feature/hr-member-request-notifications` 已整合 main `52b0d7c` 並解決 PR #22 衝突，完成會員送審站內通知、可靠 LINE 入列／重試與可重跑會員流程。Node 20：110 通過；真實 PostgreSQL＋受控傳輸：13 通過；桌機／390px Chromium：16 通過，均無失敗／跳過。本機容器已重建並運作，入口 http://localhost:8088/hr/login 。審查與限制：[MEMBER_NOTIFICATION_REVIEW](docs/MEMBER_NOTIFICATION_REVIEW.md)；唯一操作入口：[LOCAL_REVIEW](docs/LOCAL_REVIEW.md)。
 
 本輪 schema／fixture 僅在明確授權的隔離 DB 套用，先備份並實際驗證還原；未發真實 LINE、未改 secrets；已授權更新 Draft PR [#22](https://github.com/ccae3214/TK_SAAS_SALES_DEMO/pull/22)，不合併 main／部署。CI 與可合併性以精確 PR head 讀回為準。`npm audit --omit=dev` 回報 15 項警告（含 critical），未修復、不列通過；lint／型別仍跳過。新 E2E 只代表會員閉環，不是全站驗收。本次另先備份／實際還原後套用 main 的 onboarding_seen 欄位；測試保留新版首頁與首次導覽。下方 11/11 內容與舊 Python 驗證命令為歷史，只有本輪 LOCAL_REVIEW 的指令是現行操作入口。

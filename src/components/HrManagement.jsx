@@ -30,6 +30,7 @@ import { parseResumePdf } from '@/lib/hr-resume-import';
 import HrResumeFieldControl from '@/components/HrResumeFieldControl';
 import HrDocumentReviewList from '@/components/HrDocumentReviewList';
 import HrWorkflowProgress from '@/components/HrWorkflowProgress';
+import HrOrganizationAuditLog from '@/components/HrOrganizationAuditLog';
 import { PortalStyles } from '@/components/HrMemberPortal';
 
 const NAV = [
@@ -304,7 +305,7 @@ export default function HrManagement({ actor }) {
           {active==='agencies'&&<HrAgencyDirectory data={data} update={update} edit={record=>openModal('agency',record)} remove={data.role==='admin'?record=>deleteRecord('agency',record):undefined} navigate={setActive}/>}
           {active==='members'&&<MemberList rows={filteredMembers} search={search} setSearch={setSearch} update={update} review={record=>openModal('member-role',record)} edit={record=>openModal(record.modalType||'member-profile',record)} manageAdmin={data.role==='admin'} isRootAdmin={data.isRootAdmin} deleteMember={deleteMember} trashed={data.trashedMembers||[]} restoreMember={restoreMember} purgeMember={purgeMember} saving={saving}/>}
           {active==='training'&&data.role==='admin'&&<HrTrainingCenterWorkspace/>}
-          {active==='activity'&&<>{data.role==='admin'&&<AdminAuditList/>}<ActivityList rows={data.activity}/></>}
+          {active==='activity'&&<>{data.role==='admin'&&<><AdminAuditList/><HrOrganizationAuditLog/></>}<ActivityList rows={data.activity}/></>}
           </div>
           <footer className={styles.footer}>克雷迅人力管理</footer>
         </>}
