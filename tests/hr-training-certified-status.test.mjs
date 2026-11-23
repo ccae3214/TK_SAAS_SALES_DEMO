@@ -9,14 +9,14 @@ test('結訓已取證是合法的訓練狀態', () => {
   assert.ok(statusSetFor('training').has('certified'));
 });
 
-test('訓練只能往前，可以跳過中間步驟，結訓後不能退回', () => {
+test('訓練狀態可以自由更正，不小心選到結訓已取證時能改回來', () => {
   for (const to of ['in_progress', 'completed', 'certified']) assert.ok(canTransition('training', 'not_scheduled', to), to);
   assert.ok(canTransition('training', 'in_progress', 'certified'));
   assert.ok(canTransition('training', 'completed', 'certified'));
-  assert.ok(!canTransition('training', 'completed', 'in_progress'));
-  assert.ok(!canTransition('training', 'certified', 'completed'));
-  assert.deepEqual(allowedNextStatuses('training', 'certified'), []);
-  assert.deepEqual(allowedNextStatuses('training', 'completed'), ['certified']);
+  for (const to of ['not_scheduled', 'in_progress', 'completed']) assert.ok(canTransition('training', 'certified', to), `certified → ${to}`);
+  assert.ok(canTransition('training', 'completed', 'in_progress'));
+  assert.deepEqual(allowedNextStatuses('training', 'certified'), ['not_scheduled', 'scheduled', 'in_progress', 'completed']);
+  assert.deepEqual(allowedNextStatuses('training', 'completed'), ['not_scheduled', 'scheduled', 'in_progress', 'certified']);
 });
 
 test('結訓已取證與結訓一樣會讓案件進到 OEC 與簽證階段', () => {

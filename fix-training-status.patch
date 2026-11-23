@@ -1,0 +1,57 @@
+diff --git a/src/components/HrMemberPortal.jsx b/src/components/HrMemberPortal.jsx
+--- a/src/components/HrMemberPortal.jsx
++++ b/src/components/HrMemberPortal.jsx
+@@ -5,5 +5,5 @@ PAD3
+         <td><select aria-label={`${worker.name} 訓練狀態`} value={worker.training_status} disabled={busyId === worker.id || !worker.documents_ready || worker.training_status_auto} title={worker.training_status_auto ? '已報名班別，訓練狀態依訓練結束日與取證情況自動判斷' : undefined}
+           onChange={event => { if (event.target.value !== worker.training_status) void setStatus(worker, event.target.value); }}>
+-          {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value} disabled={value !== worker.training_status && !(TRAINING_NEXT[worker.training_status] || []).includes(value)}>{TRAINING_LABELS[value] || value}</option>)}
++          {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value}>{TRAINING_LABELS[value] || value}</option>)}
+         </select></td>
+       </tr>)}</tbody>
+diff --git a/src/lib/hr-case-flow.js b/src/lib/hr-case-flow.js
+--- a/src/lib/hr-case-flow.js
++++ b/src/lib/hr-case-flow.js
+@@ -12,6 +12,6 @@ export function workflowBlockReason(workflowType, { gateClosed, arrived }) {
+ export const WORKFLOW_TRANSITIONS = {
+   medical: { not_scheduled: ['scheduled'], scheduled: ['in_progress', 'passed', 'retest', 'failed'], in_progress: ['passed', 'retest', 'failed'], retest: ['scheduled', 'passed', 'failed'], failed: ['retest'], passed: ['retest'] },
+-  // 訓練只能往前：未安排 → 訓練中 → 結訓（未取證）→ 結訓已取證；下拉選單可以跳過中間步驟，已結訓不能退回。
+-  training: { not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'], in_progress: ['completed', 'certified'], completed: ['certified'], certified: [] },
++  // 訓練狀態可以自由更正（例如不小心選到「結訓已取證」時要能改回來）：任何狀態都能改成其他狀態。
++  training: Object.fromEntries(TRAINING_STATUSES.map(from => [from, TRAINING_STATUSES.filter(to => to !== from)])),
+ };
+ 
+diff --git a/src/lib/hr-worker-progress.js b/src/lib/hr-worker-progress.js
+--- a/src/lib/hr-worker-progress.js
++++ b/src/lib/hr-worker-progress.js
+@@ -10,8 +10,6 @@ export const MEDICAL_TRANSITIONS = {
+   failed: ['retest'], passed: ['retest'],
+ };
+-export const TRAINING_TRANSITIONS = {
+-  not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'],
+-  in_progress: ['completed', 'certified'], completed: ['certified'], certified: [],
+-};
++// 訓練狀態可以自由更正：任何狀態都能改成其他狀態（與 hr-case-flow.js 的規則相同）。
++export const TRAINING_TRANSITIONS = Object.fromEntries(TRAINING_STATUSES.map(from => [from, TRAINING_STATUSES.filter(to => to !== from)]));
+ 
+ export const STATUS_LABELS = {
+diff --git a/tests/hr-training-certified-status.test.mjs b/tests/hr-training-certified-status.test.mjs
+--- a/tests/hr-training-certified-status.test.mjs
++++ b/tests/hr-training-certified-status.test.mjs
+@@ -10,12 +10,12 @@ test('結訓已取證是合法的訓練狀態', () => {
+ });
+ 
+-test('訓練只能往前，可以跳過中間步驟，結訓後不能退回', () => {
++test('訓練狀態可以自由更正，不小心選到結訓已取證時能改回來', () => {
+   for (const to of ['in_progress', 'completed', 'certified']) assert.ok(canTransition('training', 'not_scheduled', to), to);
+   assert.ok(canTransition('training', 'in_progress', 'certified'));
+   assert.ok(canTransition('training', 'completed', 'certified'));
+-  assert.ok(!canTransition('training', 'completed', 'in_progress'));
+-  assert.ok(!canTransition('training', 'certified', 'completed'));
+-  assert.deepEqual(allowedNextStatuses('training', 'certified'), []);
+-  assert.deepEqual(allowedNextStatuses('training', 'completed'), ['certified']);
++  for (const to of ['not_scheduled', 'in_progress', 'completed']) assert.ok(canTransition('training', 'certified', to), `certified → ${to}`);
++  assert.ok(canTransition('training', 'completed', 'in_progress'));
++  assert.deepEqual(allowedNextStatuses('training', 'certified'), ['not_scheduled', 'scheduled', 'in_progress', 'completed']);
++  assert.deepEqual(allowedNextStatuses('training', 'completed'), ['not_scheduled', 'scheduled', 'in_progress', 'certified']);
+ });
+ 

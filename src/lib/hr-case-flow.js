@@ -62,8 +62,8 @@ export function workflowBlockReason(workflowType, { gateClosed, arrived }) {
 
 export const WORKFLOW_TRANSITIONS = {
   medical: { not_scheduled: ['scheduled'], scheduled: ['in_progress', 'passed', 'retest', 'failed'], in_progress: ['passed', 'retest', 'failed'], retest: ['scheduled', 'passed', 'failed'], failed: ['retest'], passed: ['retest'] },
-  // 訓練只能往前：未安排 → 訓練中 → 結訓（未取證）→ 結訓已取證；下拉選單可以跳過中間步驟，已結訓不能退回。
-  training: { not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'], in_progress: ['completed', 'certified'], completed: ['certified'], certified: [] },
+  // 訓練狀態可以自由更正（例如不小心選到「結訓已取證」時要能改回來）：任何狀態都能改成其他狀態。
+  training: Object.fromEntries(TRAINING_STATUSES.map(from => [from, TRAINING_STATUSES.filter(to => to !== from)])),
 };
 
 export function canTransition(workflowType, from, to) {

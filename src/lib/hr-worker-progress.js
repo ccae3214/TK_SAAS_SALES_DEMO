@@ -86,10 +86,8 @@ export const MEDICAL_TRANSITIONS = {
   in_progress: ['passed', 'retest', 'failed'], retest: ['scheduled', 'passed', 'failed'],
   failed: ['retest'], passed: ['retest'],
 };
-export const TRAINING_TRANSITIONS = {
-  not_scheduled: ['scheduled', 'in_progress', 'completed', 'certified'], scheduled: ['in_progress', 'completed', 'certified'],
-  in_progress: ['completed', 'certified'], completed: ['certified'], certified: [],
-};
+// 訓練狀態可以自由更正：任何狀態都能改成其他狀態（與 hr-case-flow.js 的規則相同）。
+export const TRAINING_TRANSITIONS = Object.fromEntries(TRAINING_STATUSES.map(from => [from, TRAINING_STATUSES.filter(to => to !== from)]));
 
 export const STATUS_LABELS = {
   medical: { not_scheduled: '尚未安排', scheduled: '已安排', in_progress: '進行中', passed: '已通過', retest: '需複檢', failed: '未通過' },

@@ -1050,7 +1050,7 @@ function TrainingCenterRoster({ roster, refresh }) {
         <td>{TRAINING_LABELS[worker.training_status] || worker.training_status}</td>
         <td><select aria-label={`${worker.name} 訓練狀態`} value={worker.training_status} disabled={busyId === worker.id || !worker.documents_ready || worker.training_status_auto} title={worker.training_status_auto ? '已報名班別，訓練狀態依訓練結束日與取證情況自動判斷' : undefined}
           onChange={event => { if (event.target.value !== worker.training_status) void setStatus(worker, event.target.value); }}>
-          {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value} disabled={value !== worker.training_status && !(TRAINING_NEXT[worker.training_status] || []).includes(value)}>{TRAINING_LABELS[value] || value}</option>)}
+          {(TRAINING_OPTIONS.includes(worker.training_status) ? TRAINING_OPTIONS : [worker.training_status, ...TRAINING_OPTIONS]).map(value => <option key={value} value={value}>{TRAINING_LABELS[value] || value}</option>)}
         </select></td>
       </tr>)}</tbody>
     </table></div> : <p>這個分類目前沒有工人。</p>) : <p>目前沒有初審通過、可安排訓練的工人。</p>}
