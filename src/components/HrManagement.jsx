@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
-import { Activity, BriefcaseBusiness, Building2, Check, ChevronRight, CircleAlert, ClipboardList, FileCheck2, GraduationCap, HeartPulse, History, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search, UserRound, UsersRound, X } from 'lucide-react';
+import { BriefcaseBusiness, Building2, Check, ChevronRight, CircleAlert, ClipboardList, FileCheck2, GraduationCap, HeartPulse, History, LayoutDashboard, LogOut, Menu, MessageCircle, Plus, Search, UserRound, UsersRound, X } from 'lucide-react';
 import styles from './HrManagement.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageTools, translateHrText } from '@/lib/hr-translations';
@@ -16,6 +16,7 @@ import HrEmployerDocuments from '@/components/HrEmployerDocuments';
 import HrOnboardingTour from '@/components/HrOnboardingTour';
 import HrTrainingCenterWorkspace from '@/components/HrTrainingCenterWorkspace';
 import HrReminders from '@/components/HrReminders';
+import HrPendingDocuments from '@/components/HrPendingDocuments';
 import HrAdminCalendar from '@/components/HrAdminCalendar';
 import HrMemberRequestNotifications from '@/components/HrMemberRequestNotifications';
 import HrAgencyDirectory from '@/components/HrAgencyDirectory';
@@ -292,7 +293,7 @@ export default function HrManagement({ actor }) {
     </aside>
     {mobileNav&&<button aria-label="關閉導覽" className={styles.scrim} onClick={()=>setMobileNav(false)}/>}
     <main className={styles.main}>
-      <header className={styles.topbar}><button className={styles.menuButton} aria-label="開啟導覽" onClick={()=>setMobileNav(true)}><Menu size={20}/></button><div><span className={styles.breadcrumb}>克雷迅人力管理</span><span className={styles.breadcrumbSlash}>/</span><strong key={active}>{activeLabel}</strong></div><div className={styles.topActions}>{data?.role==='admin'&&<HrMemberRequestNotifications onOpen={openMemberRequest} blocked={saving||Boolean(modal)||Boolean(selectedCase)||Boolean(resumeWorker)}/>}{data&&<HrReminders variant="bell" {...reminderProps}/>}{data&&<button type="button" className={`${styles.iconButton} ${styles.reviewButton}`} aria-label="待我審核的文件" title="待我審核的文件" onClick={()=>{setActive('documents');setQuickFilter('pendingDocuments');setSearch('');}}><FileCheck2 size={17}/>{Number(data.counts?.pending_documents)>0&&<b className={styles.iconBadge}>{Number(data.counts.pending_documents)>99?'99+':data.counts.pending_documents}</b>}</button>}<button className={styles.iconButton} aria-label="重新整理資料" onClick={()=>void load()}><Activity size={17}/></button><button className={styles.topAvatar} title={actor.email}>{(actor.name||'管').slice(0,1)}</button></div></header>
+      <header className={styles.topbar}><button className={styles.menuButton} aria-label="開啟導覽" onClick={()=>setMobileNav(true)}><Menu size={20}/></button><div><span className={styles.breadcrumb}>克雷迅人力管理</span><span className={styles.breadcrumbSlash}>/</span><strong key={active}>{activeLabel}</strong></div><div className={styles.topActions}>{data?.role==='admin'&&<HrMemberRequestNotifications onOpen={openMemberRequest} blocked={saving||Boolean(modal)||Boolean(selectedCase)||Boolean(resumeWorker)}/>}{data&&<HrReminders variant="bell" {...reminderProps}/>}{data&&<HrPendingDocuments rows={data.requirements||[]} onOpenWorker={group=>{setActive('documents');setQuickFilter('pendingDocuments');setSearch(group.name);}} onOpenAll={()=>{setActive('documents');setQuickFilter('pendingDocuments');setSearch('');}}/>}<button className={styles.topAvatar} title={actor.email}>{(actor.name||'管').slice(0,1)}</button></div></header>
       <div className={styles.content}>
         {message&&<div className={`${styles.message} ${message.type==='error'?styles.messageError:styles.messageSuccess}`}><span>{message.type==='error'?<CircleAlert size={17}/>:<Check size={17}/>}</span>{message.text}<button aria-label="關閉訊息" onClick={()=>setMessage(null)}><X size={16}/></button></div>}
         <div className={styles.pageHeading} key={active}><div><p className={styles.kicker}>克雷迅人力仲介管理系統</p><h1>{activeLabel}</h1><p className={styles.subtitle}>{active==='overview'?'掌握案件、文件審核、體檢訓練與待辦進度。':`管理${activeLabel}。`}</p></div>{['cases','employers','workers','agencies','members'].includes(active)&&!(active==='members'&&data?.role==='agency'&&data?.isAgencyAdmin)&&<button className={styles.primaryButton} onClick={()=>openModal(({cases:'case',employers:'employer',workers:'worker',agencies:'agency',members:'member'})[active])}><Plus size={17}/>{({cases:'新增案件',employers:'新增雇主',workers:'新增工作者',agencies:'新增仲介',members:'新增會員帳號'})[active]}</button>}</div>
