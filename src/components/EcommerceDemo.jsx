@@ -805,7 +805,8 @@ function EcommerceDemo() {
                       />
                       <input
                         type="password"
-                        placeholder="Password"
+                        placeholder="Password (at least 10 characters)"
+                        minLength={10}
                         value={regForm.password}
                         onChange={(e) => setRegForm((prev) => ({ ...prev, password: e.target.value }))}
                         style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid #cbd5e1', fontSize: '0.95rem' }}

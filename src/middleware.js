@@ -10,6 +10,8 @@ export function middleware(request) {
     "connect-src 'self'",
     "font-src 'self' data:",
     "frame-ancestors 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
   ].join("; ");
 
   const requestHeaders = new Headers(request.headers);

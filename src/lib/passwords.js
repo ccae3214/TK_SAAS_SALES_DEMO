@@ -3,6 +3,8 @@ import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;
+// 商店會員密碼最短長度（與 HR 系統的 10 字元一致）。
+export const MIN_PASSWORD_LENGTH = 10;
 
 export async function hashPassword(password) {
   const salt = randomBytes(16);

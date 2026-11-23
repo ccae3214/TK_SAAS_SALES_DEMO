@@ -98,7 +98,7 @@ for (const [name, principal, flags, code] of [
   ['cross agency denied', { role: 'agency', agency_type: 'taiwan' }, { agency_can_manage: false }, 403],
   // 訓練的前置條件是「初審（三取二）通過」，不是全部必要文件核准。
   ['preliminary review not passed blocked', { role: 'admin' }, { gate_closed: true }, 409],
-  ['completed cannot regress', { role: 'admin' }, { current_status: 'completed' }, 409],
+  // 訓練狀態現在可以自由更正（結訓已取證能改回），所以不再有「結訓後不能退回」的案例。
 ]) {
   test(`case workflow ${name} retains data`, async () => {
     const f = fixture('', flags), before = structuredClone(f.state());
