@@ -1,5 +1,12 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+## 現行工作：雇主手機初選卡片（本機未發佈）
+
+分支 `feature/employer-swipe-shortlist`，使用者確認 A：滑動只做初選，最後確認才沿用既有選工 API。初選僅目前頁面暫存、可復原，有清單與按鈕替代操作；不新增 DB／權限或改面試錄用規則。整合前 Node 20 HR 525／Chromium 元件 52 項通過、Docker build 成功；最終整合結果見 EMPLOYER_SHORTLIST_REVIEW。尚未驗真實登入／DB E2E，未 push／PR／部署。
+
+本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作這輪網站已啟動。
+
+
 ## 現行候選：仲介／訓練中心紀錄整合
 
 基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。

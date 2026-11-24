@@ -1,5 +1,23 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
+## 現行工作：雇主手機初選卡片（本機未發佈）
+
+分支 `feature/employer-swipe-shortlist`，使用者確認 A：滑動只做初選，最後確認才沿用既有選工 API。初選僅目前頁面暫存、可復原，有清單與按鈕替代操作；不新增 DB／權限或改面試錄用規則。整合前 Node 20 HR 525／Chromium 元件 52 項通過、Docker build 成功；最終整合結果見 EMPLOYER_SHORTLIST_REVIEW。尚未驗真實登入／DB E2E，未 push／PR／部署。
+
+本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作這輪網站已啟動。
+
+本輪新增：
+- `src/components/HrEmployerShortlist.jsx`、`HrEmployerShortlist.module.css`：局部卡片／清單與待確認操作。
+- `src/lib/hr-employer-shortlist.js`：純手勢、暫存投影與經歷顯示。
+- `tests/hr-employer-shortlist.test.mjs`：單元與 Portal 接線回歸。
+- `scripts/test-employer-shortlist-ui.mjs`：實際元件／CSS 的受控 Chromium 測試。
+- `docs/EMPLOYER_SHORTLIST_REVIEW.md`：設計與自我審查／限制。
+- `docs/review/employer-shortlist-mobile-zh.png`、`employer-shortlist-mobile-en.png`：最後受控元件截圖（虛構資料，不是完整登入網站）。
+- 既有 `HrMemberPortal.jsx`：只替換雇主可選人選區並回傳既有送出結果；其他角色不改。
+
+Skills 僅安裝於 Agent profile，不放入專案或 Docker runtime。
+
+
 ## 現行候選：仲介／訓練中心紀錄整合
 
 基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。
