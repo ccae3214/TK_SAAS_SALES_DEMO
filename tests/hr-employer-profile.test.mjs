@@ -121,19 +121,16 @@ test('issue date（選填，YYYY-MM-DD 且為真實日期）', () => {
   assert.deepEqual(m.parseIssueDate('2026-11-23'), {ok:true,value:'2026-11-23'});
   for (const bad of ['2026-02-30','2026/11/23','20261123','abc','2026-13-01']) assert.equal(m.parseIssueDate(bad).ok, false, bad);
 });
-test('newborn and share-room options are independent booleans', () => {
-  assert.deepEqual(m.CARE_NEED_OPTIONS.map(([key]) => key), ['newborn', 'shareRoom']);
-  assert.equal(m.EMPTY_CARE_RECIPIENT.newborn, false);
-  assert.equal(m.EMPTY_CARE_RECIPIENT.shareRoom, false);
-  const cleaned = m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:true,shareRoom:true});
-  assert.equal(cleaned.newborn, true);
-  assert.equal(cleaned.shareRoom, true);
-  assert.deepEqual(cleaned.conditions, ['healthy']);
+test('newborn and share-room needs are in conditions and legacy values are migrated', () => {
+  assert.deepEqual(m.HEALTH_CONDITION_OPTIONS.slice(-3).map(([key]) => key), ['newborn', 'share_room', 'other']);
+  assert.deepEqual(m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:true,shareRoom:true}).conditions, ['healthy','newborn','share_room']);
+  assert.deepEqual(m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['dementia'],newborn:true,shareRoom:true}).conditions, ['dementia','newborn','share_room']);
   assert.equal(m.careRecipientError({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:true}), '');
+  assert.equal(m.careRecipientError({relation:'child',age:'0',gender:'male',conditions:['share_room']}), m.MESSAGES.care);
   const loose = m.cleanCareRecipient({relation:'child',age:'0',gender:'male',conditions:['healthy'],newborn:'true',shareRoom:1});
-  assert.equal(loose.newborn, false);
-  assert.equal(loose.shareRoom, false);
-  assert.equal(m.cleanCareRecipient({}).newborn, false);
+  assert.deepEqual(loose.conditions, ['healthy']);
+  assert.equal('newborn' in loose, false);
+  assert.equal('shareRoom' in loose, false);
 });
 test('jobOrderExtrasError checks work period and issue date', () => {
   const care = {relation:'mother',age:'80',gender:'female',conditions:['dementia']};

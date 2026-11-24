@@ -1,217 +1,116 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Rocket, Shield, Zap, BarChart3, 
-  ChevronRight, CheckCircle2, Star,
-  Globe, Layout, Sparkles, Box, Mail, Newspaper
-} from 'lucide-react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { ArrowDown, ArrowRight, BarChart3, Check, CheckCircle2, ChevronDown, Globe, Menu, Newspaper, Rocket, Shield, Sparkles, X, Zap } from 'lucide-react';
 import { DemoOverlay } from '@/components/DemoOverlay';
 import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
-import { motion as Motion, AnimatePresence } from 'framer-motion';
+import './SaasDemo.css';
 
 function SaasDemo() {
-  const { t, lang } = useLanguage(); 
-  const c = t?.saas || { nav: {}, hero: {}, dashboard: {}, features: {}, pricing: { plans: [] } };
+  const { t, lang } = useLanguage();
+  const c = t?.saas || { nav: {}, hero: {}, pricing: { plans: [] } };
   const [news, setNews] = useState([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isZh = lang === 'zh';
 
   useEffect(() => {
-    fetch('/api/news')
-      .then(res => res.json())
-      .then(data => {
-        const items = Array.isArray(data) ? data : (data?.items || []);
-        setNews(items);
-      })
-      .catch(err => {
-        console.log('News fetch error', err);
-        setNews([]);
-      });
+    fetch('/api/news').then(res => res.json()).then(data => {
+      setNews(Array.isArray(data) ? data : (data?.items || []));
+    }).catch(() => setNews([]));
   }, []);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1, 
-      transition: { 
-        staggerChildren: 0.15,
-        delayChildren: 0.3
-      } 
-    }
-  };
+  useEffect(() => {
+    document.body.classList.toggle('saas-menu-open', menuOpen);
+    return () => document.body.classList.remove('saas-menu-open');
+  }, [menuOpen]);
 
-  const itemVariants = {
-    hidden: { opacity: 0, scale: 0.95, y: 30 },
-    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } }
+  const closeMenu = () => setMenuOpen(false);
+  const navLabels = {
+    features: c.nav?.features || (isZh ? '產品特色' : 'Features'),
+    pricing: c.nav?.pricing || (isZh ? '方案價格' : 'Pricing'),
+    about: c.nav?.about || (isZh ? '最新消息' : 'Updates'),
   };
-
-  const floatingVariants = {
-    initial: { y: 0 },
-    animate: {
-      y: [-15, 15, -15],
-      transition: { repeat: Infinity, duration: 6, ease: "easeInOut" }
-    }
-  };
+  const features = [
+    { icon: Zap, title: isZh ? '自動化部署' : 'Automated delivery', copy: isZh ? '從提交到上線，一套流程管理每次發布。' : 'Move from commit to release with one dependable workflow.' },
+    { icon: Shield, title: isZh ? '企業級安全' : 'Enterprise security', copy: isZh ? '集中管理權限與環境，讓團隊安心擴展。' : 'Manage access and environments as your team grows.' },
+    { icon: BarChart3, title: isZh ? '即時掌握成效' : 'Live visibility', copy: isZh ? '關鍵指標一目了然，快速找到下一個成長機會。' : 'See the signals that help your team make its next move.' },
+  ];
 
   return (
-    <div style={{ background: '#0a0b10', minHeight: '100vh', color: '#ffffff', fontFamily: "'Outfit', sans-serif", overflowX: 'hidden' }}>
-      <DemoOverlay title={c.title || 'SaaS Platform'} />
-      <PageHeader />
-      
-      {/* Dynamic Glow Background */}
-      <div style={{ position: 'absolute', top: '-10%', left: '10%', width: '60vw', height: '60vw', background: 'radial-gradient(circle, #6366f122 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: '10%', right: '0%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, #8b5cf611 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
+    <div className="saas-page">
+      <div className="saas-demo-chrome saas-demo-picker"><DemoOverlay title={c.title || 'SaaS Platform'} /></div>
+      <div className="saas-demo-chrome saas-demo-locale"><PageHeader /></div>
 
-      {/* Header */}
-      <header style={{ 
-        display: 'flex', justifyContent: 'space-between', padding: '24px 60px',
-        alignItems: 'center', background: 'rgba(10, 11, 16, 0.7)', backdropFilter: 'blur(20px)',
-        position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid rgba(255,255,255,0.05)'
-      }}>
-        <div style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Rocket size={20} color="white" />
-          </div>
-          Nexus<span style={{ color: '#6366f1' }}>Core</span>
-        </div>
-        <nav style={{ display: 'flex', gap: '32px', fontSize: '0.9rem', fontWeight: 600, color: '#94a3b8' }}>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.features || 'Features'}</span>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.pricing || 'Pricing'}</span>
-          <span style={{ cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e => e.currentTarget.style.color = '#fff'} onMouseOut={e => e.currentTarget.style.color = '#94a3b8'}>{c.nav?.about || (lang === 'zh' ? '關於' : 'About')}</span>
+      <header className="saas-header">
+        <a className="saas-brand" href="#top" onClick={closeMenu} aria-label="NexusCore 首頁">
+          <span className="saas-brand-mark"><Rocket size={19} aria-hidden="true" /></span>
+          <span>Nexus<span>Core</span></span>
+        </a>
+        <button className="saas-menu-toggle" type="button" aria-label={menuOpen ? (isZh ? '關閉選單' : 'Close menu') : (isZh ? '開啟選單' : 'Open menu')} aria-expanded={menuOpen} aria-controls="saas-navigation" onClick={() => setMenuOpen(open => !open)}>
+          {menuOpen ? <X size={21} /> : <Menu size={21} />}
+        </button>
+        <nav id="saas-navigation" className={`saas-navigation${menuOpen ? ' is-open' : ''}`} aria-label={isZh ? '主要導覽' : 'Primary navigation'}>
+          <a href="#features" onClick={closeMenu}>{navLabels.features}</a>
+          <a href="#pricing" onClick={closeMenu}>{navLabels.pricing}</a>
+          <a href="#updates" onClick={closeMenu}>{navLabels.about}</a>
+          <a className="saas-nav-cta" href="#pricing" onClick={closeMenu}>{c.nav?.getStarted || (isZh ? '探索方案' : 'Explore plans')}<ArrowRight size={16} /></a>
         </nav>
-        <Motion.button 
-           whileHover={{ scale: 1.05 }}
-           whileTap={{ scale: 0.95 }}
-           style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', border: 'none', padding: '12px 28px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 8px 24px rgba(99, 102, 241, 0.3)' }}>
-          {c.nav?.getStarted || (lang === 'zh' ? '立即開始' : 'Get Started')}
-        </Motion.button>
+        <a className="saas-header-cta" href="#pricing">{c.nav?.getStarted || (isZh ? '探索方案' : 'Explore plans')}<ArrowRight size={16} /></a>
       </header>
 
-      {/* Hero Section */}
-      <section style={{ 
-        padding: '120px 60px 80px', textAlign: 'center', position: 'relative', 
-        zIndex: 1,maxWidth: '1200px', margin: '0 auto' 
-      }}>
-        <Motion.div initial="hidden" animate="visible" variants={containerVariants}>
-          <Motion.div variants={itemVariants} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '8px 16px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', display: 'inline-block', marginBottom: '24px' }}>
-             {c.hero?.badge || '🚀 Evolution 2.0 Just Released'}
-          </Motion.div>
-          <Motion.h1 variants={itemVariants} style={{ 
-            fontSize: 'max(4.5rem, 6vw)', fontWeight: 900, lineHeight: 1, 
-            letterSpacing: '-3px', margin: '0 0 32px' 
-          }}>
-            {c.hero?.titleTop || 'Accelerate'} <br />
-            <span style={{ background: 'linear-gradient(90deg, #6366f1, #d946ef)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>{c.hero?.titleBottom || 'Intelligence.'}</span>
-          </Motion.h1>
-          <Motion.p variants={itemVariants} style={{ fontSize: '1.4rem', color: '#94a3b8', maxWidth: '700px', margin: '0 auto 48px', lineHeight: 1.5, fontWeight: 500 }}>
-             {c.hero?.subtitle || 'Automate your entire CI/CD pipeline, manage global environments, and scale to millions of users with zero friction.'}
-          </Motion.p>
-          <Motion.div variants={itemVariants} style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-            <button style={{ background: 'white', color: '#000', border: 'none', padding: '18px 40px', borderRadius: '16px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', transition: 'all 0.25s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
-              {c.hero?.btnBuild || (lang === 'zh' ? '開始免費試用' : 'Start Free Trial')}
-            </button>
-            <button style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '18px 40px', borderRadius: '16px', fontWeight: 800, cursor: 'pointer', fontSize: '1.1rem', backdropFilter: 'blur(10px)' }}>
-              {c.hero?.btnWatch || (lang === 'zh' ? '查看演示影片' : 'Watch Demo')}
-            </button>
-          </Motion.div>
-        </Motion.div>
-
-        {/* Dashboard Preview Animation */}
-        <Motion.div 
-           initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.8 }}
-           style={{ marginTop: '100px', position: 'relative' }}>
-           <div style={{ 
-             background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '40px', 
-             boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)',
-             overflow: 'hidden', backdropFilter: 'blur(20px)'
-           }}>
-             <img src="https://images.unsplash.com/photo-1551288049-bbbda5366ef9?q=80&w=2000" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '32px', filter: 'hue-rotate(240deg)' }} alt="" />
-           </div>
-           
-           {/* Floating Cards Over Image */}
-           <Motion.div variants={floatingVariants} initial="initial" animate="animate" style={{ position: 'absolute', top: '10%', left: '-10%', background: 'rgba(15, 23, 42, 0.9)', padding: '24px', borderRadius: '24px', border: '1px solid #6366f155', backdropFilter: 'blur(30px)', width: '220px', textAlign: 'left', zIndex: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                 <div style={{ width: 40, height: 40, background: '#6366f122', color: '#6366f1', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Zap size={18} /></div>
-                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{lang === 'zh' ? '效率' : 'Efficiency'}</div>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '4px' }}>+482%</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{lang === 'zh' ? '效能提升' : 'Performance Growth'}</div>
-           </Motion.div>
-
-           <Motion.div variants={floatingVariants} initial="initial" animate="animate" transition={{ duration: 5 }} style={{ position: 'absolute', bottom: '20%', right: '-5%', background: 'rgba(15, 23, 42, 0.9)', padding: '24px', borderRadius: '24px', border: '1px solid #d946ef55', backdropFilter: 'blur(30px)', width: '220px', textAlign: 'left', zIndex: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                 <div style={{ width: 40, height: 40, background: '#d946ef22', color: '#d946ef', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={18} /></div>
-                 <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>{lang === 'zh' ? '安全' : 'Security'}</div>
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, marginBottom: '4px' }}>100%</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{lang === 'zh' ? '資料保護' : 'Data Protected'}</div>
-           </Motion.div>
-        </Motion.div>
-      </section>
-
-      {/* News Section with Stagger */}
-      <section style={{ padding: '100px 60px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-        <Motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px', color: '#6366f1' }}>
-             <Newspaper size={20} /> <span style={{ fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', fontSize: '0.85rem' }}>{lang === 'zh' ? '公告' : 'Announcements'}</span>
+      <main id="top">
+        <section className="saas-hero">
+          <div className="saas-hero-copy">
+            <div className="saas-eyebrow"><Sparkles size={15} />{c.hero?.badge || (isZh ? '為成長中的團隊打造' : 'BUILT FOR TEAMS IN MOTION')}</div>
+            <h1>{c.hero?.titleTop || (isZh ? '讓團隊專注' : 'Make room for')}<br /><span>{c.hero?.titleBottom || (isZh ? '創造下一步。' : 'what comes next.')}</span></h1>
+            <p>{c.hero?.subtitle || (isZh ? '把部署、環境與成效放進同一個工作平台。減少繁瑣流程，讓每個好點子更快成為成果。' : 'Bring delivery, environments, and insights together. Spend less time on process and more time moving good ideas forward.')}</p>
+            <div className="saas-hero-actions">
+              <a className="saas-button saas-button-primary" href="#pricing">{c.hero?.btnBuild || (isZh ? '免費開始體驗' : 'Start your free trial')}<ArrowRight size={17} /></a>
+              <a className="saas-button saas-button-secondary" href="#product-preview">{c.hero?.btnWatch || (isZh ? '看看產品如何運作' : 'See how it works')}<ArrowDown size={16} /></a>
+            </div>
+            <div className="saas-proof"><div className="saas-avatar-stack"><span>A</span><span>M</span><span>J</span><span>+</span></div><span>{isZh ? '深受 2,000+ 個高效團隊信賴' : 'Trusted by 2,000+ productive teams'}</span></div>
           </div>
-          <h2 style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '48px', letterSpacing: '-1.5px' }}>{lang === 'zh' ? '最新動態' : "What's New"}</h2>
-        </Motion.div>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', maxWidth: '1200px', margin: '0 auto' }}>
-          {news.slice(0, 3).map((item, i) => (
-            <Motion.div 
-               key={i} 
-               initial={{ opacity: 0, x: i % 2 === 0 ? -30 : 30 }} 
-               whileInView={{ opacity: 1, x: 0 }} 
-               viewport={{ once: true }}
-               transition={{ duration: 0.8, delay: i * 0.1 }}
-               style={{ 
-                 background: 'rgba(255,255,255,0.02)', padding: '40px', borderRadius: '30px', 
-                 textAlign: 'left', border: '1px solid rgba(255,255,255,0.05)', position: 'relative', overflow: 'hidden' 
-               }}
-            >
-               <div style={{ position: 'absolute', top: 0, right: 0, width: 60, height: 60, background: 'linear-gradient(135deg, #6366f133, transparent)', borderRadius: '0 0 0 60px' }} />
-               <div style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 800, marginBottom: '16px' }}>{new Date(item.date).toLocaleDateString()}</div>
-               <h3 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '16px' }}>{item.title}</h3>
-               <p style={{ color: '#94a3b8', lineHeight: 1.6 }}>{item.content}</p>
-            </Motion.div>
-          ))}
-        </div>
-      </section>
 
-      {/* Pricing Section - Staggered Cards */}
-      <section style={{ padding: '120px 60px', background: '#07080d' }}>
-         <div style={{ textAlign: 'center', marginBottom: '80px' }}>
-            <h2 style={{ fontSize: '3.5rem', fontWeight: 950, letterSpacing: '-2px' }}>{c.pricing?.title || 'Simple Pricing'}</h2>
-            <p style={{ color: '#64748b', fontSize: '1.25rem', marginTop: '16px' }}>{c.pricing?.subtitle || 'Scale your intelligence with our flexible plans.'}</p>
-         </div>
-         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px', maxWidth: '1100px', margin: '0 auto' }}>
-            {c.pricing.plans.map((plan, i) => (
-               <Motion.div 
-                  key={i} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                  style={{ 
-                    background: i === 1 ? 'linear-gradient(180deg, #1e1b4b 0%, #0a0b10 100%)' : 'rgba(255,255,255,0.02)', 
-                    padding: '48px', borderRadius: '32px', border: i === 1 ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.05)',
-                    position: 'relative'
-                  }}>
-                  {i === 1 && <div style={{ position: 'absolute', top: 20, right: 20, background: '#6366f1', color: 'white', padding: '6px 14px', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 900 }}>{plan.popular}</div>}
-                  <div style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '8px' }}>{plan.name}</div>
-                  <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '32px' }}>{plan.price}<span style={{ fontSize: '1rem', color: '#64748b' }}>/mo</span></div>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 48px' }}>
-                     {plan.features.map((f, j) => (
-                        <li key={j} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#94a3b8', fontSize: '0.95rem' }}>
-                           <CheckCircle2 size={18} color="#6366f1" /> {f}
-                        </li>
-                     ))}
-                  </ul>
-                  <button style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: i === 1 ? '#6366f1' : 'white', color: i === 1 ? 'white' : 'black', fontWeight: 800, fontSize: '1rem' }}>
-                    {plan.btn}
-                  </button>
-               </Motion.div>
-            ))}
-         </div>
-      </section>
+          <div id="product-preview" className="saas-preview" aria-label={isZh ? 'NexusCore 產品介面預覽' : 'NexusCore product preview'}>
+            <div className="saas-preview-glow" />
+            <div className="saas-dashboard">
+              <div className="saas-dashboard-top"><div className="saas-dots"><i /><i /><i /></div><span>NEXUSCORE <b>/ OVERVIEW</b></span><span className="saas-live"><i /> LIVE</span></div>
+              <div className="saas-dashboard-body">
+                <aside className="saas-dashboard-side"><span className="side-active"><BarChart3 size={17} /></span><span><Zap size={17} /></span><span><Shield size={17} /></span><span><Globe size={17} /></span></aside>
+                <div className="saas-dashboard-content">
+                  <div className="saas-dash-title"><div><small>{isZh ? '工作區總覽' : 'WORKSPACE OVERVIEW'}</small><h2>{isZh ? '早安，團隊 👋' : 'Good morning, team 👋'}</h2></div><span className="saas-date">{isZh ? '過去 30 天' : 'Last 30 days'} <ChevronDown size={13} /></span></div>
+                  <div className="saas-metric-grid">
+                    <div className="saas-metric"><span>{isZh ? '部署次數' : 'Deployments'}</span><strong>1,284</strong><small>↗ 18.6%</small><div className="saas-sparkline line-a" /></div>
+                    <div className="saas-metric"><span>{isZh ? '成功率' : 'Success rate'}</span><strong>99.8%</strong><small>↗ 2.4%</small><div className="saas-sparkline line-b" /></div>
+                  </div>
+                  <div className="saas-chart"><div className="saas-chart-head"><div><small>{isZh ? '發布活動' : 'RELEASE ACTIVITY'}</small><strong>{isZh ? '穩定成長中' : 'Growing steadily'}</strong></div><span>+24.8%</span></div><div className="saas-chart-bars">{[36,53,42,65,48,72,57,82,64,90,70,100,75,88,63,96,78,110,84,98,74,120,92,108].map((height, i) => <i key={i} style={{ height: `${height}px` }} />)}</div><div className="saas-chart-axis"><span>01</span><span>07</span><span>14</span><span>21</span><span>30</span></div></div>
+                  <div className="saas-deploy-row"><span className="saas-deploy-icon"><Check size={15} /></span><span><b>{isZh ? '正式環境部署成功' : 'Production deployed'}</b><small>{isZh ? '版本 v2.8.4 · 剛剛' : 'Version v2.8.4 · just now'}</small></span><span className="saas-deploy-status">{isZh ? '正常' : 'Healthy'}</span></div>
+                </div>
+              </div>
+            </div>
+            <div className="saas-float-card"><span className="saas-float-icon"><Zap size={17} /></span><span><small>{isZh ? '本月效率提升' : 'EFFICIENCY GAIN'}</small><strong>+48.2%</strong></span><span className="saas-float-up">↗</span></div>
+          </div>
+          <a className="saas-scroll-hint" href="#features">{isZh ? '向下探索' : 'SCROLL TO EXPLORE'}<span /></a>
+        </section>
 
-      {/* Footer... (keep as is or similar) */}
+        <section id="features" className="saas-features section-shell">
+          <div className="saas-section-heading"><span className="saas-section-kicker">{isZh ? '更順暢的工作方式' : 'A BETTER WAY TO BUILD'}</span><h2>{isZh ? '把複雜留給平台，' : 'Less complexity.'}<br /><span>{isZh ? '把時間留給成長。' : 'More momentum.'}</span></h2><p>{isZh ? '從日常部署到團隊擴展，重要工具都在一個清晰的工作空間裡。' : 'From everyday delivery to the next stage of growth, everything your team needs in one clear workspace.'}</p></div>
+          <div className="saas-feature-grid">{features.map(({ icon: Icon, title, copy }, i) => <article className="saas-feature-card" key={title}><span className={`saas-feature-icon feature-${i}`}><Icon size={21} /></span><h3>{title}</h3><p>{copy}</p><a href="#pricing">{isZh ? '了解更多' : 'Learn more'}<ArrowRight size={15} /></a></article>)}</div>
+        </section>
+
+        <section id="updates" className="saas-updates section-shell">
+          <div className="saas-inline-heading"><div><span className="saas-section-kicker"><Newspaper size={14} />{isZh ? '平台快訊' : 'THE LATEST'}</span><h2>{isZh ? '產品最新動態' : 'What’s new'}</h2></div><a href="#pricing">{isZh ? '探索所有功能' : 'Explore the platform'}<ArrowRight size={16} /></a></div>
+          {news.length ? <div className="saas-news-grid">{news.slice(0, 3).map((item, i) => <article className="saas-news-card" key={item.id || i}><span>{item.date ? new Date(item.date).toLocaleDateString(isZh ? 'zh-TW' : 'en-US') : (isZh ? '最新消息' : 'LATEST UPDATE')}</span><h3>{item.title}</h3><p>{item.content}</p></article>)}</div> : <div className="saas-news-empty"><span className="saas-news-symbol"><Sparkles size={20} /></span><span>{isZh ? '新功能與平台消息即將在此更新。' : 'Product news and updates will show up here.'}</span></div>}
+        </section>
+
+        <section id="pricing" className="saas-pricing section-shell">
+          <div className="saas-section-heading"><span className="saas-section-kicker">{isZh ? '簡單透明的價格' : 'SIMPLE, CLEAR PRICING'}</span><h2>{c.pricing?.title || (isZh ? '選擇適合你的方案' : 'Find your fit.')}</h2><p>{c.pricing?.subtitle || (isZh ? '從小型團隊到大型組織，找到合適的起點。' : 'The right starting point for teams of every size.')}</p></div>
+          <div className="saas-plan-grid">{(c.pricing?.plans || []).map((plan, i) => <article className={`saas-plan-card${i === 1 ? ' is-popular' : ''}`} key={`${plan.name}-${i}`}>{i === 1 && <span className="saas-popular-label">{plan.popular || (isZh ? '最受歡迎' : 'MOST POPULAR')}</span>}<h3>{plan.name}</h3><p className="saas-plan-description">{isZh ? '適合想要穩定擴展的團隊' : 'For teams ready to grow with confidence'}</p><div className="saas-plan-price">{plan.price}<span> / {isZh ? '月' : 'mo'}</span></div><ul>{(plan.features || []).map((feature, j) => <li key={`${feature}-${j}`}><CheckCircle2 size={17} />{feature}</li>)}</ul><a className="saas-plan-button" href="mailto:sales@example.com">{plan.btn || (isZh ? '選擇此方案' : 'Choose plan')}<ArrowRight size={16} /></a></article>)}</div>
+        </section>
+      </main>
+
+      <footer className="saas-footer"><a className="saas-brand" href="#top"><span className="saas-brand-mark"><Rocket size={18} /></span><span>Nexus<span>Core</span></span></a><span>© 2026 NexusCore. {isZh ? '為更好的工作而打造。' : 'Built for better work.'}</span><a href="#top">{isZh ? '回到頂端 ↑' : 'Back to top ↑'}</a></footer>
     </div>
   );
 }

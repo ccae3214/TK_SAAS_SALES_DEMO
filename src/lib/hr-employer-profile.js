@@ -16,7 +16,7 @@ export const FAMILY_RELATION_OPTIONS = [
   ['grandparent', '祖父母'], ['sibling', '兄弟姊妹'], ['parent_in_law', '配偶的父母'], ['other', '其他'],
 ];
 export const CARE_RELATION_OPTIONS = [['self', '雇主本人'], ...FAMILY_RELATION_OPTIONS];
-// 選項依指南「看護訓練重點」整理：基礎照顧、移位與翻身、感染控制、失智症互動、緊急處理。
+// 需求單的被照顧人身體狀況與照護安排選項。
 export const HEALTH_CONDITION_OPTIONS = [
   ['healthy', '身體健康，無特殊照護需求'],
   ['bedridden', '臥床'],
@@ -27,10 +27,15 @@ export const HEALTH_CONDITION_OPTIONS = [
   ['tube_care', '管路照護（鼻胃管、尿管等）'],
   ['infection_control', '需感染控制照護'],
   ['night_care', '夜間需要照護'],
+  ['newborn', '被照顧人為新生兒'],
+  ['share_room', '需與被照顧人同住一房'],
   ['other', '其他（請於下方說明）'],
 ];
-// 被照顧人的其他照護需求（獨立的勾選項，不與「身體健康」互斥）。key 存進 care_recipient JSON。
-export const CARE_NEED_OPTIONS = [['newborn', '被照顧人為新生兒'], ['shareRoom', '需與被照顧人同住一房']];
+// 新生兒與同房需求和健康狀況放在同一組顯示，但仍可與「身體健康」並選。
+export const CARE_RECIPIENT_CONTEXT_KEYS = new Set(['newborn', 'share_room']);
+export const REQUIRED_CARE_STATUS_KEYS = new Set(
+  HEALTH_CONDITION_OPTIONS.map(([key]) => key).filter(key => !CARE_RECIPIENT_CONTEXT_KEYS.has(key))
+);
 // 工作天數：幾個月 + 幾日，最多 36 個月 + 0 日。
 export const WORK_MONTHS_MAX = 36;
 export const WORK_DAYS_MAX = 30;
@@ -118,28 +123,32 @@ export function employerMissingLabels(employer) {
   return missing;
 }
 
-export const EMPTY_CARE_RECIPIENT = { relation: '', age: '', gender: '', conditions: [], diagnosis: '', newborn: false, shareRoom: false };
+export const EMPTY_CARE_RECIPIENT = { relation: '', age: '', gender: '', conditions: [], diagnosis: '' };
 
 export function cleanCareRecipient(value) {
   const source = isObject(value) ? value : {};
   const keys = new Set(HEALTH_CONDITION_OPTIONS.map(([key]) => key));
-  let conditions = Array.isArray(source.conditions) ? [...new Set(source.conditions.filter(key => keys.has(key)))] : [];
-  // 「身體健康」與其他狀況互斥；兩者同時出現時，以具體的狀況為準。
-  if (conditions.length > 1) conditions = conditions.filter(key => key !== 'healthy');
+  const conditions = Array.isArray(source.conditions) ? source.conditions.filter(key => keys.has(key)) : [];
+  // 舊需求單把新生兒與同房需求存成獨立布林值；讀取時併入 conditions，儲存時使用新格式。
+  if (source.newborn === true) conditions.push('newborn');
+  if (source.shareRoom === true) conditions.push('share_room');
+  let normalizedConditions = [...new Set(conditions)];
+  // 「身體健康」與具體健康狀況互斥；新生兒與同房需求可和「身體健康」並選。
+  if (normalizedConditions.some(key => key !== 'healthy' && REQUIRED_CARE_STATUS_KEYS.has(key))) {
+    normalizedConditions = normalizedConditions.filter(key => key !== 'healthy');
+  }
   return {
     relation: optionKey(source.relation, CARE_RELATION_OPTIONS),
     age: intInRange(source.age, 0, 120),
     gender: optionKey(source.gender, GENDER_OPTIONS),
-    conditions,
+    conditions: normalizedConditions,
     diagnosis: text(source.diagnosis, 500),
-    newborn: source.newborn === true,
-    shareRoom: source.shareRoom === true,
   };
 }
 
 export function careRecipientError(value) {
   const cleaned = cleanCareRecipient(value);
-  return cleaned.relation && cleaned.age && cleaned.gender && cleaned.conditions.length ? '' : MESSAGES.care;
+  return cleaned.relation && cleaned.age && cleaned.gender && cleaned.conditions.some(key => REQUIRED_CARE_STATUS_KEYS.has(key)) ? '' : MESSAGES.care;
 }
 
 // 月薪（新臺幣，選填）。回傳 { ok, value }；空字串代表沒填，value 為 null。

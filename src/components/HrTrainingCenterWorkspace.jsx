@@ -128,6 +128,13 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
     } catch (error) { setMessage({ type: 'error', text: error.message }); setData(current => current || { centers: [], center: null }); }
   }, [self]);
   useEffect(() => { void load(''); }, [load]);
+  useEffect(() => {
+    const openReminderTarget = event => {
+      if (event.detail?.tab === 'arrangement') setTab('arrangement');
+    };
+    window.addEventListener('hr:open-training-center-tab', openReminderTarget);
+    return () => window.removeEventListener('hr:open-training-center-tab', openReminderTarget);
+  }, []);
   useEffect(() => { if (learningCourseId) learningRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); }, [learningCourseId]);
 
   async function request(method, body, query = '') {

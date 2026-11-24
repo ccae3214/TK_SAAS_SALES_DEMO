@@ -179,6 +179,32 @@
 @media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.smallPrimary,.smallButton,.statCard,.nav button{transition:none}}
 .app :is(h1,h2,h3,h4,h5,h6){font-family:inherit}
 .panelHeader h2,.drawerSection h3,.drawerSectionHeader h3{letter-spacing:0}
+
+.desktopRecordTable{min-width:0}
+.mobileRecords{display:none}
+.mobileRecordItem{min-width:0;list-style:none}
+.mobileRecordCard{min-width:0;padding:14px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#fff,#fbfdfc)}
+.mobileRecordSummary{display:block;list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mobileRecordSummary::-webkit-details-marker{display:none}
+.mobileRecordSummary:focus-visible{outline:3px solid rgba(31,131,102,.28);outline-offset:3px;border-radius:8px}
+.mobileRecordHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.mobileRecordName{min-width:0;color:var(--ink);font-size:15px;font-weight:800;line-height:1.4;overflow-wrap:anywhere}
+.mobileDisclosureIcon{flex:none;margin-left:auto;color:#176b54;font-size:18px;line-height:1;transition:transform .16s ease}
+.mobileRecordCard[open] .mobileDisclosureIcon{transform:rotate(180deg)}
+.mobileRecordDetails{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin:14px 0}
+.mobileRecordField{display:block;min-width:0}
+.mobileRecordLabel{display:block;color:var(--muted);font-size:11px;font-weight:700}
+.mobileRecordValue{display:block;margin-top:3px;color:var(--ink);font-size:13px;line-height:1.5;font-weight:600;overflow-wrap:anywhere}
+.mobileRecordActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #edf2ee}
+.mobileRecordActions .smallButton{flex:1 1 105px;min-height:44px;height:auto;padding:8px 10px;white-space:normal;line-height:1.35}
+.deletedTag{flex:none;padding:5px 9px;border-radius:999px;background:#fff0ed;color:#a44c3d;font-size:11px;font-weight:800}
+@media(max-width:720px){
+  .app{min-height:100svh}
+  .topbar{position:relative;top:auto}
+  .desktopRecordTable{display:none}
+  .mobileRecords{display:grid;gap:10px;margin:0;padding:12px;list-style:none}
+}
+
 /* Resume field controls shared with the worker portal (HrResumeFieldControl) */
 .resumeChoiceField,.resumeRadioField{min-width:0;margin:0 0 13px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
 .resumeChoiceField legend,.resumeRadioField legend{padding:0 6px;color:#53636a;font-size:11px;font-weight:700}
@@ -218,6 +244,41 @@
 .jobOrderWrap{overflow:auto}
 .jobOrderTable{min-width:1260px}
 .jobOrderTable th:last-child,.jobOrderTable td:last-child{position:sticky;right:0;z-index:1;background:#fff;box-shadow:-6px 0 10px rgba(15,45,33,.07)}
+
+/* Shared mobile rhythm for the HR workspace */
+@media(max-width:720px){
+  .app{min-height:100dvh;background:#f3f6f4}
+  .topbar{position:sticky;top:0;z-index:10;height:60px;padding-inline:14px;background:rgba(255,255,255,.94);backdrop-filter:blur(12px)}
+  .content{padding:20px 16px 28px}
+  .pageHeading{gap:12px;margin-bottom:18px}
+  .pageHeading h1{font-size:22px;line-height:1.3;text-wrap:balance}
+  .subtitle{max-width:36ch;font-size:12px;line-height:1.55}
+  .statGrid{gap:10px;margin-bottom:14px}
+  .statCard{min-height:120px;padding:14px;border-radius:15px;border-color:#e0e8e3;box-shadow:0 2px 8px rgba(20,55,39,.035)}
+  .statIcon{width:32px;height:32px;border-radius:10px}
+  .statCard p{margin-top:10px;font-size:11px;line-height:1.4}
+  .statCard>strong{font-size:23px;line-height:1.2}
+  .overviewGrid,.workspaceCanvas{gap:12px}
+  .panel{border-radius:15px;border-color:#e0e8e3;box-shadow:0 2px 9px rgba(20,55,39,.035)}
+  .panelHeader{min-height:58px;padding:14px 15px}
+  .panelHeader h2{font-size:14px}
+  .empty{min-height:170px;padding:22px}
+  .listToolbar{gap:8px;padding:12px}
+  .searchBox{height:44px;border-radius:11px;background:#fff}
+  .primaryButton,.secondaryButton{min-height:44px;height:auto;border-radius:11px;padding:0 14px}
+  .smallPrimary,.smallButton,.iconButton{min-height:40px;height:auto;border-radius:10px}
+  .footer{padding:15px 2px;line-height:1.5}
+  .modalBackdrop{align-items:flex-end;padding:0}
+  .modal{width:100%;max-height:92dvh;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));border-radius:20px 20px 0 0}
+  .modalHeader{position:sticky;top:-18px;padding:5px 0 13px;background:#fff}
+  .modalActions{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom,0px));padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:#fff}
+}
+@media(max-width:420px){
+  .content{padding-inline:14px}
+  .statCard{min-height:116px;padding:12px}
+  .pageHeading>.primaryButton{align-self:stretch;width:100%}
+  .caseMobileCard,.jobOrderCard{border-radius:15px}
+}
 .jobOrderTable th:last-child{z-index:3;background:#f6faf7}
 .jobOrderTable tbody tr:hover td:last-child{background:#f6faf8}
 @media(max-width:720px){.workspaceCanvas{gap:12px;min-height:max(400px,min(560px,calc(100svh - 260px)))}}

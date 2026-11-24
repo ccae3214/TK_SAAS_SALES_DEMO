@@ -9,6 +9,7 @@ import HrMemberNavScroll from '@/components/HrMemberNavScroll';
 import '@/components/hr-member-mobile-nav.css';
 import '@/components/hr-admin-mobile-nav.css';
 import '@/components/hr-call.css';
+import '@/components/hr-scrollbars.css';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '克雷迅人力仲介管理系統' };

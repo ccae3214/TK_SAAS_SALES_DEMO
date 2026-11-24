@@ -28,7 +28,7 @@ const COPY = {
   },
 };
 
-export default function HrEmployerShortlist({ order, workers, agencies = [], onProfile, onDownload, downloading = false, onConfirm }) {
+export default function HrEmployerShortlist({ order, workers, onProfile, onDownload, downloading = false, onConfirm }) {
   const { lang } = useLanguage();
   const t = COPY[lang === 'en' ? 'en' : 'zh'];
   const [history, setHistory] = useState([]);
@@ -102,7 +102,6 @@ export default function HrEmployerShortlist({ order, workers, agencies = [], onP
   const facts = item => {
     const profile = item.resume_profile || {};
     return <dl className={styles.facts}>
-      <div><dt>{t.agency}</dt><dd>{agencies.find(agency => String(agency.id) === String(item.agency_id))?.name || t.unknown}</dd></div>
       <div><dt>{t.language}</dt><dd>{profile.languageOptions || t.unknown}</dd></div>
       <div><dt>{t.experience}</dt><dd>{shortlistExperience(profile) || t.unknown}</dd></div>
       {profile.coursesCompleted && <div><dt>{t.training}</dt><dd>{profile.coursesCompleted}</dd></div>}
