@@ -44,6 +44,11 @@ services:
       # Only these LINE IDs can manage other system administrator accounts.
       - HR_ADMIN_LINE_USER_IDS=${HR_ADMIN_LINE_USER_IDS:-}
       - HR_DOCUMENT_ENCRYPTION_KEY=${HR_DOCUMENT_ENCRYPTION_KEY:-}
+      # 聊天室通話。簽章密鑰預設沿用 NEXTAUTH_SECRET；TURN 沒設定時只用 STUN（兩邊網路無法直連時會連不上）。
+      - HR_CALL_SECRET=${HR_CALL_SECRET:-}
+      - HR_CALL_STUN_URLS=${HR_CALL_STUN_URLS:-stun:stun.l.google.com:19302}
+      - HR_CALL_TURN_URLS=${HR_CALL_TURN_URLS:-}
+      - HR_CALL_TURN_SECRET=${HR_CALL_TURN_SECRET:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-saas_demo}
     depends_on:
       postgres:
@@ -88,6 +93,55 @@ services:
       - ZONE=${CLOUDFLARE_ZONE:-kolecion.cc}
       - SUBDOMAIN=${CLOUDFLARE_SUBDOMAIN:-}
       - PROXIED=${CLOUDFLARE_PROXIED:-true}
+      - RRTYPE=A
+      - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
+    restart: unless-stopped
+
+  # 通話的 TURN 中繼伺服器（coturn，選配：docker-compose --profile turn up -d）。
+  # 兩邊的網路無法直連時（例如手機行動網路），聲音與影像會經過這裡轉送。
+  # 需要：1) 路由器把 3478（TCP 與 UDP）和 49160-49260（UDP）轉到這台電腦、防火牆放行；
+  #       2) turn 網域是 DNS only（不能經 Cloudflare 代理，它不轉送 UDP）；
+  #       3) .env 設定 HR_CALL_TURN_SECRET、TURN_EXTERNAL_IP（對外 IP）與 HR_CALL_TURN_URLS。
+  coturn:
+    image: coturn/coturn:latest
+    profiles: ["turn"]
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49160-49260:49160-49260/udp"
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--realm=${TURN_REALM:-kolecion.cc}"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${HR_CALL_TURN_SECRET:-}"
+      - "--external-ip=${TURN_EXTERNAL_IP:-}"
+      - "--listening-port=3478"
+      - "--min-port=49160"
+      - "--max-port=49260"
+      - "--fingerprint"
+      - "--no-cli"
+      - "--no-tls"
+      - "--no-dtls"
+      - "--no-multicast-peers"
+      - "--user-quota=12"
+      - "--total-quota=100"
+      # 不讓 TURN 被拿來連到內部網路
+      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
+      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
+      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
+      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
+    restart: unless-stopped
+
+  # turn.kolecion.cc 的 DDNS（DNS only，不經 Cloudflare 代理）。
+  cloudflare-ddns-turn:
+    image: oznu/cloudflare-ddns:latest
+    profiles: ["turn"]
+    environment:
+      - API_KEY=${CLOUDFLARE_API_TOKEN}
+      - ZONE=${CLOUDFLARE_ZONE:-kolecion.cc}
+      - SUBDOMAIN=turn
+      - PROXIED=false
       - RRTYPE=A
       - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
     restart: unless-stopped

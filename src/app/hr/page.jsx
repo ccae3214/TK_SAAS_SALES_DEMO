@@ -3,11 +3,13 @@ import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
 import HrManagement from '@/components/HrManagement';
 import HrAdminMobileBar from '@/components/HrAdminMobileBar';
+import HrCallProvider from '@/components/HrCallProvider';
 import HrMemberPortal from '@/components/HrMemberPortal';
 import HrMemberNavScroll from '@/components/HrMemberNavScroll';
 import HrWorkerActivityLog from '@/components/HrWorkerActivityLog';
 import '@/components/hr-member-mobile-nav.css';
 import '@/components/hr-admin-mobile-nav.css';
+import '@/components/hr-call.css';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: '克雷迅人力仲介管理系統' };
@@ -26,6 +28,7 @@ export default async function HrPage() {
         <HrMemberPortal actor={{ name: session.user.name || email, email }} />
         {isWorker && <HrWorkerActivityLog self />}
         <HrMemberNavScroll />
+        <HrCallProvider />
       </>
     );
   }
@@ -33,6 +36,7 @@ export default async function HrPage() {
     <>
       <HrManagement actor={{ name: session.user.name || email, email }} />
       <HrAdminMobileBar />
+      <HrCallProvider />
     </>
   );
 }
