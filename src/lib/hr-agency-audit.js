@@ -46,11 +46,12 @@ export async function recordAgencyAction({ principal, session, action, type, id,
 }
 
 // 讀取某個仲介機構的操作紀錄（agencyId 一律由呼叫端用登入者的機構決定，不接受前端傳入）。
-export async function readAgencyAudit(agencyId, { actorId = null, q = '', beforeId = null, limit = AGENCY_AUDIT_PAGE_SIZE } = {}) {
+export async function readAgencyAudit(agencyId, { actorId = null, action = '', q = '', beforeId = null, limit = AGENCY_AUDIT_PAGE_SIZE } = {}) {
   await ensureAgencyAuditSchema();
   const params = [Number(agencyId)];
   const where = ['agency_id=$1'];
   if (actorId) { params.push(actorId); where.push(`actor_member_id=$${params.length}`); }
+  if (action) { params.push(action); where.push(`action=$${params.length}`); }
   if (beforeId) { params.push(beforeId); where.push(`id<$${params.length}`); }
   if (q) { params.push(`%${q.replace(/[\\%_]/g, '\\$&')}%`); where.push(`(summary_zh ILIKE $${params.length} OR summary_en ILIKE $${params.length} OR actor_name ILIKE $${params.length} OR target_name ILIKE $${params.length})`); }
   params.push(limit + 1);

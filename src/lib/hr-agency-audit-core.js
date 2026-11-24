@@ -120,8 +120,10 @@ export function normalizeAgencyAuditFilters(params) {
   const actor = String(get('actor')).trim();
   const q = String(get('q')).trim().slice(0, 80);
   const before = String(get('before')).trim();
+  const action = String(get('action')).trim();
   return {
     actorId: validId(actor) ? Number(actor) : null,
+    action: Object.prototype.hasOwnProperty.call(AGENCY_AUDIT_ACTIONS, action) ? action : '',
     q,
     beforeId: validId(before) ? Number(before) : null,
   };

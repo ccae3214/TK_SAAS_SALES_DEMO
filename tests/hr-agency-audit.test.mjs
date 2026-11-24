@@ -49,4 +49,7 @@ test('filters are normalised', () => {
   assert.equal(bad.actorId, null);
   assert.equal(bad.beforeId, null);
   assert.equal(bad.q.length, 80);
+  assert.equal(normalizeAgencyAuditFilters(new URLSearchParams({ action: 'upload' })).action, 'upload');
+  assert.equal(normalizeAgencyAuditFilters(new URLSearchParams({ action: 'x; DROP' })).action, '');
+  assert.equal(normalizeAgencyAuditFilters(new URLSearchParams({})).action, '');
 });
