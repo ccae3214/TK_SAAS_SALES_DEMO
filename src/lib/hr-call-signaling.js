@@ -38,7 +38,7 @@ export class CallHub {
   }
 
   removeConnection(conn) {
-    if (conn.roomId != null) this.leave(conn);
+    if (conn.roomId != null) this.leave(conn, 'dropped');
     const set = this.byKey.get(conn.key);
     if (set?.delete(conn)) this.connectionCount -= 1;
     if (set && !set.size) this.byKey.delete(conn.key);
@@ -60,7 +60,7 @@ export class CallHub {
       case 'start': case 'join': this.enter(conn, message); break;
       case 'signal': this.relay(conn, message); break;
       case 'decline': this.decline(conn, message); break;
-      case 'leave': this.leave(conn); break;
+      case 'leave': this.leave(conn, 'left'); break;
       default: break;
     }
   }
@@ -108,11 +108,12 @@ export class CallHub {
     if (call.participants.size <= 1 && call.invitees.size > 0 && [...call.invitees].every(key => call.declined.has(key))) this.endCall(call, 'declined');
   }
 
-  leave(conn) {
+  // reason：'left' 是對方自己按掛斷；'dropped' 是連線中斷（網路瞬斷、關分頁），客戶端會保留重連的寬限時間。
+  leave(conn, reason = 'left') {
     const call = this.calls.get(conn.roomId);
     conn.roomId = null;
     if (!call || !call.participants.delete(conn.id)) return;
-    for (const other of call.participants.values()) other.send({ t: 'peer-left', id: conn.id });
+    for (const other of call.participants.values()) other.send({ t: 'peer-left', id: conn.id, reason });
     if (!call.participants.size) this.endCall(call, 'ended');
   }
 

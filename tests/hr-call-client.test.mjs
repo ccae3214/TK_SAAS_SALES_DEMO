@@ -179,3 +179,82 @@ test('撥號時瀏覽器缺少通話功能：依原因顯示提示，不會嘗�
     assert.equal(client.ws, null);
   }
 });
+
+// ---------------------------------------------------------------- 音效與一對一通話掛斷
+class FakePeer {
+  constructor() { this.closed = false; this.localDescription = { sdp: 'v=0' }; }
+  addTrack() {}
+  async createOffer() { return { sdp: 'v=0' }; }
+  async setLocalDescription() {}
+  close() { this.closed = true; }
+}
+
+// 建立一通「已接通」的電話：自己是 me，之後依測試加入對方
+async function activeCall() {
+  FakeSocket.mode = 'open';
+  const sounds = [];
+  const media = { async getUserMedia() { return new FakeStream([new FakeTrack('audio')]); } };
+  const env = { WebSocket: FakeSocket, RTCPeerConnection: FakePeer, MediaStream: FakeStream, navigator: { mediaDevices: media } };
+  const client = new CallClient({ api: okApi, wsUrl: () => '', onChange: () => {}, onSound: kind => sounds.push(kind), env, readyWaitMs: 400 });
+  assert.equal(await client.enter({ roomId: 7 }), true);
+  client.onMessage({ t: 'joined', callId: 'c', id: 'me', video: false, peers: [] });
+  const sent = () => FakeSocket.last.sent.map(item => item.t);
+  return { client, sounds, sent };
+}
+
+test('有人加入通話播放加入音效；有人離開播放離開音效', async () => {
+  const { client, sounds } = await activeCall();
+  client.onMessage({ t: 'peer-joined', peer: { id: 'a', name: 'A' } });
+  client.onMessage({ t: 'peer-joined', peer: { id: 'b', name: 'B' } });
+  assert.deepEqual(sounds, ['join', 'join']);
+  client.onMessage({ t: 'peer-left', id: 'b', reason: 'left' });
+  assert.deepEqual(sounds, ['join', 'join', 'leave']);
+  client.onMessage({ t: 'peer-left', id: 'unknown', reason: 'left' });
+  assert.deepEqual(sounds, ['join', 'join', 'leave'], '不認識的人離開不出聲');
+  client.stop();
+});
+
+test('一對一通話：對方按掛斷，立刻結束通話並提示（只響一次離開音）', async () => {
+  const { client, sounds, sent } = await activeCall();
+  client.onMessage({ t: 'peer-joined', peer: { id: 'a', name: 'A' } });
+  client.onMessage({ t: 'peer-left', id: 'a', reason: 'left' });
+  assert.equal(client.call, null, '通話已結束');
+  assert.deepEqual(client.notice, { type: 'peer-hangup' });
+  assert.deepEqual(sounds, ['join', 'leave']);
+  assert.ok(sent().includes('leave'), '也通知伺服器自己離開');
+  client.stop();
+});
+
+test('一對一通話：對方只是連線中斷（dropped）不立刻掛斷，保留重連的寬限', async () => {
+  const { client } = await activeCall();
+  client.onMessage({ t: 'peer-joined', peer: { id: 'a', name: 'A' } });
+  client.onMessage({ t: 'peer-left', id: 'a', reason: 'dropped' });
+  assert.ok(client.call, '通話還在等對方回來');
+  assert.equal(client.notice, null);
+  client.onMessage({ t: 'peer-joined', peer: { id: 'a', name: 'A' } });
+  assert.equal(client.peers.size, 1, '對方重連回來');
+  client.stop();
+});
+
+test('多人通話：有人掛斷通話繼續；只剩自己時才依原本規則等待後掛斷', async () => {
+  const { client, sounds } = await activeCall();
+  client.onMessage({ t: 'peer-joined', peer: { id: 'a', name: 'A' } });
+  client.onMessage({ t: 'peer-joined', peer: { id: 'b', name: 'B' } });
+  client.onMessage({ t: 'peer-left', id: 'a', reason: 'left' });
+  assert.ok(client.call && client.peers.size === 1, '還有人在，通話繼續');
+  client.onMessage({ t: 'peer-left', id: 'b', reason: 'left' });
+  assert.ok(client.call, '曾經是多人通話：不立刻結束，等一下再掛斷');
+  assert.ok(client.timers.alone, '已排定自動掛斷');
+  assert.deepEqual(sounds, ['join', 'join', 'leave', 'leave']);
+  client.stop();
+});
+
+test('自己按掛斷：播放一次離開音效；靜音掛斷（自動結束）不重複出聲', async () => {
+  const first = await activeCall();
+  first.client.leave();
+  assert.deepEqual(first.sounds, ['leave']);
+  const second = await activeCall();
+  second.client.leave({ silent: true });
+  assert.deepEqual(second.sounds, []);
+  first.client.stop(); second.client.stop();
+});

@@ -94,3 +94,11 @@ test('不支援通話的原因（非 https、應用程式內建瀏覽器）有�
   const provider = await read('../src/components/HrCallProvider.jsx');
   for (const key of ['insecure', "'in-app'"]) assert.equal(provider.split(`${key}:`).length - 1, 2, `${key} 要有中文與英文各一句`);
 });
+
+test('通話音效與一對一掛斷提示：畫面層有加入／離開音效，中英文都有「對方已掛斷」', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  assert.ok(provider.includes('onSound: playCallTone'));
+  assert.ok(provider.includes('CALL_TONES = { join:') && provider.includes('leave:'));
+  assert.ok(provider.includes("addEventListener('pointerdown', unlockAudio"), '第一次點擊時要先啟用音效');
+  assert.equal(provider.split("'peer-hangup':").length - 1, 2, '要有中文與英文各一句');
+});
