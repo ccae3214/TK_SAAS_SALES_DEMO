@@ -89,3 +89,8 @@ test('連不上通話連線的原因有中英文提示（登入逾時、服務�
   const provider = await read('../src/components/HrCallProvider.jsx');
   for (const key of ['session', 'service', "'ws-failed'"]) assert.equal(provider.split(`${key}:`).length - 1, 2, `${key} 要有中文與英文各一句`);
 });
+
+test('不支援通話的原因（非 https、應用程式內建瀏覽器）有中英文提示', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  for (const key of ['insecure', "'in-app'"]) assert.equal(provider.split(`${key}:`).length - 1, 2, `${key} 要有中文與英文各一句`);
+});

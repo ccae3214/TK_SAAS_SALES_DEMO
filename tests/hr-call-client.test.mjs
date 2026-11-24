@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CallClient, classifyError } from '../src/lib/hr-call-client.js';
+import { CallClient, classifyError, unsupportedReason } from '../src/lib/hr-call-client.js';
 
 class FakeTrack { constructor(kind) { this.kind = kind; this.enabled = true; this.readyState = 'live'; } stop() { this.readyState = 'ended'; } }
 class FakeStream {
@@ -158,4 +158,24 @@ test('網路恢復或切回分頁時立即重連；停止時移除監聽', async
   assert.equal(client.wsReady, true, '網路恢復後立刻重連，不等退避間隔');
   client.stop();
   assert.deepEqual(Object.keys(listeners), []);
+});
+
+// ---------------------------------------------------------------- 不支援通話時的原因
+test('不支援通話的原因：非 https、應用程式內建瀏覽器、其他', () => {
+  assert.deepEqual(unsupportedReason({ isSecureContext: false, navigator: { userAgent: 'Mozilla/5.0 Chrome' } }), { type: 'insecure' });
+  const line = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/14.0.0';
+  assert.deepEqual(unsupportedReason({ isSecureContext: true, navigator: { userAgent: line } }), { type: 'in-app' });
+  assert.deepEqual(unsupportedReason({ isSecureContext: true, navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel; wv) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' } }), { type: 'in-app' });
+  assert.deepEqual(unsupportedReason({ isSecureContext: true, navigator: { userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36' } }), { type: 'unsupported' });
+  assert.deepEqual(unsupportedReason({ navigator: {} }), { type: 'unsupported' }, '沒有資訊就維持原本的提示');
+});
+
+test('撥號時瀏覽器缺少通話功能：依原因顯示提示，不會嘗試連線', async () => {
+  for (const [extra, type] of [[{ isSecureContext: false }, 'insecure'], [{ isSecureContext: true, navigator: { userAgent: 'Foo Line/1.0' } }, 'in-app']]) {
+    const env = { WebSocket: class {}, RTCPeerConnection: class {}, MediaStream: FakeStream, navigator: { userAgent: '' }, ...extra };
+    const client = new CallClient({ api: async () => ({}), wsUrl: () => '', onChange: () => {}, env });
+    assert.equal(await client.enter({ roomId: 1 }), false);
+    assert.deepEqual(client.notice, { type });
+    assert.equal(client.ws, null);
+  }
 });

@@ -24,6 +24,15 @@ export function classifyConnectFailure(error) {
   return { type: 'offline' };
 }
 
+// 瀏覽器不支援通話時，判斷最可能的原因，給使用者能照著做的提示。
+// 非 https 網址（區網 IP 等）會讓瀏覽器直接拿掉麥克風功能；LINE 等應用程式內建瀏覽器則多半不支援 WebRTC。
+const IN_APP_BROWSER = /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|KAKAOTALK|; wv\)/i;
+export function unsupportedReason(env = globalThis) {
+  if (env.isSecureContext === false) return { type: 'insecure' };
+  if (IN_APP_BROWSER.test(env.navigator?.userAgent || '')) return { type: 'in-app' };
+  return { type: 'unsupported' };
+}
+
 export class CallClient {
   constructor({ api, wsUrl, onChange, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
     this.api = api;
@@ -203,7 +212,7 @@ export class CallClient {
   // 撥打與接聽是同一個動作：聊天室裡已經有通話就加入，沒有就建立。
   async enter({ roomId, video = false, title = '' }) {
     if (this.call || this.entering) return false;
-    if (!this.supported()) { this.setNotice({ type: 'unsupported' }); return false; }
+    if (!this.supported()) { this.setNotice(unsupportedReason(this.env)); return false; }
     this.entering = true;
     // 連線還沒就緒（剛開頁面、剛從背景切回來、網路剛恢復）：立刻重連並等一下，不要直接叫使用者稍後再試。
     if (!this.wsReady) {
