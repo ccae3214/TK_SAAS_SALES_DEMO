@@ -2,7 +2,7 @@
 
 ## 現行工作：雇主手機初選卡片（本機未發佈）
 
-分支 `feature/employer-swipe-shortlist`，使用者確認 A：滑動只做初選，最後確認才沿用既有選工 API。初選僅目前頁面暫存、可復原，有清單與按鈕替代操作；不新增 DB／權限或改面試錄用規則。整合前 Node 20 HR 525／Chromium 元件 52 項通過、Docker build 成功；最終整合結果見 EMPLOYER_SHORTLIST_REVIEW。尚未驗真實登入／DB E2E，未 push／PR／部署。
+分支 `feature/employer-swipe-shortlist`，使用者確認 A：滑動只做初選，最後確認才沿用既有選工 API。初選僅目前頁面暫存、可復原，有清單與按鈕替代操作；不新增 DB／權限或改面試錄用規則。已整合 main `ed39923`，保留新版工人活動紀錄與通話功能；最終 Node 20 HR 535／Chromium 元件 52 項通過，均 0 失敗／跳過，Docker build 成功（既有 lint／型別跳過）。尚未驗真實登入／DB E2E，未 push／PR／部署。
 
 本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作這輪網站已啟動。
 

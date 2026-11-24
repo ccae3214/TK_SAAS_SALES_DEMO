@@ -39,6 +39,16 @@
 - 瀏覽位置與未送出初選屬目前頁面暫態，不將個資／草稿放入 URL。非跨裝置持久收藏，沒有宣稱網址可還原未送出的初選。
 - 全站既有頁面、完整履歷 modal、PDF 生成、其他角色與暗色模式不屬這輪全面改版，未冒稱整站符合規範。
 
+## 最終整合驗證
+
+已整合 main `ed39923`，僅一處 import 衝突，保留 `HrEmployerShortlist` 與上游 `HrWorkerActivityLog`；新版通話與活動紀錄保留。最終 Node 20 完整 HR：535 通過／0 失敗／0 跳過；Chromium：52 項通過／0 失敗；最終 Docker build 成功，image `sha256:213596f98ce396cd09719c0cd8fffce8f51b2230454c8bf7e154b2f2b738934b`。實測使用實際 CSS，兩張手機截圖在 `docs/review/employer-shortlist-mobile-{zh,en}.png`。
+
+這是本機候選實證，不是遠端 CI、完整登入網站或正式放行。未追蹤的 `t:hr` 是無關聊天室 diff 檔，本輪不編輯、刪除或提交。
+
+## Skill 安裝審查
+
+ui-ux-pro-max 依本輪明確批准安裝於 Allen profile。核對上游 commit `e8b065f0f3aaf2e680fd125f000e4f5e351ed108`：高風險環境變數命中位於離線測試中，複製環境後移除 GOOGLE_FONTS_API_KEY 再驗證缺 key 的拒絕行為，並非已確認外傳；子程序命中為測試執行 Python，Arabic Unicode 為文字正規化 regex，其餘為大型資料清單。只執行本地設計搜尋，不執行 live catalog 更新；這是針對命中的有限審查，不是完整供應鏈安全認證。其他設計／文案 skills 也僅在 Agent profile，不成為網站依賴。
+
 ## 驗證與曾發現的問題
 
 整合最新 main 前：Node 20 完整 HR 525 通過／0 失敗／0 跳過，Docker build 成功（既有 lint／型別仍跳過）。Chromium 元件共 52 項檢查通過（375×812 繁中、390×844 英文、844×390 繁中 reduced-motion、1280×900 英文），各組 pageerror=0。最終整合後結果見本文件補充及 VERIFICATION_REPORT。
