@@ -102,3 +102,14 @@ test('通話音效與一對一掛斷提示：畫面層有加入／離開音效�
   assert.ok(provider.includes("addEventListener('pointerdown', unlockAudio"), '第一次點擊時要先啟用音效');
   assert.equal(provider.split("'peer-hangup':").length - 1, 2, '要有中文與英文各一句');
 });
+
+test('來電鈴聲：共用已啟用的 AudioContext（不另外新建、不關閉），每一輪都重試', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  const start = provider.indexOf('function startRingtone()');
+  const ringtone = provider.slice(start, provider.indexOf('\n}\n', start));
+  assert.ok(start > 0);
+  assert.ok(ringtone.includes('sharedAudio') && ringtone.includes('unlockAudio()'));
+  assert.ok(!ringtone.includes('new AudioContextCtor') && !ringtone.includes('.close('), '不能自己新建或關閉共用的 AudioContext');
+  assert.ok(ringtone.includes('setInterval(ring, RING_INTERVAL_MS)'));
+  assert.ok(provider.includes('export const RING_PATTERN'));
+});
