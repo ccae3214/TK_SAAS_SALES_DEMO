@@ -19,7 +19,7 @@ export const COPY = {
     notices: {
       permission: '無法使用麥克風或鏡頭。請在瀏覽器的網址列旁允許權限；如果是在 LINE 內開啟，請改用 Chrome 或 Safari 開啟本網站。',
       'no-device': '找不到麥克風，請確認裝置後再試一次。', 'device-busy': '麥克風或鏡頭正被其他程式使用，請關閉後再試一次。',
-      'no-camera': '找不到可用的鏡頭，已改用語音通話。', 'no-mic': '找不到麥克風，已加入通話但對方聽不到你的聲音。請確認裝置後重新加入。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。',
+      'no-camera': '找不到可用的鏡頭，已改用語音通話。', 'peer-hangup': '對方已掛斷，通話已結束。', 'no-mic': '找不到麥克風，已加入通話但對方聽不到你的聲音。請確認裝置後重新加入。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。', insecure: '目前的網址不是安全連線（https），瀏覽器會封鎖麥克風與鏡頭。請改用 https 網址開啟本網站。', 'in-app': '應用程式內建的瀏覽器（例如 LINE）不支援通話。請從選單選擇用 Safari 或 Chrome 開啟本網站。',
       offline: '通話連線尚未就緒，請稍後再試。', session: '登入已逾時，請重新整理頁面並重新登入後再試。', service: '通話服務暫時無法使用，請稍後再試；若持續發生請聯絡管理員。', 'ws-failed': '無法連上通話伺服器，請檢查網路後再試；若持續發生請聯絡管理員。', timeout: '連線逾時，請再試一次。', 'connection-lost': '網路中斷，通話已結束。',
       declined: name => `${name || '對方'}已拒絕通話。`, 'no-answer': '沒有人接聽。', 'everyone-left': '其他人都已離開，通話結束。',
       full: '通話人數已滿（最多 6 人）。', 'bad-ticket': '通話驗證失敗，請重新整理頁面後再試。', 'already-in-call': '你已經在通話中。',
@@ -34,7 +34,7 @@ export const COPY = {
     notices: {
       permission: 'The microphone or camera cannot be used. Allow access in the browser address bar. If you opened this site inside LINE, open it in Chrome or Safari instead.',
       'no-device': 'No microphone was found. Check your device and try again.', 'device-busy': 'The microphone or camera is being used by another app. Close it and try again.',
-      'no-camera': 'No usable camera was found, so the call was started with voice only.', 'no-mic': 'No microphone was found. You joined the call, but others cannot hear you. Check your device and rejoin.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.',
+      'no-camera': 'No usable camera was found, so the call was started with voice only.', 'peer-hangup': 'The other person hung up, so the call ended.', 'no-mic': 'No microphone was found. You joined the call, but others cannot hear you. Check your device and rejoin.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.', insecure: 'This page is not on a secure (https) connection, so the browser blocks the microphone and camera. Please open the site with its https address.', 'in-app': 'In-app browsers such as LINE do not support calls. Open this site in Safari or Chrome from the menu.',
       offline: 'The call connection is not ready yet. Please try again shortly.', session: 'Your session has expired. Refresh the page and sign in again.', service: 'The call service is temporarily unavailable. Try again later, and contact your administrator if it keeps happening.', 'ws-failed': 'Cannot reach the call server. Check your connection and try again, and contact your administrator if it keeps happening.', timeout: 'The connection timed out. Please try again.', 'connection-lost': 'The network was interrupted and the call ended.',
       declined: name => `${name || 'The other person'} declined the call.`, 'no-answer': 'No one answered.', 'everyone-left': 'Everyone else has left, so the call ended.',
       full: 'The call is full (up to 6 people).', 'bad-ticket': 'Call verification failed. Refresh the page and try again.', 'already-in-call': 'You are already in a call.',
@@ -137,13 +137,43 @@ function startRingtone() {
   return () => { clearInterval(timer); try { navigator.vibrate?.(0); void context?.close?.(); } catch { /* 已關閉 */ } };
 }
 
+// 通話中的提示音：有人加入（往上兩聲）、有人離開或掛斷（往下兩聲）。
+// 瀏覽器要求聲音必須在使用者操作之後才能播放，所以第一次點擊／按鍵時先建立並啟用 AudioContext（撥號、接聽都是點擊）。
+let sharedAudio = null;
+function unlockAudio() {
+  try {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!sharedAudio && AudioContextCtor) sharedAudio = new AudioContextCtor();
+    void sharedAudio?.resume?.();
+  } catch { sharedAudio = null; }
+}
+export const CALL_TONES = { join: [660, 880], leave: [880, 520] };
+export function playCallTone(kind) {
+  const notes = CALL_TONES[kind];
+  unlockAudio();
+  const context = sharedAudio;
+  if (!notes || !context || context.state !== 'running') return;
+  notes.forEach((frequency, index) => {
+    const start = context.currentTime + index * 0.16;
+    const oscillator = context.createOscillator(); const gain = context.createGain();
+    oscillator.type = 'sine'; oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start); oscillator.stop(start + 0.16);
+  });
+}
+
 export default function HrCallProvider() {
   const { lang } = useLanguage();
   const [state, setState] = useState(null);
   const clientRef = useRef(null);
 
   useEffect(() => {
-    const client = new CallClient({ api: callApi, wsUrl, onChange: setState });
+    const client = new CallClient({ api: callApi, wsUrl, onChange: setState, onSound: playCallTone });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio);
     clientRef.current = client;
     client.start();
     const onStart = event => {
@@ -152,7 +182,7 @@ export default function HrCallProvider() {
       if (Number.isSafeInteger(roomId) && roomId > 0) void client.enter({ roomId, video: !!detail.video, title: String(detail.title || '') });
     };
     window.addEventListener('hr:start-call', onStart);
-    return () => { window.removeEventListener('hr:start-call', onStart); client.stop(); clientRef.current = null; };
+    return () => { window.removeEventListener('hr:start-call', onStart); window.removeEventListener('pointerdown', unlockAudio); window.removeEventListener('keydown', unlockAudio); client.stop(); clientRef.current = null; };
   }, []);
 
   const ringing = !!state && !state.call && state.incoming.length > 0;

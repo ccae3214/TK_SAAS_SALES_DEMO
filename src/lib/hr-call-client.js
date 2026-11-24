@@ -24,8 +24,17 @@ export function classifyConnectFailure(error) {
   return { type: 'offline' };
 }
 
+// 瀏覽器不支援通話時，判斷最可能的原因，給使用者能照著做的提示。
+// 非 https 網址（區網 IP 等）會讓瀏覽器直接拿掉麥克風功能；LINE 等應用程式內建瀏覽器則多半不支援 WebRTC。
+const IN_APP_BROWSER = /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|KAKAOTALK|; wv\)/i;
+export function unsupportedReason(env = globalThis) {
+  if (env.isSecureContext === false) return { type: 'insecure' };
+  if (IN_APP_BROWSER.test(env.navigator?.userAgent || '')) return { type: 'in-app' };
+  return { type: 'unsupported' };
+}
+
 export class CallClient {
-  constructor({ api, wsUrl, onChange, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
+  constructor({ api, wsUrl, onChange, onSound, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
     this.api = api;
     this.env = env;
     this.readyWaitMs = readyWaitMs;
@@ -33,6 +42,7 @@ export class CallClient {
     this.lastFailure = null;
     this.wsUrl = wsUrl;
     this.onChange = onChange || (() => {});
+    this.onSound = onSound || (() => {});
     this.WebSocketCtor = env.WebSocket;
     this.PeerCtor = env.RTCPeerConnection;
     this.MediaStreamCtor = env.MediaStream;
@@ -72,6 +82,8 @@ export class CallClient {
   }
 
   emit() { this.onChange(this.snapshot()); }
+  // 音效交給畫面層播放（join：有人加入；leave：有人離開或自己掛斷）
+  sound(kind) { try { this.onSound(kind); } catch { /* 音效失敗不影響通話 */ } }
   setNotice(notice) { this.notice = notice; this.emit(); }
   clearNotice() { if (this.notice) { this.notice = null; this.emit(); } }
 
@@ -203,7 +215,7 @@ export class CallClient {
   // 撥打與接聽是同一個動作：聊天室裡已經有通話就加入，沒有就建立。
   async enter({ roomId, video = false, title = '' }) {
     if (this.call || this.entering) return false;
-    if (!this.supported()) { this.setNotice({ type: 'unsupported' }); return false; }
+    if (!this.supported()) { this.setNotice(unsupportedReason(this.env)); return false; }
     this.entering = true;
     // 連線還沒就緒（剛開頁面、剛從背景切回來、網路剛恢復）：立刻重連並等一下，不要直接叫使用者稍後再試。
     if (!this.wsReady) {
@@ -252,8 +264,9 @@ export class CallClient {
 
   decline(roomId) { this.send({ t: 'decline', roomId }); this.incoming.delete(roomId); this.emit(); }
 
-  leave() {
+  leave({ silent = false } = {}) {
     if (!this.call) return;
+    if (!silent) this.sound('leave');
     this.send({ t: 'leave' });
     this.cleanup();
   }
@@ -278,8 +291,8 @@ export class CallClient {
         this.emit();
         break;
       }
-      case 'peer-joined': if (this.call) { clearTimeout(this.timers.alone); this.addPeer(message.peer, false); } break;
-      case 'peer-left': this.removePeer(message.id); break;
+      case 'peer-joined': if (this.call) { clearTimeout(this.timers.alone); this.addPeer(message.peer, false); this.sound('join'); } break;
+      case 'peer-left': this.onPeerLeft(message); break;
       case 'signal': void this.onSignal(message.from, message.data); break;
       case 'declined': this.setNotice({ type: 'declined', name: message.name }); break;
       case 'ended':
@@ -295,6 +308,20 @@ export class CallClient {
     }
   }
 
+  // 有人離開：播放離開音效。一對一通話（整通電話最多只有對方一個人）對方按掛斷就立刻結束；
+  // 對方只是連線中斷（網路瞬斷）時不立刻結束，沿用原本的等待重連。
+  onPeerLeft(message) {
+    const known = this.peers.has(message.id);
+    const oneToOne = (this.call?.maxPeers || 0) <= 1;
+    this.removePeer(message.id);
+    if (!known) return;
+    this.sound('leave');
+    if (message.reason === 'left' && oneToOne && this.call?.phase === 'active' && !this.peers.size) {
+      this.leave({ silent: true });
+      this.setNotice({ type: 'peer-hangup' });
+    }
+  }
+
   // ------------------------------------------------------------ WebRTC
   addPeer(info, initiator) {
     if (!this.call || this.peers.has(info.id)) return;
@@ -302,6 +329,7 @@ export class CallClient {
     const peer = { id: info.id, name: info.name, pc, stream: null, state: 'connecting', queued: [], remoteSet: false, restarted: false, initiator };
     this.peers.set(info.id, peer);
     this.call.everHadPeer = true;
+    this.call.maxPeers = Math.max(this.call.maxPeers || 0, this.peers.size);
     for (const track of this.localStream.getTracks()) pc.addTrack(track, this.localStream);
     pc.onicecandidate = event => { if (event.candidate) this.send({ t: 'signal', to: info.id, data: { kind: 'candidate', candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate } }); };
     pc.ontrack = event => {
@@ -360,7 +388,7 @@ export class CallClient {
     // 大家都走了就自動掛斷（一對一通話對方掛掉時，自己這邊也結束）
     if (!this.peers.size && this.call?.everHadPeer && this.call.phase === 'active') {
       clearTimeout(this.timers.alone);
-      this.timers.alone = setTimeout(() => { if (this.call && !this.peers.size) { this.leave(); this.setNotice({ type: 'everyone-left' }); } }, ALONE_HANGUP_MS);
+      this.timers.alone = setTimeout(() => { if (this.call && !this.peers.size) { this.leave({ silent: true }); this.setNotice({ type: 'everyone-left' }); } }, ALONE_HANGUP_MS);
     }
     this.emit();
   }

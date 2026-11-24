@@ -144,7 +144,7 @@ test('一對一通話：來電 → 接聽 → 交換連線資訊 → 掛斷', as
     assert.deepEqual(await alice.quiet(100), [], '不在同一通話的對象不會收到');
 
     bob.send({ t: 'leave' });
-    assert.deepEqual(await alice.next(m => m.t === 'peer-left'), { t: 'peer-left', id: bobJoined.id });
+    assert.deepEqual(await alice.next(m => m.t === 'peer-left'), { t: 'peer-left', id: bobJoined.id, reason: 'left' });
     alice.send({ t: 'leave' });
     alice.send({ t: 'ping' });
     await alice.next(m => m.t === 'pong');
@@ -211,7 +211,9 @@ test('群組通話：晚到的人收到補送的來電、可中途加入，人�
     extra.send({ t: 'join', ticket: room('member:7', 20) });
     assert.deepEqual(await extra.next(m => m.t === 'error'), { t: 'error', code: 'full' });
     people[1].close();
-    assert.equal((await host.next(m => m.t === 'peer-left')).t, 'peer-left', '斷線等於離開');
+    const dropped = await host.next(m => m.t === 'peer-left');
+    assert.equal(dropped.t, 'peer-left', '斷線等於離開');
+    assert.equal(dropped.reason, 'dropped', '斷線與主動掛斷要能區分');
     for (const person of [host, extra, ...people]) person.close();
   });
 });

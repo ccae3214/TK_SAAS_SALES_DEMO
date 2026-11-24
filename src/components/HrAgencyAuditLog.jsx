@@ -9,13 +9,13 @@ import styles from './HrAgencyAuditLog.module.css';
 const COPY = {
   zh: {
     title: '操作紀錄', lead: '這裡記錄貴機構成員在系統中的新增、修改、刪除與上傳操作，最新的在最上面。紀錄只有貴機構的仲介管理者可以查看，無法修改或刪除。',
-    member: '操作人員', all: '全部成員', search: '搜尋', searchPlaceholder: '輸入人員、對象或內容關鍵字', apply: '搜尋', clear: '清除',
+    member: '操作人員', all: '全部成員', menu: '操作類型', allActions: '全部操作', search: '搜尋', searchPlaceholder: '輸入人員、對象或內容關鍵字', apply: '搜尋', clear: '清除',
     loading: '讀取中…', empty: '目前沒有符合條件的操作紀錄。', more: '載入更多', admin: '管理者',
     failRead: '無法讀取操作紀錄，請稍後再試。', forbidden: '只有該仲介機構的仲介管理者可以查看操作紀錄。',
   },
   en: {
     title: 'Activity log', lead: 'This log records the create, edit, delete and upload actions taken by members of your agency. The newest entries are first. Only your agency administrators can view it, and entries cannot be edited or deleted.',
-    member: 'Member', all: 'All members', search: 'Search', searchPlaceholder: 'Member, target or keyword', apply: 'Search', clear: 'Clear',
+    member: 'Member', all: 'All members', menu: 'Action type', allActions: 'All actions', search: 'Search', searchPlaceholder: 'Member, target or keyword', apply: 'Search', clear: 'Clear',
     loading: 'Loading…', empty: 'No activity matches these filters.', more: 'Load more', admin: 'Admin',
     failRead: 'Unable to load the activity log. Please try again later.', forbidden: 'Only administrators of this agency can view the activity log.',
   },
@@ -35,8 +35,9 @@ export default function HrAgencyAuditLog() {
   const [actors, setActors] = useState([]);
   const [hasMore, setHasMore] = useState(false);
   const [actorId, setActorId] = useState('');
+  const [actionType, setActionType] = useState('');
   const [q, setQ] = useState('');
-  const [applied, setApplied] = useState({ actor: '', q: '' });
+  const [applied, setApplied] = useState({ actor: '', action: '', q: '' });
   const [state, setState] = useState('loading');
   const [error, setError] = useState('');
   const seq = useRef(0);
@@ -48,6 +49,7 @@ export default function HrAgencyAuditLog() {
     try {
       const params = new URLSearchParams();
       if (filters.actor) params.set('actor', filters.actor);
+      if (filters.action) params.set('action', filters.action);
       if (filters.q) params.set('q', filters.q);
       if (before) params.set('before', String(before));
       const response = await fetch(`/api/hr/agency-audit?${params}`, { cache: 'no-store' });
@@ -66,8 +68,8 @@ export default function HrAgencyAuditLog() {
 
   useEffect(() => { load(applied, null); }, [applied, load]);
 
-  const submit = event => { event.preventDefault(); setApplied({ actor: actorId, q: q.trim() }); };
-  const clear = () => { setActorId(''); setQ(''); setApplied({ actor: '', q: '' }); };
+  const submit = event => { event.preventDefault(); setApplied({ actor: actorId, action: actionType, q: q.trim() }); };
+  const clear = () => { setActorId(''); setActionType(''); setQ(''); setApplied({ actor: '', action: '', q: '' }); };
   const last = rows[rows.length - 1];
 
   return <section className="hr-member-card">
@@ -78,6 +80,12 @@ export default function HrAgencyAuditLog() {
         <select value={actorId} onChange={event => setActorId(event.target.value)}>
           <option value="">{t.all}</option>
           {actors.map(actor => <option key={actor.id} value={actor.id}>{actor.name}</option>)}
+        </select>
+      </label>
+      <label className={styles.field}>{t.menu}
+        <select value={actionType} onChange={event => setActionType(event.target.value)}>
+          <option value="">{t.allActions}</option>
+          {Object.entries(AGENCY_AUDIT_ACTIONS).map(([key, label]) => <option key={key} value={key}>{label[language]}</option>)}
         </select>
       </label>
       <label className={`${styles.field} ${styles.search}`}>{t.search}

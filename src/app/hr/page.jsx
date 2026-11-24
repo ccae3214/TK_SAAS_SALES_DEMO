@@ -6,7 +6,6 @@ import HrAdminMobileBar from '@/components/HrAdminMobileBar';
 import HrCallProvider from '@/components/HrCallProvider';
 import HrMemberPortal from '@/components/HrMemberPortal';
 import HrMemberNavScroll from '@/components/HrMemberNavScroll';
-import HrWorkerActivityLog from '@/components/HrWorkerActivityLog';
 import '@/components/hr-member-mobile-nav.css';
 import '@/components/hr-admin-mobile-nav.css';
 import '@/components/hr-call.css';
@@ -20,13 +19,11 @@ export default async function HrPage() {
 
   const email = session.user.email || 'LINE 帳號';
   const principal = await getHrPrincipal(session);
-  // 工人活動紀錄：工人看自己的，系統管理者看全部（仲介看不到；後端另外驗證權限）。
-  const isWorker = principal?.role === 'worker' && !!principal.worker_id;
+  // 工人活動紀錄已放進會員頁面的「活動紀錄」選單（HrMemberPortal）；後端另外驗證權限。
   if (principal?.role !== 'admin') {
     return (
       <>
         <HrMemberPortal actor={{ name: session.user.name || email, email }} />
-        {isWorker && <HrWorkerActivityLog self />}
         <HrMemberNavScroll />
         <HrCallProvider />
       </>
