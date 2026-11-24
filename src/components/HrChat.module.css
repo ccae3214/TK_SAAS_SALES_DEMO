@@ -43,4 +43,42 @@
 .composer button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .empty{padding:34px 25px;text-align:center;color:#72837a;font-size:14px;line-height:1.75}
 .error{margin:0 0 12px;padding:11px 14px;border:1px solid #f4c7c2;background:#fdecea;border-radius:12px;color:#b42318;font-size:13.5px;font-weight:600}
-@media(max-width:680px){.chatCard{padding:16px;border-radius:16px}.layout{grid-template-columns:1fr;min-height:0}.roomList{display:flex;max-height:none;overflow-x:auto;border-right:0;border-bottom:1px solid #e1e9e4}.room{min-width:190px;max-width:230px;border-bottom:0;border-right:1px solid #e8eeea}.roomActive,.roomActive:hover{box-shadow:inset 0 -4px 0 #1f8366}.conversation{min-height:420px}.messageList{max-height:400px}.message{max-width:94%}.heading h2{font-size:18px}}
+.backButton{display:none}
+@media(max-width:680px){
+.chatCard{padding:12px;border-radius:16px}
+.heading{margin-bottom:12px}
+.heading h2{margin:5px 0 0;font-size:18px}
+.heading p{display:none}
+/* 進入對話後收起標題，把畫面留給訊息 */
+.chatOpen .heading{display:none}
+.layout{display:block;min-height:0;border-radius:14px}
+.showChat .roomList{display:none}
+.showList .conversation{display:none}
+/* 清單：整列可點的大卡片，取代原本橫向捲動的分頁 */
+.roomList{max-height:none;border-right:0;background:#fff;overflow:visible}
+.room{min-height:68px;padding:13px 14px;border-right:0}
+.room:last-child{border-bottom:0}
+.room small{font-size:12.5px}
+.roomActive,.roomActive:hover{box-shadow:none;background:transparent}
+/* 對話：頂端標題列、中間訊息、底部輸入框；高度扣掉頁面標題與底部功能選單 */
+.conversation{display:flex;flex-direction:column;height:calc(100dvh - 210px - env(safe-area-inset-bottom,0px));min-height:380px}
+.conversationHeader{flex:none;gap:6px;padding:8px 10px}
+.backButton{display:grid;place-items:center;flex:none;width:40px;height:40px;margin-left:-4px;border:0;border-radius:12px;background:transparent;color:#176b54;cursor:pointer}
+.backButton:active{background:#e4f3ec}
+.headerText{flex:1;min-width:0}
+.conversationHeader strong{overflow:hidden;font-size:14.5px;text-overflow:ellipsis;white-space:nowrap}
+.conversationHeader small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recentNote{display:none}
+.headerActions{flex:none;flex-wrap:nowrap;gap:6px}
+.headerActions button{justify-content:center;min-width:40px;min-height:40px;padding:0 10px;border-radius:12px}
+.actionLabel{display:none}
+.memberList{flex:none;max-height:40dvh;padding:10px 12px}
+.messageList{flex:1;min-height:0;max-height:none;padding:12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.message{max-width:90%;padding:9px 12px;margin-bottom:10px}
+.composer{flex:none;gap:8px;padding:8px 10px}
+/* 16px 以上，iPhone 點進輸入框才不會自動放大畫面 */
+.composer textarea{min-height:44px;max-height:96px;padding:10px 12px;font-size:16px;resize:none}
+.composer button{justify-content:center;flex:none;width:46px;min-height:46px;padding:0;border-radius:50%}
+.sendLabel{display:none}
+}
+@media(prefers-reduced-motion:reduce){.refresh,.composer button{transition:none}}
