@@ -1,12 +1,19 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
-## 現行工作：雇主手機初選卡片（本機未發佈）
+## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
-分支 `feature/employer-swipe-shortlist`，使用者確認 A：滑動只做初選，最後確認才沿用既有選工 API。初選僅目前頁面暫存、可復原，有清單與按鈕替代操作；不新增 DB／權限或改面試錄用規則。已整合 main `ed39923`，保留新版工人活動紀錄與通話功能；最終 Node 20 HR 535／Chromium 元件 52 項通過，均 0 失敗／跳過，Docker build 成功（既有 lint／型別跳過）。尚未驗真實登入／DB E2E，未 push／PR／部署。
+使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。
 
-本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作這輪網站已啟動。
+分支 `feature/employer-swipe-shortlist`，已授權測試後 push／開 PR，不合併或部署。採 A：滑動只做初選，最後確認才沿用既有選工 API；不新增 DB／權限。已整合 main `03eaa2d`，Node 20 HR 540／Chromium 元件 52 項通過，另對實際 UI 試用伺服器做 13 項 HTTP／瀏覽器檢查通過；均無失敗，Docker build 成功（既有 lint／型別跳過）。目前可用 http://localhost:8091/，僅虛構資料、不連 DB／LINE；不需帳密。完整登入／DB E2E 尚未驗，遠端 CI 以精確 PR head 為準。
+
+本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作完整 HR 站與 DB 已啟動；目前僅 UI 試用頁可用。
 
 本輪新增：
+- `compose.shortlist-preview.yaml`：只發布 loopback 8091 的獨立 UI 試用容器，沒有 DB／secret／provider 服務。
+- `scripts/test-shortlist-preview.http.mjs`：實際試用伺服器的 HTTP／瀏覽器回歸，資料仍為 fixture。
+- `docs/EMPLOYER_SHORTLIST_TESTING.md`：Windows 操作步驟與驗證界線。
+- `docs/review/employer-shortlist-preview-en.png`：實際試用伺服器的手機英文截圖，含虛構資料警示。
+- `scripts/test-employer-shortlist-ui.mjs --preview`：共用實際元件／CSS，新增受限模擬 HTTP 入口，非 production route。
 - `src/components/HrEmployerShortlist.jsx`、`HrEmployerShortlist.module.css`：局部卡片／清單與待確認操作。
 - `src/lib/hr-employer-shortlist.js`：純手勢、暫存投影與經歷顯示。
 - `tests/hr-employer-shortlist.test.mjs`：單元與 Portal 接線回歸。

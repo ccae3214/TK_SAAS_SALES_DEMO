@@ -1,0 +1,27 @@
+# Local UI-only fixture. Never starts the HR app, database, auth or external providers.
+name: tk-saas-shortlist-ui
+services:
+  shortlist-ui:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    container_name: tk-saas-shortlist-ui-preview
+    working_dir: /work
+    command: [node, scripts/test-employer-shortlist-ui.mjs, --preview]
+    environment:
+      TMPDIR: /scratch
+      SHORTLIST_PREVIEW_BIND: 0.0.0.0
+      SHORTLIST_PREVIEW_PORT: "8091"
+    ports:
+      - 127.0.0.1:8091:8091
+    volumes:
+      - .:/work:ro
+    tmpfs:
+      - /scratch:rw,size=1g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8091/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s

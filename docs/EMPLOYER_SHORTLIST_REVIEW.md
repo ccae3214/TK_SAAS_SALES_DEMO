@@ -2,7 +2,7 @@
 
 ## 已確認範圍
 
-使用者選 A：右滑加入待確認、左滑先略過，可復原上一筆；最後在待確認人選按「確認挑選」才送出既有選工 API。不是自動安排面試或錄用。此輪只交付本機 feature 分支，未取得本功能 push／PR／合併／部署授權。
+使用者選 A：右滑加入待確認、左滑先略過，可復原上一筆；最後在待確認人選按「確認挑選」才送出既有選工 API。不是自動安排面試或錄用。本輪已取得測試後 push／開 PR 授權，不含 main 合併、部署或 DB schema／資料異動。
 
 初選放在元件記憶體，依需求單及工作類別隔離；離開分頁、重新整理或元件卸載會清空，畫面明確告知。沒有新增資料表、localStorage、sessionStorage、收藏服務、排序或資格規則。
 
@@ -39,7 +39,17 @@
 - 瀏覽位置與未送出初選屬目前頁面暫態，不將個資／草稿放入 URL。非跨裝置持久收藏，沒有宣稱網址可還原未送出的初選。
 - 全站既有頁面、完整履歷 modal、PDF 生成、其他角色與暗色模式不屬這輪全面改版，未冒稱整站符合規範。
 
-## 最終整合驗證
+## 本輪發佈前驗證與試用入口
+
+已整合 main `03eaa2d`，保留加入手機桌面的新功能。最新 Node 20.20.2／Python 3.12.16 的 HR 回歸 540 通過／0 失敗／0 跳過；真實元件／CSS 的受控 Chromium 52 項檢查通過；實際 UI 試用伺服器的 HTTP／瀏覽器 13 項通過。Docker build 成功，沒有把既有跳過的 lint／型別列為通過。
+
+已啟動 `compose.shortlist-preview.yaml` 的 UI 專用容器，WSL 主機 HTTP 200、health 為 healthy。沒有啟動 HR app／DB，不連登入／LINE。Windows 操作看 [EMPLOYER_SHORTLIST_TESTING.md](EMPLOYER_SHORTLIST_TESTING.md)，入口 http://localhost:8091/ ，不需帳密；這是明確虛構資料的前端試用，不是真實媒合寫入驗收。新增 compose、HTTP 測試及測試指南已同步 PROJECT_MAP。
+
+首輪實際 HTTP 測試在讀取成功回應 body 時逾時；curl 確認伺服器有完整回應。將 fixture callback 改為與既有產品流程一致，先讀取 JSON 再處理成功／失敗，重建試用容器後完整 13 項通過。產品 API、驗收斷言與測試門檻未放寬。
+
+已授權發佈本功能 PR，精確 head、遠端檢查與 URL 以 PR 讀回為準；不使用前輪「未授權 push」狀態阻擋本次發佈。完整登入 DB E2E 仍須指定隔離 DB 遷移／fixture 的明確授權，不因試用頁通過而自動放行。
+
+## 前輪整合驗證（歷史）
 
 已整合 main `ed39923`，僅一處 import 衝突，保留 `HrEmployerShortlist` 與上游 `HrWorkerActivityLog`；新版通話與活動紀錄保留。最終 Node 20 完整 HR：535 通過／0 失敗／0 跳過；Chromium：52 項通過／0 失敗；最終 Docker build 成功，image `sha256:213596f98ce396cd09719c0cd8fffce8f51b2230454c8bf7e154b2f2b738934b`。實測使用實際 CSS，兩張手機截圖在 `docs/review/employer-shortlist-mobile-{zh,en}.png`。
 
@@ -79,4 +89,4 @@ docker run --rm --network none --ipc=host -v "$PWD:/work:ro" -v "<scratch>:/scra
 - 實際登入後從完整雇主頁面送出→PostgreSQL→仲介通知→面試／錄用閉環尚未重跑；元件 fixture 不代表真實寫入、PDF 產生或完整履歷視窗已驗。
 - iPhone Safari、Android 實機、LINE WebView、螢幕閱讀器、真實弱網與大資料量壓力未驗；Chrome 觸控與 viewport 不等於實機驗收。
 - 不承諾初選跨重整或裝置保存；如需持久收藏須另確認產品與資料庫範圍。
-- 未 push、未開新 PR、未合併、未部署；前一條操作紀錄 PR #62 已由上游合併，這輪不重複修改。
+- 本輪已授權 push／開 PR，實際遠端狀態以精確 PR head 為準；未合併、未部署。前一條操作紀錄 PR #62 已由上游合併，這輪不重複修改。
