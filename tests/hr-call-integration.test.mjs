@@ -84,3 +84,8 @@ test('找不到麥克風時改為僅收聽加入：中英文提示都有，沒�
   assert.ok(provider.includes("'no-mic': 'No microphone was found."), '缺英文提示');
   assert.ok(provider.includes('{call.hasMic && <button'), '沒有麥克風時不顯示靜音鈕');
 });
+
+test('連不上通話連線的原因有中英文提示（登入逾時、服務無法使用、連不上伺服器）', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  for (const key of ['session', 'service', "'ws-failed'"]) assert.equal(provider.split(`${key}:`).length - 1, 2, `${key} 要有中文與英文各一句`);
+});

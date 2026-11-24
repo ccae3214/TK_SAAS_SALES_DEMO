@@ -88,3 +88,74 @@ test('通話畫面的狀態會標示有沒有麥克風，介面用它決定要�
   client.localStream = new FakeStream([new FakeTrack('audio')]);
   assert.equal(client.snapshot().call.hasMic, true);
 });
+
+// ---------------------------------------------------------------- 連線就緒與失敗原因
+class FakeSocket {
+  static mode = 'open';
+  constructor() { this.sent = []; FakeSocket.last = this; setTimeout(() => { if (FakeSocket.mode === 'open') this.onopen?.(); else this.onclose?.(); }, 20); }
+  send(data) { this.sent.push(JSON.parse(data)); }
+  close() {}
+}
+
+function makeConnClient(api, { readyWaitMs = 400 } = {}) {
+  FakeSocket.mode = 'open';
+  const media = { async getUserMedia() { return new FakeStream([new FakeTrack('audio')]); } };
+  const env = { WebSocket: FakeSocket, RTCPeerConnection: class {}, MediaStream: FakeStream, navigator: { mediaDevices: media } };
+  return new CallClient({ api, wsUrl: ticket => `ws://x/${ticket}`, onChange: () => {}, env, readyWaitMs });
+}
+const roomInfo = { ticket: 'room-ticket', roomId: 7, roomType: 'case', title: 'T', iceServers: [] };
+const okApi = async body => (body.type === 'presence' ? { ticket: 'p' } : roomInfo);
+
+test('連線還沒就緒時撥號：立刻重連並等待，連上後照常開始通話（不再直接跳「尚未就緒」）', async () => {
+  const client = makeConnClient(okApi);
+  assert.equal(client.wsReady, false);
+  assert.equal(await client.enter({ roomId: 7, video: false }), true);
+  assert.equal(client.notice, null);
+  assert.deepEqual(FakeSocket.last.sent[0], { t: 'start', ticket: 'room-ticket', video: false });
+  client.stop();
+});
+
+test('登入逾時（401）：提示重新登入，而不是籠統的尚未就緒', async () => {
+  const client = makeConnClient(async () => { throw Object.assign(new Error('x'), { status: 401 }); });
+  assert.equal(await client.enter({ roomId: 7 }), false);
+  assert.deepEqual(client.notice, { type: 'session' });
+  client.stop();
+});
+
+test('伺服器錯誤（503）：提示服務暫時無法使用', async () => {
+  const client = makeConnClient(async () => { throw Object.assign(new Error('x'), { status: 503 }); });
+  assert.equal(await client.enter({ roomId: 7 }), false);
+  assert.deepEqual(client.notice, { type: 'service' });
+  client.stop();
+});
+
+test('連線被代理或伺服器拒絕（還沒連上就被關閉）：提示連不上通話伺服器', async () => {
+  const client = makeConnClient(okApi);
+  FakeSocket.mode = 'close';
+  assert.equal(await client.enter({ roomId: 7 }), false);
+  assert.deepEqual(client.notice, { type: 'ws-failed' });
+  client.stop();
+});
+
+test('網路恢復或切回分頁時立即重連；停止時移除監聽', async () => {
+  const listeners = {};
+  const media = { async getUserMedia() { return new FakeStream(); } };
+  const env = {
+    WebSocket: FakeSocket, RTCPeerConnection: class {}, MediaStream: FakeStream, navigator: { mediaDevices: media },
+    addEventListener: (name, fn) => { listeners[name] = fn; }, removeEventListener: name => { delete listeners[name]; },
+    document: { visibilityState: 'visible', addEventListener: (name, fn) => { listeners[name] = fn; }, removeEventListener: name => { delete listeners[name]; } },
+  };
+  FakeSocket.mode = 'open';
+  const client = new CallClient({ api: okApi, wsUrl: () => '', onChange: () => {}, env });
+  client.start();
+  await new Promise(done => setTimeout(done, 60));
+  assert.equal(client.wsReady, true);
+  assert.deepEqual(Object.keys(listeners).sort(), ['online', 'pageshow', 'visibilitychange']);
+  FakeSocket.last.onclose(); // 連線中斷
+  assert.equal(client.wsReady, false);
+  listeners.online();
+  await new Promise(done => setTimeout(done, 60));
+  assert.equal(client.wsReady, true, '網路恢復後立刻重連，不等退避間隔');
+  client.stop();
+  assert.deepEqual(Object.keys(listeners), []);
+});

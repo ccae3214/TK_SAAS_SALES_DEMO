@@ -5,6 +5,7 @@
 const JOIN_TIMEOUT_MS = 12000;
 const RECONNECT_GIVE_UP_MS = 30000;
 const ALONE_HANGUP_MS = 8000;
+const READY_WAIT_MS = 6000;
 
 export function classifyError(error) {
   const name = error?.name || '';
@@ -15,9 +16,21 @@ export function classifyError(error) {
   return { type: 'unknown' };
 }
 
+// 連不上通話連線時，依原因給使用者不同的提示（不是一律「尚未就緒」）
+export function classifyConnectFailure(error) {
+  const status = Number(error?.status) || 0;
+  if (status === 401 || status === 403) return { type: 'session' };
+  if (status >= 500) return { type: 'service' };
+  return { type: 'offline' };
+}
+
 export class CallClient {
-  constructor({ api, wsUrl, onChange, env = globalThis }) {
+  constructor({ api, wsUrl, onChange, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
     this.api = api;
+    this.env = env;
+    this.readyWaitMs = readyWaitMs;
+    this.connecting = false;
+    this.lastFailure = null;
     this.wsUrl = wsUrl;
     this.onChange = onChange || (() => {});
     this.WebSocketCtor = env.WebSocket;
@@ -63,10 +76,47 @@ export class CallClient {
   clearNotice() { if (this.notice) { this.notice = null; this.emit(); } }
 
   // ------------------------------------------------------------ 連線
-  start() { this.stopped = false; return this.connect(); }
+  start() {
+    this.stopped = false;
+    this.listenForWake();
+    return this.connect();
+  }
+
+  // 網路恢復、手機切回這個分頁時，立刻重連，不用等到下一次重試的間隔（最長 60 秒）。
+  listenForWake() {
+    if (this.wake) return;
+    const wake = () => { if (!this.stopped && !this.ws) this.connectNow(); };
+    const visible = () => { if (this.env.document?.visibilityState !== 'hidden') wake(); };
+    this.wake = { wake, visible };
+    this.env.addEventListener?.('online', wake);
+    this.env.addEventListener?.('pageshow', wake);
+    this.env.document?.addEventListener?.('visibilitychange', visible);
+  }
+
+  unlistenForWake() {
+    if (!this.wake) return;
+    this.env.removeEventListener?.('online', this.wake.wake);
+    this.env.removeEventListener?.('pageshow', this.wake.wake);
+    this.env.document?.removeEventListener?.('visibilitychange', this.wake.visible);
+    this.wake = null;
+  }
+
+  connectNow() {
+    clearTimeout(this.reconnectTimer);
+    this.backoff = 1000;
+    return this.connect();
+  }
+
+  // 等連線就緒（最多 ms 毫秒）；回傳是否已連上。
+  async waitReady(ms) {
+    const deadline = Date.now() + ms;
+    while (!this.wsReady && !this.stopped && Date.now() < deadline) await new Promise(done => setTimeout(done, 50));
+    return this.wsReady;
+  }
 
   stop() {
     this.stopped = true;
+    this.unlistenForWake();
     clearTimeout(this.reconnectTimer);
     this.cleanup();
     const ws = this.ws; this.ws = null; this.wsReady = false;
@@ -75,17 +125,21 @@ export class CallClient {
   }
 
   async connect() {
-    if (this.stopped || this.ws || !this.WebSocketCtor) return;
+    if (this.stopped || this.ws || this.connecting || !this.WebSocketCtor) return;
+    this.connecting = true;
     try {
       const { ticket } = await this.api({ type: 'presence' });
       if (this.stopped || this.ws) return;
       const ws = new this.WebSocketCtor(this.wsUrl(ticket));
       this.ws = ws;
-      ws.onopen = () => { this.backoff = 1000; this.wsReady = true; this.emit(); if (this.call?.phase === 'reconnecting') void this.rejoin(); };
+      let opened = false;
+      ws.onopen = () => { opened = true; this.lastFailure = null; this.backoff = 1000; this.wsReady = true; this.emit(); if (this.call?.phase === 'reconnecting') void this.rejoin(); };
       ws.onmessage = event => { try { this.onMessage(JSON.parse(event.data)); } catch { /* 略過壞訊息 */ } };
       ws.onerror = () => {};
       ws.onclose = () => {
         if (this.ws !== ws) return;
+        // 還沒連上就被關掉：通常是代理伺服器（Cloudflare／nginx）或信令伺服器拒絕了這條連線
+        if (!opened) this.lastFailure = { type: 'ws-failed' };
         this.ws = null; this.wsReady = false;
         this.incoming.clear();
         if (this.call) {
@@ -97,7 +151,10 @@ export class CallClient {
         this.emit();
         this.scheduleReconnect();
       };
-    } catch { this.scheduleReconnect(); }
+    } catch (error) {
+      this.lastFailure = classifyConnectFailure(error);
+      this.scheduleReconnect();
+    } finally { this.connecting = false; }
   }
 
   scheduleReconnect() {
@@ -147,8 +204,17 @@ export class CallClient {
   async enter({ roomId, video = false, title = '' }) {
     if (this.call || this.entering) return false;
     if (!this.supported()) { this.setNotice({ type: 'unsupported' }); return false; }
-    if (!this.wsReady) { this.setNotice({ type: 'offline' }); return false; }
     this.entering = true;
+    // 連線還沒就緒（剛開頁面、剛從背景切回來、網路剛恢復）：立刻重連並等一下，不要直接叫使用者稍後再試。
+    if (!this.wsReady) {
+      this.notice = null;
+      this.connectNow();
+      if (!(await this.waitReady(this.readyWaitMs))) {
+        this.entering = false;
+        this.setNotice(this.lastFailure || { type: 'offline' });
+        return false;
+      }
+    }
     this.notice = null;
     let stream = null;
     try {
