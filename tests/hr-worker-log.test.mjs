@@ -151,3 +151,11 @@ test('仲介看不到任何工人活動紀錄的畫面', () => {
   assert.doesNotMatch(home, /isPhilippinesAgency/);
   assert.match(read('src/app/hr/workers/[id]/page.jsx'), /principal\?\.role === 'admin' && <HrWorkerActivityLog/);
 });
+
+test('工人活動紀錄放在會員頁面的「活動紀錄」選單，且有英文翻譯', () => {
+  const portal = read('src/components/HrMemberPortal.jsx');
+  assert.match(portal, /data\.role==='worker'\?\[\['activityLog','活動紀錄',History\]\]/);
+  assert.match(portal, /activeWorkspaceTab==='activityLog'&&data\.role==='worker'&&<HrWorkerActivityLog self\/>/);
+  assert.doesNotMatch(read('src/app/hr/page.jsx'), /HrWorkerActivityLog/);
+  assert.match(read('src/lib/hr-translations.jsx'), /'活動紀錄': 'Activity log'/);
+});
