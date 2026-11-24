@@ -52,6 +52,7 @@ export class CallClient {
         micOn: !!this.localStream?.getAudioTracks().some(track => track.enabled),
         camOn: !!this.localStream?.getVideoTracks().some(track => track.enabled),
         hasCamera: !!this.localStream?.getVideoTracks().length,
+        hasMic: !!this.localStream?.getAudioTracks().length,
         peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream })),
       },
     };
@@ -114,17 +115,31 @@ export class CallClient {
   // ------------------------------------------------------------ 撥打、接聽、拒接、掛斷
   async getMedia(video) {
     const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-    if (!video) return this.media.getUserMedia({ audio, video: false });
+    const missing = error => ['NotFoundError', 'OverconstrainedError'].includes(error?.name);
+    const camera = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 }, facingMode: 'user' };
     try {
-      return await this.media.getUserMedia({ audio, video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 }, facingMode: 'user' } });
-    } catch (error) {
-      // 沒有鏡頭、鏡頭被占用：退回只有聲音，不要讓整通電話打不成
-      if (['NotFoundError', 'OverconstrainedError', 'NotReadableError'].includes(error?.name)) {
-        const stream = await this.media.getUserMedia({ audio, video: false });
-        this.notice = { type: 'no-camera' };
-        return stream;
+      if (!video) return await this.media.getUserMedia({ audio, video: false });
+      try {
+        return await this.media.getUserMedia({ audio, video: camera });
+      } catch (error) {
+        // 沒有鏡頭、鏡頭被占用：退回只有聲音，不要讓整通電話打不成
+        if (['NotFoundError', 'OverconstrainedError', 'NotReadableError'].includes(error?.name)) {
+          const stream = await this.media.getUserMedia({ audio, video: false });
+          this.notice = { type: 'no-camera' };
+          return stream;
+        }
+        throw error;
       }
-      throw error;
+    } catch (error) {
+      // 找不到麥克風（沒有裝置、遠端桌面、系統停用輸入裝置）：改用鏡頭（視訊）或僅收聽加入，仍可聽到對方。
+      // 權限被拒絕、麥克風被占用不在這裡處理，維持原本的錯誤提示。
+      if (!missing(error)) throw error;
+      let stream = null;
+      if (video) { try { stream = await this.media.getUserMedia({ audio: false, video: camera }); } catch { stream = null; } }
+      if (!stream && this.MediaStreamCtor) stream = new this.MediaStreamCtor();
+      if (!stream) throw error;
+      this.notice = { type: 'no-mic' };
+      return stream;
     }
   }
 

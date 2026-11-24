@@ -19,7 +19,7 @@ export const COPY = {
     notices: {
       permission: '無法使用麥克風或鏡頭。請在瀏覽器的網址列旁允許權限；如果是在 LINE 內開啟，請改用 Chrome 或 Safari 開啟本網站。',
       'no-device': '找不到麥克風，請確認裝置後再試一次。', 'device-busy': '麥克風或鏡頭正被其他程式使用，請關閉後再試一次。',
-      'no-camera': '找不到可用的鏡頭，已改用語音通話。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。',
+      'no-camera': '找不到可用的鏡頭，已改用語音通話。', 'no-mic': '找不到麥克風，已加入通話但對方聽不到你的聲音。請確認裝置後重新加入。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。',
       offline: '通話連線尚未就緒，請稍後再試。', timeout: '連線逾時，請再試一次。', 'connection-lost': '網路中斷，通話已結束。',
       declined: name => `${name || '對方'}已拒絕通話。`, 'no-answer': '沒有人接聽。', 'everyone-left': '其他人都已離開，通話結束。',
       full: '通話人數已滿（最多 6 人）。', 'bad-ticket': '通話驗證失敗，請重新整理頁面後再試。', 'already-in-call': '你已經在通話中。',
@@ -34,7 +34,7 @@ export const COPY = {
     notices: {
       permission: 'The microphone or camera cannot be used. Allow access in the browser address bar. If you opened this site inside LINE, open it in Chrome or Safari instead.',
       'no-device': 'No microphone was found. Check your device and try again.', 'device-busy': 'The microphone or camera is being used by another app. Close it and try again.',
-      'no-camera': 'No usable camera was found, so the call was started with voice only.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.',
+      'no-camera': 'No usable camera was found, so the call was started with voice only.', 'no-mic': 'No microphone was found. You joined the call, but others cannot hear you. Check your device and rejoin.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.',
       offline: 'The call connection is not ready yet. Please try again shortly.', timeout: 'The connection timed out. Please try again.', 'connection-lost': 'The network was interrupted and the call ended.',
       declined: name => `${name || 'The other person'} declined the call.`, 'no-answer': 'No one answered.', 'everyone-left': 'Everyone else has left, so the call ended.',
       full: 'The call is full (up to 6 people).', 'bad-ticket': 'Call verification failed. Refresh the page and try again.', 'already-in-call': 'You are already in a call.',
@@ -106,7 +106,7 @@ export function CallView({ state, lang, actions }) {
         <Tile stream={call.localStream} name={copy.me} local />
       </div>
       <footer className="hr-call-controls">
-        <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>
+        {call.hasMic && <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>}
         {call.hasCamera && <button type="button" className={`hr-call-round ${call.camOn ? '' : 'is-off'}`} onClick={actions.toggleCamera} aria-pressed={!call.camOn} aria-label={call.camOn ? copy.cameraOff : copy.cameraOn} title={call.camOn ? copy.cameraOff : copy.cameraOn}>{call.camOn ? <Video size={22} /> : <VideoOff size={22} />}</button>}
         <button type="button" className="hr-call-round is-hangup" onClick={actions.leave} aria-label={copy.hangUp} title={copy.hangUp}><PhoneOff size={22} /></button>
       </footer>

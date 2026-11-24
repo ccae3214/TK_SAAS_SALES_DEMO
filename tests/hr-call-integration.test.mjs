@@ -77,3 +77,10 @@ test('聊天室有語音與視訊通話按鈕（中英文），/hr 頁面所有�
   const provider = await read('../src/components/HrCallProvider.jsx');
   assert.ok(provider.includes("addEventListener('hr:start-call'"));
 });
+
+test('找不到麥克風時改為僅收聽加入：中英文提示都有，沒有麥克風就不顯示靜音鈕', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  assert.ok(provider.includes("'no-mic': '找不到麥克風"), '缺中文提示');
+  assert.ok(provider.includes("'no-mic': 'No microphone was found."), '缺英文提示');
+  assert.ok(provider.includes('{call.hasMic && <button'), '沒有麥克風時不顯示靜音鈕');
+});
