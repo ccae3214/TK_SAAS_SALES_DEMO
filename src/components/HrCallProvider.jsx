@@ -115,26 +115,31 @@ export function CallView({ state, lang, actions }) {
   </>;
 }
 
+// 來電鈴聲：[頻率 Hz, 開始秒數, 長度秒數]，每 2.4 秒重複一次，直到接聽、拒接或對方掛斷。
+// 與加入／離開提示音共用同一個已啟用的 AudioContext：Safari／iPhone 只允許「使用者操作過的」AudioContext 出聲，
+// 來電當下才新建的 AudioContext 會是靜音。頁面還沒被點過時，每一輪鈴聲都會重試，使用者一點畫面就會響。
+export const RING_PATTERN = [[784, 0, 0.18], [988, 0.22, 0.18], [784, 0.6, 0.18], [988, 0.82, 0.18]];
+export const RING_INTERVAL_MS = 2400;
 function startRingtone() {
-  let context = null; let timer = null;
-  try {
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    context = AudioContextCtor ? new AudioContextCtor() : null;
-    void context?.resume?.();
-  } catch { context = null; }
   const beep = (frequency, start, length) => {
+    const context = sharedAudio;
     if (!context || context.state !== 'running') return;
     const oscillator = context.createOscillator(); const gain = context.createGain();
     oscillator.frequency.value = frequency; oscillator.type = 'sine';
     gain.gain.setValueAtTime(0.0001, context.currentTime + start);
-    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + start + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + start + 0.03);
     gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + start + length);
     oscillator.connect(gain).connect(context.destination);
     oscillator.start(context.currentTime + start); oscillator.stop(context.currentTime + start + length + 0.05);
   };
-  const ring = () => { beep(440, 0, 0.4); beep(480, 0.5, 0.4); try { navigator.vibrate?.([300, 150, 300]); } catch { /* 不支援震動 */ } };
-  ring(); timer = setInterval(ring, 2800);
-  return () => { clearInterval(timer); try { navigator.vibrate?.(0); void context?.close?.(); } catch { /* 已關閉 */ } };
+  const ring = () => {
+    unlockAudio();
+    for (const [frequency, start, length] of RING_PATTERN) beep(frequency, start, length);
+    try { navigator.vibrate?.([300, 150, 300]); } catch { /* 不支援震動 */ }
+  };
+  ring();
+  const timer = setInterval(ring, RING_INTERVAL_MS);
+  return () => { clearInterval(timer); try { navigator.vibrate?.(0); } catch { /* 不支援震動 */ } };
 }
 
 // 通話中的提示音：有人加入（往上兩聲）、有人離開或掛斷（往下兩聲）。
