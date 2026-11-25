@@ -2266,4 +2266,9 @@ export const TL_DICTIONARY = {
   "Nothing scheduled this month": "Walang naka-iskedyul ngayong buwan",
   "Nothing scheduled on this day": "Walang naka-iskedyul sa araw na ito",
   "No reminders right now": "Walang paalala sa ngayon",
+  "Filter orders by progress": "I-filter ang mga order ayon sa progreso",
+  "Agency assignment": "Pagtatalaga ng ahensya",
+  "Choose / recommend candidates": "Pumili / magrekomenda ng mga kandidato",
+  "No job orders match this progress.": "Walang job order na tumutugma sa progresong ito.",
+  "Show all job orders": "Ipakita ang lahat ng job order",
 };

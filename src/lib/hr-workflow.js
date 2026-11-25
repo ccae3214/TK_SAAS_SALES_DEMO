@@ -21,6 +21,31 @@ export function orderJourney(order, assignments = [], routes = [], candidates = 
     : '先指定合作台灣仲介，再進行轉介。';
   return { step, actionable, hired, dispatches, routes: forwarded, candidates: people, next };
 }
+// 雇主「需求與配對」需求單列表的進度篩選。選項對應需求單卡片上的五個進度（MATCH_STEPS），另加「已取消」與「全部」。
+export const ORDER_PROGRESS_FILTERS = [
+  ['all', '全部'],
+  ['created', MATCH_STEPS[0]],
+  ['agency', MATCH_STEPS[1]],
+  ['candidates', MATCH_STEPS[2]],
+  ['interview', MATCH_STEPS[3]],
+  ['hired', MATCH_STEPS[4]],
+  ['cancelled', '已取消'],
+];
+const PROGRESS_KEY_BY_STEP = ['created', 'agency', 'candidates', 'interview', 'hired'];
+// 需求單目前所在的進度分組；已取消的單獨一組，不看人選狀態。
+export function orderProgressGroup(order, assignments = [], routes = [], candidates = []) {
+  if (order.status === 'cancelled') return 'cancelled';
+  return PROGRESS_KEY_BY_STEP[orderJourney(order, assignments, routes, candidates).step] || 'created';
+}
+export function orderProgressCounts(orders = [], assignments = [], routes = [], candidates = []) {
+  const counts = { all: orders.length, created: 0, agency: 0, candidates: 0, interview: 0, hired: 0, cancelled: 0 };
+  for (const order of orders) counts[orderProgressGroup(order, assignments, routes, candidates)] += 1;
+  return counts;
+}
+export function filterOrdersByProgress(orders = [], filter = 'all', assignments = [], routes = [], candidates = []) {
+  if (filter === 'all') return orders;
+  return orders.filter(order => orderProgressGroup(order, assignments, routes, candidates) === filter);
+}
 export function agencySnapshot(agency, data) {
   const members = (data.members || []).filter(row => sameId(row.agency_id, agency.id));
   const employers = (data.employers || []).filter(row => sameId(row.agency_id, agency.id));

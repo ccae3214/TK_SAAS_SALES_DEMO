@@ -11,6 +11,7 @@ import { MEMBER_TRASH_EN } from '@/lib/hr-member-trash-text';
 import { DEPOSIT_EN, translateDepositPattern } from '@/lib/hr-translations-deposit';
 import { WORKER_MESSAGES_EN, translateWorkerMessagePattern } from '@/lib/hr-translations-worker-messages';
 import { ADMIN_CALENDAR_EN } from '@/lib/hr-translations-calendar';
+import { ORDER_FILTER_EN } from '@/lib/hr-translations-order-filter';
 
 const EN = {
   '克雷迅人力管理': 'Kolecion HR', '克雷迅人力仲介管理系統': 'Kolecion Employment Agency Management',
@@ -466,7 +467,7 @@ export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
   let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed] || WORKER_MESSAGES_EN[trimmed];
-  if (!translated) translated = MEMBER_TRASH_EN[trimmed] || ADMIN_CALENDAR_EN[trimmed];
+  if (!translated) translated = MEMBER_TRASH_EN[trimmed] || ADMIN_CALENDAR_EN[trimmed] || ORDER_FILTER_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;
