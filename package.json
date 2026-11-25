@@ -27,7 +27,8 @@
     "pg": "^8.11.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "recharts": "^3.8.0"
+    "recharts": "^3.8.0",
+    "web-push": "^4.0.0"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",

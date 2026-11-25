@@ -49,6 +49,13 @@ services:
       - HR_CALL_STUN_URLS=${HR_CALL_STUN_URLS:-stun:stun.l.google.com:19302}
       - HR_CALL_TURN_URLS=${HR_CALL_TURN_URLS:-}
       - HR_CALL_TURN_SECRET=${HR_CALL_TURN_SECRET:-}
+      # 來電通知：對方不在線上時，用網頁推播（Web Push，加到桌面後鎖屏也收得到）通知，沒送到再用 LINE。
+      # 推播金鑰用「npx web-push generate-vapid-keys」產生；沒設定時網站不會顯示「來電通知」按鈕。
+      - HR_PUSH_VAPID_PUBLIC_KEY=${HR_PUSH_VAPID_PUBLIC_KEY:-}
+      - HR_PUSH_VAPID_PRIVATE_KEY=${HR_PUSH_VAPID_PRIVATE_KEY:-}
+      - HR_PUSH_SUBJECT=${HR_PUSH_SUBJECT:-}
+      # LINE 備援：fallback（預設，網頁推播沒送到才用 LINE，省每月推播額度）／always（兩種都送）／off（不用 LINE）
+      - HR_CALL_LINE_NOTIFY=${HR_CALL_LINE_NOTIFY:-fallback}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-saas_demo}
     depends_on:
       postgres:

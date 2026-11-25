@@ -9,6 +9,7 @@ import { translateChatSystemMessage } from '@/lib/hr-translations-chat';
 import { readJson } from '@/lib/hr-read-json';
 import { pickLang } from '@/lib/language';
 import { mapLeaves, tlText } from '@/lib/language';
+import HrCallNotify from '@/components/HrCallNotify';
 
 export default function HrChat() {
   const {lang}=useLanguage();
@@ -90,7 +91,7 @@ export default function HrChat() {
   const text=lang==='tl'?mapLeaves(textBase,tlText):textBase;
   function displayRoomTitle(room){return room?.roomType==='agency'?`${room.agencyName} · ${text.agency}`:room?.roomType==='direct'?(room.title||text.direct):room?.caseNumber?`${room.caseNumber} · ${room.workerName} / ${room.employerName}`:text.notFound;}
   return <section id="hr-chat-section" className={`${styles.chatCard} ${mobileChat?styles.chatOpen:''}`}>
-    <header className={styles.heading}><div><span><MessageCircle size={17}/> {text.label}</span><h2>{text.title}</h2><p>{text.description}</p></div><button type="button" className={styles.refresh} onClick={()=>{setError('');loadRooms().then(()=>selectedRoomId&&loadMessages(selectedRoomId)).catch(err=>setError(localizeError(err)));}} aria-label={text.refresh}><RefreshCw size={17}/></button></header>
+    <header className={styles.heading}><div><span><MessageCircle size={17}/> {text.label}</span><h2>{text.title}</h2><p>{text.description}</p></div><div className={styles.headingActions}><HrCallNotify/><button type="button" className={styles.refresh} onClick={()=>{setError('');loadRooms().then(()=>selectedRoomId&&loadMessages(selectedRoomId)).catch(err=>setError(localizeError(err)));}} aria-label={text.refresh}><RefreshCw size={17}/></button></div></header>
     {error&&<p className={styles.error} role="alert">{error}</p>}
     {loading?<div className={styles.empty}>{text.loading}</div>:rooms.length===0?<div className={styles.empty}>{text.none}</div>:
       <div className={`${styles.layout} ${mobileChat?styles.showChat:styles.showList}`}>

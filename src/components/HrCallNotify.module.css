@@ -1,0 +1,22 @@
+.button{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;min-height:40px;padding:0 12px;border:1px solid #e1e9e4;border-radius:12px;background:#fff;color:#176b54;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .16s,border-color .16s}
+.button:hover{background:#f2f9f5;border-color:#cfe8dc}
+.button:focus-visible{outline:3px solid #7cc8ad;outline-offset:2px}
+.dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#1fa971;box-shadow:0 0 0 2px #fff}
+.overlay{position:fixed;inset:0;z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:16px;background:rgba(15,35,27,.45)}
+.dialog{width:100%;max-width:440px;max-height:calc(100dvh - 32px);overflow:auto;padding:20px;border-radius:18px;background:#fff;color:#14231d;box-shadow:0 20px 50px rgba(15,45,33,.25)}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px}
+.head h2{margin:0;font-size:18px;line-height:1.35}
+.close{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border:0;border-radius:10px;background:#f2f9f5;color:inherit;cursor:pointer}
+.text{margin:0 0 12px;font-size:14.5px;line-height:1.65}
+.steps{display:grid;gap:10px;margin:0 0 12px;padding-left:22px;font-size:14.5px;line-height:1.6}
+.note{margin:0 0 12px;color:#72837a;font-size:13px;line-height:1.6}
+.status{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#ecf8f2;color:#176b54;font-size:14px;font-weight:700}
+.actions{display:grid;gap:8px;margin-top:4px}
+.primary,.secondary{width:100%;min-height:46px;border-radius:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+.primary{border:0;background:#176b54;color:#fff}
+.secondary{border:1px solid #cfe3d8;background:#fff;color:#176b54}
+.primary:disabled,.secondary:disabled{opacity:.55;cursor:not-allowed}
+.message{margin:0 0 12px;padding:10px 12px;border-radius:12px;font-size:13.5px;line-height:1.55;background:#ecf8f2;color:#176b54}
+.message.isError{background:#fdecea;color:#b42318}
+@media (max-width:680px){.label{display:none}.button{width:40px;padding:0}}
+@media (min-width:681px){.overlay{align-items:center}}

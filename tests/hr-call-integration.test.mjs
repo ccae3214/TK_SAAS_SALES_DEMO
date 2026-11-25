@@ -113,3 +113,40 @@ test('來電鈴聲：共用已啟用的 AudioContext（不另外新建、不關�
   assert.ok(ringtone.includes('setInterval(ring, RING_INTERVAL_MS)'));
   assert.ok(provider.includes('export const RING_PATTERN'));
 });
+
+test('來電通知：推播訂閱 API 的聊天室識別與聊天室 API 相同，所有環節都接上', async () => {
+  const chat = await read('../src/app/api/hr/chat/route.js');
+  const push = await read('../src/app/api/hr/push/route.js');
+  const grab = (source, name) => { const start = source.indexOf(name); assert.ok(start >= 0, `找不到 ${name}`); return source.slice(start, source.indexOf('\n}\n', start) + 3); };
+  assert.equal(grab(push, 'function getReaderKey('), grab(chat, 'function getReaderKey('));
+  // 必須登入、寫入要同源檢查、訂閱網址有白名單檢查
+  assert.ok(push.includes("Authentication required") && push.includes('requestIsSameOrigin(request)') && push.includes('normalizeSubscription('));
+  // 啟動時登記通知掛鉤、建立資料表
+  assert.ok((await read('../src/instrumentation-node.js')).includes('registerCallNotifyHook()'));
+  assert.ok((await read('../src/lib/hr-migrations.js')).includes("['push-subscriptions', () => ensurePushSchema()]"));
+  assert.ok((await read('../src/lib/hr-call-signaling.js')).includes('globalThis.__hrCallNotifyHook'));
+  assert.ok((await read('../src/lib/hr-call-notify-store.js')).includes('globalThis.__hrCallNotifyHook ='));
+  // Service Worker 的註冊範圍／CSP／設定檔／套件／畫面
+  const middleware = await read('../src/middleware.js');
+  assert.ok(middleware.includes('"worker-src \'self\'"'), 'CSP 要明確允許 Service Worker');
+  const compose = await read('../docker-compose.yml');
+  for (const name of ['HR_PUSH_VAPID_PUBLIC_KEY', 'HR_PUSH_VAPID_PRIVATE_KEY', 'HR_PUSH_SUBJECT', 'HR_CALL_LINE_NOTIFY']) assert.ok(compose.includes(`- ${name}=`) && (await read('../.env.example')).includes(`${name}=`), name);
+  assert.ok(JSON.parse(await read('../package.json')).dependencies['web-push']);
+  assert.ok((await read('../src/components/HrChat.jsx')).includes('<HrCallNotify/>'));
+  const component = await read('../src/components/HrCallNotify.jsx');
+  assert.ok(component.includes("'/hr-push-sw.js'") && component.includes("'/hr-push/'"));
+});
+
+test('推播用的 Service Worker：只處理推播與點擊，不攔截任何網路請求', async () => {
+  const worker = await read('../public/hr-push-sw.js');
+  assert.ok(worker.includes("addEventListener('push'") && worker.includes("addEventListener('notificationclick'"));
+  assert.ok(!worker.includes("addEventListener('fetch'") && !/caches\./.test(worker), '不能攔截請求或快取（會影響網站載入）');
+  assert.ok(worker.includes('showNotification(') && worker.includes('requireInteraction: true'));
+  assert.ok(worker.includes("startsWith('/') && !data.url.startsWith('//')"), '通知網址只允許本站路徑');
+});
+
+test('來電通知掛鉤在資料庫遷移之前登記（遷移失敗也不會讓來電通知失效）', async () => {
+  const source = await read('../src/instrumentation-node.js');
+  assert.ok(source.indexOf('registerCallNotifyHook();') > 0);
+  assert.ok(source.indexOf('registerCallNotifyHook();') < source.indexOf('await runStartupMigrations()'));
+});

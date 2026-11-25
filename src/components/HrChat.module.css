@@ -3,6 +3,7 @@
 .heading span{display:flex;align-items:center;gap:7px;color:#1f8366;font-size:12px;font-weight:800;letter-spacing:.12em}
 .heading h2{margin:7px 0 5px;font-size:21px;font-weight:800;color:#14231d}
 .heading p{margin:0;color:#6b7c73;font-size:13.5px;line-height:1.65}
+.headingActions{display:flex;align-items:center;gap:8px;flex:none}
 .refresh{display:grid;place-items:center;flex:none;width:40px;height:40px;border:1px solid #e1e9e4;border-radius:12px;background:#fff;color:#176b54;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
 .refresh:hover{background:#f2f9f5;border-color:#cfe8dc;transform:rotate(30deg)}
 .layout{display:grid;grid-template-columns:minmax(210px,30%) 1fr;min-height:460px;border:1px solid #e1e9e4;border-radius:16px;overflow:hidden;background:#fff}

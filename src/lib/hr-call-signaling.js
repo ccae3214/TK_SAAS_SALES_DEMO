@@ -7,15 +7,19 @@ import { verifyTicket } from './hr-call-ticket.js';
 
 export const MAX_PARTICIPANTS = 6; // 多人通話是每個人彼此直連（mesh），超過約 4～6 人手機會吃不消
 export const RING_MS = 45000;
+export const NUDGE_MS = 10000; // 響鈴這麼久還沒人接，連著網頁卻沒反應的人（例如手機切到背景）也補發一次通知
 const MAX_CONNECTIONS_PER_KEY = 6;
 const MAX_CONNECTIONS = 500;
 const MAX_MESSAGE_BYTES = 64 * 1024;
 
 // ---------------------------------------------------------------- 通話邏輯（與連線方式無關，可單獨測試）
 export class CallHub {
-  constructor({ secret, ringMs = RING_MS, setTimer = setTimeout, clearTimer = clearTimeout, now = () => Date.now() } = {}) {
+  // onNotify(call)：有人撥號時通知「不在線上」的被叫者（網頁推播／LINE），見 hr-call-notify-store.js。通知失敗不影響通話。
+  constructor({ secret, ringMs = RING_MS, nudgeMs = NUDGE_MS, onNotify = null, setTimer = setTimeout, clearTimer = clearTimeout, now = () => Date.now() } = {}) {
     this.secret = secret;
     this.ringMs = ringMs;
+    this.nudgeMs = nudgeMs;
+    this.onNotify = onNotify;
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
     this.now = now;
@@ -42,6 +46,20 @@ export class CallHub {
     const set = this.byKey.get(conn.key);
     if (set?.delete(conn)) this.connectionCount -= 1;
     if (set && !set.size) this.byKey.delete(conn.key);
+  }
+
+  isOnline(key) { return (this.byKey.get(key)?.size || 0) > 0; }
+
+  notify(call, keys, kind) {
+    if (!this.onNotify || !keys.length) return;
+    try { this.onNotify({ kind, roomId: call.roomId, callId: call.id, title: call.title, video: call.video, from: call.startedByName, startedBy: call.startedBy, keys }); } catch { /* 通知失敗不影響通話 */ }
+  }
+
+  // 響鈴一段時間還沒人加入：還在線上、沒拒接的被叫者也補發通知（網頁在背景時可能聽不到鈴聲）。
+  nudge(call) {
+    call.nudgeTimer = null;
+    if (this.calls.get(call.roomId) !== call || !call.ringing || call.participants.size > 1) return;
+    this.notify(call, [...call.invitees].filter(key => this.isOnline(key) && !call.declined.has(key) && !this.isParticipantKey(call, key)), 'nudge');
   }
 
   isParticipantKey(call, key) {
@@ -79,7 +97,9 @@ export class CallHub {
       };
       this.calls.set(roomId, call);
       call.timer = this.setTimer(() => this.ringTimeout(call), this.ringMs);
+      call.nudgeTimer = this.nudgeMs > 0 ? this.setTimer(() => this.nudge(call), this.nudgeMs) : null;
       for (const key of call.invitees) for (const other of this.byKey.get(key) || []) other.send(this.incomingMessage(call));
+      this.notify(call, [...call.invitees].filter(key => !this.isOnline(key)), 'offline');
     } else if (call.participants.size >= MAX_PARTICIPANTS) {
       return conn.send({ t: 'error', code: 'full' });
     }
@@ -129,6 +149,7 @@ export class CallHub {
     if (this.calls.get(call.roomId) !== call) return;
     this.calls.delete(call.roomId);
     if (call.timer) { this.clearTimer(call.timer); call.timer = null; }
+    if (call.nudgeTimer) { this.clearTimer(call.nudgeTimer); call.nudgeTimer = null; }
     const notice = { t: 'ended', roomId: call.roomId, callId: call.id, reason };
     for (const participant of call.participants.values()) { participant.roomId = null; participant.send(notice); }
     call.participants.clear();
@@ -178,7 +199,10 @@ function rejectUpgrade(socket, status, text) {
   socket.destroy();
 }
 
-export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secret, hub = new CallHub({ secret }), heartbeatMs = 25000, log = console } = {}) {
+// 通知掛鉤由 Next 那邊（instrumentation）登記在 globalThis；server.js 不直接碰資料庫。
+const notifyViaGlobalHook = call => globalThis.__hrCallNotifyHook?.(call);
+
+export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secret, hub = new CallHub({ secret, onNotify: notifyViaGlobalHook }), heartbeatMs = 25000, log = console } = {}) {
   const sockets = new Set();
   httpServer.on('upgrade', (req, socket, head) => {
     let url;

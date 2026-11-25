@@ -12,6 +12,7 @@ export function middleware(request) {
     "img-src 'self' data: blob:",
     `connect-src 'self'${callSocket}`,
     "font-src 'self' data:",
+    "worker-src 'self'", // 來電通知的 Service Worker（/hr-push-sw.js）。script-src 有 strict-dynamic 時 'self' 會被忽略，要在這裡明確允許。
     "frame-ancestors 'self'",
     "object-src 'none'",
     "base-uri 'self'",
