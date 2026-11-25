@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 備份 PostgreSQL 資料庫（人力仲介系統的所有資料，包含加密後的上傳文件）。
+// 備份 PostgreSQL 資料庫（HR 資料及選填的 DEMO/NOTE 隔離資料庫）。
 //
 //   npm run db:backup                     備份到專案資料夾的 backups\
 //   npm run db:backup -- --keep 30        保留最新 30 份（預設 14 份）
@@ -13,7 +13,7 @@ import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { backupFileName, backupsToPrune, detectCompose, resolveDbConfig } from './db-backup-lib.mjs';
+import { backupFileName, backupsToPrune, detectCompose, isSafeDbName, parseEnvFile, resolveDbConfig } from './db-backup-lib.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -59,29 +59,38 @@ export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
   const envFile = existsSync(path.join(root, '.env')) ? await readFile(path.join(root, '.env'), 'utf8') : '';
   const { user, db } = resolveDbConfig(process.env, envFile);
+  const fileEnv = parseEnvFile(envFile);
+  const demoNotesDb = process.env.DEMO_NOTES_DATABASE_NAME || fileEnv.DEMO_NOTES_DATABASE_NAME;
+  const databases = [...new Set([db, demoNotesDb].filter(Boolean))];
+  if (databases.some(database => !isSafeDbName(database))) throw new Error('資料庫名稱只允許小寫英數與底線。');
   const compose = detectCompose(probe, process.env.DOCKER_COMPOSE_CMD || '');
   if (!compose) throw new Error('找不到 docker compose。請確認 Docker Desktop 已啟動。');
 
   await mkdir(options.out, { recursive: true });
-  const finalPath = path.join(options.out, backupFileName(db));
-  const partialPath = `${finalPath}.partial`;
-  try {
-    console.log(`備份資料庫 ${db} …`);
-    await runToFile([...compose, 'exec', '-T', 'postgres', 'pg_dump', '-U', user, '-d', db, '-Fc'], partialPath);
-    const { size } = await stat(partialPath);
-    if (size === 0) throw new Error('備份檔是空的，備份失敗。');
-    await runWithFileInput([...compose, 'exec', '-T', 'postgres', 'pg_restore', '--list'], partialPath);
-    await rename(partialPath, finalPath);
-    console.log(`備份完成：${finalPath}（${(size / 1024 / 1024).toFixed(2)} MB）`);
-  } catch (error) {
-    await rm(partialPath, { force: true });
-    throw error;
+  for (const database of databases) {
+    const finalPath = path.join(options.out, backupFileName(database));
+    const partialPath = `${finalPath}.partial`;
+    try {
+      console.log(`備份資料庫 ${database} …`);
+      await runToFile([...compose, 'exec', '-T', 'postgres', 'pg_dump', '-U', user, '-d', database, '-Fc'], partialPath);
+      const { size } = await stat(partialPath);
+      if (size === 0) throw new Error('備份檔是空的，備份失敗。');
+      await runWithFileInput([...compose, 'exec', '-T', 'postgres', 'pg_restore', '--list'], partialPath);
+      await rename(partialPath, finalPath);
+      console.log(`備份完成：${finalPath}（${(size / 1024 / 1024).toFixed(2)} MB）`);
+    } catch (error) {
+      await rm(partialPath, { force: true });
+      throw error;
+    }
   }
 
   // 新備份確定成功之後，才清掉超過保留份數的舊備份。
-  const stale = backupsToPrune(await readdir(options.out), db, options.keep);
-  for (const name of stale) await rm(path.join(options.out, name), { force: true });
-  if (stale.length) console.log(`已清除 ${stale.length} 份舊備份（保留最新 ${options.keep} 份）。`);
+  const names = await readdir(options.out);
+  for (const database of databases) {
+    const stale = backupsToPrune(names, database, options.keep);
+    for (const name of stale) await rm(path.join(options.out, name), { force: true });
+    if (stale.length) console.log(`資料庫 ${database} 已清除 ${stale.length} 份舊備份（保留最新 ${options.keep} 份）。`);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

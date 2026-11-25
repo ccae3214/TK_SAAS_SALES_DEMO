@@ -5,7 +5,7 @@
 --
 -- 用法（在專案資料夾，center_email 換成訓練中心會員的 Email）：
 --   docker compose cp scripts/seed-mandarin-a1-course.sql postgres:/tmp/seed-a1.sql
---   docker compose exec -T -e PGCLIENTENCODING=UTF8 postgres psql -U postgres -d saas_demo -v center_email=center@example.com -f /tmp/seed-a1.sql
+--   docker compose exec -T -e PGCLIENTENCODING=UTF8 postgres psql -U postgres -d kolecion_db -v center_email=center@example.com -f /tmp/seed-a1.sql
 -- （不要用 Get-Content 管線：Windows PowerShell 會把中文編碼弄壞，造成 unterminated quoted string。）
 --
 -- 課程費用不會由這支腳本設定（預設為空白，網站顯示「—」），請到訓練中心的課程頁填入費用與幣別。

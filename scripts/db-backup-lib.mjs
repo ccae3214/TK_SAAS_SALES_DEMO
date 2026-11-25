@@ -20,7 +20,7 @@ export function resolveDbConfig(env = {}, envFileText = '') {
   const file = parseEnvFile(envFileText);
   return {
     user: env.POSTGRES_USER || file.POSTGRES_USER || 'postgres',
-    db: env.POSTGRES_DB || file.POSTGRES_DB || 'saas_demo',
+    db: env.POSTGRES_DB || file.POSTGRES_DB || 'kolecion_db',
   };
 }
 
@@ -31,7 +31,7 @@ export function isSafeDbName(name) {
 
 const pad = value => String(value).padStart(2, '0');
 
-// 例如 saas_demo_20261116-030000.dump（使用執行這台電腦的本地時間）。
+// 例如 kolecion_db_20261126-045932.dump（使用執行這台電腦的本地時間）。
 export function backupFileName(db, date = new Date()) {
   const day = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
   const time = `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;

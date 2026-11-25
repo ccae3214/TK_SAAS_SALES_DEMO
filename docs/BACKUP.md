@@ -16,10 +16,11 @@ Run in the project folder (Docker Desktop must be running):
 npm run db:backup
 ```
 
-- 備份檔存在 `backups\`，檔名像 `saas_demo_20261116-030000.dump`。
-  Files go to `backups\`, named like `saas_demo_20261116-030000.dump`.
+- HR 備份檔存在 `backups\`，檔名以 `kolecion_db_` 開頭；DEMO／NOTE 備份檔名以 `saas_demo_content_` 開頭。
+  Files go to `backups\`; HR backups start with `kolecion_db_`, DEMO/NOTE backups with `saas_demo_content_`.
 - 預設保留最新 14 份，可用 `npm run db:backup -- --keep 30` 調整；也可以用 `--out D:\backup` 改存到別的硬碟。
   The newest 14 are kept by default; change it with `--keep 30`, or store elsewhere with `--out D:\backup`.
+- `.env` 設定 `DEMO_NOTES_DATABASE_NAME` 時，備份也會包含同一 PostgreSQL 伺服器上的 DEMO／NOTE 獨立資料庫；HR 仍使用 `DATABASE_URL` 指向的資料庫。
 - 備份完成後會自動驗證檔案能讀取；失敗時不會留下半成品，也不會刪掉舊備份。
   Each backup is verified after it is written. On failure no partial file is left and old backups are not pruned.
 
@@ -44,7 +45,7 @@ To check it worked, open `backups\backup.log` or look for today's file in `backu
 Restoring never overwrites the live database. It restores into a temporary database so you can inspect it and recover what you need:
 
 ```powershell
-npm run db:restore -- backups\saas_demo_20261116-030000.dump
+npm run db:restore -- backups\kolecion_db_20261126-045932.dump
 docker compose exec postgres psql -U postgres -d restore_tmp
 ```
 

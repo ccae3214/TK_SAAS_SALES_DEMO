@@ -5,7 +5,7 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
-      - POSTGRES_DB=${POSTGRES_DB:-saas_demo}
+      - POSTGRES_DB=${POSTGRES_DB:-kolecion_db}
     ports:
       # 只開給本機（維護時用 psql / 備份）。以前是 "5432:5432"，會對外網開放資料庫。
       # app 容器走 compose 內部網路連 postgres:5432，不受影響。
@@ -15,7 +15,7 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-saas_demo}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kolecion_db}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -56,7 +56,7 @@ services:
       - HR_PUSH_SUBJECT=${HR_PUSH_SUBJECT:-}
       # LINE 備援：fallback（預設，網頁推播沒送到才用 LINE，省每月推播額度）／always（兩種都送）／off（不用 LINE）
       - HR_CALL_LINE_NOTIFY=${HR_CALL_LINE_NOTIFY:-fallback}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-saas_demo}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-kolecion_db}
     depends_on:
       postgres:
         condition: service_healthy

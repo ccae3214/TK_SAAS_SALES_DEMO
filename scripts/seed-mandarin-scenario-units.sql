@@ -4,7 +4,7 @@
 -- 既有單元（發音與聲調、日常生活…）都保留，工人已經記錄的學習進度不會消失。
 --
 -- 請先執行過 seed-training-courses.sql（建立課程與原本 8 個單元），再用（在專案資料夾，center_email 換成訓練中心會員的 Email）：
---   Get-Content scripts/seed-mandarin-scenario-units.sql | docker compose exec -T postgres psql -U postgres -d saas_demo -v center_email=center@example.com
+--   Get-Content scripts/seed-mandarin-scenario-units.sql | docker compose exec -T postgres psql -U postgres -d kolecion_db -v center_email=center@example.com
 --
 -- 注意：新增單元的時數合計為 38 小時，加上原本 60 小時，單元時數合計會超過課程的「課程時數」；課程時數與費用不會被這支腳本修改，請自行決定是否調整。
 \set ON_ERROR_STOP on

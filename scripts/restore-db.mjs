@@ -2,7 +2,7 @@
 // 把備份檔還原到一個「暫時資料庫」（預設 restore_tmp），讓你可以查看、找回被誤刪的資料。
 // 不會碰到正在使用的正式資料庫。
 //
-//   npm run db:restore -- backups\saas_demo_20261116-030000.dump
+//   npm run db:restore -- backups\kolecion_db_20261126-045932.dump
 //   npm run db:restore -- backups\xxx.dump --db restore_0501
 //
 // 還原完成後可以這樣查看：
@@ -26,7 +26,7 @@ function parseArgs(argv) {
     else if (!options.file) options.file = arg;
     else throw new Error('只能指定一個備份檔。');
   }
-  if (!options.file) throw new Error('請指定備份檔，例如：npm run db:restore -- backups\\saas_demo_20261116-030000.dump');
+  if (!options.file) throw new Error('請指定備份檔，例如：npm run db:restore -- backups\\kolecion_db_20261126-045932.dump');
   return options;
 }
 

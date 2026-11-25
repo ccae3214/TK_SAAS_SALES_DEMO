@@ -2,7 +2,7 @@
 -- 可重複執行：已存在的證照／課程不會被覆蓋；中文 N1 只有在「還沒有任何單元」時才會寫入單元，不會蓋掉你編輯過的內容。
 --
 -- 用法（在專案資料夾，center_email 換成訓練中心會員的 Email）：
---   Get-Content scripts/seed-training-courses.sql | docker compose exec -T postgres psql -U postgres -d saas_demo -v center_email=center@example.com
+--   Get-Content scripts/seed-training-courses.sql | docker compose exec -T postgres psql -U postgres -d kolecion_db -v center_email=center@example.com
 --
 -- 若網站還沒更新到有「課程費用」欄位的版本，這支腳本也會先補上欄位。
 \set ON_ERROR_STOP on
