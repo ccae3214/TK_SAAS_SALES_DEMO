@@ -2274,5 +2274,4 @@ export const TL_DICTIONARY = {
   "Choose workers": "Pumili ng mga manggagawa",
   "Your order is created. Choose workers from the Philippine agencies certified with your Taiwan agency above.": "Nagawa na ang iyong order. Pumili ng mga manggagawa mula sa mga ahensya sa Pilipinas na sertipikado sa iyong ahensya sa Taiwan sa itaas.",
   "This job order is already at the interview or hiring stage, so no more workers can be selected.": "Nasa yugto na ng interview o pagkuha ang job order na ito, kaya hindi na maaaring pumili ng mga manggagawa.",
-  "This job order is already at the interview or hiring stage, so no more workers can be selected.": "Nasa yugto na ng interview o pagkuha ang job order na ito, kaya hindi na maaaring pumili ng mga manggagawa.",
 };
