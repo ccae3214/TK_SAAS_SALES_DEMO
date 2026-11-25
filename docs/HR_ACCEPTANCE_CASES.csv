@@ -1,0 +1,86 @@
+﻿ID,分類,優先級,操作身分,前置條件,操作步驟,預期結果,驗證方式,狀態,實際結果,證據,問題編號
+START-01,工作起點,P0,雇主／台灣仲介／菲律賓仲介／工作者,各角色已核准；分開 session,各自登入→開工作起點→重整,身分、機構及本人資料正確；不顯示其他角色資料或不適用操作,人工／登入後整合,通過,Four independent credential UI logins; /api/hr principal and rendered start; refreshed,docs/review/hr-acceptance-results.json → START-01；run 5b3d38b6,
+START-02,工作起點,P0,同一仲介會員,A/B/C 三件需求分別待推薦、待面試、已錄用辦件,登入同一會員→工作起點→需求與配對→來台程序,A/B/C 都可找到且狀態分開；摘要入口不能讓其他並行事務消失；不要求新增單一畫面總覽,人工／登入後整合,失敗,"ph: Application Error
+Error: ReferenceError: localeFor is not defined
+
+Stack:
+ReferenceError: localeFor is not defined
+    at http://localhost:8092/_next/static/chunks/1988-000d4ecc9006f667.js:1:429083
+    at Array.map (<anonymous>)
+    at H (http://localhost:8092/_next/static/chunks/1988-000d4ecc9006f667.js:1:428873)
+    at l9 (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:51130)
+    at o_ (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:70990)
+    at oq (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:82020)
+    at ik (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:114682)
+    at http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4",docs/review/hr-acceptance-results.json → START-02；run 5b3d38b6,F1
+START-03,工作起點,P0,雇主／兩側仲介,A 可操作；B filled；C cancelled；D open 但錄用已達人數,逐筆開啟需求並查看可用按鈕,A 可依角色操作；B/C/D 保留可查歷史但不可繼續推薦或超額錄用,人工／登入後整合,通過,Dedicated stale-open-at-capacity fixture; UI operations disabled; terminal records preserved across all three roles,docs/review/hr-acceptance-results.json → START-03；run 5b3d38b6,
+START-04,工作起點,P1,工作者,本人有適用缺件、退回、已送審、已核准、不適用文件,由起點進必要文件→逐筆比對,待補件不把已送審／核准／不適用算成缺件；可找到正確本人文件,人工／登入後整合,通過,"{""fiveStatusMixture"": true, ""count"": 16}",docs/review/hr-acceptance-results.json → START-04；run 5b3d38b6,
+START-05,工作起點,P1,已核准無案件會員,帳號已核准且可見資料為空,登入→切換各可用分頁→重整,顯示真實空狀態；不殘留前一會員資料、不報錯、不捏造待辦,人工／登入後整合,通過,"Approved empty agency, real UI refresh; no previous-identity record",docs/review/hr-acceptance-results.json → START-05；run 5b3d38b6,
+START-06,工作起點,P0,新會員／待審會員,分別準備未送審、已送審、已核准帳號,逐一登入→已送審者重整及重新確認審核狀態,未送審可填申請；待審不重現未申請表單；核准後進對應工作區；不驗推播,人工／登入後整合,通過,"{""sameApplicantApproved"": ""72"", ""worker"": ""110""}",docs/review/hr-acceptance-results.json → START-06；run 5b3d38b6,
+START-07,工作起點,P1,會員,同一會員桌機與390px視窗,開起點→操作導覽→逐個進入工作頁→返回,按鈕可觸及、不被語言或浮動工具遮擋；同一資料一致、無整頁水平溢出,人工／登入後整合,通過,"390px Chromium all four role starts; no whole-document overflow, not physical-device evidence",docs/review/hr-acceptance-results.json → START-07；run 5b3d38b6,
+START-08,工作起點,P0,雇主／仲介,保留另一方尚未儲存的編輯內容,甲開編輯表單未存→乙更新另一筆→甲切頁籤回來,自動更新不能靜默覆蓋甲草稿；儲存後資料與目標紀錄一致,人工／登入後整合,通過,Real UI draft survives focus refresh and persists to correct order,docs/review/hr-acceptance-results.json → START-08；run 5b3d38b6,
+FLOW-01,三方交接,P0,雇主→台灣仲介→菲律賓仲介,E-A需求A；TW-A；PH-A；使用現行管理者指派路徑,雇主建立需求並指定合作台灣仲介→管理者指派PH-A→各方重新讀取,同一需求ID、雇主、職類、人數及機構關係一致；不要求已移除的台灣仲介手動轉交API,人工／登入後整合,通過,"{""order"": ""61"", ""creation"": ""real employer UI"", ""assignment"": ""admin authenticated API""}",docs/review/hr-acceptance-results.json → FLOW-01；run 5b3d38b6,
+FLOW-02,三方交接,P0,PH-A→雇主→TW-A,需求A可推薦且指派PH-A；W-A符合條件,PH-A推薦W-A→雇主看候選→TW-A看追蹤,三方依權限看到同一需求及候選狀態；未指派機構不混入,人工／登入後整合,失敗,"locator.selectOption: Timeout 6000ms exceeded.
+Call log:
+  - waiting for locator('article.worker-case').filter({ hasText: '需求 #61 ·' }).getByLabel(/^推薦所屬工作者/)
+",docs/review/hr-acceptance-results.json → FLOW-02；run 5b3d38b6,F1
+FLOW-03,三方交接,P0,雇主→PH-A→TW-A,W-A已推薦,雇主安排面試→兩側仲介重讀→各自重整,同一候選為scheduled；不誤更新其他需求或工人,人工／登入後整合,通過,"Employer real UI interview, three refreshed sessions",docs/review/hr-acceptance-results.json → FLOW-03；run 5b3d38b6,
+FLOW-04,三方交接,P0,雇主→PH-A→TW-A,A需求一人；W-A已面試,雇主錄用→三方重讀需求與案件→重整,候選passed；只建立對應正式案件；A達額滿後不可新增錄用；工人雇主機構關係正確,人工／登入後整合,通過,"{""case"": ""24"", ""worker"": ""98"", ""order"": ""61""}",docs/review/hr-acceptance-results.json → FLOW-04；run 5b3d38b6,
+FLOW-05,三方交接,P0,同一TW-A／PH-A會員,A待推薦、B待面試、C已錄用；各有不同雇主及工人,交錯推薦A→安排B面試→更新C文件→各方讀回A/B/C,三件同時存在、各自前進；處理A不清空B/C；名稱、文件、案件、候選ID不串單,人工／登入後整合,通過,"{""parallelOrders"": [""61"", ""62"", ""63""], ""mutations"": ""session-authenticated HTTP + true DB; UI visibility START-02""}",docs/review/hr-acceptance-results.json → FLOW-05；run 5b3d38b6,
+FLOW-06,三方交接,P0,雇主兩個獨立session,A headcount=1；有兩個可錄用候選,兩個session先讀同版A→同時提交不同候選錄用→三方重讀,成功錄用總數不超過1；落敗操作有可理解結果；不重複建案、不留下半套成功,人工／登入後整合,通過,"{""statuses"": [409, 200], ""order"": ""64""}",docs/review/hr-acceptance-results.json → FLOW-06；run 5b3d38b6,
+FLOW-07,三方交接,P0,同一PH-A會員兩個session,A可推薦W-A,同時對同一A/W-A送出推薦→重新整理,依現行API去重或明確拒絕重複；不得呈現兩個可重複錄用的同一推薦,人工／登入後整合,通過,"{""statuses"": [201, 201], ""sameCandidate"": ""72""}",docs/review/hr-acceptance-results.json → FLOW-07；run 5b3d38b6,
+FLOW-08,三方交接,P0,所屬PH-A→雇主→TW-A,W-A尚未安排面試；另有有效推薦W-B,PH-A確認撤回W-A推薦→三方重讀→查W-A履歷文件及另一筆推薦,只撤回A的W-A推薦；系統撤回事件／操作者／時間保留，不新增自由文字原因功能；本人履歷文件及另一推薦保留,人工／登入後整合,通過,"Withdrawal marker/actor/time kept, not a free-text reason feature; worker+document snapshots unchanged",docs/review/hr-acceptance-results.json → FLOW-08；run 5b3d38b6,
+FLOW-09,三方交接,P0,PH-A,W-A已scheduled或passed；另保留舊頁面,嘗試從舊頁／既有請求撤回推薦→讀回,已面試／錄用不被舊操作撤回；回報失敗且狀態不退回,人工／登入後整合,通過,Scheduled and passed both reject withdrawal (HTTP 409),docs/review/hr-acceptance-results.json → FLOW-09；run 5b3d38b6,
+FLOW-10,三方交接,P0,雇主／兩側仲介,甲保留A可操作舊頁；乙以既有授權流程取消或填滿A,乙完成狀態變更→甲在舊頁提交→三方重讀,伺服器阻止終止需求的新操作；畫面可恢復真實狀態；不靠隱藏按鈕作唯一防線,人工／登入後整合,失敗,"{""response"":{""status"":200,""body"":{""id"":""76"",""route_id"":""60"",""worker_id"":""105"",""proposed_by"":""65"",""status"":""passed"",""interview_at"":null,""notes"":""ACCEPTANCE 5b3d38b6"",""case_id"":""26"",""created_at"":""2026-11-25T11:55:11.866Z"",""updated_at"":""2026-11-25T11:55:11.903Z"",""deposit_amount"":null,""deposit_paid_at"":null,""deposit_recorded_by"":null}},""before"":[],""after"":[{""id"":""26""}],""order"":""67"",""candidate"":""76""}
+
+200 !== 409
+",docs/review/hr-acceptance-results.json → FLOW-10；run 5b3d38b6,F2
+FLOW-11,三方交接,P1,會員,隔離測試環境；可攔截單一API,送推薦／儲存時模擬500或離線→保留輸入→恢復後重試→讀回,失敗不冒稱成功；不丟草稿；重試不重複建推薦／案件；若回應遺失需比對伺服器現況,人工／登入後整合,通過,"{""recommendationReplay"": ""77"", ""controlledBrowser500"": {""injected"": true, ""errorText"": ""新增失敗，請稍後再試。"", ""afterRetryCount"": 1}, ""realRetry"": true}",docs/review/hr-acceptance-results.json → FLOW-11；run 5b3d38b6,
+FLOW-12,三方交接,P0,E-A／E-B／TW-A／PH-A,A與B同職類及相似姓名但不同ID,交錯搜尋、開詳情、推薦、面試→每步以ID查核,依需求／候選ID交接、不靠姓名誤連；B資料不因A操作改動,人工／登入後整合,通過,"{""unrelatedOrderUnchanged"": ""70"", ""exactIDs"": true}",docs/review/hr-acceptance-results.json → FLOW-12；run 5b3d38b6,
+DOC-01,文件與辦件,P0,工作者／PH-A／訓練中心,W-A 的護照／PSA／LCR 初審三項尚未核准,嘗試排訓練→核准護照後再試→再核准LCR→讀取訓練資格,依現行三取二規則，0／1項核准不得排訓練；護照＋LCR兩項核准即可安排，不要求PSA也必須核准,人工／登入後整合,通過,"Latest-main three-of-two gate: 0/1 approval denied, passport+LCR opens without PSA",docs/review/hr-acceptance-results.json → DOC-01；run 5b3d38b6,
+DOC-02,文件與辦件,P0,工作者→PH-A→工作者,W-A有待審虛構文件,審核退回並填具體原因→工作者開文件→補傳→審核者讀回,同一文件退回原因可查；補件不誤成已核准；新版與歷史正確關聯,人工／登入後整合,通過,"{""oldVersion"": 2, ""newVersion"": 3, ""mutations"": ""authenticated HTTP; read-back worker view+DB""}",docs/review/hr-acceptance-results.json → DOC-02；run 5b3d38b6,
+DOC-03,文件與辦件,P0,PH-A／管理者,W-A被多筆案件引用,在W-A文件頁更新一份文件→從不同案件查看,共用工作者層級文件；不要求每案重傳；其他工作者不變,人工／登入後整合,通過,"{""sameWorker"": ""98"", ""cases"": [""24"", ""28""], ""documentRows"": 25}",docs/review/hr-acceptance-results.json → DOC-03；run 5b3d38b6,
+DOC-04,文件與辦件,P1,PH-A,條件文件一份手動調整、一份尚未收件且未手動調整,更新婚姻／子女等履歷條件→重讀文件適用性,手動覆核不被覆寫；自動條件僅依既有規則調整；個案補正不套到別人,人工／登入後整合,通過,"Manual ARC retained, auto child document updated, other worker unchanged",docs/review/hr-acceptance-results.json → DOC-04；run 5b3d38b6,
+DOC-05,文件與辦件,P0,訓練中心→PH-A→TW-A,W-A可安排訓練；另有W-B,安排W-A→更新訓練中／完成→各方讀回辦件,W-A依既有階段規則前進；W-B不變；完成訓練不等於所有申辦完成；不驗訊息投遞,人工／登入後整合,失敗,"{""status"":500,""body"":{""error"":""儲存失敗，請稍後再試。""},""operation"":{""method"":""post"",""path"":""/api/hr/training-center"",""resource"":""enrollment""}}
+
+500 !== 200
+",docs/review/hr-acceptance-results.json → DOC-05；run 5b3d38b6,F4
+DOC-06,文件與辦件,P0,PH-A／TW-A／雇主,C案件進行中；保留未完成必要事項,分別更新OEC、簽證及抵台事項→各方開進度,依現行完成條件反映已完成／未完成；只完成其中一項不能顯示全部完成,人工／登入後整合,失敗,"{""status"":500,""body"":{""error"":""儲存失敗，請稍後再試。""}}
+
+500 !== 200
+",docs/review/hr-acceptance-results.json → DOC-06；run 5b3d38b6,F3
+DOC-07,文件與辦件,P0,工作者／所屬與非所屬仲介,虛構附件PDF及不允許格式；兩個不同機構,上傳合法附件→授權者下載比對→上傳非法檔案→非所屬者試讀同URL,合法內容完整；非法格式依現行規則拒絕且無假成功；直接附件URL同樣受權限保護,人工／登入後整合,通過,PDF exact bytes; fake-PDF rejected 415; cross-agency direct download refused,docs/review/hr-acceptance-results.json → DOC-07；run 5b3d38b6,
+SEC-01,隔離與權限,P0,TW-B／PH-B,A只指派TW-A/PH-A,B搜尋A→直接開A詳情及既有API→嘗試更新,未授權資料不外洩且不能更新；只看列表隱藏不算通過；不改權限政策,人工／登入後整合,通過,"Independent B agencies; list, direct detail and write denial",docs/review/hr-acceptance-results.json → SEC-01；run 5b3d38b6,
+SEC-02,隔離與權限,P0,W-A／E-A,W-B/E-B有不同履歷及需求,使用本人session替換既有請求中的worker/employer/case ID,拒絕跨本人範圍讀寫；不回傳他人附件、聯絡方式或履歷,人工／登入後整合,通過,Employer A/B candidate ID substitution denied; worker cross-person upload denied,docs/review/hr-acceptance-results.json → SEC-02；run 5b3d38b6,
+SEC-03,隔離與權限,P0,匿名／待審會員,已知測試案件與文件路由,登出或以待審帳號直接請求既有資料及寫入API,要求登入或拒絕；待審身分不因知道URL而取得已核准能力,人工／登入後整合,通過,Anonymous 401; waiting member mutation 403 and no business data,docs/review/hr-acceptance-results.json → SEC-03；run 5b3d38b6,
+SEC-04,隔離與權限,P0,E-A登出→E-B登入,同一瀏覽器依序切換會員,A開需求與文件→登出→登入B→返回／重整舊分頁,不殘留可操作的A資料；舊請求以B權限重驗，不跨會員寫入,人工／登入後整合,通過,"Same cookie-context scope switch, real UI sign-out/re-login/back; server prevents cross-identity old mutation",docs/review/hr-acceptance-results.json → SEC-04；run 5b3d38b6,
+SEC-05,隔離與權限,P1,會員,session到期或失效；未存草稿,編輯中使測試session失效→按儲存→重新登入後讀回,明確要求登入、不假成功；不能套用其他身分；敏感cookie與token不進公開證據,人工／登入後整合,通過,Real edit→cookie invalidation→UI401 no false success→credential re-login; no business row written,docs/review/hr-acceptance-results.json → SEC-05；run 5b3d38b6,
+LANG-01,Filipino,P0,菲律賓角色／語言校對者,先盤點網頁、LINE偏好及新功能所在候選版本,逐一記錄各表面可選語言、實際顯示與偏好儲存位置,分開網頁與LINE；只有tl訊息模板不等於網頁Filipino可用；不存在的入口記受阻，不假造通過,盤點／人工,失敗,"expect(locator).toBeVisible() failed
+
+Locator: getByRole('button', { name: 'FIL', exact: true })
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect ""toBeVisible"" getByRole('button', { name: 'FIL', exact: true }) with timeout 5000ms
+  - waiting for getByRole('button', { name: 'FIL', exact: true })
+",docs/review/hr-acceptance-results.json → LANG-01；run 5b3d38b6,F1
+LANG-02,Filipino,P0,能讀Filipino的獨立校對者,取得實際候選的中／英／Filipino對照及畫面,校對註冊、待審、核准、停用、啟用、退回、錄用等關鍵語句,否定詞、操作者、責任方、狀態及下一步語意正確；AI回譯只輔助，未校對不能標母語通過,獨立語言校對,受阻,No independent Filipino reviewer available; AI/source analysis is not mother-tongue sign-off,docs/review/hr-acceptance-results.json → LANG-02；run 5b3d38b6,LANG-REVIEW
+LANG-03,Filipino,P0,菲律賓使用者,實際入口支援Filipino；測試會員有可見A/B/C,切換語言→重整→重新登入→查看A/B/C與詳情,偏好依該表面既有規則保留；動態狀態／錯誤／表單不漏翻；語言不改資料ID及權限,人工／登入後整合,失敗,"locator.click: Timeout 6000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: 'FIL', exact: true })
+",docs/review/hr-acceptance-results.json → LANG-03；run 5b3d38b6,F1
+LANG-04,Filipino,P0,菲律賓使用者／校對者,有退回原因、日期、金額、人名與文件名稱的虛構資料,切中英Filipino→逐欄比對相同紀錄,姓名ID金額日期與幣別不變；PSA/OEC等識別不誤翻；自由輸入原因保留原意、不假裝已翻譯,人工／登入後整合,通過,Rendered amount/date/acronyms/free text identical in three languages; full API identity snapshots unchanged,docs/review/hr-acceptance-results.json → LANG-04；run 5b3d38b6,
+LANG-05,Filipino,P1,菲律賓使用者,390px及實體手機瀏覽器；Filipino入口可用,走申請→文件→需求→確認視窗→錯誤提示,長句不截斷關鍵否定或動作；按鈕不重疊；欄位及確認結果可理解；實機與模擬分記,人工／登入後整合,失敗,"locator.click: Timeout 6000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: 'FIL', exact: true })
+",docs/review/hr-acceptance-results.json → LANG-05；run 5b3d38b6,F1
+LANG-06,Filipino,P0,菲律賓使用者,可操作測試需求；測試環境可模擬拒絕,在Filipino介面送無效資料、遇權限拒絕或500→恢復後重試,錯誤不是成功語氣；可理解原因及下一步；不能只翻正常畫面；語言校對與技術處理分開記,人工／登入後整合,失敗,"Localized option changed persisted job type: Technician sa pabrika
++ actual - expected
+
++ 'Technician sa pabrika'
+- '工廠技術工'
+",docs/review/hr-acceptance-results.json → LANG-06；run 5b3d38b6,F5
+LANG-07,Filipino,P1,菲律賓使用者／校對者,受控候選有缺少翻譯或不支援語言輸入,觸發缺字串／未知語言→查看既有fallback,依已定義fallback顯示可理解內容；不空白、不顯示undefined或原始key；沒有既定fallback則記待釐清，不自行定產品規則,人工／登入後整合,通過,Real UI invalid saved-locale→zh plus missing-TL-string English fallback function; no blank/undefined,docs/review/hr-acceptance-results.json → LANG-07；run 5b3d38b6,
+LANG-08,Filipino,P0,從未操作過的Filipino使用者,提供虛構帳號及目標，不先解釋按鈕；可見入口支援Filipino,自行完成找待辦→看退回原因→補件→找處理進度；觀察並記錄卡點,不靠wei閱讀Filipino驗收；記錄完成與誤解位置，確認未誤送資料；若無獨立使用者則保留未執行,獨立使用者任務測試,受阻,No independent first-time Filipino user available; cannot fabricate task-test observation,docs/review/hr-acceptance-results.json → LANG-08；run 5b3d38b6,LANG-REVIEW

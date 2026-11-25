@@ -1,0 +1,65 @@
+name: tk-hr-acceptance
+services:
+  review-postgres:
+    image: postgres:16-alpine
+    container_name: tk-hr-acceptance-db
+    environment:
+      POSTGRES_USER: review
+      POSTGRES_PASSWORD: ${ACCEPTANCE_DB_PASSWORD:?}
+      POSTGRES_DB: tk_saas_acceptance
+    volumes:
+      - acceptance_data:/var/lib/postgresql/data
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U review -d tk_saas_acceptance]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  app:
+    image: tk-hr-acceptance:6987156
+    build: .
+    container_name: tk-hr-acceptance-app
+    expose: ["8092"]
+    environment:
+      NODE_ENV: production
+      PORT: "8092"
+      NEXTAUTH_URL: http://localhost:8092
+      APP_ORIGIN: http://localhost:8092
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_SECRET: ${ACCEPTANCE_AUTH_SECRET:?}
+      HR_DOCUMENT_ENCRYPTION_KEY: ${ACCEPTANCE_DOCUMENT_KEY:?}
+      ADMIN_EMAILS: acceptance.admin@example.invalid
+      DATABASE_URL: postgresql://review:${ACCEPTANCE_DB_PASSWORD:?}@review-postgres:5432/tk_saas_acceptance
+      LOCAL_REVIEW_ONLY: "1"
+      HR_EXPIRY_REMINDERS: "off"
+    networks: [isolated]
+    depends_on:
+      review-postgres:
+        condition: service_healthy
+  viewer:
+    image: node:20-alpine
+    container_name: tk-hr-acceptance-viewer
+    command: [node, /gateway.mjs]
+    volumes: ["./scripts/acceptance-viewer.mjs:/gateway.mjs:ro"]
+    ports: ["127.0.0.1:8092:8092"]
+    networks: [isolated, viewer]
+  test:
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    profiles: [tests]
+    network_mode: service:app
+    ipc: host
+    working_dir: /work
+    volumes: [".:/work"]
+    environment:
+      DATABASE_URL: postgresql://review:${ACCEPTANCE_DB_PASSWORD:?}@review-postgres:5432/tk_saas_acceptance
+      ACCEPTANCE_LOGIN_PASSWORD: ${ACCEPTANCE_LOGIN_PASSWORD:?}
+      ACCEPTANCE_BASE_URL: http://localhost:8092
+      LOCAL_REVIEW_ONLY: "1"
+    command: [node, scripts/test-hr-acceptance.mjs]
+networks:
+  viewer: {}
+  isolated:
+    internal: true
+volumes:
+  acceptance_data:
+    name: tk_hr_acceptance_data

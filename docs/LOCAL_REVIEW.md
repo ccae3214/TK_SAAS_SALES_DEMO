@@ -1,5 +1,12 @@
 # LOCAL_REVIEW｜目前唯一的本機驗收入口
 
+## 本輪入口：後台完整驗收站（非上線放行）
+
+【Windows】瀏覽器：http://localhost:8092/hr/login 。目前站內保留真實重現的流程缺陷，不能把「能登入」當成全站通過。結果與安全重跑指令只看 [HR_ACCEPTANCE_REPORT](HR_ACCEPTANCE_REPORT.md)。
+
+本輪使用 `compose.acceptance.yaml`、獨立 DB volume `tk_hr_acceptance_data`、本機私密 `.env.acceptance.local`；勿用下方歷史 8088 指令或舊密碼重設這個站。測試帳號由 runner 建立，密碼只在驗收工作目錄該 env 的 `ACCEPTANCE_LOGIN_PASSWORD`，不得貼聊天／Git。不同角色需不同瀏覽器 profile。未啟用推播或真實第三方登入。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。

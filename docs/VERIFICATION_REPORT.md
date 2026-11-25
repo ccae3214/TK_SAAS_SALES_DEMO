@@ -1,5 +1,14 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+## 本輪：真實後台驗收，不是只有案例文件
+
+唯一結果入口：[HR_ACCEPTANCE_REPORT](HR_ACCEPTANCE_REPORT.md)；逐筆結果：[CSV](HR_ACCEPTANCE_CASES.csv)；可機讀證據：[hr-acceptance-results.json](review/hr-acceptance-results.json)。本輪基底 main `6987156`，使用獨立的 PostgreSQL 與正式 build 的 app，並行角色為不同 Chromium contexts。
+
+既有 Node v20.20.2 完整回歸 575 通過／0 失敗／0 跳過；實際 40 筆案例仍有失敗及受阻，不能外推成全站通過。Docker build 成功，型別與 lint 的既有跳過未改。錯誤邊界會攔截 renderer 例外，所以 Playwright pageerror=0 不表示畫面正常；已額外保存真實 Application Error 證據。
+
+產品程式與資料庫 schema 定義均未改；只在已批准的新 DB 初始化既有 schema、追加虛構測試資料。推播／LINE／正式站未驗也未修改。完整命令、歷次測試修正與缺陷定位看本輪報告；下方數字都是各歷史候選的當時結果。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。

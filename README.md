@@ -1,5 +1,10 @@
 # TK SaaS Sales Demo
 
+## 本輪：會員／仲介後台完整驗收（不含推播）
+
+本輪測試與發現：[HR_ACCEPTANCE_REPORT](docs/HR_ACCEPTANCE_REPORT.md)；逐筆案例：[閱讀版](docs/HR_ACCEPTANCE_CASES.md)／[可填寫 CSV](docs/HR_ACCEPTANCE_CASES.csv)。已建立真實登入、Chromium、授權 HTTP 與全新 PostgreSQL 隔離驗收站，不再只交付靜態案例。發現實際流程缺陷，**驗收未通過，不能作為上線放行依據**。完整數字、重跑及未驗限制以本輪報告為準；下方各輪「現行」為歷史候選紀錄。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](docs/EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。
