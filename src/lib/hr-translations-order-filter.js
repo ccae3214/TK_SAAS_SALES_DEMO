@@ -5,4 +5,5 @@ export const ORDER_FILTER_EN = {
   '挑選／推薦人選': 'Choose / recommend candidates',
   '目前沒有符合的需求單。': 'No job orders match this progress.',
   '顯示全部需求單': 'Show all job orders',
+  '此需求單已進入面試或錄用階段，無法再挑選工作者。': 'This job order is already at the interview or hiring stage, so no more workers can be selected.',
 };

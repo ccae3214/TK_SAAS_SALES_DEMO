@@ -46,6 +46,12 @@ export function filterOrdersByProgress(orders = [], filter = 'all', assignments 
   if (filter === 'all') return orders;
   return orders.filter(order => orderProgressGroup(order, assignments, routes, candidates) === filter);
 }
+// 雇主只能在「面試確認」之前為需求單挑選人選：已有人選安排面試或錄用（進度 3 以後）、額滿或取消就不能再挑。
+export const ORDER_PICK_CLOSED_MESSAGE = '此需求單已進入面試或錄用階段，無法再挑選工作者。';
+export function orderAllowsPicking(order, assignments = [], routes = [], candidates = []) {
+  const flow = orderJourney(order, assignments, routes, candidates);
+  return flow.actionable && flow.step < 3;
+}
 export function agencySnapshot(agency, data) {
   const members = (data.members || []).filter(row => sameId(row.agency_id, agency.id));
   const employers = (data.employers || []).filter(row => sameId(row.agency_id, agency.id));

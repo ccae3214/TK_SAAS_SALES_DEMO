@@ -76,3 +76,26 @@ test('新增的中文介面文字都有英文與菲律賓語翻譯', async () =>
   const translations = await read('../src/lib/hr-translations.jsx');
   assert.ok(translations.includes('ORDER_FILTER_EN[trimmed]'), '翻譯字典未串接');
 });
+
+// 雇主只能在面試確認之前挑選人選。
+import { orderAllowsPicking, ORDER_PICK_CLOSED_MESSAGE } from '../src/lib/hr-workflow.js';
+
+test('進度 3（面試確認）以後、額滿、取消的需求單不能再挑選人選', () => {
+  const allows = id => orderAllowsPicking(orders.find(order => order.id === id), assignments, routes, candidates);
+  assert.equal(allows(1), true);
+  assert.equal(allows(2), true);
+  assert.equal(allows(3), true);
+  assert.equal(allows(4), false);
+  assert.equal(allows(5), false);
+  assert.equal(allows(6), false);
+});
+
+test('前端只在可挑選時顯示挑選區，伺服器也拒絕已進入面試的需求單', async () => {
+  const portal = await read('../src/components/HrMemberPortal.jsx');
+  assert.ok(portal.includes('const pickAllowed=orderAllowsPicking('));
+  assert.ok(portal.includes('{pickAllowed||order.status!==\'open\'?<HrEmployerShortlist'));
+  const api = await read('../src/app/api/hr/_post/job-orders.js');
+  assert.ok(api.includes("c.status IN ('scheduled','passed')"));
+  assert.ok(api.includes(ORDER_PICK_CLOSED_MESSAGE));
+  assert.ok(ORDER_FILTER_EN[ORDER_PICK_CLOSED_MESSAGE], '缺少英文翻譯');
+});

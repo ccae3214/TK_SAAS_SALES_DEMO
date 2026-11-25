@@ -140,6 +140,10 @@ export const employerPickCandidate = {
       if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單或尚未指派台灣仲介。'},{status:404});}
       const orderItem=order.rows[0];
       if(orderItem.status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法再挑選工作者。'},{status:409});}
+      const advanced=await client.query(`SELECT 1 FROM hr_job_order_candidates c
+        JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id
+        WHERE oa.job_order_id=$1 AND c.status IN ('scheduled','passed') LIMIT 1`,[orderId]);
+      if(advanced.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已進入面試或錄用階段，無法再挑選工作者。'},{status:409});}
       const agency=await client.query("SELECT id,name FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type='taiwan'",[orderItem.agency_id]);
       if(!agency.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'雇主尚未指派有效的台灣仲介，請聯絡管理者確認。'},{status:409});}
       await client.query(`INSERT INTO hr_job_order_agencies(job_order_id,taiwan_agency_id,broker_member_id)

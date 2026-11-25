@@ -2271,4 +2271,5 @@ export const TL_DICTIONARY = {
   "Choose / recommend candidates": "Pumili / magrekomenda ng mga kandidato",
   "No job orders match this progress.": "Walang job order na tumutugma sa progresong ito.",
   "Show all job orders": "Ipakita ang lahat ng job order",
+  "This job order is already at the interview or hiring stage, so no more workers can be selected.": "Nasa yugto na ng interview o pagkuha ang job order na ito, kaya hindi na maaaring pumili ng mga manggagawa.",
 };
