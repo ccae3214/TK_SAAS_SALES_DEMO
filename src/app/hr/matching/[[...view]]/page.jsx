@@ -5,6 +5,7 @@ import HrMemberPortal from '@/components/HrMemberPortal';
 import HrMemberNavScroll from '@/components/HrMemberNavScroll';
 import HrCallProvider from '@/components/HrCallProvider';
 import '@/components/hr-member-mobile-nav.css';
+import '@/components/hr-member-side-nav.css';
 import '@/components/hr-call.css';
 import '@/components/hr-scrollbars.css';
 
@@ -22,7 +23,9 @@ export default async function EmployerMatchingPage({ params }) {
 
   const email = session.user.email || 'LINE 帳號';
   return <>
-    <HrMemberPortal actor={{ name: session.user.name || email, email }} />
+    <div className="hr-side-nav">
+      <HrMemberPortal actor={{ name: session.user.name || email, email }} />
+    </div>
     <HrMemberNavScroll />
     <HrCallProvider />
   </>;
