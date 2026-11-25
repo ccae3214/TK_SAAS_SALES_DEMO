@@ -29,6 +29,7 @@ const EN = {
   '訓練中心工作區': 'Training center workspace', '訓練中心會員': 'Training center member', '不需所屬仲介': 'No agency affiliation required',
   '訓練中心不需仲介資料。': 'Training center members do not need an agency affiliation.',
   '此角色不會存取仲介、雇主、工作者或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。': 'This role does not access agency, employer, worker, or case data. Send "member type" to the official LINE account to view the training center menu.',
+  '此角色只能查看文件已備齊、等待訓練的工人，不會存取仲介、雇主或案件資料。請在 LINE 官方帳號輸入「會員類型」查看訓練中心專屬圖文選單。': 'This role can only view workers whose documents are complete and who are awaiting training. It does not access agency, employer, or case data. Send "member type" to the official LINE account to view the training center menu.',
   'LINE 登入': 'LINE sign-in', '待管理者指派': 'Awaiting administrator assignment', '待審核': 'Pending review',
   '會員申請進度': 'Membership application progress', '申請已送出，等待管理者審核': 'Application submitted · Awaiting review',
   '申請資料已送交管理團隊，我們會在完成審核後更新你的會員權限。': 'Your application has been sent to our team. We will update your membership when the review is complete.',
