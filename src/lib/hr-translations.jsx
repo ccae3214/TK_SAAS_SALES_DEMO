@@ -2,7 +2,7 @@
 
 import React, { cloneElement, Fragment } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LANGUAGES, tlText } from '@/lib/language';
 import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
 import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
@@ -568,11 +568,40 @@ function useLanguageChoice() {
   return [lang, choose];
 }
 
-function LanguageSwitch({ style = {}, buttonStyle = {} }) {
+// 單一按鈕（和原本的 EN／中文 按鈕同寬），點開才顯示 中文 / English / Filipino 選單，
+// 避免三顆並排的按鈕在手機上擋到同一列的其他圖示。選單用 fixed 定位，不會被外層 overflow 裁掉。
+function LanguageSwitch({ style = {} }) {
   const [lang, choose] = useLanguageChoice();
-  return <div role="group" aria-label="Language / 語言 / Wika" data-tour="language" style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff', whiteSpace: 'nowrap', ...style }}>
-    {LANGUAGES.map(item => <button key={item.code} type="button" lang={item.htmlLang} aria-pressed={lang === item.code} onClick={() => choose(item.code)} style={{ border: 0, padding: '7px 10px', background: lang === item.code ? '#0f766e' : '#fff', color: lang === item.code ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', ...buttonStyle }}>{item.short}</button>)}
-  </div>;
+  const [menu, setMenu] = useState(null);
+  const buttonRef = useRef(null);
+  const current = LANGUAGES.find(item => item.code === lang) || LANGUAGES[0];
+  useEffect(() => {
+    if (!menu) return undefined;
+    const close = () => setMenu(null);
+    const onKey = event => { if (event.key === 'Escape') { close(); buttonRef.current?.focus(); } };
+    const onDown = event => { if (!buttonRef.current?.contains(event.target) && !event.target.closest?.('[data-language-menu]')) close(); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [menu]);
+  const toggle = () => {
+    if (menu) { setMenu(null); return; }
+    const rect = buttonRef.current.getBoundingClientRect();
+    setMenu({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) });
+  };
+  return <>
+    <button ref={buttonRef} type="button" data-tour="language" aria-haspopup="menu" aria-expanded={Boolean(menu)} aria-label="Language / 語言 / Wika" onClick={toggle} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 10px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...style }}>{current.short}</button>
+    {menu && <div data-language-menu role="menu" aria-label="Language / 語言 / Wika" style={{ position: 'fixed', top: menu.top, right: menu.right, zIndex: 10002, display: 'grid', minWidth: 124, padding: 4, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 8px 24px #0003' }}>
+      {LANGUAGES.map(item => <button key={item.code} type="button" role="menuitemradio" aria-checked={lang === item.code} lang={item.htmlLang} onClick={() => { choose(item.code); setMenu(null); }} style={{ border: 0, borderRadius: 7, padding: '10px 12px', textAlign: 'left', background: lang === item.code ? '#e6f4f1' : '#fff', color: lang === item.code ? '#0f766e' : '#334155', fontWeight: lang === item.code ? 700 : 500, fontSize: 14, cursor: 'pointer' }}>{item.label}</button>)}
+    </div>}
+  </>;
 }
 
 export function HrLanguageToggle({ style = {} }) {
@@ -664,5 +693,5 @@ export function HrLanguageTools({ inline = false }) {
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [lang]);
 
-  return <LanguageSwitch style={inline ? undefined : { position: 'fixed', zIndex: 10000, left: '50%', top: 16, transform: 'translateX(-50%)', boxShadow: '0 2px 8px #0002' }} buttonStyle={{ padding: '8px 12px' }} />;
+  return <LanguageSwitch style={inline ? undefined : { position: 'fixed', zIndex: 10000, right: 12, top: 12, padding: '8px 12px', boxShadow: '0 2px 8px #0002' }} />;
 }
