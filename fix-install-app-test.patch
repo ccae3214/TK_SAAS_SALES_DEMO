@@ -1,0 +1,37 @@
+From fc4ce5ebc49da02dd6c0d78d73fc46383d9d5f1e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 10:49:02 +0800
+Subject: [PATCH] =?UTF-8?q?test:=20=E5=8A=A0=E5=88=B0=E6=A1=8C=E9=9D=A2?=
+ =?UTF-8?q?=E6=B8=AC=E8=A9=A6=E6=94=B9=E7=82=BA=E6=AA=A2=E6=9F=A5=E6=AF=8F?=
+ =?UTF-8?q?=E5=80=8B=E6=9C=83=E5=93=A1=E9=A0=81=E9=A6=96=E9=83=BD=E6=9C=89?=
+ =?UTF-8?q?=E6=8C=89=E9=88=95=EF=BC=88=E4=B8=8D=E8=A6=81=E6=B1=82=E6=8E=92?=
+ =?UTF-8?q?=E5=9C=A8=E7=AC=AC=E4=B8=80=E5=80=8B=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WL6rzCj31LTVetsDu9p2iT
+---
+ tests/hr-install-app.test.mjs | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/tests/hr-install-app.test.mjs b/tests/hr-install-app.test.mjs
+index b1c5350..f36a0e9 100644
+--- a/tests/hr-install-app.test.mjs
++++ b/tests/hr-install-app.test.mjs
+@@ -64,7 +64,9 @@ test('manifest 與圖示符合安裝條件', () => {
+ test('iPhone 桌面圖示用 PNG，且按鈕放在每個會員頁首', () => {
+   assert.match(read('src/app/layout.jsx'), /rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png"/);
+   const portal = read('src/components/HrMemberPortal.jsx');
+-  const headers = portal.match(/hr-member-header-actions"/g).length;
+-  assert.equal(portal.match(/hr-member-header-actions"><HrInstallApp \/>/g).length, headers);
++  // 每個會員頁首的按鈕區都要有「加到手機桌面」。不限定它一定是第一個：前面可以有提醒鈴鐺等其他按鈕。
++  const headers = portal.split('hr-member-header-actions"').slice(1).map(part => part.split('</header>')[0]);
++  assert.equal(headers.length, 3, '會員頁首的數量變了，請一併確認每個頁首都有加到桌面按鈕');
++  for (const header of headers) assert.ok(header.includes('<HrInstallApp />'), '每個會員頁首都要有 <HrInstallApp />');
+   assert.match(portal, /import HrInstallApp from '@\/components\/HrInstallApp'/);
+ });
+-- 
+2.43.0
+

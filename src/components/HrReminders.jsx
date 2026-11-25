@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell } from 'lucide-react';
 import styles from './HrReminders.module.css';
 import { REMINDER_LABELS } from '@/lib/hr-expiry-reminders';
@@ -151,6 +152,9 @@ export default function HrReminders({ onOpenChat: openChat, onOpenProgress: open
   const { lang } = useLanguage();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
+  const bellRef = useRef(null);
+  const popoverRef = useRef(null);
+  const [popoverPosition, setPopoverPosition] = useState({ top: 72, left: 16, right: 16 });
   // 在鈴鐺的清單裡點選提醒後，先收起清單再前往對應頁面。
   const onOpenChat = (...args) => { setOpen(false); return openChat?.(...args); };
   const onOpenProgress = (...args) => { setOpen(false); return openProgress?.(...args); };
@@ -197,11 +201,43 @@ export default function HrReminders({ onOpenChat: openChat, onOpenProgress: open
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = event => { if (!rootRef.current?.contains(event.target)) setOpen(false); };
+    const close = event => {
+      if (!rootRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target)) setOpen(false);
+    };
     const onKey = event => { if (event.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', close);
+    document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); };
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const updatePosition = () => {
+      const trigger = bellRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      if (viewportWidth <= 720) {
+        setPopoverPosition({ top: 72, left: 16, right: 16 });
+        return;
+      }
+      const panelWidth = Math.min(420, viewportWidth - 32);
+      const right = Math.max(16, Math.min(viewportWidth - panelWidth - 16, viewportWidth - trigger.right));
+      const panelHeight = Math.min(640, viewportHeight * 0.7);
+      const below = trigger.bottom + 10;
+      const top = below + panelHeight <= viewportHeight - 16
+        ? below
+        : Math.max(16, trigger.top - panelHeight - 10);
+      setPopoverPosition({ top, left: 'auto', right });
+    };
+    const frame = window.requestAnimationFrame(updatePosition);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
   }, [open]);
 
   const unreadCount = unreadRooms.reduce((sum, room) => sum + Number(room.unreadCount || 0), 0);
@@ -224,12 +260,12 @@ export default function HrReminders({ onOpenChat: openChat, onOpenProgress: open
     {body}
   </section>;
   return <div className={styles.bellRoot} ref={rootRef}>
-    <button type="button" className={styles.bellButton} aria-label="提醒" title="提醒" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(current => !current)}>
+    <button ref={bellRef} type="button" className={styles.bellButton} aria-label="提醒" title="提醒" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(current => !current)}>
       <Bell size={17} />{shownCount > 0 && <b className={styles.bellBadge}>{shownCount > 99 ? '99+' : shownCount}</b>}
     </button>
-    {open && <section className={styles.popover} role="dialog" aria-label="提醒">
+    {open && typeof document !== 'undefined' && createPortal(<section ref={popoverRef} className={styles.popover} style={{ position: 'fixed', top: popoverPosition.top, left: popoverPosition.left, right: popoverPosition.right, zIndex: 2147483000 }} role="dialog" aria-label="提醒">
       <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div>{shownCount > 0 && <strong>{shownCount}</strong>}</header>
       {shownCount === 0 ? <p className={styles.empty}>{loading ? '正在讀取…' : '目前沒有提醒'}</p> : body}
-    </section>}
+    </section>, document.body)}
   </div>;
 }
