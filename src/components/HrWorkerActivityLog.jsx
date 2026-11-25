@@ -37,7 +37,7 @@ const timeText = (value, lang) => {
 
 export default function HrWorkerActivityLog({ self = false, workerId = null }) {
   const { lang } = useLanguage();
-  const language = (lang === 'zh' ? 'zh' : 'en');
+  const language = ((lang === 'zh' ? 'zh' : 'en'));
   const t = copyFor(COPY, lang);
   const [rows, setRows] = useState([]);
   const [workers, setWorkers] = useState([]);

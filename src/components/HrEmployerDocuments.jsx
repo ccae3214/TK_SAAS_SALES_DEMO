@@ -31,7 +31,7 @@ const sizeText = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixe
 
 export default function HrEmployerDocuments({ employers = [], embedded = false }) {
   const { lang } = useLanguage();
-  const langKey = (lang === 'zh' ? 'zh' : 'en');
+  const langKey = ((lang === 'zh' ? 'zh' : 'en'));
   const t = copyFor(COPY, lang);
   const [rows, setRows] = useState(null);
   const [message, setMessage] = useState(null);

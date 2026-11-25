@@ -32,7 +32,7 @@ const availableSteps = tourId => (TOURS[tourId] || []).filter(step => !(step.opt
 export default function HrOnboardingTour({ tourId }) {
   const { lang } = useLanguage();
   const text = copyFor(COPY, lang);
-  const key = (lang === 'zh' ? 'zh' : 'en');
+  const key = ((lang === 'zh' ? 'zh' : 'en'));
   const [open, setOpen] = useState(false);
   const [steps, setSteps] = useState([]);
   const [index, setIndex] = useState(0);

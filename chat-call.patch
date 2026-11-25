@@ -1,0 +1,1602 @@
+diff --git a/src/components/HrChat.jsx b/src/components/HrChat.jsx
+--- a/src/components/HrChat.jsx
++++ b/src/components/HrChat.jsx
+@@ -7,3 +7,3 @@
+ import { useEffect, useRef, useState } from 'react';
+-import { MessageCircle, RefreshCw, Send, Users } from 'lucide-react';
++import { MessageCircle, Phone, RefreshCw, Send, Users, Video } from 'lucide-react';
+ import styles from './HrChat.module.css';
+@@ -18,2 +18,5 @@
+   const selectedRoom=rooms.find(room=>room.id===selectedRoomId);
++  // 通話：只發出事件，由 HrCallProvider（整個 /hr 頁面一個）負責撥號與通話視窗。
++  const callText=lang==='en'?{voice:'Voice call',video:'Video call'}:{voice:'語音通話',video:'視訊通話'};
++  const startCall=video=>{if(selectedRoomId)window.dispatchEvent(new CustomEvent('hr:start-call',{detail:{roomId:selectedRoomId,video,title:selectedRoom?.title||''}}));};
+   const text=lang==='en'?{
+@@ -26,3 +29,3 @@
+         <div className={styles.conversation}>
+-          <div className={styles.conversationHeader}><div><strong>{selectedRoom&&displayRoomTitle(selectedRoom)}</strong><small>{selectedRoom&&(selectedRoom.roomType==='agency'?text.agencySubtitle:selectedRoom.roomType==='direct'?text.direct:text.caseSubtitle)} · {text.recent}</small></div>{selectedRoom&&selectedRoom.roomType!=='direct'&&<button type="button" className={styles.memberToggle} onClick={()=>setShowMembers(value=>!value)}><Users size={16}/>{text.members} ({members.length})</button>}</div>
++          <div className={styles.conversationHeader}><div><strong>{selectedRoom&&displayRoomTitle(selectedRoom)}</strong><small>{selectedRoom&&(selectedRoom.roomType==='agency'?text.agencySubtitle:selectedRoom.roomType==='direct'?text.direct:text.caseSubtitle)} · {text.recent}</small></div>{selectedRoom&&<div className="hr-call-actions"><button type="button" className="hr-call-start" onClick={()=>startCall(false)}><Phone size={16}/>{callText.voice}</button><button type="button" className="hr-call-start" onClick={()=>startCall(true)}><Video size={16}/>{callText.video}</button>{selectedRoom.roomType!=='direct'&&<button type="button" className={styles.memberToggle} onClick={()=>setShowMembers(value=>!value)}><Users size={16}/>{text.members} ({members.length})</button>}</div>}</div>
+           {showMembers&&selectedRoom?.roomType!=='direct'&&<div className={styles.memberList}><strong>{text.members}</strong>{members.length?members.map(member=><div className={styles.member} key={member.id}>
+diff --git a/Dockerfile b/Dockerfile
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -5,6 +5,8 @@
+ COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
+ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+ COPY --from=builder --chown=nextjs:nodejs /app/src/lib/hr-notifications.js ./src/lib/hr-notifications.js
++COPY --from=builder --chown=nextjs:nodejs /app/src/lib/hr-call-ticket.js ./src/lib/hr-call-ticket.js
++COPY --from=builder --chown=nextjs:nodejs /app/src/lib/hr-call-signaling.js ./src/lib/hr-call-signaling.js
+ COPY --from=builder --chown=nextjs:nodejs /app/scripts/hr-notification-worker.mjs ./scripts/hr-notification-worker.mjs
+ 
+ USER nextjs
+diff --git a/docker-compose.yml b/docker-compose.yml
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -5,6 +5,11 @@
+       # Only these LINE IDs can manage other system administrator accounts.
+       - HR_ADMIN_LINE_USER_IDS=${HR_ADMIN_LINE_USER_IDS:-}
+       - HR_DOCUMENT_ENCRYPTION_KEY=${HR_DOCUMENT_ENCRYPTION_KEY:-}
++      # 聊天室通話。簽章密鑰預設沿用 NEXTAUTH_SECRET；TURN 沒設定時只用 STUN（兩邊網路無法直連時會連不上）。
++      - HR_CALL_SECRET=${HR_CALL_SECRET:-}
++      - HR_CALL_STUN_URLS=${HR_CALL_STUN_URLS:-stun:stun.l.google.com:19302}
++      - HR_CALL_TURN_URLS=${HR_CALL_TURN_URLS:-}
++      - HR_CALL_TURN_SECRET=${HR_CALL_TURN_SECRET:-}
+       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-saas_demo}
+     depends_on:
+       postgres:
+@@ -16,6 +21,55 @@
+       - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
+     restart: unless-stopped
+ 
++  # 通話的 TURN 中繼伺服器（coturn，選配：docker-compose --profile turn up -d）。
++  # 兩邊的網路無法直連時（例如手機行動網路），聲音與影像會經過這裡轉送。
++  # 需要：1) 路由器把 3478（TCP 與 UDP）和 49160-49260（UDP）轉到這台電腦、防火牆放行；
++  #       2) turn 網域是 DNS only（不能經 Cloudflare 代理，它不轉送 UDP）；
++  #       3) .env 設定 HR_CALL_TURN_SECRET、TURN_EXTERNAL_IP（對外 IP）與 HR_CALL_TURN_URLS。
++  coturn:
++    image: coturn/coturn:latest
++    profiles: ["turn"]
++    ports:
++      - "3478:3478/tcp"
++      - "3478:3478/udp"
++      - "49160-49260:49160-49260/udp"
++    command:
++      - "-n"
++      - "--log-file=stdout"
++      - "--realm=${TURN_REALM:-kolecion.cc}"
++      - "--use-auth-secret"
++      - "--static-auth-secret=${HR_CALL_TURN_SECRET:-}"
++      - "--external-ip=${TURN_EXTERNAL_IP:-}"
++      - "--listening-port=3478"
++      - "--min-port=49160"
++      - "--max-port=49260"
++      - "--fingerprint"
++      - "--no-cli"
++      - "--no-tls"
++      - "--no-dtls"
++      - "--no-multicast-peers"
++      - "--user-quota=12"
++      - "--total-quota=100"
++      # 不讓 TURN 被拿來連到內部網路
++      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
++      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
++      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
++      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
++    restart: unless-stopped
++
++  # turn.kolecion.cc 的 DDNS（DNS only，不經 Cloudflare 代理）。
++  cloudflare-ddns-turn:
++    image: oznu/cloudflare-ddns:latest
++    profiles: ["turn"]
++    environment:
++      - API_KEY=${CLOUDFLARE_API_TOKEN}
++      - ZONE=${CLOUDFLARE_ZONE:-kolecion.cc}
++      - SUBDOMAIN=turn
++      - PROXIED=false
++      - RRTYPE=A
++      - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
++    restart: unless-stopped
++
+   nginx:
+     image: nginx:alpine
+     ports:
+diff --git a/next.config.js b/next.config.js
+--- a/next.config.js
++++ b/next.config.js
+@@ -8,7 +8,7 @@
+           },
+           {
+             key: "Permissions-Policy",
+-            value: "geolocation=(), microphone=(), camera=(), payment=()",
++            value: "geolocation=(), microphone=(self), camera=(self), payment=()",
+           },
+         ],
+       },
+diff --git a/nginx.conf b/nginx.conf
+--- a/nginx.conf
++++ b/nginx.conf
+@@ -6,7 +6,7 @@
+         add_header X-Frame-Options SAMEORIGIN always;
+         add_header X-Content-Type-Options nosniff always;
+         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+-        add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()" always;
++        add_header Permissions-Policy "geolocation=(), microphone=(self), camera=(self), payment=()" always;
+         # HTTPS 由 Cloudflare 處理（瀏覽器 ↔ Cloudflare 是 https，Cloudflare ↔ 這裡是 http）。
+         # 瀏覽器只會在 https 連線上採用 HSTS，所以本機 http 開發不受影響。
+         # 先不加 includeSubDomains／preload，避免影響其他子網域。
+@@ -19,6 +19,22 @@
+             proxy_set_header X-Forwarded-Proto $scheme;
+         }
+ 
++        # 聊天室通話的信令（WebSocket）。連線會長時間保持，所以拉長逾時；app 每 25 秒會送一次心跳，
++        # 讓 Cloudflare（閒置 100 秒會斷線）與這裡都不會把它當成閒置連線關掉。
++        location = /api/hr/call/ws {
++            proxy_pass $app_upstream;
++            proxy_http_version 1.1;
++            proxy_set_header Upgrade $http_upgrade;
++            proxy_set_header Connection "upgrade";
++            proxy_set_header Host $host;
++            proxy_set_header X-Real-IP $remote_addr;
++            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
++            proxy_set_header X-Forwarded-Proto $scheme;
++            proxy_read_timeout 3600s;
++            proxy_send_timeout 3600s;
++            proxy_buffering off;
++        }
++
+         location / {
+             proxy_pass $app_upstream;
+             proxy_http_version 1.1;
+diff --git a/server.js b/server.js
+--- a/server.js
++++ b/server.js
+@@ -1,5 +1,7 @@
+ import { createServer } from "node:http";
+ import next from "next";
++import { attachCallSignaling } from "./src/lib/hr-call-signaling.js";
++import { callSecret } from "./src/lib/hr-call-ticket.js";
+ 
+ const dev = process.env.NODE_ENV !== "production";
+ 
+@@ -16,6 +18,11 @@ const handler = app.getRequestHandler();
+ app.prepare().then(() => {
+   const httpServer = createServer(handler);
+ 
++  // 聊天室通話的信令（WebSocket：/api/hr/call/ws）。沒有設定密鑰時不啟用，網站其他功能不受影響。
++  const callSigningSecret = callSecret();
++  if (callSigningSecret) attachCallSignaling(httpServer, { secret: callSigningSecret });
++  else console.warn("Call signaling is disabled: set NEXTAUTH_SECRET (or HR_CALL_SECRET).");
++
+   httpServer.listen(port, () => {
+     console.log(`> Ready on http://${hostname}:${port}`);
+   });
+diff --git a/src/app/api/hr/call/route.js b/src/app/api/hr/call/route.js
+new file mode 100644
+--- /dev/null
++++ b/src/app/api/hr/call/route.js
+@@ -0,0 +1,92 @@
++import { NextResponse } from 'next/server';
++import { auth } from '@/auth';
++import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
++import { getHrPrincipal } from '@/lib/hr-access';
++import { query } from '@/lib/db';
++import { requestIsSameOrigin } from '@/lib/request-origin';
++import { buildIceServers, callSecret, signTicket } from '@/lib/hr-call-ticket';
++
++export const runtime = 'nodejs';
++export const dynamic = 'force-dynamic';
++
++// 通話的權限與聊天室一致：能進哪個聊天室，就能在那個聊天室撥打或加入通話。
++// 這個檔案的 getReaderKey / accessibleRoom 與 /api/hr/chat/route.js 相同（tests/hr-call-api.test.mjs 會檢查沒有改歧），
++// 修改聊天室權限時兩邊要一起改。
++function getReaderKey(principal,session) {
++  if(principal.id)return `member:${principal.id}`;
++  return `admin:${session.user.email?.trim().toLowerCase()||session.user.lineUserId||'unknown'}`;
++}
++
++async function accessibleRoom(roomId, principal, session) {
++  const readerKey=getReaderKey(principal,session);
++  const result=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,
++      a.name AS agency_name,c.case_number,w.name AS worker_name,e.name AS employer_name
++    FROM hr_chat_rooms r LEFT JOIN hr_agencies a ON a.id=r.agency_id
++    LEFT JOIN hr_cases c ON c.id=r.case_id LEFT JOIN hr_workers w ON w.id=c.worker_id
++    LEFT JOIN hr_employers e ON e.id=c.employer_id
++    WHERE r.id=$1 AND (
++      $2::text='admin'
++      OR ($2::text='agency' AND r.room_type='agency' AND r.agency_id=$3)
++      OR ($2::text='worker' AND r.room_type='case' AND c.worker_id=$4)
++      OR ($2::text='employer' AND r.room_type='case' AND c.employer_id=$5)
++      OR (r.room_type='direct' AND EXISTS(SELECT 1 FROM hr_chat_participants p WHERE p.room_id=r.id AND p.participant_key=$8))
++      OR ($2::text='agency' AND $6::text='taiwan' AND r.room_type='case' AND (
++        EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id
++          WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$3 AND (ja.broker_member_id IS NULL OR ja.broker_member_id=$7))
++        OR (NOT EXISTS(SELECT 1 FROM hr_job_order_candidates jc WHERE jc.case_id=c.id) AND e.agency_id=$3)
++      ))
++    )`,[roomId,principal.role,principal.agency_id||null,principal.worker_id||null,principal.employer_id||null,principal.agency_type||null,principal.id||null,readerKey]);
++  return result[0]||null;
++}
++
++// 響鈴對象：群組是聊天室成員（與聊天室「群組會員」清單相同），私訊是對方。
++async function inviteeKeys(room) {
++  if(room.room_type==='direct'){
++    const rows=await query('SELECT participant_key FROM hr_chat_participants WHERE room_id=$1',[room.id]);
++    return rows.map(row=>row.participant_key);
++  }
++  const rows=room.room_type==='agency'
++    ? await query('SELECT m.id FROM hr_members m WHERE m.active=TRUE AND m.agency_id=$1',[room.agency_id])
++    : await query('SELECT DISTINCT m.id FROM hr_members m LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id)',[room.case_id]);
++  return rows.map(row=>`member:${row.id}`);
++}
++
++const NOT_CONFIGURED={error:'通話功能尚未設定（伺服器缺少 NEXTAUTH_SECRET）。',en:'Calling is not configured (the server is missing NEXTAUTH_SECRET).'};
++
++export async function POST(request) {
++  const session=await auth();
++  if(!session?.user)return NextResponse.json({error:'Authentication required'},{status:401});
++  if(!requestIsSameOrigin(request))return NextResponse.json({error:'請從本站提交資料。'},{status:403});
++  const secret=callSecret();
++  if(!secret)return NextResponse.json(NOT_CONFIGURED,{status:503});
++  try {
++    await ensureSchema();
++    const principal=await getHrPrincipal(session);
++    if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
++    await ensureChatSchema();
++    const body=await request.json();
++    const key=getReaderKey(principal,session);
++    const name=principal.name||session.user.name||'管理者';
++    // 連線票證：讓這個瀏覽器的 WebSocket 登記成「這個人在線」，才收得到來電。
++    if(body.type==='presence')return NextResponse.json({ticket:signTicket({p:'presence',k:key,n:name},secret,60)});
++    const roomId=Number(body.roomId);
++    if(body.type!=='room'||!Number.isSafeInteger(roomId)||roomId<1)return NextResponse.json({error:'聊天室編號不正確。',en:'Invalid chat room.'},{status:400});
++    const room=await accessibleRoom(roomId,principal,session);
++    if(!room)return NextResponse.json({error:'你沒有權限在此聊天室通話。',en:'You do not have access to call in this chat.'},{status:404});
++    const invitees=(await inviteeKeys(room)).filter(item=>item!==key);
++    const groupTitle=room.room_type==='agency'?`${room.agency_name} · 機構群組`:`${room.case_number} · ${room.worker_name}／${room.employer_name}`;
++    let title=groupTitle,callTitle=groupTitle;
++    if(room.room_type==='direct'){
++      // 私訊：撥的人看到對方的名字，對方看到撥的人的名字
++      const peer=await query('SELECT display_name FROM hr_chat_participants WHERE room_id=$1 AND participant_key<>$2 LIMIT 1',[room.id,key]);
++      title=peer[0]?.display_name||'私訊';
++      callTitle=name;
++    }
++    const ticket=signTicket({k:key,n:name,r:Number(room.id),invitees,ct:callTitle},secret,90);
++    return NextResponse.json({ticket,roomId:Number(room.id),roomType:room.room_type,title,iceServers:buildIceServers(process.env,key)});
++  } catch(error) {
++    if(error instanceof SyntaxError)return NextResponse.json({error:'資料格式不正確。',en:'Invalid request.'},{status:400});
++    console.error('hr_call_ticket_failed',error?.code||error?.name||'Error');
++    return NextResponse.json({error:'無法開始通話，請稍後再試。',en:'Unable to start the call. Please try again later.'},{status:503});
++  }
++}
+diff --git a/src/app/hr/page.jsx b/src/app/hr/page.jsx
+--- a/src/app/hr/page.jsx
++++ b/src/app/hr/page.jsx
+@@ -3,11 +3,13 @@ import { auth } from '@/auth';
+ import { getHrPrincipal } from '@/lib/hr-access';
+ import HrManagement from '@/components/HrManagement';
+ import HrAdminMobileBar from '@/components/HrAdminMobileBar';
++import HrCallProvider from '@/components/HrCallProvider';
+ import HrMemberPortal from '@/components/HrMemberPortal';
+ import HrMemberNavScroll from '@/components/HrMemberNavScroll';
+ import HrWorkerActivityLog from '@/components/HrWorkerActivityLog';
+ import '@/components/hr-member-mobile-nav.css';
+ import '@/components/hr-admin-mobile-nav.css';
++import '@/components/hr-call.css';
+ 
+ export const dynamic = 'force-dynamic';
+ export const metadata = { title: '克雷迅人力仲介管理系統' };
+@@ -26,6 +28,7 @@ export default async function HrPage() {
+         <HrMemberPortal actor={{ name: session.user.name || email, email }} />
+         {isWorker && <HrWorkerActivityLog self />}
+         <HrMemberNavScroll />
++        <HrCallProvider />
+       </>
+     );
+   }
+@@ -33,6 +36,7 @@ export default async function HrPage() {
+     <>
+       <HrManagement actor={{ name: session.user.name || email, email }} />
+       <HrAdminMobileBar />
++      <HrCallProvider />
+     </>
+   );
+ }
+diff --git a/src/components/HrCallProvider.jsx b/src/components/HrCallProvider.jsx
+new file mode 100644
+--- /dev/null
++++ b/src/components/HrCallProvider.jsx
+@@ -0,0 +1,191 @@
++"use client";
++
++import { useEffect, useRef, useState } from 'react';
++import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
++import { useLanguage } from '@/context/LanguageContext';
++import { translateHrText } from '@/lib/hr-translations';
++import { CallClient } from '@/lib/hr-call-client';
++
++// 通話功能的畫面：來電提示、通話視窗。整個 /hr 頁面掛一個（見 app/hr/page.jsx），
++// 聊天室的「語音／視訊通話」按鈕只要發出 hr:start-call 事件，就會在這裡撥號。
++// 這個元件在 HrManagement／HrMemberPortal 的翻譯範圍之外，所以中英文文字自己處理（COPY）。
++
++export const COPY = {
++  zh: {
++    incomingVoice: '語音來電', incomingVideo: '視訊來電', accept: '接聽', acceptVoice: '僅語音接聽', decline: '拒絕', hangUp: '掛斷',
++    mute: '靜音', unmute: '取消靜音', cameraOff: '關閉鏡頭', cameraOn: '開啟鏡頭', me: '我',
++    calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
++    dismiss: '關閉', callWindow: '通話視窗',
++    notices: {
++      permission: '無法使用麥克風或鏡頭。請在瀏覽器的網址列旁允許權限；如果是在 LINE 內開啟，請改用 Chrome 或 Safari 開啟本網站。',
++      'no-device': '找不到麥克風，請確認裝置後再試一次。', 'device-busy': '麥克風或鏡頭正被其他程式使用，請關閉後再試一次。',
++      'no-camera': '找不到可用的鏡頭，已改用語音通話。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。',
++      offline: '通話連線尚未就緒，請稍後再試。', timeout: '連線逾時，請再試一次。', 'connection-lost': '網路中斷，通話已結束。',
++      declined: name => `${name || '對方'}已拒絕通話。`, 'no-answer': '沒有人接聽。', 'everyone-left': '其他人都已離開，通話結束。',
++      full: '通話人數已滿（最多 6 人）。', 'bad-ticket': '通話驗證失敗，請重新整理頁面後再試。', 'already-in-call': '你已經在通話中。',
++      unknown: '無法開始通話，請稍後再試。',
++    },
++  },
++  en: {
++    incomingVoice: 'Voice call', incomingVideo: 'Video call', accept: 'Answer', acceptVoice: 'Answer with voice only', decline: 'Decline', hangUp: 'Hang up',
++    mute: 'Mute', unmute: 'Unmute', cameraOff: 'Turn camera off', cameraOn: 'Turn camera on', me: 'Me',
++    calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
++    dismiss: 'Close', callWindow: 'Call window',
++    notices: {
++      permission: 'The microphone or camera cannot be used. Allow access in the browser address bar. If you opened this site inside LINE, open it in Chrome or Safari instead.',
++      'no-device': 'No microphone was found. Check your device and try again.', 'device-busy': 'The microphone or camera is being used by another app. Close it and try again.',
++      'no-camera': 'No usable camera was found, so the call was started with voice only.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.',
++      offline: 'The call connection is not ready yet. Please try again shortly.', timeout: 'The connection timed out. Please try again.', 'connection-lost': 'The network was interrupted and the call ended.',
++      declined: name => `${name || 'The other person'} declined the call.`, 'no-answer': 'No one answered.', 'everyone-left': 'Everyone else has left, so the call ended.',
++      full: 'The call is full (up to 6 people).', 'bad-ticket': 'Call verification failed. Refresh the page and try again.', 'already-in-call': 'You are already in a call.',
++      unknown: 'Unable to start the call. Please try again later.',
++    },
++  },
++};
++
++async function callApi(body) {
++  const response = await fetch('/api/hr/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
++  let data = {};
++  try { data = await response.json(); } catch { /* 沒有內容 */ }
++  if (!response.ok) {
++    const error = new Error(data.error || 'call api failed');
++    error.apiMessage = data.error; error.apiEnglish = data.en; error.status = response.status;
++    throw error;
++  }
++  return data;
++}
++
++const wsUrl = ticket => `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/hr/call/ws?ticket=${encodeURIComponent(ticket)}`;
++
++export function noticeText(notice, lang) {
++  if (!notice) return '';
++  const copy = COPY[lang === 'en' ? 'en' : 'zh'];
++  if (notice.type === 'api') return lang === 'en' ? (notice.en || translateHrText(notice.message, 'en')) : notice.message;
++  const entry = copy.notices[notice.type] || copy.notices.unknown;
++  return typeof entry === 'function' ? entry(notice.name) : entry;
++}
++
++function Tile({ stream, name, local = false, state }) {
++  const ref = useRef(null);
++  useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null; }, [stream]);
++  const hasVideo = !!stream?.getVideoTracks().some(track => track.readyState === 'live' && (local ? track.enabled : true));
++  return <div className={`hr-call-tile ${local ? 'is-local' : ''} ${hasVideo ? '' : 'no-video'}`} data-state={state || ''}>
++    {/* 沒有影像時 video 元素仍保留（聲音要靠它播放），只是看不到 */}
++    <video ref={ref} autoPlay playsInline muted={local} className={hasVideo ? '' : 'hr-call-audio-only'} />
++    {!hasVideo && <span className="hr-call-avatar" aria-hidden="true">{(name || '?').trim().slice(0, 1).toUpperCase()}</span>}
++    <span className="hr-call-name">{name}</span>
++  </div>;
++}
++
++// 畫面（純顯示，方便單獨測試）
++export function CallView({ state, lang, actions }) {
++  if (!state) return null;
++  const copy = COPY[lang === 'en' ? 'en' : 'zh'];
++  const show = text => (lang === 'en' ? translateHrText(text || '', 'en') : text || '');
++  const { call, incoming, notice } = state;
++  const ringing = !call && incoming.length > 0 ? incoming[0] : null;
++  const status = !call ? '' : call.phase === 'reconnecting' ? copy.reconnecting : call.phase === 'starting' ? (call.everHadPeer ? copy.connecting : copy.calling)
++    : !call.everHadPeer && !call.peers.length ? copy.waiting : call.peers.some(peer => peer.state !== 'connected') && call.peers.every(peer => peer.state !== 'connected') ? copy.connecting : copy.inCall(call.peers.length);
++  return <>
++    {ringing && <div className="hr-call-incoming" role="alertdialog" aria-live="assertive" aria-label={ringing.video ? copy.incomingVideo : copy.incomingVoice}>
++      <span className="hr-call-incoming-icon">{ringing.video ? <Video size={22} /> : <Phone size={22} />}</span>
++      <div className="hr-call-incoming-text">
++        <strong>{show(ringing.title)}</strong>
++        <span>{ringing.video ? copy.incomingVideo : copy.incomingVoice}{ringing.from && ringing.from !== ringing.title ? ` · ${ringing.from}` : ''}{incoming.length > 1 ? ` (+${incoming.length - 1})` : ''}</span>
++      </div>
++      <div className="hr-call-incoming-actions">
++        <button type="button" className="hr-call-btn is-decline" onClick={() => actions.decline(ringing.roomId)}><PhoneOff size={18} />{copy.decline}</button>
++        {ringing.video && <button type="button" className="hr-call-btn is-voice" onClick={() => actions.accept(ringing, false)}><Phone size={18} />{copy.acceptVoice}</button>}
++        <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
++      </div>
++    </div>}
++    {call && <section className={`hr-call-overlay ${call.peers.length === 1 ? 'is-pip' : ''}`} role="dialog" aria-label={copy.callWindow}>
++      <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
++      <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 6)}`}>
++        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} />)}
++        <Tile stream={call.localStream} name={copy.me} local />
++      </div>
++      <footer className="hr-call-controls">
++        <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>
++        {call.hasCamera && <button type="button" className={`hr-call-round ${call.camOn ? '' : 'is-off'}`} onClick={actions.toggleCamera} aria-pressed={!call.camOn} aria-label={call.camOn ? copy.cameraOff : copy.cameraOn} title={call.camOn ? copy.cameraOff : copy.cameraOn}>{call.camOn ? <Video size={22} /> : <VideoOff size={22} />}</button>}
++        <button type="button" className="hr-call-round is-hangup" onClick={actions.leave} aria-label={copy.hangUp} title={copy.hangUp}><PhoneOff size={22} /></button>
++      </footer>
++    </section>}
++    {notice && <div className="hr-call-toast" role="status"><span>{noticeText(notice, lang)}</span><button type="button" onClick={actions.dismissNotice} aria-label={copy.dismiss}>×</button></div>}
++  </>;
++}
++
++function startRingtone() {
++  let context = null; let timer = null;
++  try {
++    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
++    context = AudioContextCtor ? new AudioContextCtor() : null;
++    void context?.resume?.();
++  } catch { context = null; }
++  const beep = (frequency, start, length) => {
++    if (!context || context.state !== 'running') return;
++    const oscillator = context.createOscillator(); const gain = context.createGain();
++    oscillator.frequency.value = frequency; oscillator.type = 'sine';
++    gain.gain.setValueAtTime(0.0001, context.currentTime + start);
++    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + start + 0.03);
++    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + start + length);
++    oscillator.connect(gain).connect(context.destination);
++    oscillator.start(context.currentTime + start); oscillator.stop(context.currentTime + start + length + 0.05);
++  };
++  const ring = () => { beep(440, 0, 0.4); beep(480, 0.5, 0.4); try { navigator.vibrate?.([300, 150, 300]); } catch { /* 不支援震動 */ } };
++  ring(); timer = setInterval(ring, 2800);
++  return () => { clearInterval(timer); try { navigator.vibrate?.(0); void context?.close?.(); } catch { /* 已關閉 */ } };
++}
++
++export default function HrCallProvider() {
++  const { lang } = useLanguage();
++  const [state, setState] = useState(null);
++  const clientRef = useRef(null);
++
++  useEffect(() => {
++    const client = new CallClient({ api: callApi, wsUrl, onChange: setState });
++    clientRef.current = client;
++    client.start();
++    const onStart = event => {
++      const detail = event.detail || {};
++      const roomId = Number(detail.roomId);
++      if (Number.isSafeInteger(roomId) && roomId > 0) void client.enter({ roomId, video: !!detail.video, title: String(detail.title || '') });
++    };
++    window.addEventListener('hr:start-call', onStart);
++    return () => { window.removeEventListener('hr:start-call', onStart); client.stop(); clientRef.current = null; };
++  }, []);
++
++  const ringing = !!state && !state.call && state.incoming.length > 0;
++  useEffect(() => {
++    if (!ringing) return undefined;
++    const original = document.title;
++    document.title = `📞 ${original}`;
++    const stopRingtone = startRingtone();
++    return () => { document.title = original; stopRingtone(); };
++  }, [ringing]);
++
++  const inCall = !!state?.call;
++  useEffect(() => {
++    if (!inCall || !navigator.wakeLock) return undefined; // 通話中讓手機不要自動鎖屏
++    let lock = null; let cancelled = false;
++    navigator.wakeLock.request('screen').then(result => { if (cancelled) void result.release(); else lock = result; }).catch(() => {});
++    return () => { cancelled = true; void lock?.release?.(); };
++  }, [inCall]);
++
++  const notice = state?.notice;
++  useEffect(() => {
++    if (!notice) return undefined;
++    const timer = setTimeout(() => clientRef.current?.clearNotice(), 8000);
++    return () => clearTimeout(timer);
++  }, [notice]);
++
++  const actions = {
++    accept: (item, video) => void clientRef.current?.enter({ roomId: item.roomId, video, title: item.title }),
++    decline: roomId => clientRef.current?.decline(roomId),
++    leave: () => clientRef.current?.leave(),
++    toggleMic: () => clientRef.current?.toggleMic(),
++    toggleCamera: () => clientRef.current?.toggleCamera(),
++    dismissNotice: () => clientRef.current?.clearNotice(),
++  };
++  return <CallView state={state} lang={lang} actions={actions} />;
++}
+diff --git a/src/components/hr-call.css b/src/components/hr-call.css
+new file mode 100644
+--- /dev/null
++++ b/src/components/hr-call.css
+@@ -0,0 +1,78 @@
++/* 聊天室通話：來電提示、通話視窗、聊天室裡的通話按鈕。class 都以 hr-call- 開頭。 */
++
++/* 聊天室標題列的「語音／視訊通話」按鈕 */
++.hr-call-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
++.hr-call-start {
++  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid #cfe3d8; border-radius: 10px;
++  background: #f2f9f5; color: #176b54; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
++}
++.hr-call-start:hover { background: #e4f3ec; }
++.hr-call-start:focus-visible, .hr-call-btn:focus-visible, .hr-call-round:focus-visible { outline: 3px solid #7cc8ad; outline-offset: 2px; }
++
++/* 來電提示 */
++.hr-call-incoming {
++  position: fixed; top: max(12px, env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 9600;
++  display: flex; align-items: center; gap: 12px; width: min(560px, calc(100vw - 24px)); padding: 12px 14px;
++  border-radius: 16px; background: #0f3d2f; color: #fff; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35); animation: hr-call-pulse 1.6s ease-in-out infinite;
++}
++@keyframes hr-call-pulse { 0%, 100% { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(63, 185, 140, 0.55); } 50% { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35), 0 0 0 10px rgba(63, 185, 140, 0); } }
++.hr-call-incoming-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 50%; background: #1f8f6b; }
++.hr-call-incoming-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
++.hr-call-incoming-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
++.hr-call-incoming-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: #bfe6d6; }
++.hr-call-incoming-actions { display: flex; gap: 8px; flex: none; }
++.hr-call-btn {
++  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 12px;
++  font: inherit; font-size: 13px; font-weight: 800; color: #fff; cursor: pointer; white-space: nowrap;
++}
++.hr-call-btn.is-accept { background: #1fa971; }
++.hr-call-btn.is-voice { background: rgba(255, 255, 255, 0.16); }
++.hr-call-btn.is-decline { background: #d64545; }
++
++/* 通話視窗：電腦是右下角的浮動視窗，手機是整個畫面 */
++.hr-call-overlay {
++  position: fixed; right: 20px; bottom: 20px; z-index: 9500; display: flex; flex-direction: column; gap: 8px;
++  width: min(600px, calc(100vw - 40px)); height: min(460px, calc(100dvh - 40px)); padding: 12px; border-radius: 18px;
++  background: #0b1f18; color: #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
++}
++.hr-call-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
++.hr-call-header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
++.hr-call-header span { flex: none; font-size: 12.5px; color: #9ed9c0; }
++.hr-call-grid { position: relative; display: grid; flex: 1; gap: 6px; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); grid-auto-rows: 1fr; }
++.hr-call-grid.count-1 { grid-template-columns: 1fr; }
++.hr-call-tile { position: relative; overflow: hidden; display: grid; place-items: center; min-height: 0; border-radius: 12px; background: #16342a; }
++.hr-call-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
++.hr-call-tile.is-local video { transform: scaleX(-1); }
++.hr-call-tile video.hr-call-audio-only { opacity: 0; pointer-events: none; }
++.hr-call-avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #1f8f6b; font-size: 28px; font-weight: 800; }
++.hr-call-name { position: absolute; left: 8px; bottom: 6px; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.5); font-size: 12px; }
++.hr-call-tile[data-state="connecting"]::after, .hr-call-tile[data-state="new"]::after, .hr-call-tile[data-state="disconnected"]::after, .hr-call-tile[data-state="failed"]::after {
++  content: ""; position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: #f0b429;
++}
++/* 一對一：對方滿版，自己縮成小畫面 */
++.hr-call-overlay.is-pip .hr-call-grid { grid-template-columns: 1fr; }
++.hr-call-overlay.is-pip .hr-call-tile.is-local { position: absolute; right: 10px; bottom: 10px; z-index: 2; width: 28%; max-width: 150px; min-width: 84px; aspect-ratio: 3 / 4; border: 2px solid rgba(255, 255, 255, 0.5); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
++.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-name { display: none; }
++.hr-call-controls { display: flex; justify-content: center; gap: 14px; padding-top: 2px; }
++.hr-call-round { display: grid; place-items: center; width: 52px; height: 52px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.16); color: #fff; cursor: pointer; }
++.hr-call-round.is-off { background: #fff; color: #0b1f18; }
++.hr-call-round.is-hangup { background: #d64545; }
++
++.hr-call-toast {
++  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 9700;
++  display: flex; align-items: center; gap: 10px; max-width: min(520px, calc(100vw - 24px)); padding: 10px 14px; border-radius: 12px;
++  background: #1c2b26; color: #fff; font-size: 13.5px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
++}
++.hr-call-toast button { flex: none; border: 0; background: transparent; color: #bfe6d6; font-size: 20px; line-height: 1; cursor: pointer; }
++
++@media (max-width: 720px) {
++  .hr-call-incoming { flex-wrap: wrap; }
++  .hr-call-incoming-actions { width: 100%; }
++  .hr-call-incoming-actions .hr-call-btn { flex: 1; }
++  .hr-call-overlay {
++    inset: 0; width: auto; height: auto; border-radius: 0;
++    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(14px + env(safe-area-inset-bottom, 0px));
++  }
++  .hr-call-toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
++}
++@media (prefers-reduced-motion: reduce) { .hr-call-incoming { animation: none; } }
+diff --git a/src/lib/hr-call-client.js b/src/lib/hr-call-client.js
+new file mode 100644
+--- /dev/null
++++ b/src/lib/hr-call-client.js
+@@ -0,0 +1,299 @@
++// 通話核心（瀏覽器端，不依賴 React）：連信令 WebSocket、管理來電、建立每個人之間的 WebRTC 連線。
++// 多人通話是「每個人彼此直連」(mesh)：新加入的人主動向每位現有參加者送 offer，現有參加者回 answer。
++// 畫面在 components/HrCallProvider.jsx；這個檔案也是為了能單獨用瀏覽器測試而不 import 任何東西。
++
++const JOIN_TIMEOUT_MS = 12000;
++const RECONNECT_GIVE_UP_MS = 30000;
++const ALONE_HANGUP_MS = 8000;
++
++export function classifyError(error) {
++  const name = error?.name || '';
++  if (name === 'NotAllowedError' || name === 'SecurityError') return { type: 'permission' };
++  if (name === 'NotFoundError' || name === 'OverconstrainedError') return { type: 'no-device' };
++  if (name === 'NotReadableError' || name === 'AbortError') return { type: 'device-busy' };
++  if (error?.apiMessage) return { type: 'api', message: error.apiMessage, en: error.apiEnglish };
++  return { type: 'unknown' };
++}
++
++export class CallClient {
++  constructor({ api, wsUrl, onChange, env = globalThis }) {
++    this.api = api;
++    this.wsUrl = wsUrl;
++    this.onChange = onChange || (() => {});
++    this.WebSocketCtor = env.WebSocket;
++    this.PeerCtor = env.RTCPeerConnection;
++    this.MediaStreamCtor = env.MediaStream;
++    this.media = env.navigator?.mediaDevices;
++    this.stopped = false;
++    this.ws = null;
++    this.wsReady = false;
++    this.backoff = 1000;
++    this.reconnectTimer = null;
++    this.incoming = new Map();
++    this.peers = new Map();
++    this.call = null;
++    this.localStream = null;
++    this.notice = null;
++    this.entering = false;
++    this.timers = {};
++  }
++
++  supported() { return !!(this.WebSocketCtor && this.PeerCtor && this.media?.getUserMedia); }
++
++  snapshot() {
++    return {
++      ready: this.wsReady,
++      supported: this.supported(),
++      incoming: [...this.incoming.values()],
++      notice: this.notice,
++      call: this.call && {
++        ...this.call,
++        localStream: this.localStream,
++        micOn: !!this.localStream?.getAudioTracks().some(track => track.enabled),
++        camOn: !!this.localStream?.getVideoTracks().some(track => track.enabled),
++        hasCamera: !!this.localStream?.getVideoTracks().length,
++        peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream })),
++      },
++    };
++  }
++
++  emit() { this.onChange(this.snapshot()); }
++  setNotice(notice) { this.notice = notice; this.emit(); }
++  clearNotice() { if (this.notice) { this.notice = null; this.emit(); } }
++
++  // ------------------------------------------------------------ 連線
++  start() { this.stopped = false; return this.connect(); }
++
++  stop() {
++    this.stopped = true;
++    clearTimeout(this.reconnectTimer);
++    this.cleanup();
++    const ws = this.ws; this.ws = null; this.wsReady = false;
++    if (ws) { ws.onclose = null; try { ws.close(); } catch { /* 已經關閉 */ } }
++    this.emit();
++  }
++
++  async connect() {
++    if (this.stopped || this.ws || !this.WebSocketCtor) return;
++    try {
++      const { ticket } = await this.api({ type: 'presence' });
++      if (this.stopped || this.ws) return;
++      const ws = new this.WebSocketCtor(this.wsUrl(ticket));
++      this.ws = ws;
++      ws.onopen = () => { this.backoff = 1000; this.wsReady = true; this.emit(); if (this.call?.phase === 'reconnecting') void this.rejoin(); };
++      ws.onmessage = event => { try { this.onMessage(JSON.parse(event.data)); } catch { /* 略過壞訊息 */ } };
++      ws.onerror = () => {};
++      ws.onclose = () => {
++        if (this.ws !== ws) return;
++        this.ws = null; this.wsReady = false;
++        this.incoming.clear();
++        if (this.call) {
++          this.call.phase = 'reconnecting';
++          this.dropPeers();
++          clearTimeout(this.timers.giveUp);
++          this.timers.giveUp = setTimeout(() => { if (this.call?.phase === 'reconnecting') { this.cleanup(); this.setNotice({ type: 'connection-lost' }); } }, RECONNECT_GIVE_UP_MS);
++        }
++        this.emit();
++        this.scheduleReconnect();
++      };
++    } catch { this.scheduleReconnect(); }
++  }
++
++  scheduleReconnect() {
++    if (this.stopped) return;
++    clearTimeout(this.reconnectTimer);
++    this.reconnectTimer = setTimeout(() => void this.connect(), this.backoff);
++    this.backoff = Math.min(this.backoff * 2, 60000);
++  }
++
++  send(message) {
++    if (this.ws && this.wsReady) { this.ws.send(JSON.stringify(message)); return true; }
++    return false;
++  }
++
++  // ------------------------------------------------------------ 撥打、接聽、拒接、掛斷
++  async getMedia(video) {
++    const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
++    if (!video) return this.media.getUserMedia({ audio, video: false });
++    try {
++      return await this.media.getUserMedia({ audio, video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 }, facingMode: 'user' } });
++    } catch (error) {
++      // 沒有鏡頭、鏡頭被占用：退回只有聲音，不要讓整通電話打不成
++      if (['NotFoundError', 'OverconstrainedError', 'NotReadableError'].includes(error?.name)) {
++        const stream = await this.media.getUserMedia({ audio, video: false });
++        this.notice = { type: 'no-camera' };
++        return stream;
++      }
++      throw error;
++    }
++  }
++
++  // 撥打與接聽是同一個動作：聊天室裡已經有通話就加入，沒有就建立。
++  async enter({ roomId, video = false, title = '' }) {
++    if (this.call || this.entering) return false;
++    if (!this.supported()) { this.setNotice({ type: 'unsupported' }); return false; }
++    if (!this.wsReady) { this.setNotice({ type: 'offline' }); return false; }
++    this.entering = true;
++    this.notice = null;
++    let stream = null;
++    try {
++      stream = await this.getMedia(video);
++      const info = await this.api({ type: 'room', roomId });
++      this.iceServers = info.iceServers || [];
++      this.localStream = stream;
++      this.call = { roomId: info.roomId, title: info.title || title, roomType: info.roomType, video, callId: null, myId: null, phase: 'starting', everHadPeer: false };
++      this.incoming.delete(info.roomId);
++      if (!this.send({ t: 'start', ticket: info.ticket, video })) throw new Error('offline');
++      this.timers.join = setTimeout(() => { if (this.call?.phase === 'starting') { this.cleanup(); this.setNotice({ type: 'timeout' }); } }, JOIN_TIMEOUT_MS);
++      this.emit();
++      return true;
++    } catch (error) {
++      stream?.getTracks().forEach(track => track.stop());
++      this.localStream = null; this.call = null;
++      this.setNotice(classifyError(error));
++      return false;
++    } finally { this.entering = false; }
++  }
++
++  async rejoin() {
++    const call = this.call;
++    if (!call) return;
++    try {
++      const info = await this.api({ type: 'room', roomId: call.roomId });
++      this.iceServers = info.iceServers || this.iceServers;
++      call.phase = 'starting';
++      if (!this.send({ t: 'start', ticket: info.ticket, video: call.video })) throw new Error('offline');
++      clearTimeout(this.timers.join);
++      this.timers.join = setTimeout(() => { if (this.call?.phase === 'starting') { this.cleanup(); this.setNotice({ type: 'timeout' }); } }, JOIN_TIMEOUT_MS);
++      this.emit();
++    } catch { this.cleanup(); this.setNotice({ type: 'connection-lost' }); }
++  }
++
++  decline(roomId) { this.send({ t: 'decline', roomId }); this.incoming.delete(roomId); this.emit(); }
++
++  leave() {
++    if (!this.call) return;
++    this.send({ t: 'leave' });
++    this.cleanup();
++  }
++
++  toggleMic() { this.localStream?.getAudioTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
++  toggleCamera() { this.localStream?.getVideoTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
++
++  // ------------------------------------------------------------ 信令訊息
++  onMessage(message) {
++    switch (message.t) {
++      case 'incoming':
++        if (this.call?.roomId === message.roomId) break;
++        this.incoming.set(message.roomId, { roomId: message.roomId, callId: message.callId, title: message.title, video: message.video, from: message.from });
++        this.emit();
++        break;
++      case 'ring-stop': this.incoming.delete(message.roomId); this.emit(); break;
++      case 'joined': {
++        if (!this.call) { this.send({ t: 'leave' }); break; }
++        clearTimeout(this.timers.join); clearTimeout(this.timers.alone);
++        Object.assign(this.call, { callId: message.callId, myId: message.id, phase: 'active', mode: message.video ? 'video' : 'voice' });
++        for (const peer of message.peers || []) this.addPeer(peer, true);
++        this.emit();
++        break;
++      }
++      case 'peer-joined': if (this.call) { clearTimeout(this.timers.alone); this.addPeer(message.peer, false); } break;
++      case 'peer-left': this.removePeer(message.id); break;
++      case 'signal': void this.onSignal(message.from, message.data); break;
++      case 'declined': this.setNotice({ type: 'declined', name: message.name }); break;
++      case 'ended':
++        this.incoming.delete(message.roomId);
++        if (this.call?.roomId === message.roomId) { this.cleanup(); if (message.reason !== 'ended') this.notice = { type: message.reason }; }
++        this.emit();
++        break;
++      case 'error':
++        if (this.call?.phase === 'starting') this.cleanup();
++        this.setNotice({ type: message.code });
++        break;
++      default: break;
++    }
++  }
++
++  // ------------------------------------------------------------ WebRTC
++  addPeer(info, initiator) {
++    if (!this.call || this.peers.has(info.id)) return;
++    const pc = new this.PeerCtor({ iceServers: this.iceServers });
++    const peer = { id: info.id, name: info.name, pc, stream: null, state: 'connecting', queued: [], remoteSet: false, restarted: false, initiator };
++    this.peers.set(info.id, peer);
++    this.call.everHadPeer = true;
++    for (const track of this.localStream.getTracks()) pc.addTrack(track, this.localStream);
++    pc.onicecandidate = event => { if (event.candidate) this.send({ t: 'signal', to: info.id, data: { kind: 'candidate', candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate } }); };
++    pc.ontrack = event => {
++      if (event.streams[0]) peer.stream = event.streams[0];
++      else { peer.stream = peer.stream || new this.MediaStreamCtor(); peer.stream.addTrack(event.track); }
++      this.emit();
++    };
++    pc.onconnectionstatechange = () => {
++      peer.state = pc.connectionState;
++      // 連線失敗時由主動方重新協商一次（網路切換，例如 Wi-Fi 換成行動網路）
++      if (pc.connectionState === 'failed' && peer.initiator && !peer.restarted) { peer.restarted = true; void this.makeOffer(peer, true); }
++      this.emit();
++    };
++    if (initiator) void this.makeOffer(peer, false);
++    this.emit();
++  }
++
++  async makeOffer(peer, iceRestart) {
++    try {
++      const offer = await peer.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true, iceRestart });
++      await peer.pc.setLocalDescription(offer);
++      this.send({ t: 'signal', to: peer.id, data: { kind: 'offer', sdp: peer.pc.localDescription.sdp } });
++    } catch { /* 這一位連不上不影響其他人 */ }
++  }
++
++  async flushCandidates(peer) {
++    const queued = peer.queued; peer.queued = [];
++    for (const candidate of queued) { try { await peer.pc.addIceCandidate(candidate); } catch { /* 略過過期的候選 */ } }
++  }
++
++  async onSignal(from, data) {
++    const peer = this.peers.get(from);
++    if (!peer || !data) return;
++    try {
++      if (data.kind === 'offer') {
++        await peer.pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
++        peer.remoteSet = true; await this.flushCandidates(peer);
++        const answer = await peer.pc.createAnswer();
++        await peer.pc.setLocalDescription(answer);
++        this.send({ t: 'signal', to: from, data: { kind: 'answer', sdp: peer.pc.localDescription.sdp } });
++      } else if (data.kind === 'answer') {
++        await peer.pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
++        peer.remoteSet = true; await this.flushCandidates(peer);
++      } else if (data.kind === 'candidate' && data.candidate) {
++        if (peer.remoteSet) await peer.pc.addIceCandidate(data.candidate); else peer.queued.push(data.candidate);
++      }
++    } catch { /* 單一訊息失敗不中斷通話 */ }
++  }
++
++  removePeer(id) {
++    const peer = this.peers.get(id);
++    if (!peer) return;
++    peer.pc.onconnectionstatechange = null; peer.pc.ontrack = null; peer.pc.onicecandidate = null;
++    peer.pc.close();
++    this.peers.delete(id);
++    // 大家都走了就自動掛斷（一對一通話對方掛掉時，自己這邊也結束）
++    if (!this.peers.size && this.call?.everHadPeer && this.call.phase === 'active') {
++      clearTimeout(this.timers.alone);
++      this.timers.alone = setTimeout(() => { if (this.call && !this.peers.size) { this.leave(); this.setNotice({ type: 'everyone-left' }); } }, ALONE_HANGUP_MS);
++    }
++    this.emit();
++  }
++
++  dropPeers() { for (const id of [...this.peers.keys()]) this.removePeer(id); }
++
++  cleanup() {
++    for (const name of Object.keys(this.timers)) clearTimeout(this.timers[name]);
++    this.timers = {};
++    for (const peer of this.peers.values()) { peer.pc.onconnectionstatechange = null; peer.pc.close(); }
++    this.peers.clear();
++    this.localStream?.getTracks().forEach(track => track.stop());
++    this.localStream = null;
++    this.call = null;
++    this.emit();
++  }
++}
+diff --git a/src/lib/hr-call-signaling.js b/src/lib/hr-call-signaling.js
+new file mode 100644
+--- /dev/null
++++ b/src/lib/hr-call-signaling.js
+@@ -0,0 +1,262 @@
++import crypto from 'node:crypto';
++import { verifyTicket } from './hr-call-ticket.js';
++
++// 通話信令：只轉送「誰要通話、誰加入、WebRTC 的連線資訊」，聲音與影像不經過這裡（瀏覽器之間直連，必要時走 TURN）。
++// 通話狀態只存在記憶體（單一 app 容器）；重啟 app 時進行中的通話會中斷，使用者重新撥打即可。
++// WebSocket 協定（RFC 6455）自己實作在下面，不需要額外安裝套件。
++
++export const MAX_PARTICIPANTS = 6; // 多人通話是每個人彼此直連（mesh），超過約 4～6 人手機會吃不消
++export const RING_MS = 45000;
++const MAX_CONNECTIONS_PER_KEY = 6;
++const MAX_CONNECTIONS = 500;
++const MAX_MESSAGE_BYTES = 64 * 1024;
++
++// ---------------------------------------------------------------- 通話邏輯（與連線方式無關，可單獨測試）
++export class CallHub {
++  constructor({ secret, ringMs = RING_MS, setTimer = setTimeout, clearTimer = clearTimeout, now = () => Date.now() } = {}) {
++    this.secret = secret;
++    this.ringMs = ringMs;
++    this.setTimer = setTimer;
++    this.clearTimer = clearTimer;
++    this.now = now;
++    this.byKey = new Map(); // 使用者識別 → 連線集合（同一人可以開多個分頁或裝置）
++    this.calls = new Map(); // 聊天室編號 → 通話
++    this.connectionCount = 0;
++  }
++
++  addConnection(conn) {
++    if (this.connectionCount >= MAX_CONNECTIONS) return false;
++    const set = this.byKey.get(conn.key) || new Set();
++    if (set.size >= MAX_CONNECTIONS_PER_KEY) return false;
++    set.add(conn);
++    this.byKey.set(conn.key, set);
++    this.connectionCount += 1;
++    conn.roomId = null;
++    // 剛連上（或重新整理）時，補送還在響鈴的來電
++    for (const call of this.calls.values()) if (call.ringing && call.invitees.has(conn.key) && !this.isParticipantKey(call, conn.key) && !call.declined.has(conn.key)) conn.send(this.incomingMessage(call));
++    return true;
++  }
++
++  removeConnection(conn) {
++    if (conn.roomId != null) this.leave(conn);
++    const set = this.byKey.get(conn.key);
++    if (set?.delete(conn)) this.connectionCount -= 1;
++    if (set && !set.size) this.byKey.delete(conn.key);
++  }
++
++  isParticipantKey(call, key) {
++    for (const participant of call.participants.values()) if (participant.key === key) return true;
++    return false;
++  }
++
++  incomingMessage(call) {
++    return { t: 'incoming', callId: call.id, roomId: call.roomId, title: call.title, video: call.video, from: call.startedByName };
++  }
++
++  handle(conn, message) {
++    if (!message || typeof message !== 'object') return;
++    switch (message.t) {
++      case 'ping': conn.send({ t: 'pong' }); break;
++      case 'start': case 'join': this.enter(conn, message); break;
++      case 'signal': this.relay(conn, message); break;
++      case 'decline': this.decline(conn, message); break;
++      case 'leave': this.leave(conn); break;
++      default: break;
++    }
++  }
++
++  enter(conn, message) {
++    const ticket = verifyTicket(message.ticket, this.secret, this.now());
++    const roomId = Number(ticket?.r);
++    if (!ticket || ticket.k !== conn.key || !Number.isSafeInteger(roomId) || roomId < 1) return conn.send({ t: 'error', code: 'bad-ticket' });
++    if (conn.roomId != null) return conn.send({ t: 'error', code: 'already-in-call' });
++    let call = this.calls.get(roomId);
++    if (!call) {
++      call = {
++        id: crypto.randomUUID(), roomId, title: String(ticket.ct || ticket.title || '').slice(0, 200), video: !!message.video,
++        startedBy: conn.key, startedByName: conn.name, invitees: new Set((Array.isArray(ticket.invitees) ? ticket.invitees : []).filter(key => typeof key === 'string' && key !== conn.key).slice(0, 300)),
++        participants: new Map(), declined: new Set(), ringing: true, timer: null,
++      };
++      this.calls.set(roomId, call);
++      call.timer = this.setTimer(() => this.ringTimeout(call), this.ringMs);
++      for (const key of call.invitees) for (const other of this.byKey.get(key) || []) other.send(this.incomingMessage(call));
++    } else if (call.participants.size >= MAX_PARTICIPANTS) {
++      return conn.send({ t: 'error', code: 'full' });
++    }
++    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name }));
++    call.participants.set(conn.id, conn);
++    conn.roomId = roomId;
++    conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers });
++    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name } });
++    // 同一個人的其他分頁／裝置不用再響鈴
++    for (const other of this.byKey.get(conn.key) || []) if (other !== conn && other.roomId == null) other.send({ t: 'ring-stop', roomId });
++  }
++
++  relay(conn, message) {
++    const call = this.calls.get(conn.roomId);
++    const target = call?.participants.get(String(message.to));
++    if (!call || !target || target === conn) return;
++    target.send({ t: 'signal', from: conn.id, data: message.data });
++  }
++
++  decline(conn, message) {
++    const call = this.calls.get(Number(message.roomId));
++    if (!call || !call.invitees.has(conn.key)) return;
++    call.declined.add(conn.key);
++    for (const other of this.byKey.get(conn.key) || []) other.send({ t: 'ring-stop', roomId: call.roomId });
++    for (const participant of call.participants.values()) participant.send({ t: 'declined', name: conn.name });
++    if (call.participants.size <= 1 && call.invitees.size > 0 && [...call.invitees].every(key => call.declined.has(key))) this.endCall(call, 'declined');
++  }
++
++  leave(conn) {
++    const call = this.calls.get(conn.roomId);
++    conn.roomId = null;
++    if (!call || !call.participants.delete(conn.id)) return;
++    for (const other of call.participants.values()) other.send({ t: 'peer-left', id: conn.id });
++    if (!call.participants.size) this.endCall(call, 'ended');
++  }
++
++  ringTimeout(call) {
++    call.timer = null;
++    if (this.calls.get(call.roomId) !== call || !call.ringing) return;
++    call.ringing = false;
++    if (call.participants.size <= 1) this.endCall(call, 'no-answer');
++    else for (const key of call.invitees) for (const other of this.byKey.get(key) || []) if (other.roomId == null) other.send({ t: 'ring-stop', roomId: call.roomId });
++  }
++
++  endCall(call, reason) {
++    if (this.calls.get(call.roomId) !== call) return;
++    this.calls.delete(call.roomId);
++    if (call.timer) { this.clearTimer(call.timer); call.timer = null; }
++    const notice = { t: 'ended', roomId: call.roomId, callId: call.id, reason };
++    for (const participant of call.participants.values()) { participant.roomId = null; participant.send(notice); }
++    call.participants.clear();
++    for (const key of call.invitees) for (const other of this.byKey.get(key) || []) if (other.roomId == null) other.send(notice);
++  }
++}
++
++// ---------------------------------------------------------------- WebSocket（RFC 6455）精簡實作：只收發文字訊息
++const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
++
++export function encodeFrame(opcode, payload = Buffer.alloc(0)) {
++  const length = payload.length;
++  let header;
++  if (length < 126) header = Buffer.from([0x80 | opcode, length]);
++  else if (length < 65536) { header = Buffer.alloc(4); header[0] = 0x80 | opcode; header[1] = 126; header.writeUInt16BE(length, 2); }
++  else { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(length), 2); }
++  return Buffer.concat([header, payload]);
++}
++
++// 從累積的資料中取出一個完整的客戶端影格；資料不夠時回傳 null。客戶端影格一律要有遮罩。
++export function decodeFrame(buffer, maxBytes = MAX_MESSAGE_BYTES) {
++  if (buffer.length < 2) return null;
++  const fin = (buffer[0] & 0x80) !== 0;
++  const opcode = buffer[0] & 0x0f;
++  if (buffer[0] & 0x70) return { error: 1002 };
++  const masked = (buffer[1] & 0x80) !== 0;
++  let length = buffer[1] & 0x7f;
++  let offset = 2;
++  if (length === 126) { if (buffer.length < 4) return null; length = buffer.readUInt16BE(2); offset = 4; }
++  else if (length === 127) {
++    if (buffer.length < 10) return null;
++    const big = buffer.readBigUInt64BE(2);
++    if (big > BigInt(maxBytes)) return { error: 1009 };
++    length = Number(big); offset = 10;
++  }
++  if (!masked) return { error: 1002 };
++  if (length > maxBytes) return { error: 1009 };
++  if (buffer.length < offset + 4 + length) return null;
++  const mask = buffer.subarray(offset, offset + 4);
++  const payload = Buffer.from(buffer.subarray(offset + 4, offset + 4 + length));
++  for (let index = 0; index < payload.length; index += 1) payload[index] ^= mask[index % 4];
++  return { fin, opcode, payload, size: offset + 4 + length };
++}
++
++function rejectUpgrade(socket, status, text) {
++  socket.write(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
++  socket.destroy();
++}
++
++export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secret, hub = new CallHub({ secret }), heartbeatMs = 25000, log = console } = {}) {
++  const sockets = new Set();
++  httpServer.on('upgrade', (req, socket, head) => {
++    let url;
++    try { url = new URL(req.url, 'http://localhost'); } catch { return socket.destroy(); }
++    if (url.pathname !== path) { if (httpServer.listenerCount('upgrade') === 1) socket.destroy(); return; }
++    socket.on('error', () => {});
++    const key = req.headers['sec-websocket-key'];
++    if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket' || req.headers['sec-websocket-version'] !== '13' || typeof key !== 'string') return rejectUpgrade(socket, 400, 'Bad Request');
++    // 網站只允許從自己的頁面連線（避免別的網站利用使用者的瀏覽器連進來）
++    const origin = req.headers.origin;
++    if (origin) { try { if (new URL(origin).host !== req.headers.host) return rejectUpgrade(socket, 403, 'Forbidden'); } catch { return rejectUpgrade(socket, 403, 'Forbidden'); } }
++    const ticket = verifyTicket(url.searchParams.get('ticket'), secret, hub.now());
++    if (!ticket || ticket.p !== 'presence' || typeof ticket.k !== 'string' || !ticket.k) return rejectUpgrade(socket, 401, 'Unauthorized');
++
++    const conn = {
++      id: crypto.randomBytes(8).toString('hex'), key: ticket.k, name: String(ticket.n || '').slice(0, 80), roomId: null,
++      send(message) {
++        if (socket.destroyed || !socket.writable) return;
++        if (socket.writableLength > 1024 * 1024) return socket.destroy();
++        socket.write(encodeFrame(1, Buffer.from(JSON.stringify(message))));
++      },
++    };
++    if (hub.connectionCount >= MAX_CONNECTIONS || (hub.byKey.get(conn.key)?.size || 0) >= MAX_CONNECTIONS_PER_KEY) return rejectUpgrade(socket, 503, 'Service Unavailable');
++    // 先回 101 完成握手，再登記連線（登記時會補送還在響鈴的來電，必須排在握手回應之後）
++    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${crypto.createHash('sha1').update(key + GUID).digest('base64')}\r\n\r\n`);
++    socket.setNoDelay(true);
++    sockets.add(socket);
++    hub.addConnection(conn);
++
++    let pending = head && head.length ? Buffer.from(head) : Buffer.alloc(0);
++    let fragments = [];
++    let fragmentBytes = 0;
++    let lastSeen = Date.now();
++    let windowStart = Date.now();
++    let windowCount = 0;
++    let closed = false;
++    const close = (code = 1000) => {
++      if (closed) return;
++      closed = true;
++      try { const reason = Buffer.alloc(2); reason.writeUInt16BE(code); if (socket.writable) socket.write(encodeFrame(8, reason)); } catch {}
++      socket.end();
++    };
++    const heartbeat = setInterval(() => {
++      if (Date.now() - lastSeen > heartbeatMs * 3) return socket.destroy();
++      if (socket.writable) socket.write(encodeFrame(9));
++    }, heartbeatMs);
++    heartbeat.unref?.();
++    // HTTP 伺服器的連線預設是半開模式：對方直接斷線（關分頁、手機斷網）時要自己收尾，否則會一直卡在通話名單裡
++    socket.on('end', () => socket.end());
++    socket.on('close', () => { clearInterval(heartbeat); sockets.delete(socket); closed = true; hub.removeConnection(conn); });
++
++    const drain = () => {
++      for (;;) {
++        const frame = decodeFrame(pending);
++        if (!frame) return;
++        if (frame.error) return close(frame.error);
++        pending = pending.subarray(frame.size);
++        lastSeen = Date.now();
++        if (frame.opcode === 8) return close(1000);
++        if (frame.opcode === 9) { if (socket.writable) socket.write(encodeFrame(10, frame.payload)); continue; }
++        if (frame.opcode === 10) continue;
++        if (frame.opcode === 2) return close(1003);
++        if (frame.opcode !== 1 && frame.opcode !== 0) return close(1002);
++        if (frame.opcode === 1 && fragments.length) return close(1002);
++        fragments.push(frame.payload);
++        fragmentBytes += frame.payload.length;
++        if (fragmentBytes > MAX_MESSAGE_BYTES) return close(1009);
++        if (!frame.fin) continue;
++        const text = Buffer.concat(fragments).toString('utf8');
++        fragments = []; fragmentBytes = 0;
++        if (Date.now() - windowStart > 10000) { windowStart = Date.now(); windowCount = 0; }
++        if (++windowCount > 600) return close(1008); // 10 秒超過 600 則訊息就斷線，避免被灌爆
++        let message;
++        try { message = JSON.parse(text); } catch { continue; }
++        try { hub.handle(conn, message); } catch (error) { log.error?.('hr_call_message_failed', error?.name || 'Error'); }
++      }
++    };
++    socket.on('data', chunk => { pending = pending.length ? Buffer.concat([pending, chunk]) : chunk; drain(); });
++    if (pending.length) drain();
++  });
++  return { hub, closeAll() { for (const socket of sockets) socket.destroy(); } };
++}
+diff --git a/src/lib/hr-call-ticket.js b/src/lib/hr-call-ticket.js
+new file mode 100644
+--- /dev/null
++++ b/src/lib/hr-call-ticket.js
+@@ -0,0 +1,45 @@
++import crypto from 'node:crypto';
++
++// 通話用的短效簽章票證（HMAC-SHA256）。
++// /api/hr/call 在確認登入與聊天室權限後簽發；server.js 的 WebSocket 信令伺服器只負責驗證簽章，
++// 所以信令伺服器不需要連資料庫，也不需要解 NextAuth 的 session。
++
++export function callSecret(env = process.env) {
++  return env.HR_CALL_SECRET || env.NEXTAUTH_SECRET || env.AUTH_SECRET || '';
++}
++
++export function signTicket(payload, secret, ttlSeconds = 60, now = Date.now()) {
++  if (!secret) throw new Error('call secret is missing');
++  const body = Buffer.from(JSON.stringify({ ...payload, exp: Math.floor(now / 1000) + ttlSeconds })).toString('base64url');
++  const signature = crypto.createHmac('sha256', secret).update(body).digest('base64url');
++  return `${body}.${signature}`;
++}
++
++export function verifyTicket(ticket, secret, now = Date.now()) {
++  if (!secret || typeof ticket !== 'string' || ticket.length > 8192) return null;
++  const parts = ticket.split('.');
++  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
++  const expected = crypto.createHmac('sha256', secret).update(parts[0]).digest();
++  const given = Buffer.from(parts[1], 'base64url');
++  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
++  let payload;
++  try { payload = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')); } catch { return null; }
++  if (!payload || typeof payload !== 'object' || typeof payload.exp !== 'number' || payload.exp * 1000 < now) return null;
++  return payload;
++}
++
++// 給瀏覽器的 ICE 設定：預設只有 STUN；設定 TURN 網址與密鑰後會多一組限時的 TURN 帳密
++// （coturn 的 use-auth-secret 格式：使用者名稱是「到期時間:識別碼」，密碼是 HMAC-SHA1(secret, 使用者名稱) 的 base64）。
++export function buildIceServers(env, identity, now = Date.now()) {
++  const stunUrls = (env.HR_CALL_STUN_URLS ?? 'stun:stun.l.google.com:19302').split(',').map(item => item.trim()).filter(Boolean);
++  const servers = stunUrls.length ? [{ urls: stunUrls }] : [];
++  const turnUrls = (env.HR_CALL_TURN_URLS || '').split(',').map(item => item.trim()).filter(Boolean);
++  const turnSecret = env.HR_CALL_TURN_SECRET || '';
++  if (turnUrls.length && turnSecret) {
++    const anonymous = crypto.createHash('sha256').update(String(identity)).digest('hex').slice(0, 12);
++    const username = `${Math.floor(now / 1000) + 6 * 3600}:${anonymous}`;
++    const credential = crypto.createHmac('sha1', turnSecret).update(username).digest('base64');
++    servers.push({ urls: turnUrls, username, credential });
++  }
++  return servers;
++}
+diff --git a/src/middleware.js b/src/middleware.js
+--- a/src/middleware.js
++++ b/src/middleware.js
+@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
+ 
+ export function middleware(request) {
+   const nonce = btoa(crypto.randomUUID());
++  // 通話的 WebSocket（/api/hr/call/ws）。多數瀏覽器的 'self' 已包含同源 ws/wss，這裡明確寫出來相容較舊的 Safari。
++  const host = request.headers.get("host") || "";
++  const callSocket = /^[a-z0-9.-]+(:\d+)?$/i.test(host) ? ` wss://${host} ws://${host}` : "";
+   const contentSecurityPolicy = [
+     "default-src 'self'",
+     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+     "style-src 'self' 'unsafe-inline'",
+     "img-src 'self' data: blob:",
+-    "connect-src 'self'",
++    `connect-src 'self'${callSocket}`,
+     "font-src 'self' data:",
+     "frame-ancestors 'self'",
+     "object-src 'none'",
+diff --git a/tests/hr-call-integration.test.mjs b/tests/hr-call-integration.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/tests/hr-call-integration.test.mjs
+@@ -0,0 +1,79 @@
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++import test from 'node:test';
++
++// Windows 的工作目錄可能是 CRLF 換行，先統一成 LF 再比對。
++const read = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
++
++// 聊天室通話的權限必須和聊天室一致：通話 API 裡的 getReaderKey / accessibleRoom 是從聊天室 API 複製來的，
++// 以後改聊天室權限時，這個測試會提醒你兩邊要一起改。
++test('通話 API 的聊天室權限檢查與聊天室 API 完全相同', async () => {
++  const chat = await read('../src/app/api/hr/chat/route.js');
++  const call = await read('../src/app/api/hr/call/route.js');
++  const grab = (source, name) => {
++    const start = source.indexOf(name);
++    assert.ok(start >= 0, `找不到 ${name}`);
++    const end = source.indexOf('\n}\n', start);
++    return source.slice(start, end + 3);
++  };
++  assert.equal(grab(call, 'function getReaderKey('), grab(chat, 'function getReaderKey('));
++  assert.equal(grab(call, 'async function accessibleRoom('), grab(chat, 'async function accessibleRoom('));
++});
++
++test('瀏覽器的麥克風與鏡頭權限在 nginx 與 Next 的標頭都有開放（同源）', async () => {
++  for (const path of ['../nginx.conf', '../next.config.js']) {
++    const source = await read(path);
++    assert.ok(source.includes('microphone=(self), camera=(self)'), `${path} 要允許本站使用麥克風與鏡頭`);
++    assert.ok(!source.includes('microphone=()'), `${path} 不能再把麥克風關掉`);
++  }
++});
++
++test('nginx 轉送通話 WebSocket，且逾時夠長', async () => {
++  const nginx = await read('../nginx.conf');
++  const start = nginx.indexOf('location = /api/hr/call/ws {');
++  assert.ok(start > 0);
++  const block = nginx.slice(start, nginx.indexOf('\n        }', start));
++  assert.ok(block.includes('proxy_set_header Upgrade $http_upgrade;'));
++  assert.ok(block.includes('proxy_set_header Connection "upgrade";'));
++  assert.match(block, /proxy_read_timeout 3600s;/);
++});
++
++test('CSP 允許連到通話的 WebSocket，且 Host 有先驗證格式', async () => {
++  const middleware = await read('../src/middleware.js');
++  assert.ok(middleware.includes('connect-src \'self\'${callSocket}'));
++  assert.ok(middleware.includes('wss://${host}'));
++  assert.ok(middleware.includes('/^[a-z0-9.-]+(:\\d+)?$/i.test(host)'), 'Host 標頭必須先驗證格式，不能直接寫進 CSP');
++});
++
++test('server.js 掛上信令、Docker 映像有帶需要的檔案', async () => {
++  const server = await read('../server.js');
++  assert.ok(server.includes('attachCallSignaling(httpServer, { secret: callSigningSecret })'));
++  const dockerfile = await read('../Dockerfile');
++  for (const file of ['hr-call-ticket.js', 'hr-call-signaling.js']) assert.ok(dockerfile.includes(`/app/src/lib/${file} ./src/lib/${file}`), `Dockerfile 要複製 ${file}`);
++  // server.js 直接 import 的檔案不能再 import 其他沒被複製進映像的檔案
++  const signaling = await read('../src/lib/hr-call-signaling.js');
++  const imports = [...signaling.matchAll(/from '(\.[^']+)'/g)].map(match => match[1]);
++  assert.deepEqual(imports, ['./hr-call-ticket.js']);
++  const ticket = await read('../src/lib/hr-call-ticket.js');
++  assert.deepEqual([...ticket.matchAll(/from '(\.[^']+)'/g)], []);
++});
++
++test('docker-compose 有通話的環境變數與選配的 coturn', async () => {
++  const compose = await read('../docker-compose.yml');
++  for (const name of ['HR_CALL_SECRET', 'HR_CALL_STUN_URLS', 'HR_CALL_TURN_URLS', 'HR_CALL_TURN_SECRET']) assert.ok(compose.includes(`- ${name}=`), name);
++  assert.ok(compose.includes('coturn/coturn'));
++  assert.ok(compose.includes('--use-auth-secret'));
++  assert.ok(compose.includes('--denied-peer-ip=192.168.0.0-192.168.255.255'));
++});
++
++test('聊天室有語音與視訊通話按鈕（中英文），/hr 頁面所有角色都掛通話元件', async () => {
++  const chat = await read('../src/components/HrChat.jsx');
++  assert.ok(chat.includes("{voice:'Voice call',video:'Video call'}"));
++  assert.ok(chat.includes("{voice:'語音通話',video:'視訊通話'}"));
++  assert.ok(chat.includes("new CustomEvent('hr:start-call'"));
++  const page = await read('../src/app/hr/page.jsx');
++  assert.equal(page.split('<HrCallProvider />').length - 1, 2, '管理者與會員兩個分支都要有');
++  assert.ok(page.includes("import '@/components/hr-call.css';"));
++  const provider = await read('../src/components/HrCallProvider.jsx');
++  assert.ok(provider.includes("addEventListener('hr:start-call'"));
++});
+diff --git a/tests/hr-call-signaling.test.mjs b/tests/hr-call-signaling.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/tests/hr-call-signaling.test.mjs
+@@ -0,0 +1,248 @@
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import http from 'node:http';
++import net from 'node:net';
++import test from 'node:test';
++import { CallHub, attachCallSignaling, decodeFrame, encodeFrame } from '../src/lib/hr-call-signaling.js';
++import { signTicket } from '../src/lib/hr-call-ticket.js';
++
++const SECRET = 'test-secret';
++const presence = (key, name) => signTicket({ p: 'presence', k: key, n: name }, SECRET, 60);
++const room = (key, roomId, invitees = [], title = '案件 A') => signTicket({ k: key, r: roomId, invitees, ct: title }, SECRET, 60);
++
++// 精簡的測試用 WebSocket 客戶端（會做遮罩，跟瀏覽器一樣）
++function connect(port, ticket, { origin, host = `127.0.0.1:${port}` } = {}) {
++  return new Promise((resolve, reject) => {
++    const socket = net.connect(port, '127.0.0.1');
++    const key = crypto.randomBytes(16).toString('base64');
++    let buffer = Buffer.alloc(0);
++    let upgraded = false;
++    const inbox = [];
++    const waiters = [];
++    const client = {
++      socket, inbox,
++      send(message, { fragment = false } = {}) {
++        const payload = Buffer.from(typeof message === 'string' ? message : JSON.stringify(message));
++        const frames = fragment ? [[0x01, payload.subarray(0, 5)], [0x80, payload.subarray(5)]] : [[0x81, payload]];
++        for (const [first, part] of frames) {
++          const mask = crypto.randomBytes(4);
++          const masked = Buffer.from(part).map((byte, index) => byte ^ mask[index % 4]);
++          let header;
++          if (part.length < 126) header = Buffer.from([first, 0x80 | part.length]);
++          else if (part.length < 65536) { header = Buffer.alloc(4); header[0] = first; header[1] = 0x80 | 126; header.writeUInt16BE(part.length, 2); }
++          else { header = Buffer.alloc(10); header[0] = first; header[1] = 0x80 | 127; header.writeBigUInt64BE(BigInt(part.length), 2); }
++          socket.write(Buffer.concat([header, mask, masked]));
++        }
++      },
++      next(match = () => true, ms = 1500) {
++        const found = inbox.findIndex(match);
++        if (found >= 0) return Promise.resolve(inbox.splice(found, 1)[0]);
++        return new Promise((ok, fail) => {
++          const timer = setTimeout(() => fail(new Error(`no message in ${ms}ms; inbox=${JSON.stringify(inbox)}`)), ms);
++          waiters.push({ match, done: message => { clearTimeout(timer); ok(message); } });
++        });
++      },
++      quiet: async ms => { await new Promise(done => setTimeout(done, ms)); return inbox.splice(0); },
++      closed: new Promise(done => socket.on('close', done)),
++      close() { socket.destroy(); },
++    };
++    const deliver = message => {
++      const waiting = waiters.findIndex(item => item.match(message));
++      if (waiting >= 0) waiters.splice(waiting, 1)[0].done(message); else inbox.push(message);
++    };
++    socket.on('data', chunk => {
++      buffer = Buffer.concat([buffer, chunk]);
++      if (!upgraded) {
++        const end = buffer.indexOf('\r\n\r\n');
++        if (end < 0) return;
++        const head = buffer.subarray(0, end).toString();
++        buffer = buffer.subarray(end + 4);
++        const status = Number(head.split(' ')[1]);
++        if (status !== 101) return resolve({ status, closed: client.closed });
++        assert.match(head, new RegExp(`Sec-WebSocket-Accept: ${crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64').replace(/[+/=]/g, '.')}`, 'i'));
++        upgraded = true;
++        resolve({ status, ...client });
++      }
++      for (;;) {
++        if (buffer.length < 2) return;
++        let length = buffer[1] & 0x7f; let offset = 2;
++        if (length === 126) { if (buffer.length < 4) return; length = buffer.readUInt16BE(2); offset = 4; }
++        if (buffer.length < offset + length) return;
++        const opcode = buffer[0] & 0x0f;
++        const payload = buffer.subarray(offset, offset + length);
++        buffer = buffer.subarray(offset + length);
++        if (opcode === 1) deliver(JSON.parse(payload.toString()));
++        if (opcode === 8) client.closeCode = payload.readUInt16BE(0);
++        if (opcode === 9) client.pinged = true;
++      }
++    });
++    socket.on('error', reject);
++    socket.write([`GET /api/hr/call/ws?ticket=${encodeURIComponent(ticket)} HTTP/1.1`, `Host: ${host}`, 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Key: ${key}`, 'Sec-WebSocket-Version: 13', ...(origin ? [`Origin: ${origin}`] : []), '', ''].join('\r\n'));
++  });
++}
++
++async function withServer(run, options = {}) {
++  const server = http.createServer((req, res) => res.end('ok'));
++  const { hub, closeAll } = attachCallSignaling(server, { secret: SECRET, hub: new CallHub({ secret: SECRET, ringMs: options.ringMs ?? 60000 }), heartbeatMs: options.heartbeatMs ?? 25000, log: { error() {} } });
++  await new Promise(done => server.listen(0, '127.0.0.1', done));
++  try { await run(server.address().port, hub); } finally { closeAll(); server.close(); }
++}
++
++test('影格編碼解碼：短、中、長訊息與遮罩', () => {
++  for (const size of [0, 5, 125, 126, 300, 65535, 65536, 70000]) {
++    const payload = crypto.randomBytes(size);
++    const mask = crypto.randomBytes(4);
++    const header = size < 126 ? Buffer.from([0x81, 0x80 | size]) : size < 65536 ? Buffer.from([0x81, 0xfe, size >> 8, size & 255]) : (() => { const h = Buffer.alloc(10); h[0] = 0x81; h[1] = 0xff; h.writeBigUInt64BE(BigInt(size), 2); return h; })();
++    const frame = Buffer.concat([header, mask, Buffer.from(payload).map((byte, index) => byte ^ mask[index % 4])]);
++    const decoded = decodeFrame(frame, 100000);
++    assert.ok(decoded.fin); assert.equal(decoded.opcode, 1); assert.deepEqual(decoded.payload, payload); assert.equal(decoded.size, frame.length);
++    assert.equal(decodeFrame(frame.subarray(0, frame.length - 1), 100000), null, '資料不夠要等');
++  }
++  assert.equal(decodeFrame(Buffer.from([0x81, 0x05, 1, 2, 3, 4, 5])).error, 1002, '客戶端沒遮罩');
++  assert.equal(decodeFrame(Buffer.concat([Buffer.from([0x81, 0xfe, 0xff, 0xff]), Buffer.alloc(4 + 65535)]), 1000).error, 1009, '太大');
++  const out = encodeFrame(1, Buffer.from('hi'));
++  assert.deepEqual([...out], [0x81, 2, 104, 105]);
++});
++
++test('沒票、票證錯誤、來源網站不對都不能連線', async () => {
++  await withServer(async port => {
++    assert.equal((await connect(port, 'nope')).status, 401);
++    assert.equal((await connect(port, signTicket({ p: 'presence', k: 'member:1' }, 'wrong', 60))).status, 401);
++    assert.equal((await connect(port, signTicket({ k: 'member:1', r: 1 }, SECRET, 60))).status, 401, '房間票證不能當連線票證');
++    assert.equal((await connect(port, presence('member:1', 'A'), { origin: 'https://evil.example' })).status, 403);
++    const ok = await connect(port, presence('member:1', 'A'), { origin: `http://127.0.0.1:${port}` });
++    assert.equal(ok.status, 101);
++    ok.send({ t: 'ping' });
++    assert.deepEqual(await ok.next(), { t: 'pong' });
++    ok.send('{broken json'); ok.send({ t: 'ping' }, { fragment: true });
++    assert.deepEqual(await ok.next(), { t: 'pong' }, '壞掉的訊息被略過、分段訊息可以組合');
++    ok.close();
++  });
++});
++
++test('一對一通話：來電 → 接聽 → 交換連線資訊 → 掛斷', async () => {
++  await withServer(async port => {
++    const alice = await connect(port, presence('member:1', 'Alice'));
++    const bob = await connect(port, presence('member:2', 'Bob'));
++    const bob2 = await connect(port, presence('member:2', 'Bob 手機'));
++    alice.send({ t: 'start', ticket: room('member:1', 10, ['member:2', 'member:1'], 'Alice'), video: true });
++    const joined = await alice.next(m => m.t === 'joined');
++    assert.equal(joined.roomId, 10); assert.equal(joined.video, true); assert.deepEqual(joined.peers, []);
++    const ring = await bob.next(m => m.t === 'incoming');
++    assert.deepEqual({ ...ring, callId: 'x' }, { t: 'incoming', callId: 'x', roomId: 10, title: 'Alice', video: true, from: 'Alice' });
++    await bob2.next(m => m.t === 'incoming');
++
++    bob.send({ t: 'join', ticket: room('member:2', 10) });
++    const bobJoined = await bob.next(m => m.t === 'joined');
++    assert.deepEqual(bobJoined.peers, [{ id: joined.id, name: 'Alice' }]);
++    assert.deepEqual((await alice.next(m => m.t === 'peer-joined')).peer, { id: bobJoined.id, name: 'Bob' });
++    await bob2.next(m => m.t === 'ring-stop');
++
++    bob.send({ t: 'signal', to: joined.id, data: { kind: 'offer', sdp: 'v=0' } });
++    assert.deepEqual(await alice.next(m => m.t === 'signal'), { t: 'signal', from: bobJoined.id, data: { kind: 'offer', sdp: 'v=0' } });
++    alice.send({ t: 'signal', to: 'unknown', data: {} });
++    assert.deepEqual(await alice.quiet(100), [], '不在同一通話的對象不會收到');
++
++    bob.send({ t: 'leave' });
++    assert.deepEqual(await alice.next(m => m.t === 'peer-left'), { t: 'peer-left', id: bobJoined.id });
++    alice.send({ t: 'leave' });
++    alice.send({ t: 'ping' });
++    await alice.next(m => m.t === 'pong');
++    alice.close(); bob.close(); bob2.close();
++  });
++});
++
++test('票證不能冒用：別人的票、過期的票、已在通話中都被擋下', async () => {
++  await withServer(async port => {
++    const alice = await connect(port, presence('member:1', 'Alice'));
++    alice.send({ t: 'start', ticket: room('member:2', 10) });
++    assert.deepEqual(await alice.next(), { t: 'error', code: 'bad-ticket' });
++    alice.send({ t: 'start', ticket: signTicket({ k: 'member:1', r: 10 }, SECRET, -5) });
++    assert.deepEqual(await alice.next(), { t: 'error', code: 'bad-ticket' });
++    alice.send({ t: 'start', ticket: room('member:1', 10) });
++    await alice.next(m => m.t === 'joined');
++    alice.send({ t: 'start', ticket: room('member:1', 11) });
++    assert.deepEqual(await alice.next(), { t: 'error', code: 'already-in-call' });
++    alice.close();
++  });
++});
++
++test('拒接：一對一通話所有人都拒接就結束；沒人接聽超時也會結束', async () => {
++  await withServer(async port => {
++    const alice = await connect(port, presence('member:1', 'Alice'));
++    const bob = await connect(port, presence('member:2', 'Bob'));
++    alice.send({ t: 'start', ticket: room('member:1', 10, ['member:2']) });
++    await alice.next(m => m.t === 'joined');
++    await bob.next(m => m.t === 'incoming');
++    bob.send({ t: 'decline', roomId: 10 });
++    assert.deepEqual(await alice.next(m => m.t === 'declined'), { t: 'declined', name: 'Bob' });
++    assert.equal((await alice.next(m => m.t === 'ended')).reason, 'declined');
++    alice.close(); bob.close();
++  });
++  await withServer(async port => {
++    const alice = await connect(port, presence('member:1', 'Alice'));
++    const bob = await connect(port, presence('member:2', 'Bob'));
++    alice.send({ t: 'start', ticket: room('member:1', 10, ['member:2']) });
++    await alice.next(m => m.t === 'joined');
++    await bob.next(m => m.t === 'incoming');
++    assert.equal((await alice.next(m => m.t === 'ended', 1500)).reason, 'no-answer');
++    assert.equal((await bob.next(m => m.t === 'ended')).reason, 'no-answer');
++    alice.close(); bob.close();
++  }, { ringMs: 150 });
++});
++
++test('群組通話：晚到的人收到補送的來電、可中途加入，人數有上限，斷線自動離開', async () => {
++  await withServer(async port => {
++    const host = await connect(port, presence('member:1', 'Host'));
++    host.send({ t: 'start', ticket: room('member:1', 20, ['member:2', 'member:3', 'member:4', 'member:5', 'member:6', 'member:7'], '機構群組') });
++    await host.next(m => m.t === 'joined');
++    const late = await connect(port, presence('member:2', 'Late'));
++    assert.equal((await late.next(m => m.t === 'incoming')).title, '機構群組', '重新連線的人補送來電');
++    const people = [late];
++    late.send({ t: 'join', ticket: room('member:2', 20) });
++    await late.next(m => m.t === 'joined');
++    for (const index of [3, 4, 5, 6]) {
++      const person = await connect(port, presence(`member:${index}`, `P${index}`));
++      person.send({ t: 'join', ticket: room(`member:${index}`, 20) });
++      await person.next(m => m.t === 'joined');
++      people.push(person);
++    }
++    const extra = await connect(port, presence('member:7', 'Extra'));
++    extra.send({ t: 'join', ticket: room('member:7', 20) });
++    assert.deepEqual(await extra.next(m => m.t === 'error'), { t: 'error', code: 'full' });
++    people[1].close();
++    assert.equal((await host.next(m => m.t === 'peer-left')).t, 'peer-left', '斷線等於離開');
++    for (const person of [host, extra, ...people]) person.close();
++  });
++});
++
++test('CallHub：沒人了通話就結束，同一聊天室再撥是新的通話', () => {
++  const hub = new CallHub({ secret: SECRET, setTimer: () => 1, clearTimer: () => {} });
++  const make = (key, name) => { const conn = { id: `${key}-${Math.random()}`, key, name, sent: [], send(message) { this.sent.push(message); } }; assert.ok(hub.addConnection(conn)); return conn; };
++  const a = make('member:1', 'A');
++  hub.handle(a, { t: 'start', ticket: room('member:1', 5) });
++  const first = a.sent.find(m => m.t === 'joined').callId;
++  hub.handle(a, { t: 'leave' });
++  assert.equal(hub.calls.size, 0);
++  hub.handle(a, { t: 'start', ticket: room('member:1', 5) });
++  assert.notEqual(a.sent.filter(m => m.t === 'joined')[1].callId, first);
++  hub.removeConnection(a);
++  assert.equal(hub.calls.size, 0); assert.equal(hub.connectionCount, 0);
++});
++
++test('群組通話有人接聽後，沒加入的人的來電提示在響鈴時間結束時收掉；通話繼續', async () => {
++  await withServer(async port => {
++    const host = await connect(port, presence('member:1', 'Host'));
++    const joiner = await connect(port, presence('member:2', 'Joiner'));
++    const idle = await connect(port, presence('member:3', 'Idle'));
++    host.send({ t: 'start', ticket: room('member:1', 30, ['member:2', 'member:3']) });
++    await host.next(m => m.t === 'joined');
++    await joiner.next(m => m.t === 'incoming'); await idle.next(m => m.t === 'incoming');
++    joiner.send({ t: 'join', ticket: room('member:2', 30) });
++    await joiner.next(m => m.t === 'joined');
++    assert.deepEqual(await idle.quiet(50), [], '有人接聽時，還沒決定的人仍可加入，提示不會立刻消失');
++    assert.deepEqual(await idle.next(m => m.t === 'ring-stop', 1500), { t: 'ring-stop', roomId: 30 });
++    assert.deepEqual((await host.quiet(50)).filter(m => m.t === 'ended'), [], '通話本身沒有因為響鈴結束而中斷');
++    host.close(); joiner.close(); idle.close();
++  }, { ringMs: 200 });
++});
+diff --git a/tests/hr-call-ticket.test.mjs b/tests/hr-call-ticket.test.mjs
+new file mode 100644
+--- /dev/null
++++ b/tests/hr-call-ticket.test.mjs
+@@ -0,0 +1,38 @@
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import test from 'node:test';
++import { buildIceServers, callSecret, signTicket, verifyTicket } from '../src/lib/hr-call-ticket.js';
++
++test('票證簽章正確可驗證，被改過或過期就不能用', () => {
++  const ticket = signTicket({ k: 'member:7', r: 3 }, 'secret', 60, 1_000_000);
++  assert.deepEqual(verifyTicket(ticket, 'secret', 1_000_000 + 30_000), { k: 'member:7', r: 3, exp: 1_060 });
++  assert.equal(verifyTicket(ticket, 'other-secret', 1_000_000), null, '密鑰不同');
++  assert.equal(verifyTicket(ticket, 'secret', 1_000_000 + 61_000), null, '已過期');
++  const [body, signature] = ticket.split('.');
++  const forged = Buffer.from(JSON.stringify({ k: 'member:1', r: 3, exp: 9_999_999_999 })).toString('base64url');
++  assert.equal(verifyTicket(`${forged}.${signature}`, 'secret', 1_000_000), null, '內容被改');
++  assert.equal(verifyTicket(`${body}.`, 'secret'), null);
++  assert.equal(verifyTicket('garbage', 'secret'), null);
++  assert.equal(verifyTicket(ticket, '', 1_000_000), null, '沒有密鑰一律拒絕');
++  assert.throws(() => signTicket({}, ''));
++});
++
++test('密鑰來源：HR_CALL_SECRET 優先，其次 NEXTAUTH_SECRET', () => {
++  assert.equal(callSecret({ HR_CALL_SECRET: 'a', NEXTAUTH_SECRET: 'b' }), 'a');
++  assert.equal(callSecret({ NEXTAUTH_SECRET: 'b' }), 'b');
++  assert.equal(callSecret({}), '');
++});
++
++test('ICE 設定：預設只有 STUN；設定 TURN 後多一組 coturn 格式的限時帳密', () => {
++  assert.deepEqual(buildIceServers({}, 'member:1', 0), [{ urls: ['stun:stun.l.google.com:19302'] }]);
++  const env = { HR_CALL_TURN_URLS: 'turn:turn.example.com:3478?transport=udp, turn:turn.example.com:3478?transport=tcp', HR_CALL_TURN_SECRET: 'turn-secret' };
++  const servers = buildIceServers(env, 'member:1', 1_000_000);
++  assert.equal(servers.length, 2);
++  const turn = servers[1];
++  assert.deepEqual(turn.urls, ['turn:turn.example.com:3478?transport=udp', 'turn:turn.example.com:3478?transport=tcp']);
++  assert.match(turn.username, /^\d+:[0-9a-f]{12}$/);
++  assert.equal(Number(turn.username.split(':')[0]), 1000 + 6 * 3600);
++  assert.equal(turn.credential, crypto.createHmac('sha1', 'turn-secret').update(turn.username).digest('base64'));
++  assert.ok(!turn.username.includes('member'), '帳號不帶使用者資料');
++  assert.deepEqual(buildIceServers({ HR_CALL_STUN_URLS: '' }, 'x', 0), [], '可以關掉 STUN');
++});

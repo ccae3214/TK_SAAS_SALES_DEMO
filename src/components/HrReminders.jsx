@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Bell } from 'lucide-react';
 import styles from './HrReminders.module.css';
 import { REMINDER_LABELS } from '@/lib/hr-expiry-reminders';
 import { employerMissingLabels } from '@/lib/hr-employer-profile';
@@ -145,8 +146,16 @@ function collectDateReminders(data) {
   }).sort((a, b) => a.days - b.days || a.date.localeCompare(b.date));
 }
 
-export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile, onOpenTraining, wide = false }) {
+// variant="panel"（預設）：直接顯示提醒視窗；variant="bell"：頁首的小鈴鐺，點開才出現提醒清單。
+export default function HrReminders({ onOpenChat: openChat, onOpenProgress: openProgress, onOpenProfile: openProfile, onOpenTraining: openTraining, wide = false, variant = 'panel' }) {
   const { lang } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  // 在鈴鐺的清單裡點選提醒後，先收起清單再前往對應頁面。
+  const onOpenChat = (...args) => { setOpen(false); return openChat?.(...args); };
+  const onOpenProgress = (...args) => { setOpen(false); return openProgress?.(...args); };
+  const onOpenProfile = (...args) => { setOpen(false); return openProfile?.(...args); };
+  const onOpenTraining = (...args) => { setOpen(false); return openTraining?.(...args); };
   const [trainingReminders, setTrainingReminders] = useState([]);
   const [dateReminders, setDateReminders] = useState([]);
   const [expiryReminders, setExpiryReminders] = useState([]);
@@ -186,16 +195,41 @@ export default function HrReminders({ onOpenChat, onOpenProgress, onOpenProfile,
     return () => { active = false; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = event => { if (!rootRef.current?.contains(event.target)) setOpen(false); };
+    const onKey = event => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
   const unreadCount = unreadRooms.reduce((sum, room) => sum + Number(room.unreadCount || 0), 0);
   const reminderCount = unreadCount + dateReminders.length + expiryReminders.length + trainingReminders.length + profileReminders.length;
-  // 沒有任何提醒（或還在讀取）時不顯示整個提醒視窗；有提醒時才出現。
-  if (loading || reminderCount === 0) return null;
-  return <section className={`${styles.panel} ${wide ? styles.panelWide : ''}`} aria-label="提醒">
-    <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div><strong>{reminderCount}</strong></header>
+  const bell = variant === 'bell';
+  // 一般模式：沒有任何提醒（或還在讀取）時不顯示整個提醒視窗；有提醒時才出現。鈴鐺模式一律顯示鈴鐺。
+  if (!bell) {
+    if (loading || reminderCount === 0) return null;
+  }
+  const shownCount = loading ? 0 : reminderCount;
+  const body = <>
     {unreadRooms.length > 0 && <div className={styles.group}><h3>聊天室未讀</h3>{unreadRooms.map(room => <button type="button" className={styles.item} key={room.id} onClick={() => onOpenChat?.(Number(room.id))}><span className={styles.dotChat}/><span className={styles.itemText}><strong>{room.title}</strong><small>{translateChatSystemMessage(room.lastMessage, lang, text => translateHrText(text, 'en')) || '有新訊息'}</small></span><b>{room.unreadCount}</b></button>)}</div>}
     {expiryReminders.length > 0 && <div className={styles.group}><h3>到期提醒</h3>{expiryReminders.map(item => <button type="button" className={styles.item} key={`${item.kind}:${item.workerId}`} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.overdue ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{REMINDER_LABELS[item.kind][item.overdue ? 'overdue' : 'upcoming']}</strong><small>{item.workerName} · {item.dueOn} · {item.overdue ? `逾期 ${Math.abs(item.daysLeft)} 天` : item.daysLeft === 0 ? '今天' : `剩 ${item.daysLeft} 天`}</small></span></button>)}</div>}
     {trainingReminders.length > 0 && <div className={styles.group}><h3>訓練課程與證照日期</h3>{trainingReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenTraining?.()}><span className={styles.dotDate}/><span className={styles.itemText}><strong>{whenLabel(item.days)} · {item.title}</strong><small>{item.course} · {item.className} · {item.date}</small></span></button>)}</div>}
     {dateReminders.length > 0 && <div className={styles.group}><h3>近期案件日期</h3>{dateReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenProgress?.(item.workerId)}><span className={item.days < 0 ? styles.dotOverdue : styles.dotDate}/><span className={styles.itemText}><strong>{item.days < 0 ? `逾期 ${Math.abs(item.days)} 天` : item.days === 0 ? '今天' : `${item.days} 天後`} · {item.step}</strong><small>{item.worker} · {item.caseNumber} · {item.date}</small></span></button>)}</div>}
     {profileReminders.length > 0 && <div className={styles.group}><h3>基本資料待補</h3>{profileReminders.map(item => <button type="button" className={styles.item} key={item.id} onClick={() => onOpenProfile?.(item)}><span className={styles.dotProfile}/><span className={styles.itemText}><strong>{item.title}</strong><small>{item.detail}</small></span><b>補資料</b></button>)}</div>}
+  </>;
+  if (!bell) return <section className={`${styles.panel} ${wide ? styles.panelWide : ''}`} aria-label="提醒">
+    <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div><strong>{reminderCount}</strong></header>
+    {body}
   </section>;
+  return <div className={styles.bellRoot} ref={rootRef}>
+    <button type="button" className={styles.bellButton} aria-label="提醒" title="提醒" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(current => !current)}>
+      <Bell size={17} />{shownCount > 0 && <b className={styles.bellBadge}>{shownCount > 99 ? '99+' : shownCount}</b>}
+    </button>
+    {open && <section className={styles.popover} role="dialog" aria-label="提醒">
+      <header className={styles.header}><div><span>提醒</span><h2>需要留意</h2></div>{shownCount > 0 && <strong>{shownCount}</strong>}</header>
+      {shownCount === 0 ? <p className={styles.empty}>{loading ? '正在讀取…' : '目前沒有提醒'}</p> : body}
+    </section>}
+  </div>;
 }

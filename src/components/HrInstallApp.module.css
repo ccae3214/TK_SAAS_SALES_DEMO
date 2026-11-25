@@ -1,0 +1,12 @@
+.button{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:9px 14px;border:1px solid var(--line,#e1e9e4);border-radius:11px;background:#fff;color:inherit;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.button:active{background:#f2f9f5}
+.overlay{position:fixed;inset:0;z-index:1200;display:flex;align-items:flex-end;justify-content:center;padding:16px;background:rgba(15,35,27,.45)}
+.dialog{width:100%;max-width:420px;max-height:calc(100dvh - 32px);overflow:auto;padding:20px;border-radius:18px;background:#fff;box-shadow:0 20px 50px rgba(15,45,33,.25)}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px}
+.head h2{margin:0;font-size:18px;line-height:1.35}
+.close{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border:0;border-radius:10px;background:#f2f9f5;color:inherit;cursor:pointer}
+.steps{display:grid;gap:10px;margin:0 0 12px;padding-left:22px;font-size:15px;line-height:1.55}
+.note{margin:0 0 10px;color:var(--ink-3,#72837a);font-size:13.5px;line-height:1.55}
+.ok{width:100%;min-height:44px;margin-top:4px;border:0;border-radius:12px;background:#176b54;color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+@media (max-width:520px){.label{display:none}.button{padding:9px 11px}}
+@media (min-width:521px){.overlay{align-items:center}}

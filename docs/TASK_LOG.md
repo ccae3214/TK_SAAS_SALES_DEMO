@@ -1,5 +1,14 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 現行工作：雇主手機初選卡片（PR 驗證候選）
+
+使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。
+
+分支 `feature/employer-swipe-shortlist`，已授權測試後 push／開 PR，不合併或部署。採 A：滑動只做初選，最後確認才沿用既有選工 API；不新增 DB／權限。已整合 main `03eaa2d`，Node 20 HR 540／Chromium 元件 52 項通過，另對實際 UI 試用伺服器做 13 項 HTTP／瀏覽器檢查通過；均無失敗，Docker build 成功（既有 lint／型別跳過）。目前可用 http://localhost:8091/，僅虛構資料、不連 DB／LINE；不需帳密。完整登入／DB E2E 尚未驗，遠端 CI 以精確 PR head 為準。
+
+本輪設計、重跑與限制：[EMPLOYER_SHORTLIST_REVIEW.md](EMPLOYER_SHORTLIST_REVIEW.md)。操作紀錄 PR #62 已由上游合併；以下舊候選與容器運作說明均屬歷史，不能當作完整 HR 站與 DB 已啟動；目前僅 UI 試用頁可用。
+
+
 ## 現行候選：仲介／訓練中心紀錄整合
 
 基底 main `02b4a48`，分支 `fix/unified-organization-audit`。採 A（訓練中心帳號就是該中心管理者），管理員「操作紀錄」新增仲介／訓練中心查閱、搜尋與分頁；保留機構端原有隔離，補既有訓練中心紀錄的啟動遷移登記。Node 20 完整回歸 459 通過，專項 27 通過，受控 Chromium 元件檢查 20 通過，均 0 失敗／跳過；Docker build 成功（lint／型別原設定跳過）。未啟動 app／DB、未執行正式遷移或部署，真實登入／DB E2E 尚未驗；本輪只開 PR，不合併。

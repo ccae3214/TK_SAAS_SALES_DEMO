@@ -134,15 +134,22 @@ export const employerPickCandidate = {
     const client=await pool.connect();
     try{
       await client.query('BEGIN');
-      const order=await client.query(`SELECT o.id,o.job_type,o.status,e.agency_id,e.name employer_name,
-          oa.id order_agency_id,ta.name taiwan_agency_name
+      const order=await client.query(`SELECT o.id,o.job_type,o.status,e.agency_id,e.name employer_name
         FROM hr_job_orders o JOIN hr_employers e ON e.id=o.employer_id
-        JOIN hr_job_order_agencies oa ON oa.job_order_id=o.id AND oa.taiwan_agency_id=e.agency_id
-        JOIN hr_agencies ta ON ta.id=oa.taiwan_agency_id AND ta.active=TRUE AND ta.agency_type='taiwan'
-        WHERE o.id=$1 AND o.employer_id=$2 FOR UPDATE OF o,e,oa`,[orderId,principal.employer_id]);
+        WHERE o.id=$1 AND o.employer_id=$2 FOR UPDATE OF o,e`,[orderId,principal.employer_id]);
       if(!order.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到需求單或尚未指派台灣仲介。'},{status:404});}
       const orderItem=order.rows[0];
       if(orderItem.status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法再挑選工作者。'},{status:409});}
+      const agency=await client.query("SELECT id,name FROM hr_agencies WHERE id=$1 AND active=TRUE AND agency_type='taiwan'",[orderItem.agency_id]);
+      if(!agency.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'雇主尚未指派有效的台灣仲介，請聯絡管理者確認。'},{status:409});}
+      await client.query(`INSERT INTO hr_job_order_agencies(job_order_id,taiwan_agency_id,broker_member_id)
+        VALUES($1,$2,NULL) ON CONFLICT(job_order_id,taiwan_agency_id) DO NOTHING`,[orderId,orderItem.agency_id]);
+      const dispatch=await client.query(`SELECT oa.id,ta.name AS taiwan_agency_name
+        FROM hr_job_order_agencies oa JOIN hr_agencies ta ON ta.id=oa.taiwan_agency_id
+        WHERE oa.job_order_id=$1 AND oa.taiwan_agency_id=$2 FOR UPDATE OF oa`,[orderId,orderItem.agency_id]);
+      if(!dispatch.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'無法將需求單指派給雇主目前所屬仲介。'},{status:409});}
+      orderItem.order_agency_id=dispatch.rows[0].id;
+      orderItem.taiwan_agency_name=dispatch.rows[0].taiwan_agency_name;
       const worker=await client.query(`SELECT w.id,w.name,w.agency_id,a.name philippines_agency_name
         FROM hr_workers w JOIN hr_agencies a ON a.id=w.agency_id AND a.active=TRUE AND a.agency_type='philippines'
         WHERE w.id=$1 AND w.status='active' AND w.job_preference=$2

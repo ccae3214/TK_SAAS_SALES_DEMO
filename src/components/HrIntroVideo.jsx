@@ -127,7 +127,7 @@ function SceneVisual({ id, m }) {
 
 function Player({ onClose }) {
   const { lang } = useLanguage();
-  const key = (lang === 'zh' ? 'zh' : 'en');
+  const key = ((lang === 'zh' ? 'zh' : 'en'));
   const text = introVideoText(key);
   const m = MOCK[key];
   const dialogRef = useRef(null);

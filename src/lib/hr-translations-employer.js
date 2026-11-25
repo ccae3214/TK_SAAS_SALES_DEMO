@@ -1,7 +1,7 @@
 // 雇主補充資料、家庭成員、被照顧人、月薪的英文對照。
 // 由 hr-translations.jsx 的 translateHrText 串接使用（已有的翻譯優先，這裡只補新增文字）。
 import {
-  CARE_NEED_OPTIONS, CARE_RELATION_OPTIONS, DORM_OPTIONS, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS, HEALTH_CONDITION_OPTIONS, MESSAGES,
+  CARE_RELATION_OPTIONS, DORM_OPTIONS, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS, HEALTH_CONDITION_OPTIONS, MESSAGES,
 } from '@/lib/hr-employer-profile';
 
 // 選項文字依 key 對照，這樣修改選項時不會漏掉翻譯（hr-employer-profile 測試會檢查每個選項都有英文）。
@@ -12,12 +12,12 @@ export const OPTION_EN = {
     sibling: 'Sibling', parent_in_law: 'Parent-in-law', other: 'Other',
   },
   care: { self: 'The employer' },
-  careNeed: { newborn: 'The care recipient is a newborn', shareRoom: 'Must share a room with the care recipient' },
   health: {
     healthy: 'Healthy, no special care needs', bedridden: 'Bedridden', mobility_aid: 'Uses a wheelchair or walker',
     transfer: 'Needs help with transfers or turning', dementia: 'Dementia', stroke: 'Stroke or physical disability',
     tube_care: 'Tube care (nasogastric tube, catheter, etc.)', infection_control: 'Needs infection-control care',
-    night_care: 'Needs overnight care', other: 'Other (describe below)',
+    night_care: 'Needs overnight care', newborn: 'The care recipient is a newborn',
+    share_room: 'Must share a room with the care recipient', other: 'Other (describe below)',
   },
   dorm: { yes: 'Dormitory provided', no: 'No dormitory' },
 };
@@ -29,7 +29,6 @@ export const EMPLOYER_PROFILE_EN = {
   ...fromOptions(FAMILY_RELATION_OPTIONS, OPTION_EN.family),
   ...fromOptions(CARE_RELATION_OPTIONS.filter(([key]) => key === 'self'), OPTION_EN.care),
   ...fromOptions(HEALTH_CONDITION_OPTIONS, OPTION_EN.health),
-  ...fromOptions(CARE_NEED_OPTIONS, OPTION_EN.careNeed),
   ...fromOptions(DORM_OPTIONS, OPTION_EN.dorm),
 
   // 雇主補充資料
@@ -56,9 +55,6 @@ export const EMPLOYER_PROFILE_EN = {
   '被照顧人年紀': 'Care recipient’s age', '被照顧人性別': 'Care recipient’s gender',
   '被照顧人身體狀況（可複選）': 'Care recipient’s health condition (select all that apply)',
   '診斷或身體狀況補充說明': 'Diagnosis or additional health details',
-
-  // 被照顧人其他照護需求
-  '其他照護需求（可複選）': 'Other care needs (select all that apply)',
 
   // 需求單工作天數與發文日
   '工作天數（選填）': 'Work period (optional)', '工作天數': 'Work period', '工作天數：': 'Work period: ', '個月': 'months', '日': 'days', '最多 36 個月 + 0 日': 'Up to 36 months + 0 days',

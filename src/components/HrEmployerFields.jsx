@@ -5,8 +5,8 @@
 // 顯示文字都是中文，英文由 hr-translations-employer.js 依文字節點自動對照。
 
 import {
-  CARE_NEED_OPTIONS, CARE_RELATION_OPTIONS, DORM_OPTIONS, WORK_DAYS_MAX, WORK_MONTHS_MAX, EMPTY_CARE_RECIPIENT, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS,
-  HEALTH_CONDITION_OPTIONS, MAX_FAMILY_MEMBERS, cleanEmployerProfile, isHomeEmployer,
+  CARE_RECIPIENT_CONTEXT_KEYS, CARE_RELATION_OPTIONS, DORM_OPTIONS, WORK_DAYS_MAX, WORK_MONTHS_MAX, EMPTY_CARE_RECIPIENT, FAMILY_RELATION_OPTIONS, GENDER_OPTIONS,
+  HEALTH_CONDITION_OPTIONS, REQUIRED_CARE_STATUS_KEYS, MAX_FAMILY_MEMBERS, cleanCareRecipient, cleanEmployerProfile, isHomeEmployer,
 } from '@/lib/hr-employer-profile';
 
 // 會員工作區的預設樣式。管理端傳入自己的 CSS module 類別。
@@ -76,14 +76,18 @@ export function EmployerProfileFields({ employerType, value, onChange, cls = POR
 
 // 工作類型為家庭看護、家庭幫傭時，需求單要填的被照顧人資料。放在 CSS grid 容器內使用。
 export function CareRecipientFields({ value, onChange, cls = PORTAL_CLASSES }) {
-  const care = { ...EMPTY_CARE_RECIPIENT, ...(value || {}) };
+  const care = cleanCareRecipient({ ...EMPTY_CARE_RECIPIENT, ...(value || {}) });
   const set = patch => onChange({ ...care, ...patch });
-  // 「身體健康」與其他狀況互斥。
   function toggle(key, checked) {
     let next = new Set(care.conditions);
     if (!checked) next.delete(key);
-    else if (key === 'healthy') next = new Set(['healthy']);
-    else { next.delete('healthy'); next.add(key); }
+    else if (key === 'healthy') {
+      next = new Set([...next].filter(item => CARE_RECIPIENT_CONTEXT_KEYS.has(item)));
+      next.add(key);
+    } else if (REQUIRED_CARE_STATUS_KEYS.has(key)) {
+      next.delete('healthy');
+      next.add(key);
+    } else next.add(key);
     set({ conditions: [...next] });
   }
   return <fieldset style={FIELDSET_STYLE}>
@@ -98,21 +102,16 @@ export function CareRecipientFields({ value, onChange, cls = PORTAL_CLASSES }) {
       <legend>被照顧人身體狀況（可複選）</legend>
       {HEALTH_CONDITION_OPTIONS.map(([key, text]) => <CheckInput key={key} label={text} checked={care.conditions.includes(key)} onChange={checked => toggle(key, checked)} />)}
     </fieldset>
-    <fieldset style={{ ...FIELDSET_STYLE, gridColumn: 'auto' }}>
-      <legend>其他照護需求（可複選）</legend>
-      {CARE_NEED_OPTIONS.map(([key, text]) => <CheckInput key={key} label={text} checked={care[key] === true} onChange={checked => set({ [key]: checked })} />)}
-    </fieldset>
     <label className={cls.field || undefined}>診斷或身體狀況補充說明<textarea rows="3" maxLength={500} value={care.diagnosis} onChange={event => set({ diagnosis: event.target.value })} /></label>
   </fieldset>;
 }
 
 // 需求單上的被照顧人摘要（唯讀）。每個片段各自是一個文字節點，英文才翻得到。
 export function CareRecipientSummary({ value }) {
-  const care = value && typeof value === 'object' ? value : {};
+  const care = cleanCareRecipient(value);
   const conditions = Array.isArray(care.conditions) ? care.conditions : [];
   const hasAge = care.age !== '' && care.age !== undefined && care.age !== null;
-  const needs = CARE_NEED_OPTIONS.filter(([key]) => care[key] === true);
-  if (!care.relation && !hasAge && !care.gender && conditions.length === 0 && needs.length === 0) return null;
+  if (!care.relation && !hasAge && !care.gender && conditions.length === 0) return null;
   return <div style={{ margin: '8px 0', fontSize: 13.5 }}>
     <strong>被照顧人</strong>
     <p style={{ margin: '4px 0' }}>
@@ -121,7 +120,6 @@ export function CareRecipientSummary({ value }) {
       {care.gender && <span> · {labelOf(GENDER_OPTIONS, care.gender)}</span>}
     </p>
     {conditions.length > 0 && <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{conditions.map(key => <li key={key}>{labelOf(HEALTH_CONDITION_OPTIONS, key)}</li>)}</ul>}
-    {needs.length > 0 && <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{needs.map(([key, text]) => <li key={key}>{text}</li>)}</ul>}
     {care.diagnosis && <p style={{ margin: '4px 0' }}>{care.diagnosis}</p>}
   </div>;
 }

@@ -27,6 +27,8 @@ async function login(page, member) {
   // Latest main intentionally makes / the authenticated HR home, not /hr.
   await expect(page).toHaveURL(`${baseURL}/`);
   await expect(page.getByRole('heading', { name: '克雷迅人力仲介', exact: true })).toHaveCount(0);
+  // 系統管理者頁面已沒有新手導覽，其他角色仍有。
+  if (tourId === 'admin') return;
   if (!seen?.[tourId]) {
     const tour = page.getByRole('dialog', { name: /^(新手導覽|Quick tour)$/ });
     await expect(tour).toBeVisible();

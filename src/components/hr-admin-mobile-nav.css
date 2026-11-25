@@ -91,7 +91,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* 頁首右側：管理者徽章與資料庫連線狀態、裝飾用的頭像在手機不顯示，留出空間 */
+  /* 頁首右側：管理者徽章、裝飾用的頭像在手機不顯示，留出空間 */
   div[data-hr-translatable-root] > main > header > div:last-child > span,
   div[data-hr-translatable-root] > main > header > div:last-child > button:last-child { display: none; }
 
@@ -128,4 +128,40 @@
     cursor: pointer;
   }
   .hr-admin-mobile-signout:active { background: #f2f9f5; color: #176b54; }
+}
+
+@media (max-width: 720px) {
+  div[data-hr-translatable-root] > aside {
+    border-radius: 15px 15px 0 0;
+    border-color: #e0e8e3;
+    background: rgba(255,255,255,.97);
+    box-shadow: 0 -5px 20px rgba(15,45,33,.09);
+  }
+
+  div[data-hr-translatable-root] > aside > nav {
+    min-height: 62px;
+    padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px));
+  }
+
+  div[data-hr-translatable-root] > aside > nav > button,
+  div[data-hr-translatable-root] > aside > nav > button:hover {
+    min-height: 50px;
+    border-radius: 11px;
+  }
+
+  div[data-hr-translatable-root] > aside > nav > button[class*="navActive"],
+  div[data-hr-translatable-root] > aside > nav > button[class*="navActive"]:hover {
+    background: #e4f3ec;
+    color: #0f5a46;
+  }
+
+  div[data-hr-translatable-root] > main > header {
+    min-height: 60px;
+    background: rgba(255,255,255,.94);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .hr-admin-mobile-signout { width: 40px; height: 40px; border-radius: 10px; }
 }

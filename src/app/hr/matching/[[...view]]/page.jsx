@@ -1,0 +1,29 @@
+import { notFound, redirect } from 'next/navigation';
+import { auth } from '@/auth';
+import { getHrPrincipal } from '@/lib/hr-access';
+import HrMemberPortal from '@/components/HrMemberPortal';
+import HrMemberNavScroll from '@/components/HrMemberNavScroll';
+import HrCallProvider from '@/components/HrCallProvider';
+import '@/components/hr-member-mobile-nav.css';
+import '@/components/hr-call.css';
+import '@/components/hr-scrollbars.css';
+
+export const dynamic = 'force-dynamic';
+
+export default async function EmployerMatchingPage({ params }) {
+  const session = await auth();
+  if (!session?.user) redirect('/hr/login');
+
+  const principal = await getHrPrincipal(session);
+  if (principal?.role !== 'employer') redirect('/hr');
+
+  const { view = [] } = await params;
+  if (view.length > 1 || (view.length === 1 && view[0] !== 'new')) notFound();
+
+  const email = session.user.email || 'LINE 帳號';
+  return <>
+    <HrMemberPortal actor={{ name: session.user.name || email, email }} />
+    <HrMemberNavScroll />
+    <HrCallProvider />
+  </>;
+}
