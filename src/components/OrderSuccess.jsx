@@ -2,6 +2,7 @@
 import React from 'react';
 import { CheckCircle, Package, MapPin, User, Clock, ArrowRight } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { pickLang, localeFor } from '@/lib/language';
 
 export const OrderSuccess = ({ order, userProfile, onContinue }) => {
   const { lang } = useLanguage();
@@ -27,14 +28,14 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
             color: '#ef4444',
             marginBottom: '15px',
           }}>
-            {lang === 'zh' ? '錯誤' : 'Error'}
+            {pickLang(lang, '錯誤', 'Error')}
           </h1>
           <p style={{
             fontSize: '16px',
             color: '#64748b',
             marginBottom: '30px',
           }}>
-            {lang === 'zh' ? '訂單數據丟失，請返回重試。' : 'Order data is missing. Please try again.'}
+            {pickLang(lang, '訂單數據丟失，請返回重試。', 'Order data is missing. Please try again.')}
           </p>
           <button
             onClick={onContinue}
@@ -48,7 +49,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
               cursor: 'pointer',
             }}
           >
-            {lang === 'zh' ? '返回' : 'Go Back'}
+            {pickLang(lang, '返回', 'Go Back')}
           </button>
         </div>
       </div>
@@ -57,9 +58,9 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
   
   // Format date and time
   const formatDateTime = (dateString) => {
-    if (!dateString) return new Date().toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US');
+    if (!dateString) return new Date().toLocaleString(localeFor(lang));
     const date = new Date(dateString);
-    return date.toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US');
+    return date.toLocaleString(localeFor(lang));
   };
 
   const orderDate = formatDateTime(order.created_at || new Date().toISOString());
@@ -99,14 +100,14 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
             color: '#0f172a',
             marginBottom: '10px',
           }}>
-            {lang === 'zh' ? '訂購成功!' : 'Order Placed!'}
+            {pickLang(lang, '訂購成功!', 'Order Placed!')}
           </h1>
           <p style={{
             fontSize: '18px',
             color: '#64748b',
             marginBottom: '30px',
           }}>
-            {lang === 'zh' ? '感謝您的訂購，我們將盡快為您準備和發貨。' : 'Thank you for your order. We are preparing your items!'}
+            {pickLang(lang, '感謝您的訂購，我們將盡快為您準備和發貨。', 'Thank you for your order. We are preparing your items!')}
           </p>
         </div>
 
@@ -135,7 +136,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 fontWeight: '600',
                 marginBottom: '8px',
               }}>
-                {lang === 'zh' ? '訂單編號' : 'Order Number'}
+                {pickLang(lang, '訂單編號', 'Order Number')}
               </p>
               <p style={{
                 fontSize: '20px',
@@ -155,7 +156,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 alignItems: 'center',
                 gap: '6px',
               }}>
-                <Clock size={16} /> {lang === 'zh' ? '訂購時間' : 'Order Date'}
+                <Clock size={16} /> {pickLang(lang, '訂購時間', 'Order Date')}
               </p>
               <p style={{
                 fontSize: '16px',
@@ -179,7 +180,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
               gap: '10px',
             }}>
               <Package size={20} />
-              {lang === 'zh' ? '訂購項目' : 'Order Items'}
+              {pickLang(lang, '訂購項目', 'Order Items')}
             </h2>
             
             <div style={{
@@ -234,7 +235,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                           fontSize: '12px',
                           color: '#94a3b8',
                         }}>
-                          {lang === 'zh' ? '尺寸' : 'Size'}: {item.size}
+                          {pickLang(lang, '尺寸', 'Size')}: {item.size}
                         </p>
                       )}
                     </div>
@@ -246,7 +247,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                         color: '#94a3b8',
                         marginBottom: '4px',
                       }}>
-                        {lang === 'zh' ? '單價' : 'Unit Price'}
+                        {pickLang(lang, '單價', 'Unit Price')}
                       </p>
                       <p style={{
                         fontSize: '14px',
@@ -264,7 +265,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                       color: '#94a3b8',
                       marginBottom: '4px',
                     }}>
-                      {lang === 'zh' ? '數量' : 'Qty'}
+                      {pickLang(lang, '數量', 'Qty')}
                     </p>
                     <p style={{
                       fontSize: '14px',
@@ -282,7 +283,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                       color: '#94a3b8',
                       marginBottom: '4px',
                     }}>
-                      {lang === 'zh' ? '小計' : 'Subtotal'}
+                      {pickLang(lang, '小計', 'Subtotal')}
                     </p>
                     <p style={{
                       fontSize: '14px',
@@ -300,7 +301,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                   textAlign: 'center',
                   color: '#94a3b8',
                 }}>
-                  {lang === 'zh' ? '沒有訂單項目' : 'No order items'}
+                  {pickLang(lang, '沒有訂單項目', 'No order items')}
                 </div>
               )}
             </div>
@@ -327,7 +328,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 alignItems: 'center',
               }}>
                 <span style={{ color: '#64748b', fontSize: '14px' }}>
-                  {lang === 'zh' ? '小計' : 'Subtotal'}
+                  {pickLang(lang, '小計', 'Subtotal')}
                 </span>
                 <span style={{ fontWeight: '600', color: '#0f172a' }}>
                   ${subtotal.toFixed(2)}
@@ -341,7 +342,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                   alignItems: 'center',
                 }}>
                   <span style={{ color: '#64748b', fontSize: '14px' }}>
-                    {lang === 'zh' ? '運費' : 'Shipping'}
+                    {pickLang(lang, '運費', 'Shipping')}
                   </span>
                   <span style={{ fontWeight: '600', color: '#0f172a' }}>
                     ${shipping.toFixed(2)}
@@ -356,7 +357,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                   alignItems: 'center',
                 }}>
                   <span style={{ color: '#64748b', fontSize: '14px' }}>
-                    {lang === 'zh' ? '折扣' : 'Discount'}
+                    {pickLang(lang, '折扣', 'Discount')}
                   </span>
                   <span style={{ fontWeight: '600', color: '#ef4444' }}>
                     -${discount.toFixed(2)}
@@ -372,7 +373,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
               alignItems: 'center',
             }}>
               <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a' }}>
-                {lang === 'zh' ? '總計' : 'Total'}
+                {pickLang(lang, '總計', 'Total')}
               </span>
               <span style={{
                 fontSize: '28px',
@@ -401,7 +402,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 gap: '10px',
               }}>
                 <MapPin size={20} />
-                {lang === 'zh' ? '送貨地址' : 'Shipping Address'}
+                {pickLang(lang, '送貨地址', 'Shipping Address')}
               </h3>
               <div style={{
                 background: '#f8fafc',
@@ -433,7 +434,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 gap: '10px',
               }}>
                 <User size={20} />
-                {lang === 'zh' ? '帳戶信息' : 'Account Information'}
+                {pickLang(lang, '帳戶信息', 'Account Information')}
               </h3>
               <div style={{
                 display: 'grid',
@@ -447,7 +448,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                     marginBottom: '4px',
                     fontWeight: '600',
                   }}>
-                    {lang === 'zh' ? '姓名' : 'Name'}
+                    {pickLang(lang, '姓名', 'Name')}
                   </p>
                   <p style={{
                     fontSize: '14px',
@@ -464,7 +465,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                     marginBottom: '4px',
                     fontWeight: '600',
                   }}>
-                    {lang === 'zh' ? '電郵' : 'Email'}
+                    {pickLang(lang, '電郵', 'Email')}
                   </p>
                   <p style={{
                     fontSize: '14px',
@@ -482,14 +483,14 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                       marginBottom: '4px',
                       fontWeight: '600',
                     }}>
-                      {lang === 'zh' ? '獲得獎勵點數' : 'Points Earned'}
+                      {pickLang(lang, '獲得獎勵點數', 'Points Earned')}
                     </p>
                     <p style={{
                       fontSize: '14px',
                       color: '#22c55e',
                       fontWeight: '700',
                     }}>
-                      +{Math.floor(total / 10)} {lang === 'zh' ? '點' : 'pts'}
+                      +{Math.floor(total / 10)} {pickLang(lang, '點', 'pts')}
                     </p>
                   </div>
                 )}
@@ -526,7 +527,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
                 e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              {lang === 'zh' ? '繼續購物' : 'Continue Shopping'}
+              {pickLang(lang, '繼續購物', 'Continue Shopping')}
               <ArrowRight size={18} />
             </button>
           </div>
@@ -539,9 +540,7 @@ export const OrderSuccess = ({ order, userProfile, onContinue }) => {
           fontSize: '14px',
         }}>
           <p>
-            {lang === 'zh' 
-              ? '我們已發送確認郵件，請檢查您的收件箱。'
-              : 'A confirmation email has been sent to your inbox.'
+            {pickLang(lang, '我們已發送確認郵件，請檢查您的收件箱。', 'A confirmation email has been sent to your inbox.')
             }
           </p>
         </div>

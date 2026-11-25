@@ -1,3 +1,4 @@
+import { tlText } from './language.js';
 // 聊天室「系統訊息」的英文對照。
 // 這些訊息由伺服器用中文寫進 hr_chat_messages（見 src/app/api/hr/_post/job-orders.js 的
 // assignPhilippinesAgencies 與 employerPickCandidate），內容含雇主、工作者與仲介名稱，
@@ -25,6 +26,7 @@ export function translateChatSystemPattern(text, translate = value => value) {
 
 // 畫面用：英文介面時，系統訊息換成英文；其他文字（包含使用者輸入）原樣回傳。
 export function translateChatSystemMessage(body, lang, translate) {
+  if (lang === 'tl') return typeof body === 'string' ? tlText(translateChatSystemMessage(body, 'en', translate)) : body;
   if (lang !== 'en' || typeof body !== 'string') return body;
   return translateChatSystemPattern(body, translate) || body;
 }

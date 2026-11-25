@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { tcAuditSummaryEn } from '@/lib/hr-tc-audit-shared';
 import styles from './HrManagement.module.css';
+import { mapLeaves, tlText } from '@/lib/language';
 
 export default function HrOrganizationAuditLog() {
   const { lang } = useLanguage();
-  const en = lang === 'en';
-  const t = en ? {
+  const en = lang !== 'zh';
+  const textBase = en ? {
     title: 'Agency and training center activity', lead: 'System administrators can review all organizations. Members retain their existing access restrictions.',
     kind: 'Log type', agency: 'Agencies', training: 'Training centers', search: 'Search', placeholder: 'Organization, person, target or activity',
     refresh: 'Search / refresh', more: 'Load earlier entries', loading: 'Loading…', empty: 'No matching activity.', failed: 'Unable to load activity. Please try again.',
@@ -19,6 +20,7 @@ export default function HrOrganizationAuditLog() {
     refresh: '搜尋／重新整理', more: '載入更早的紀錄', loading: '讀取中…', empty: '沒有符合條件的操作紀錄。', failed: '無法讀取操作紀錄，請稍後再試。',
     time: '時間（台灣）', organization: '機構', actor: '操作人員', detail: '操作內容',
   };
+  const t = lang === 'tl' ? mapLeaves(textBase, tlText) : textBase;
   const [kind, setKind] = useState('agency');
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ kind: 'agency', q: '' });

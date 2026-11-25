@@ -41,7 +41,7 @@ test('使用導覽與介紹影片按鈕都在總覽裡；導覽按鈕只在會�
   assert.ok(overview.includes('{self && <button'), '導覽按鈕只在訓練中心自己的頁面顯示（管理者頁面沒有這個導覽）');
   assert.ok(overview.includes('window.dispatchEvent(new CustomEvent(HR_TOUR_START_EVENT))'));
   assert.ok(overview.includes('setIntroOpen(true)'));
-  assert.ok(overview.includes("lang === 'en' ? 'Quick tour' : '使用導覽'"), '導覽按鈕要有英文');
+  assert.ok(overview.includes("pickLang(lang, '使用導覽', 'Quick tour')"), '導覽按鈕要有英文');
   assert.match(source, /import \{ HR_TOUR_START_EVENT \} from '@\/lib\/hr-help-events';/);
   assert.equal(HR_TOUR_START_EVENT, 'hr-help:start-tour');
 });

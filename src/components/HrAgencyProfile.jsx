@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import HrFilePicker from '@/components/HrFilePicker';
 import { AGENCY_CERTIFICATE_TYPES, isCertificateExpired } from '@/lib/hr-agency-profile';
 import styles from './HrAgencyProfile.module.css';
+import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 仲介機構自己的基本資料與仲介證書。仲介管理者可以編輯與上傳；一般仲介成員只能查看。
 // 版面沿用會員頁的卡片（hr-member-card），按鈕與輸入框樣式由 .hr-member-shell 提供。
@@ -56,7 +57,7 @@ const EMPTY_DRAFT = { certType: 'license', expiresOn: '', note: '', file: null, 
 
 export default function HrAgencyProfile({ onSaved }) {
   const { lang } = useLanguage();
-  const t = COPY[lang === 'en' ? 'en' : 'zh'];
+  const t = copyFor(COPY, lang);
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null);
   const [message, setMessage] = useState(null);
@@ -162,7 +163,7 @@ export default function HrAgencyProfile({ onSaved }) {
         return <li className={styles.item} key={cert.id}>
           <span className={styles.itemMain}>
             <strong><span className={styles.badge}>{typeLabel}</span>{cert.original_filename}{expired && <span className={`${styles.badge} ${styles.badgeWarn}`}>{t.expired}</span>}</strong>
-            <small>{sizeText(cert.size_bytes)} · {new Date(cert.created_at).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW')}{cert.expires_on ? ` · ${t.expires}：${cert.expires_on}` : ''}{cert.uploaded_by ? ` · ${t.by}：${cert.uploaded_by}` : ''}</small>
+            <small>{sizeText(cert.size_bytes)} · {new Date(cert.created_at).toLocaleDateString(localeFor(lang))}{cert.expires_on ? ` · ${t.expires}：${cert.expires_on}` : ''}{cert.uploaded_by ? ` · ${t.by}：${cert.uploaded_by}` : ''}</small>
             {cert.note && <small>{cert.note}</small>}
           </span>
           <span className={styles.actions}>

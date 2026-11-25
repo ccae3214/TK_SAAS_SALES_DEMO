@@ -1,6 +1,7 @@
 // 「打包下載已核准文件」按鈕與 API 錯誤訊息的英文翻譯。
 // 與 hr-worker-progress-text.js 分開放，找不到時再退回共用字典（translateHrText）。
 import { translateHrText } from '@/lib/hr-translations';
+import { tlText } from './language.js';
 
 export const ZIP_TEXT_EN = {
   '打包下載已核准文件': 'Download approved documents (ZIP)',
@@ -19,6 +20,7 @@ export const ZIP_TEXT_EN = {
 };
 
 export function zipText(text, lang) {
+  if (lang === 'tl') return tlText(zipText(text, 'en'));
   if (lang !== 'en' || typeof text !== 'string') return text;
   const key = text.trim();
   return Object.prototype.hasOwnProperty.call(ZIP_TEXT_EN, key) ? ZIP_TEXT_EN[key] : translateHrText(text, lang);

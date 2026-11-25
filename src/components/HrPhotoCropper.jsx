@@ -47,7 +47,7 @@ export default function HrPhotoCropper({ file, onCancel, onConfirm }) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState('');
-  const english = lang === 'en';
+  const english = lang !== 'zh';
 
   useEffect(() => {
     if (typeof file === 'string') {

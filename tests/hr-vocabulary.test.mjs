@@ -79,7 +79,7 @@ test('學習頁改用多義字詞彙元件；單元編輯說明已更新並有�
   assert.match(page, /parseVocabularyEntries\(unit\.vocabulary\)/);
   assert.match(page, /<HrLessonVocabulary /);
   const component = await read('../src/components/HrLessonVocabulary.jsx');
-  assert.match(component, /LESSON_TEXT\[lang === 'en' \? 'en' : 'zh'\]/);
+  assert.match(component, /copyFor\(LESSON_TEXT, lang\)/);
   const workspace = await read('../src/components/HrTrainingCenterWorkspace.jsx');
   const dictionary = await read('../src/lib/hr-translations-training.js');
   assert.match(workspace, /hint: '詞彙、例句每行一筆[^']*多義字/);

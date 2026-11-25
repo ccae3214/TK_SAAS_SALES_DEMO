@@ -26,7 +26,7 @@ test('API：單元只能掛在自己訓練中心的課程，不填順序時新�
 
 test('畫面：課程列有「課程單元」入口，英文介面優先顯示英文欄位', () => {
   assert.match(ui, /課程單元（\$\{unitsOf\(row\.id\)\.length\}）/);
-  assert.match(ui, /const pick = \(zh, en\) => lang === 'en' && en \? en : zh;/);
+  assert.match(ui, /const pick = \(zh, en\) => lang !== 'zh' && en \? \(lang === 'tl' \? tlText\(en\) : en\) : zh;/);
   assert.match(ui, /resource: 'unit', centerId, courseId: unitCourse\.id/);
   assert.match(ui, /remove\('unit', row\.id, row\.name\)/);
 });

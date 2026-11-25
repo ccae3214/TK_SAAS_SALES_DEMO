@@ -19,7 +19,7 @@ export default function LineLanguageSync() {
     fetch('/api/hr/line-language', { method: 'POST', credentials: 'same-origin' })
       .then(response => (response.ok ? response.json() : null))
       .then(data => {
-        if (!data?.applied || (data.language !== 'zh' && data.language !== 'en')) return;
+        if (!data?.applied || (data.language !== 'zh' && data.language !== 'en' && data.language !== 'tl')) return;
         // 菲律賓仲介的工作區另外記一份語言偏好，一起更新才不會被舊偏好蓋回去。
         try { localStorage.setItem('hr-language:philippines-agency', data.language); } catch { /* 略過 */ }
         window.dispatchEvent(new CustomEvent('kolecion:set-language', { detail: data.language }));

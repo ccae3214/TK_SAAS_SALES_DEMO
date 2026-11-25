@@ -9,6 +9,7 @@ import { DemoOverlay } from '@/components/DemoOverlay';
 import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
+import { pickLang } from '@/lib/language';
 
 function CorporateDemo() {
   const { t, lang } = useLanguage(); 
@@ -39,10 +40,10 @@ function CorporateDemo() {
   };
 
   const menuItems = [
-    { label: lang === 'zh' ? '解決方案' : 'Solutions', id: 'services' },
-    { label: lang === 'zh' ? '產業應用' : 'Industries', id: 'innovation' },
-    { label: lang === 'zh' ? '最新洞察' : 'Insights', id: 'insights' },
-    { label: lang === 'zh' ? '關於我們' : 'About', id: 'mission' }
+    { label: pickLang(lang, '解決方案', 'Solutions'), id: 'services' },
+    { label: pickLang(lang, '產業應用', 'Industries'), id: 'innovation' },
+    { label: pickLang(lang, '最新洞察', 'Insights'), id: 'insights' },
+    { label: pickLang(lang, '關於我們', 'About'), id: 'mission' }
   ];
 
   const handleFormSubmit = async (e) => {
@@ -67,7 +68,7 @@ function CorporateDemo() {
       }
     } catch (err) {
       console.error(err);
-      alert(lang === 'zh' ? '提交失敗，請稍後再試。' : 'Submission failed. Please try again later.');
+      alert(pickLang(lang, '提交失敗，請稍後再試。', 'Submission failed. Please try again later.'));
       setFormStatus('idle');
     }
   };
@@ -107,13 +108,13 @@ function CorporateDemo() {
         </nav>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
           <button style={{ background: 'transparent', color: '#0f172a', border: 'none', padding: '10px 0', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem' }}>
-            {lang === 'zh' ? '登入' : 'Login'}
+            {pickLang(lang, '登入', 'Login')}
           </button>
           <button 
             onClick={() => scrollToSection('contact')}
             style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)' }}
           >
-            {lang === 'zh' ? '聯繫銷售' : 'Contact Sales'}
+            {pickLang(lang, '聯繫銷售', 'Contact Sales')}
           </button>
         </div>
       </header>
@@ -320,7 +321,7 @@ function CorporateDemo() {
                    <CheckCircle2 size={64} color="#16a34a" style={{ marginBottom: '20px' }} />
                    <h3 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{c.contact.success}</h3>
                    <button onClick={() => setFormStatus('idle')} style={{ color: '#2563eb', fontWeight: 700, background: 'transparent', border: 'none', cursor: 'pointer', marginTop: '20px' }}>
-                     {lang === 'zh' ? '再送一則訊息' : 'Send another inquiry'}
+                     {pickLang(lang, '再送一則訊息', 'Send another inquiry')}
                    </button>
                 </div>
               ) : (

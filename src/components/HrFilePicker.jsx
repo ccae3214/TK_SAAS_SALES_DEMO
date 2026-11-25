@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import styles from './HrFilePicker.module.css';
+import { pickLang } from '@/lib/language';
 
 // name／required 讓它可以直接放進 <form> 用 FormData 送出；onChange 可省略。
 export default function HrFilePicker({ accept, onChange, disabled = false, buttonClassName = '', hasValue = false, name, required = false }) {
   const { lang } = useLanguage();
   const [fileName, setFileName] = useState('');
   const inputRef = useRef(null);
-  const chooseFile = lang === 'en' ? 'Choose file' : '選擇檔案';
+  const chooseFile = pickLang(lang, '選擇檔案', 'Choose file');
 
   // 表單 reset()（例如上傳完成後）時，檔名顯示也要一起清掉。
   useEffect(() => {
@@ -25,6 +26,6 @@ export default function HrFilePicker({ accept, onChange, disabled = false, butto
       setFileName(event.currentTarget.files?.[0]?.name || '');
       onChange?.(event);
     }}/></span>
-    <span className={styles.fileName}>{fileName || (hasValue ? (lang === 'en' ? 'Photo loaded' : '已載入照片') : lang === 'en' ? 'No file chosen' : '未選擇檔案')}</span>
+    <span className={styles.fileName}>{fileName || (hasValue ? (pickLang(lang, '已載入照片', 'Photo loaded')) : pickLang(lang, '未選擇檔案', 'No file chosen'))}</span>
   </span>;
 }

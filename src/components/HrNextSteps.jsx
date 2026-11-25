@@ -4,6 +4,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { orderJourney } from '@/lib/hr-workflow';
 import { caseNextSteps, orderNextSteps } from '@/lib/hr-agency-next-steps';
 import styles from './HrNextSteps.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 給台灣／菲律賓仲介看的「下一步」提醒：目前走到哪裡、接下來要做什麼、要聯絡誰。只是提示，不會改動任何資料。
 // kind="order"：需求單（雇主下單到錄用）；kind="case"：案件的來台程序。
@@ -76,7 +77,7 @@ const COPY = {
 
 export default function HrNextSteps({ kind, order, data, steps, agencyType }) {
   const { lang } = useLanguage();
-  const t = COPY[lang === 'en' ? 'en' : 'zh'];
+  const t = copyFor(COPY, lang);
   const guide = kind === 'order'
     ? orderNextSteps(order, order && data ? orderJourney(order, data.orderAgencies, data.orderRoutes, data.orderCandidates) : null, agencyType)
     : caseNextSteps(steps, agencyType);

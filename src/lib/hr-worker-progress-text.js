@@ -1,5 +1,6 @@
 // 「工作者文件與進度」頁面的英文字典。找不到時再退回共用字典（translateHrText）。
 import { translateHrText } from '@/lib/hr-translations';
+import { tlText } from './language.js';
 
 const EN = {
   "審文件／排進度": "Review documents / schedule progress",
@@ -145,6 +146,7 @@ const EN = {
 };
 
 export function progressText(text, lang) {
+  if (lang === 'tl') return tlText(progressText(text, 'en'));
   if (lang !== 'en' || typeof text !== 'string') return text;
   const key = text.trim();
   return Object.prototype.hasOwnProperty.call(EN, key) ? EN[key] : translateHrText(text, lang);

@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // 依 LINE 語言設定「強制同步一次」：每個 LINE 帳號只會套用一次（記錄在 hr_line_member_settings.line_language_synced_at）。
-// 套用時回傳 { applied: true, language: 'zh' | 'en' }，網頁收到後切換語言；其餘情況回傳 { applied: false }，不改任何東西。
+// 套用時回傳 { applied: true, language: 'zh' | 'en' | 'tl' }，網頁收到後切換語言；其餘情況回傳 { applied: false }，不改任何東西。
 export async function POST(request) {
   if (!requestIsSameOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
   const session = await auth();

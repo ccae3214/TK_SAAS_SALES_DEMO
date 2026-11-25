@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, X, Trash2, Plus, Minus, Loader } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { PageHeader } from '@/components/PageHeader';
+import { pickLang } from '@/lib/language';
 
 export const CheckoutPage = ({
   cart,
@@ -74,7 +75,7 @@ export const CheckoutPage = ({
           onMouseOut={(e) => e.currentTarget.style.color = '#64748b'}
         >
           <ArrowLeft size={18} />
-          {lang === 'zh' ? '返回購物' : 'Back to Shopping'}
+          {pickLang(lang, '返回購物', 'Back to Shopping')}
         </button>
 
         {/* Checkout heading */}
@@ -85,7 +86,7 @@ export const CheckoutPage = ({
             fontWeight: '600',
             margin: '0 0 8px 0',
           }}>
-            {lang === 'zh' ? '結帳' : 'Checkout'}
+            {pickLang(lang, '結帳', 'Checkout')}
           </p>
           <h1 style={{
             fontSize: '48px',
@@ -93,7 +94,7 @@ export const CheckoutPage = ({
             margin: '0',
             color: '#0f172a',
           }}>
-            {lang === 'zh' ? '完成您的訂單' : 'Complete your order'}
+            {pickLang(lang, '完成您的訂單', 'Complete your order')}
           </h1>
         </div>
 
@@ -107,11 +108,11 @@ export const CheckoutPage = ({
               marginBottom: '16px',
               color: '#0f172a',
             }}>
-              {lang === 'zh' ? '送貨地址' : 'Shipping Address'}
+              {pickLang(lang, '送貨地址', 'Shipping Address')}
             </h2>
             <input
               type="text"
-              placeholder={lang === 'zh' ? '請輸入送貨地址' : 'Enter your shipping address'}
+              placeholder={pickLang(lang, '請輸入送貨地址', 'Enter your shipping address')}
               value={checkoutForm.address}
               onChange={(e) => {
                 const value = getInputValue(e);
@@ -137,11 +138,11 @@ export const CheckoutPage = ({
               marginBottom: '16px',
               color: '#0f172a',
             }}>
-              {lang === 'zh' ? '付款方式' : 'Payment Method'}
+              {pickLang(lang, '付款方式', 'Payment Method')}
             </h2>
             <input
               type="text"
-              placeholder={lang === 'zh' ? '卡號（測試用：任意數字）' : 'Card number (Demo: any number)'}
+              placeholder={pickLang(lang, '卡號（測試用：任意數字）', 'Card number (Demo: any number)')}
               value={checkoutForm.card}
               onChange={(e) => {
                 const value = getInputValue(e);
@@ -167,12 +168,12 @@ export const CheckoutPage = ({
               marginBottom: '16px',
               color: '#0f172a',
             }}>
-              {lang === 'zh' ? '折扣券' : 'Coupon Code'}
+              {pickLang(lang, '折扣券', 'Coupon Code')}
             </h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input
                 type="text"
-                placeholder={lang === 'zh' ? '折扣券代碼' : 'Enter coupon code'}
+                placeholder={pickLang(lang, '折扣券代碼', 'Enter coupon code')}
                 value={localCouponCode}
                 onChange={(e) => {
                   const value = getInputValue(e);
@@ -209,7 +210,7 @@ export const CheckoutPage = ({
                   e.currentTarget.style.borderColor = '#cbd5e1';
                 }}
               >
-                {lang === 'zh' ? '應用' : 'Apply'}
+                {pickLang(lang, '應用', 'Apply')}
               </button>
             </div>
             {couponError && (
@@ -227,7 +228,7 @@ export const CheckoutPage = ({
                 fontSize: '13px',
                 marginTop: '8px',
               }}>
-                ✓ {lang === 'zh' ? '折扣券' : 'Coupon'} "{appliedCoupon.code}" {lang === 'zh' ? '已應用' : 'applied'}
+                ✓ {pickLang(lang, '折扣券', 'Coupon')} "{appliedCoupon.code}" {pickLang(lang, '已應用', 'applied')}
               </div>
             )}
           </div>
@@ -266,7 +267,7 @@ export const CheckoutPage = ({
             }}
           >
             {isLoading && <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} />}
-            {lang === 'zh' ? `支付 $${finalTotal.toFixed(2)}` : `Pay $${finalTotal.toFixed(2)}`}
+            {pickLang(lang, `支付 $${finalTotal.toFixed(2)}`, `Pay $${finalTotal.toFixed(2)}`)}
           </button>
         </form>
       </div>
@@ -285,7 +286,7 @@ export const CheckoutPage = ({
           marginBottom: '20px',
           color: '#0f172a',
         }}>
-          {lang === 'zh' ? '訂單摘要' : 'Order Summary'}
+          {pickLang(lang, '訂單摘要', 'Order Summary')}
         </h2>
 
         {/* Cart items */}
@@ -307,7 +308,7 @@ export const CheckoutPage = ({
               id="select-all"
             />
             <label htmlFor="select-all" style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
-              {lang === 'zh' ? '全選 / 取消全選' : 'Select All / Deselect All'}
+              {pickLang(lang, '全選 / 取消全選', 'Select All / Deselect All')}
             </label>
           </div>
           {cart && cart.length > 0 ? (
@@ -389,7 +390,7 @@ export const CheckoutPage = ({
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
-                  title={lang === 'zh' ? '刪除' : 'Remove'}
+                  title={pickLang(lang, '刪除', 'Remove')}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -401,7 +402,7 @@ export const CheckoutPage = ({
               color: '#64748b',
               padding: '20px',
             }}>
-              {lang === 'zh' ? '購物車為空' : 'Your cart is empty'}
+              {pickLang(lang, '購物車為空', 'Your cart is empty')}
             </div>
           )}
         </div>
@@ -420,7 +421,7 @@ export const CheckoutPage = ({
             fontSize: '13px',
             color: '#64748b',
           }}>
-            <span>{lang === 'zh' ? '小計' : 'Subtotal'}</span>
+            <span>{pickLang(lang, '小計', 'Subtotal')}</span>
             <span>${cartTotal.toFixed(2)}</span>
           </div>
 
@@ -431,7 +432,7 @@ export const CheckoutPage = ({
               fontSize: '13px',
               color: '#64748b',
             }}>
-              <span>{lang === 'zh' ? '會員折扣' : 'Tier Discount'}</span>
+              <span>{pickLang(lang, '會員折扣', 'Tier Discount')}</span>
               <span style={{ color: '#16a34a' }}>-${tierDiscountAmount.toFixed(2)}</span>
             </div>
           )}
@@ -443,7 +444,7 @@ export const CheckoutPage = ({
               fontSize: '13px',
               color: '#64748b',
             }}>
-              <span>{lang === 'zh' ? '折扣券折扣' : 'Coupon Discount'}</span>
+              <span>{pickLang(lang, '折扣券折扣', 'Coupon Discount')}</span>
               <span style={{ color: '#16a34a' }}>-${couponDiscountAmount.toFixed(2)}</span>
             </div>
           )}
@@ -461,7 +462,7 @@ export const CheckoutPage = ({
             fontWeight: '700',
             color: '#0f172a',
           }}>
-            {lang === 'zh' ? '總計' : 'Total'}
+            {pickLang(lang, '總計', 'Total')}
           </span>
           <span style={{
             fontSize: '28px',
@@ -479,9 +480,7 @@ export const CheckoutPage = ({
           textAlign: 'center',
           margin: '0',
         }}>
-          {lang === 'zh'
-            ? '您的交易是安全的且加密的。'
-            : 'Your transaction is secure and encrypted.'
+          {pickLang(lang, '您的交易是安全的且加密的。', 'Your transaction is secure and encrypted.')
           }
         </p>
       </div>

@@ -4,15 +4,14 @@ import { useState } from 'react';
 import { trainingEvents, daysUntil, whenLabel, TRAINING_REMINDER_DAYS } from '@/lib/hr-worker-training';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
 import { useLanguage } from '@/context/LanguageContext';
+import { pickLang } from '@/lib/language';
 
 // 工人頁面的「訓練課程」：列出報名的班別、課程日期與證照辦件日期，近期日期會標示提醒。
 export default function HrWorkerTraining({ courses = [] }) {
   const { lang } = useLanguage();
   const [learningCourseId, setLearningCourseId] = useState(null);
   // 句子中間有變數時要整句組成一個字串；JSX 的 {變數} 會把文字拆成多個節點，英文翻譯就比對不到。
-  const intro = lang === 'en'
-    ? `Shows the certification course dates and certification application dates you are enrolled in. Dates within ${TRAINING_REMINDER_DAYS} days appear in the reminders above.`
-    : `顯示您報名的證照課程日期與證照辦件日期；${TRAINING_REMINDER_DAYS} 天內的日期會出現在上方提醒。`;
+  const intro = pickLang(lang, `顯示您報名的證照課程日期與證照辦件日期；${TRAINING_REMINDER_DAYS} 天內的日期會出現在上方提醒。`, `Shows the certification course dates and certification application dates you are enrolled in. Dates within ${TRAINING_REMINDER_DAYS} days appear in the reminders above.`);
   if (learningCourseId) return <section className="hr-member-card"><HrWorkerLearning courseId={learningCourseId} onClose={() => setLearningCourseId(null)} /></section>;
   return <section className="hr-member-card">
     <h2>訓練課程</h2>

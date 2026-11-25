@@ -12,10 +12,10 @@ test('LINE 個人資料語言轉成機器人語言：中文、英文、Filipino�
   for (const locale of ['ja', 'th', 'ko', '', null, undefined]) assert.equal(profileLocaleToBotLanguage(locale), null, String(locale));
 });
 
-test('網站只有中文與英文：Filipino 用英文，其他語言不動', () => {
+test('網站支援中文、英文與 Filipino：LINE 語言對應同一個網站語言，其他語言不動', () => {
   assert.equal(webLanguageForBotLanguage('zh'), 'zh');
   assert.equal(webLanguageForBotLanguage('en'), 'en');
-  assert.equal(webLanguageForBotLanguage('tl'), 'en');
+  assert.equal(webLanguageForBotLanguage('tl'), 'tl');
   assert.equal(webLanguageForBotLanguage(null), null);
   assert.equal(webLanguageForBotLanguage('ja'), null);
 });

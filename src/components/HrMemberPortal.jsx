@@ -37,6 +37,8 @@ import { WORKER_RESUME_YES_NO, parseResumePdf } from '@/lib/hr-resume-import';
 import { SINGLE_DATE_STEPS, STEP_DATE_LABELS, PROCESS_ROUTES, routeOfStep } from '@/lib/hr-worker-progress';
 import { OWNER_LABELS, STEP_OWNERS, canManageStep } from '@/lib/hr-case-flow';
 import { WORKER_RESUME_CHOICES, WORKER_RESUME_LANGUAGES, WORKER_RESUME_SELECTS, readLanguageLevels, resumeChoiceList } from '@/lib/hr-resume-fields';
+import { pickLang } from '@/lib/language';
+import { isSupportedLanguage } from '@/lib/language';
 
 const labels = { worker: '工作者', employer: '雇主', agency: '仲介' };
 const EMPTY_WORKER_RESUME = {
@@ -121,17 +123,17 @@ const RESUME_LONG_FIELDS = new Set(['address','education','coursesCompleted','la
 async function createWorkerResumePdf(worker, lang='zh') {
   const profile=worker.resume_profile&&typeof worker.resume_profile==='object'?worker.resume_profile:{};
   const logicalWidth=794,logicalHeight=1123,scale=1.5,pages=[];
-  const pdfText=value=>lang==='en'?translateHrText(value,'en'):value;
-  const languageName=value=>lang==='en'?translateHrText(value,'en'):({English:'英文',Tagalog:'菲律賓語',Cantonese:'廣東話',Mandarin:'中文',Others:'其他'}[value]||value);
+  const pdfText=value=>lang!=='zh'?translateHrText(value,'en'):value;
+  const languageName=value=>lang!=='zh'?translateHrText(value,'en'):({English:'英文',Tagalog:'菲律賓語',Cantonese:'廣東話',Mandarin:'中文',Others:'其他'}[value]||value);
   const pdfLanguageLevels=(options,value)=>{
     const selected=resumeChoiceList(options);
     if(!selected.length)return String(value||'');
-    const levels=readLanguageLevels(value,selected),labels=lang==='en'?{basic:'Basic',medium:'Intermediate',native:'Native'}:{basic:'基礎',medium:'中等',native:'本地'};
-    return selected.map(language=>`${languageName(language)} (${labels[levels[language]]||labels.basic})`).join(lang==='en'?'; ':'、');
+    const levels=readLanguageLevels(value,selected),labels=lang!=='zh'?{basic:'Basic',medium:'Intermediate',native:'Native'}:{basic:'基礎',medium:'中等',native:'本地'};
+    return selected.map(language=>`${languageName(language)} (${labels[levels[language]]||labels.basic})`).join(pickLang(lang, '、', '; '));
   };
-  const pdfLabel=value=>lang==='en'?translateHrText(value,'en'):value;
+  const pdfLabel=value=>lang!=='zh'?translateHrText(value,'en'):value;
   const pdfValue=(key,value)=>{
-    if(lang==='en')return value==='是'?'Yes':value==='否'?'No':key==='educationLevels'?translateHrText(String(value),'en'):String(value);
+    if(lang!=='zh')return value==='是'?'Yes':value==='否'?'No':key==='educationLevels'?translateHrText(String(value),'en'):String(value);
     if(key==='cookingSkills'||key==='applianceOptions'||key==='childcareSkills'){
       const translations={'Washing Machine':'洗衣機',Oven:'烤箱','Vacuum Cleaner':'吸塵器','Microwave Oven':'微波爐','Dish Washer':'洗碗機','Sterilizing utensils':'器具消毒',Feeding:'餵食','Taking temperature':'量體溫',Others:'其他',Bathing:'洗澡','Changing diapers':'更換尿布'};
       return String(value).split(/[,，、;；|]/).map(item=>translations[item.trim()]||item.trim()).join('、');
@@ -145,15 +147,15 @@ async function createWorkerResumePdf(worker, lang='zh') {
   const newPage=(first=false)=>{
     canvas=document.createElement('canvas');canvas.width=logicalWidth*scale;canvas.height=logicalHeight*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,logicalWidth,logicalHeight);
     ctx.fillStyle=green;ctx.fillRect(0,0,logicalWidth,10);
-    if(first){ctx.fillStyle=green;ctx.font='700 13px Arial, sans-serif';ctx.fillText('KOLECION EMPLOYMENT AGENCY',48,48);ctx.fillStyle=ink;ctx.font='700 32px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillText(lang==='en'?'WORKER RESUME':'工作者履歷',48,91);ctx.font='400 15px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(lang==='en'?'Worker resume':'工作者履歷',48,119);ctx.font='700 25px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=ink;ctx.fillText(String(worker.name||(lang==='en'?'Worker':'工作者')),48,166);const summary=[worker.nationality,pdfText(worker.job_preference||'')].filter(Boolean).join(' · ');ctx.font='400 14px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(summary,48,192);y=232;
+    if(first){ctx.fillStyle=green;ctx.font='700 13px Arial, sans-serif';ctx.fillText('KOLECION EMPLOYMENT AGENCY',48,48);ctx.fillStyle=ink;ctx.font='700 32px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillText(pickLang(lang, '工作者履歷', 'WORKER RESUME'),48,91);ctx.font='400 15px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(pickLang(lang, '工作者履歷', 'Worker resume'),48,119);ctx.font='700 25px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=ink;ctx.fillText(String(worker.name||(pickLang(lang, '工作者', 'Worker'))),48,166);const summary=[worker.nationality,pdfText(worker.job_preference||'')].filter(Boolean).join(' · ');ctx.font='400 14px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(summary,48,192);y=232;
       if(resumePhoto){ctx.drawImage(resumePhoto,logicalWidth-145,42,96,124);}
-    }else{ctx.fillStyle=ink;ctx.font='700 16px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillText(String(worker.name||(lang==='en'?'Worker':'工作者')),48,48);ctx.font='400 11px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(lang==='en'?'WORKER RESUME · CONTINUED':'工作者履歷 · 接續',48,69);y=96;}
+    }else{ctx.fillStyle=ink;ctx.font='700 16px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillText(String(worker.name||(pickLang(lang, '工作者', 'Worker'))),48,48);ctx.font='400 11px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=muted;ctx.fillText(pickLang(lang, '工作者履歷 · 接續', 'WORKER RESUME · CONTINUED'),48,69);y=96;}
     pages.push(canvas);
   };
   const wrap=(text,maxWidth,font)=>{ctx.font=font;const lines=[];for(const paragraph of String(text||'').split(/\r?\n/)){if(!paragraph){lines.push('');continue;}let line='';for(const char of paragraph){const candidate=line+char;if(line&&ctx.measureText(candidate).width>maxWidth){lines.push(line);line=char;}else line=candidate;}lines.push(line);}return lines;};
   const ensureSpace=height=>{if(y+height>logicalHeight-58)newPage(false);};
   newPage(true);
-  const contact=(lang==='en'?[['Nationality',worker.nationality],['Phone',worker.phone],['Email',worker.email],['Job preference',pdfText(worker.job_preference||'')]]:[['國籍',worker.nationality],['電話',worker.phone],['電子郵件',worker.email],['工作意向',pdfText(worker.job_preference||'')]]).filter(([,value])=>value);
+  const contact=(lang!=='zh'?[['Nationality',worker.nationality],['Phone',worker.phone],['Email',worker.email],['Job preference',pdfText(worker.job_preference||'')]]:[['國籍',worker.nationality],['電話',worker.phone],['電子郵件',worker.email],['工作意向',pdfText(worker.job_preference||'')]]).filter(([,value])=>value);
   if(contact.length){ctx.fillStyle='#f3f8f5';ctx.fillRect(40,y-17,logicalWidth-80,Math.ceil(contact.length/2)*49+14);contact.forEach(([label,value],index)=>{const col=index%2,row=Math.floor(index/2),x=56+col*350,top=y+row*49;ctx.font='700 10px Arial, sans-serif';ctx.fillStyle=muted;ctx.fillText(label.toUpperCase(),x,top);ctx.font='400 13px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=ink;ctx.fillText(String(value),x,top+21,320);});y+=Math.ceil(contact.length/2)*49+22;}
   for(const group of WORKER_RESUME_GROUPS){
     const fields=group.fields.filter(([key])=>resumeFieldText(profile,key));if(!fields.length)continue;
@@ -177,8 +179,8 @@ async function createWorkerResumePdf(worker, lang='zh') {
     }
     if(column){y+=rowHeight+12;column=0;rowHeight=0;}y+=5;
   }
-  if(worker.notes){ensureSpace(70);ctx.fillStyle=green;ctx.fillRect(44,y-15,4,25);ctx.font='700 15px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=ink;ctx.fillText(lang==='en'?'NOTES':'備註',58,y+3);y+=28;const lines=wrap(worker.notes,logicalWidth-112,'400 12px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif');lines.forEach(text=>{ensureSpace(18);ctx.fillStyle=ink;ctx.fillText(text,58,y);y+=17;});}
-  pages.forEach((page,index)=>{const pctx=page.getContext('2d');pctx.save();pctx.scale(scale,scale);pctx.strokeStyle=line;pctx.beginPath();pctx.moveTo(44,logicalHeight-42);pctx.lineTo(logicalWidth-44,logicalHeight-42);pctx.stroke();pctx.font='400 10px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';pctx.fillStyle=muted;pctx.fillText(lang==='en'?'KOLECION · CONFIDENTIAL WORKER PROFILE':'KOLECION · 工作者履歷資料',48,logicalHeight-23);pctx.textAlign='right';pctx.fillText(`${lang==='en'?'PAGE':'第'} ${index+1} / ${pages.length}${lang==='en'?'':' 頁'}`,logicalWidth-48,logicalHeight-23);pctx.restore();});
+  if(worker.notes){ensureSpace(70);ctx.fillStyle=green;ctx.fillRect(44,y-15,4,25);ctx.font='700 15px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';ctx.fillStyle=ink;ctx.fillText(pickLang(lang, '備註', 'NOTES'),58,y+3);y+=28;const lines=wrap(worker.notes,logicalWidth-112,'400 12px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif');lines.forEach(text=>{ensureSpace(18);ctx.fillStyle=ink;ctx.fillText(text,58,y);y+=17;});}
+  pages.forEach((page,index)=>{const pctx=page.getContext('2d');pctx.save();pctx.scale(scale,scale);pctx.strokeStyle=line;pctx.beginPath();pctx.moveTo(44,logicalHeight-42);pctx.lineTo(logicalWidth-44,logicalHeight-42);pctx.stroke();pctx.font='400 10px Arial, "Noto Sans TC", "Microsoft JhengHei", sans-serif';pctx.fillStyle=muted;pctx.fillText(pickLang(lang, 'KOLECION · 工作者履歷資料', 'KOLECION · CONFIDENTIAL WORKER PROFILE'),48,logicalHeight-23);pctx.textAlign='right';pctx.fillText(`${pickLang(lang, '第', 'PAGE')} ${index+1} / ${pages.length}${pickLang(lang, ' 頁', '')}`,logicalWidth-48,logicalHeight-23);pctx.restore();});
   const encoder=new TextEncoder(),objects=[],offsets=[0];let length=0;
   const push=bytes=>{objects.push(bytes);length+=bytes.length;};
   const addText=text=>encoder.encode(text);
@@ -201,7 +203,7 @@ async function createWorkerResumePdf(worker, lang='zh') {
   definitions.sort((a,b)=>a[0]-b[0]);
   for(const [id,bytes] of definitions){offsets[id]=length;push(bytes);}
   const xrefOffset=length,maxId=definitions.at(-1)[0];let xref=`xref\n0 ${maxId+1}\n0000000000 65535 f \n`;for(let id=1;id<=maxId;id++)xref+=`${String(offsets[id]).padStart(10,'0')} 00000 n \n`;push(addText(`${xref}trailer\n<< /Size ${maxId+1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`));
-  const blob=new Blob(objects,{type:'application/pdf'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${lang==='en'?'worker-resume':'工作者履歷'}-${worker.id||'profile'}.pdf`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const blob=new Blob(objects,{type:'application/pdf'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${pickLang(lang, '工作者履歷', 'worker-resume')}-${worker.id||'profile'}.pdf`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 function canEditEmployerOrder(order, routes, candidates) {
   return order.status === 'open'
@@ -1133,7 +1135,7 @@ export default function HrMemberPortal({ actor }) {
   useEffect(() => {
     if (data?.role !== 'agency' || data?.agencyType !== 'philippines') return;
     const savedPreference = localStorage.getItem('hr-language:philippines-agency');
-    setLang(savedPreference === 'zh' ? 'zh' : 'en', { persist: false });
+    setLang(isSupportedLanguage(savedPreference) ? savedPreference : 'en', { persist: false });
   }, [data?.role, data?.agencyType, setLang]);
 
   // 回到此分頁／視窗時自動更新資料；有彈窗、編輯中或儲存中時略過，避免覆蓋使用者正在處理的內容。

@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import HrFilePicker from '@/components/HrFilePicker';
 import { APPROVAL_MESSAGES, APPROVAL_NUMBER_MAX, validateApprovalFields } from '@/lib/hr-employer-approval';
 import styles from './HrEmployerDocuments.module.css';
+import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 雇主文件（核准函）：雇主本人、雇主所屬的台灣仲介與系統管理者可以上傳、下載與刪除。
 const COPY = {
@@ -30,8 +31,8 @@ const sizeText = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixe
 
 export default function HrEmployerDocuments({ employers = [], embedded = false }) {
   const { lang } = useLanguage();
-  const langKey = lang === 'en' ? 'en' : 'zh';
-  const t = COPY[langKey];
+  const langKey = (lang === 'zh' ? 'zh' : 'en');
+  const t = copyFor(COPY, lang);
   const [rows, setRows] = useState(null);
   const [message, setMessage] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -84,7 +85,7 @@ export default function HrEmployerDocuments({ employers = [], embedded = false }
     finally { setBusyId(null); }
   }
 
-  const dateOf = value => new Date(value).toLocaleDateString(lang === 'en' ? 'en-US' : 'zh-TW');
+  const dateOf = value => new Date(value).toLocaleDateString(localeFor(lang));
 
   return <section className={`${styles.panel} ${embedded ? styles.embedded : styles.card}`} aria-label={t.title}>
     {!embedded && <h2>{t.title}</h2>}

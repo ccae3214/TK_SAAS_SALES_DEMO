@@ -3,6 +3,9 @@ import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { ArrowLeft, Globe } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { LANGUAGES, pickLang } from '@/lib/language';
+
+const LANGUAGE_LABELS = { zh: '中文', en: 'English', tl: 'Filipino' };
 
 export function PageHeader({ title = '' }) {
   const router = useRouter();
@@ -45,74 +48,52 @@ export function PageHeader({ title = '' }) {
             fontWeight: '500',
             transition: 'all 0.3s ease'
           }}
-          onMouseEnter={(e) => e.target.style.background = '#e2e8f0'}
-          onMouseLeave={(e) => e.target.style.background = '#f1f5f9'}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#f1f5f9'}
         >
           <ArrowLeft size={16} />
-          <span>{lang === 'zh' ? '首頁' : 'Home'}</span>
+          <span>{pickLang(lang, '首頁', 'Home', 'Home')}</span>
         </button>
       )}
 
-      {/* 語言切換按鈕 */}
-      <div style={{
+      {/* 語言切換按鈕：中文 / English / Filipino */}
+      <div role="group" aria-label="Language" style={{
         display: 'flex',
         gap: '8px',
         background: '#f1f5f9',
         padding: '4px',
         borderRadius: '8px'
       }}>
-        <button
-          onClick={() => setLang('zh')}
-          style={{
-            background: lang === 'zh' ? '#2563eb' : 'transparent',
-            color: lang === 'zh' ? '#fff' : '#0f172a',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: lang === 'zh' ? '600' : '500',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-          onMouseEnter={(e) => {
-            if (lang !== 'zh') e.target.style.background = '#e2e8f0';
-          }}
-          onMouseLeave={(e) => {
-            if (lang !== 'zh') e.target.style.background = 'transparent';
-          }}
-        >
-          <Globe size={14} />
-          中文
-        </button>
-        <button
-          onClick={() => setLang('en')}
-          style={{
-            background: lang === 'en' ? '#2563eb' : 'transparent',
-            color: lang === 'en' ? '#fff' : '#0f172a',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: lang === 'en' ? '600' : '500',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-          onMouseEnter={(e) => {
-            if (lang !== 'en') e.target.style.background = '#e2e8f0';
-          }}
-          onMouseLeave={(e) => {
-            if (lang !== 'en') e.target.style.background = 'transparent';
-          }}
-        >
-          <Globe size={14} />
-          English
-        </button>
+        {LANGUAGES.map(item => {
+          const active = lang === item.code;
+          return (
+            <button
+              key={item.code}
+              onClick={() => setLang(item.code)}
+              aria-pressed={active}
+              lang={item.htmlLang}
+              style={{
+                background: active ? '#2563eb' : 'transparent',
+                color: active ? '#fff' : '#0f172a',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: active ? '600' : '500',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#e2e8f0'; }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Globe size={14} />
+              {LANGUAGE_LABELS[item.code]}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -33,9 +33,8 @@ export function profileLocaleToBotLanguage(locale) {
   return null;
 }
 
-// 網站介面目前只有中文與英文：LINE 語言是 Filipino（tl）時，網站用英文；其他語言不動。
+// 網站介面支援中文、英文與菲律賓語（Filipino，代碼 tl）：與 LINE 機器人語言一一對應；其他語言不動。
 export function webLanguageForBotLanguage(botLanguage) {
-  if (botLanguage === 'zh') return 'zh';
-  if (botLanguage === 'en' || botLanguage === 'tl') return 'en';
+  if (botLanguage === 'zh' || botLanguage === 'en' || botLanguage === 'tl') return botLanguage;
   return null;
 }
