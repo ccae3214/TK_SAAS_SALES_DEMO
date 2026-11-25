@@ -6,6 +6,7 @@ import styles from './HrAdminCalendar.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { buildCalendarEvents, groupEventsByDate, monthGrid, shiftMonth, toDateKey } from '@/lib/hr-admin-calendar';
 import { taipeiToday } from '@/lib/hr-training-auto-status';
+import { pickLang, localeFor } from '@/lib/language';
 
 const KIND_LABELS = { step: '案件進度', task: '待辦到期', order: '需求單預計開始' };
 const PHASE_LABELS = { start: '開始', done: '完成' };
@@ -14,7 +15,7 @@ const MAX_DOTS = 3;
 // 管理端總覽的行事曆：案件進度日期、待辦到期日、需求單預計開始日。點選日期看當天事項，點事項開啟案件。
 export default function HrAdminCalendar({ data, onOpenCase, onOpenOrders }) {
   const { lang } = useLanguage();
-  const locale = lang === 'en' ? 'en-US' : 'zh-TW';
+  const locale = localeFor(lang);
   const today = taipeiToday();
   const [view, setView] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) - 1 }));
   const [selected, setSelected] = useState(today);

@@ -8,6 +8,7 @@ import { useHrDialog } from '@/lib/use-hr-dialog';
 import { ONBOARDING_VERSION, TOURS } from '@/lib/hr-onboarding';
 import { HR_INLINE_HELP_ROLES, HR_TOUR_START_EVENT } from '@/lib/hr-help-events';
 import styles from './HrOnboardingTour.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 新手導覽：第一次進入時自動開始，之後可按「使用導覽」重看。
 // 工作者／雇主／仲介的按鈕在工作起點裡、訓練中心的按鈕在總覽裡；其他角色（管理員等）維持左下角浮動按鈕。
@@ -30,8 +31,8 @@ const availableSteps = tourId => (TOURS[tourId] || []).filter(step => !(step.opt
 
 export default function HrOnboardingTour({ tourId }) {
   const { lang } = useLanguage();
-  const text = COPY[lang === 'en' ? 'en' : 'zh'];
-  const key = lang === 'en' ? 'en' : 'zh';
+  const text = copyFor(COPY, lang);
+  const key = ((lang === 'zh' ? 'zh' : 'en'));
   const [open, setOpen] = useState(false);
   const [steps, setSteps] = useState([]);
   const [index, setIndex] = useState(0);

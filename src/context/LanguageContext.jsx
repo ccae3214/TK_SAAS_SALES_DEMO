@@ -1,7 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 "use client";
-import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
-import { translations } from '../data/translations.js';
+import React, { useState, createContext, useContext, useEffect, useCallback, useMemo } from 'react';
+import { translations as baseTranslations } from '../data/translations.js';
+import { htmlLangFor, isSupportedLanguage, mapLeaves, tlText } from '../lib/language.js';
+
+// 菲律賓語（tl）：以英文版為基礎，逐句查 TL_DICTIONARY；查不到的句子維持英文。
+const translations = { ...baseTranslations, tl: mapLeaves(baseTranslations.en, tlText) };
 
 const defaultTranslation = translations?.['zh'] || {};
 
@@ -18,13 +22,18 @@ export const LanguageProvider = ({ children }) => {
   useEffect(() => {
     // 从 localStorage 读取语言设置
     const savedLang = typeof window !== 'undefined' ? localStorage.getItem('language') : null;
-    if (savedLang && (savedLang === 'en' || savedLang === 'zh')) {
+    if (isSupportedLanguage(savedLang)) {
       setLang(savedLang);
     }
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = htmlLangFor(lang);
+  }, [lang]);
+
   const handleSetLang = useCallback((newLang, { persist = true } = {}) => {
+    if (!isSupportedLanguage(newLang)) return;
     setLang(newLang);
     if (persist && typeof window !== 'undefined') {
       localStorage.setItem('language', newLang);
@@ -35,20 +44,21 @@ export const LanguageProvider = ({ children }) => {
   useEffect(() => {
     const onSetLanguage = (event) => {
       const next = event?.detail;
-      if (next === 'zh' || next === 'en') handleSetLang(next);
+      if (isSupportedLanguage(next)) handleSetLang(next);
     };
     window.addEventListener('kolecion:set-language', onSetLanguage);
     return () => window.removeEventListener('kolecion:set-language', onSetLanguage);
   }, [handleSetLang]);
 
   const t = translations[lang] || translations['zh'];
+  const value = useMemo(() => ({ lang, setLang: handleSetLang, t }), [lang, handleSetLang, t]);
 
   if (!mounted) {
     return <>{children}</>;
   }
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang: handleSetLang, t }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

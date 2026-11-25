@@ -2,6 +2,7 @@
 import React from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { X, PlayCircle } from 'lucide-react';
+import { pickLang } from '@/lib/language';
 
 const VideoModal = ({ isOpen, onClose, lang }) => {
   return (
@@ -92,12 +93,10 @@ const VideoModal = ({ isOpen, onClose, lang }) => {
                 <PlayCircle size={80} />
               </Motion.div>
               <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '16px' }}>
-                {lang === 'zh' ? '克雷迅網頁設計 展示影片' : '克雷迅網頁設計 Showreel 2026'}
+                {pickLang(lang, '克雷迅網頁設計 展示影片', '克雷迅網頁設計 Showreel 2026')}
               </h2>
               <p style={{ color: '#94a3b8', maxWidth: '500px', lineHeight: 1.6, fontSize: '1.1rem' }}>
-                {lang === 'zh' 
-                  ? '在此處嵌入您的 YouTube 或 Vimeo 影片。這是一個演示視窗，展示如何整合專業的影片收錄功能。' 
-                  : 'Embed your YouTube or Vimeo showreel here. This is a mockup video placeholder showing a professional modal integration.'}
+                {pickLang(lang, '在此處嵌入您的 YouTube 或 Vimeo 影片。這是一個演示視窗，展示如何整合專業的影片收錄功能。', 'Embed your YouTube or Vimeo showreel here. This is a mockup video placeholder showing a professional modal integration.')}
               </p>
               
               <div style={{ marginTop: '40px', display: 'flex', gap: '20px' }}>

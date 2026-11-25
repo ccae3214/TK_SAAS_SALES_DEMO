@@ -43,7 +43,7 @@ export const INTRO_VIDEO_SCENES = [
 
 export const INTRO_VIDEO_DURATION = INTRO_VIDEO_SCENES.reduce((sum, scene) => sum + scene.duration, 0);
 
-const normalizeLang = lang => (lang === 'en' ? 'en' : 'zh');
+const normalizeLang = lang => (lang === 'en' || lang === 'tl' ? 'en' : 'zh');
 
 // 每個場景開始的時間（毫秒）。
 export const INTRO_SCENE_STARTS = INTRO_VIDEO_SCENES.map((_, index) => INTRO_VIDEO_SCENES.slice(0, index).reduce((sum, scene) => sum + scene.duration, 0));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { AGENCY_AUDIT_ACTIONS } from '@/lib/hr-agency-audit-core';
 import styles from './HrAgencyAuditLog.module.css';
+import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 仲介機構的操作紀錄（只有該機構的仲介管理者看得到；後端另外驗證，這裡只是不顯示入口）。
 const COPY = {
@@ -24,13 +25,13 @@ const COPY = {
 const timeText = (value, lang) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(lang === 'en' ? 'en-US' : 'zh-TW', { hour12: false, timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(localeFor(lang), { hour12: false, timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
 export default function HrAgencyAuditLog() {
   const { lang } = useLanguage();
-  const language = lang === 'en' ? 'en' : 'zh';
-  const t = COPY[language];
+  const language = ((lang === 'zh' ? 'zh' : 'en'));
+  const t = copyFor(COPY, lang);
   const [rows, setRows] = useState([]);
   const [actors, setActors] = useState([]);
   const [hasMore, setHasMore] = useState(false);

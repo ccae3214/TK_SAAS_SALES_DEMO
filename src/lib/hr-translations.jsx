@@ -3,6 +3,7 @@
 import React, { cloneElement, Fragment } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useEffect } from 'react';
+import { LANGUAGES, tlText } from '@/lib/language';
 import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
 import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
 import { EMPLOYER_PROFILE_EN, translateEmployerPattern } from '@/lib/hr-translations-employer';
@@ -458,6 +459,10 @@ import { NATIONALITY_EN } from '@/lib/hr-nationalities';
 const HR_TEXT_ORIGINALS = new WeakMap();
 
 export function translateHrText(value, lang = 'zh') {
+  if (lang === 'tl') {
+    // 菲律賓語：先轉成英文，再用 TL_DICTIONARY 查；查不到的維持英文。
+    return typeof value === 'string' ? tlText(translateHrText(value, 'en')) : value;
+  }
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
   let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed] || WORKER_MESSAGES_EN[trimmed];
@@ -549,38 +554,41 @@ function transform(node, lang) {
 
 export function HrLocalizedContent({ children }) {
   const { lang } = useLanguage();
-  return <>{lang === 'en' ? transform(children, lang) : children}</>;
+  return <>{lang !== 'zh' ? transform(children, lang) : children}</>;
+}
+
+function useLanguageChoice() {
+  const { lang, setLang } = useLanguage();
+  const choose = nextLang => {
+    setLang(nextLang);
+    if (document.querySelector('[data-hr-language-profile="philippines-agency"]')) {
+      localStorage.setItem('hr-language:philippines-agency', nextLang);
+    }
+  };
+  return [lang, choose];
+}
+
+function LanguageSwitch({ style = {}, buttonStyle = {} }) {
+  const [lang, choose] = useLanguageChoice();
+  return <div role="group" aria-label="Language / 語言 / Wika" data-tour="language" style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff', whiteSpace: 'nowrap', ...style }}>
+    {LANGUAGES.map(item => <button key={item.code} type="button" lang={item.htmlLang} aria-pressed={lang === item.code} onClick={() => choose(item.code)} style={{ border: 0, padding: '7px 10px', background: lang === item.code ? '#0f766e' : '#fff', color: lang === item.code ? '#fff' : '#334155', fontWeight: 700, cursor: 'pointer', ...buttonStyle }}>{item.short}</button>)}
+  </div>;
 }
 
 export function HrLanguageToggle({ style = {} }) {
-  const { lang, setLang } = useLanguage();
-  const toggleLanguage = () => {
-    const nextLang = lang === 'en' ? 'zh' : 'en';
-    setLang(nextLang);
-    if (document.querySelector('[data-hr-language-profile="philippines-agency"]')) {
-      localStorage.setItem('hr-language:philippines-agency', nextLang);
-    }
-  };
-  return <button type="button" data-tour="language" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 10px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...style }}>{lang === 'en' ? '中文' : 'EN'}</button>;
+  return <LanguageSwitch style={style} />;
 }
 
 export function HrLanguageTools({ inline = false }) {
-  const { lang, setLang } = useLanguage();
-  const toggleLanguage = () => {
-    const nextLang = lang === 'en' ? 'zh' : 'en';
-    setLang(nextLang);
-    if (document.querySelector('[data-hr-language-profile="philippines-agency"]')) {
-      localStorage.setItem('hr-language:philippines-agency', nextLang);
-    }
-  };
+  const { lang } = useLanguage();
   useEffect(() => {
     const root = document.querySelector('[data-hr-translatable-root]') || document.body;
     const translateNode = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const saved = HR_TEXT_ORIGINALS.get(node);
-        if (lang === 'en') {
+        if (lang !== 'zh') {
           const original = saved && node.nodeValue === saved.translated ? saved.original : node.nodeValue;
-          const translated = translateHrText(original, 'en');
+          const translated = translateHrText(original, lang);
           if (translated !== node.nodeValue) {
             HR_TEXT_ORIGINALS.set(node, { original, translated });
             node.nodeValue = translated;
@@ -598,14 +606,14 @@ export function HrLanguageTools({ inline = false }) {
         const dataKey = `hrOriginal${key.replace(/(^|-)(\w)/g, (_, _dash, c) => c.toUpperCase())}`;
         const original = node.dataset[dataKey] || node.getAttribute(key);
         if (!original) continue;
-        const translated = lang === 'en' ? translateHrText(original, lang) : original;
+        const translated = lang !== 'zh' ? translateHrText(original, lang) : original;
         if (translated !== original && !node.dataset[dataKey]) node.dataset[dataKey] = original;
         if (node.getAttribute(key) !== translated) node.setAttribute(key, translated);
       }
       node.childNodes.forEach(translateNode);
     };
     translateNode(root);
-    if (lang !== 'en') return;
+    if (lang === 'zh') return;
     const pending = new Set();
     const queue = [];
     let frame = 0;
@@ -626,7 +634,7 @@ export function HrLanguageTools({ inline = false }) {
         if (node.nodeType === Node.TEXT_NODE) {
           const saved = HR_TEXT_ORIGINALS.get(node);
           const original = saved && node.nodeValue === saved.translated ? saved.original : node.nodeValue;
-          const translated = translateHrText(original, 'en');
+          const translated = translateHrText(original, lang);
           if (translated !== node.nodeValue) {
             HR_TEXT_ORIGINALS.set(node, { original, translated });
             node.nodeValue = translated;
@@ -636,7 +644,7 @@ export function HrLanguageTools({ inline = false }) {
             const dataKey = `hrOriginal${key.replace(/(^|-)(\w)/g, (_, _dash, c) => c.toUpperCase())}`;
             const original = node.dataset[dataKey] || node.getAttribute(key);
             if (!original) continue;
-            const translated = translateHrText(original, 'en');
+            const translated = translateHrText(original, lang);
             if (translated !== original && !node.dataset[dataKey]) node.dataset[dataKey] = original;
             if (node.getAttribute(key) !== translated) node.setAttribute(key, translated);
           }
@@ -656,5 +664,5 @@ export function HrLanguageTools({ inline = false }) {
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [lang]);
 
-  return <button type="button" data-tour="language" onClick={toggleLanguage} aria-label={lang === 'en' ? 'Switch to Chinese' : '切換為英文'} style={{ position: inline ? 'static' : 'fixed', zIndex: inline ? undefined : 10000, left: inline ? undefined : '50%', top: inline ? undefined : 16, transform: inline ? undefined : 'translateX(-50%)', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 12px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px #0002' }}>{lang === 'en' ? '中文' : 'EN'}</button>;
+  return <LanguageSwitch style={inline ? undefined : { position: 'fixed', zIndex: 10000, left: '50%', top: 16, transform: 'translateX(-50%)', boxShadow: '0 2px 8px #0002' }} buttonStyle={{ padding: '8px 12px' }} />;
 }

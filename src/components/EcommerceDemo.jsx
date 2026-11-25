@@ -10,6 +10,7 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { pickLang, localeFor } from '@/lib/language';
 
 // --- Premium Fake Product Data (fallback if API fails) ---
 const PRODUCTS = [
@@ -876,7 +877,7 @@ function EcommerceDemo() {
                               <div>
                                 <div style={{ fontWeight: 800 }}>Order #{order.id}</div>
                                 <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-                                  {order.created_at ? new Date(order.created_at).toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US') : 'Recent order'}
+                                  {order.created_at ? new Date(order.created_at).toLocaleString(localeFor(lang)) : 'Recent order'}
                                 </div>
                               </div>
                               <div style={{ textAlign: 'right' }}>

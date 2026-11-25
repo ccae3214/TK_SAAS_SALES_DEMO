@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { WORKER_LOG_ACTIONS, WORKER_LOG_ACTOR_ROLES } from '@/lib/hr-worker-log-core';
 import styles from './HrWorkerActivityLog.module.css';
+import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 工人會員的活動紀錄。
 //   self（工人本人）：只看得到自己的紀錄。
@@ -31,13 +32,13 @@ const COPY = {
 const timeText = (value, lang) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(lang === 'en' ? 'en-US' : 'zh-TW', { hour12: false, timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(localeFor(lang), { hour12: false, timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
 export default function HrWorkerActivityLog({ self = false, workerId = null }) {
   const { lang } = useLanguage();
-  const language = lang === 'en' ? 'en' : 'zh';
-  const t = COPY[language];
+  const language = ((lang === 'zh' ? 'zh' : 'en'));
+  const t = copyFor(COPY, lang);
   const [rows, setRows] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [hasMore, setHasMore] = useState(false);

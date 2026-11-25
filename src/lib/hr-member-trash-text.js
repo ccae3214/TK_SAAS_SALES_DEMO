@@ -1,3 +1,4 @@
+import { tlText } from './language.js';
 // 「已刪除帳號」功能的中英文文字。
 // - MEMBER_TRASH_EN：畫面上固定文字與後端錯誤訊息的 中文→英文 對照（接進 translateHrText）。
 // - memberTrashText：帶有會員名稱的確認視窗與提示訊息，依語言直接回傳對應文字。
@@ -71,5 +72,6 @@ export const MEMBER_TRASH_TEXT_KEYS = Object.keys(TEXT);
 export function memberTrashText(key, lang = 'zh', params = {}) {
   const entry = TEXT[key];
   if (!entry) throw new Error(`Unknown member trash text key: ${key}`);
+  if (lang === 'tl') return tlText(entry.en(params));
   return (lang === 'en' ? entry.en : entry.zh)(params);
 }

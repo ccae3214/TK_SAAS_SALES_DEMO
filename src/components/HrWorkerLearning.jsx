@@ -10,6 +10,8 @@ import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 import HrLessonVocabulary from '@/components/HrLessonVocabulary';
 import HrUnitQuiz from '@/components/HrUnitQuiz';
 import styles from './HrWorkerLearning.module.css';
+import { pickLang, copyFor } from '@/lib/language';
+import { tlText } from '@/lib/language';
 
 const LEGACY_UNIT_MEDIA = {
   1: { video: '/videos/mandarin-a1-unit-1.mp4', audio: '/videos/mandarin-a1-unit-1.mp3' },
@@ -36,7 +38,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
   const [includeEnglish, setIncludeEnglish] = useState(true);
   const [slow, setSlow] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
-  const speechText = SPEECH_TEXT[lang === 'en' ? 'en' : 'zh'];
+  const speechText = copyFor(SPEECH_TEXT, lang);
 
   const isMandarinA1Course = /mandarin a1 course|中文a1/i.test(`${data?.course?.name || ''} ${data?.course?.certification_name || ''}`);
 
@@ -58,7 +60,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
   useEffect(() => { stopSpeech(); }, [unitId, stopSpeech]);
   useEffect(() => { setShowVideo(false); }, [unitId]);
 
-  const pick = (zh, en) => lang === 'en' && en ? en : zh;
+  const pick = (zh, en) => lang !== 'zh' && en ? (lang === 'tl' ? tlText(en) : en) : zh;
   const units = data?.units || [];
   const progress = learningProgress(units, completed);
   const unit = units.find(item => Number(item.id) === Number(unitId)) || null;
@@ -137,17 +139,17 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       <h3>{pick(unit.name, unit.name_en)}</h3>
       {unitVideoUrl && <div style={{ margin: '12px 0 8px' }}>
         <button type="button" className={`${styles.button} ${showVideo ? styles.buttonPrimary : ''}`} onClick={() => setShowVideo(v => !v)}>
-          🎬 {showVideo ? (lang === 'en' ? 'Hide lesson video' : '收合單元教學影片') : (lang === 'en' ? 'Watch lesson video (Kokoro)' : '觀看單元教學影片（Kokoro 配音）')}
+          🎬 {showVideo ? (pickLang(lang, '收合單元教學影片', 'Hide lesson video')) : (pickLang(lang, '觀看單元教學影片（Kokoro 配音）', 'Watch lesson video (Kokoro)'))}
         </button>
       </div>}
       {unitVideoUrl && showVideo && <div className={styles.videoCard}>
         <div className={styles.videoHeader}>
-          <h4>🎬 {lang === 'en' ? `Mandarin A1 Unit ${unit.position} - Lesson Video (Kokoro AI Voiceover)` : `華語 A1 第 ${unit.position} 單元教學影片（Kokoro 本地語音合成）`}</h4>
-          <button type="button" className={styles.button} style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => setShowVideo(false)}>✕ {lang === 'en' ? 'Close' : '關閉'}</button>
+          <h4>🎬 {pickLang(lang, `華語 A1 第 ${unit.position} 單元教學影片（Kokoro 本地語音合成）`, `Mandarin A1 Unit ${unit.position} - Lesson Video (Kokoro AI Voiceover)`)}</h4>
+          <button type="button" className={styles.button} style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => setShowVideo(false)}>✕ {pickLang(lang, '關閉', 'Close')}</button>
         </div>
         <video src={unitVideoUrl} controls autoPlay playsInline className={styles.videoPlayer} />
         <p style={{ margin: '10px 0 4px', fontSize: 13, color: '#93c5fd' }}>
-          {lang === 'en' ? 'MP3 Audio Stream:' : '單元音訊串流 (MP3)：'}
+          {pickLang(lang, '單元音訊串流 (MP3)：', 'MP3 Audio Stream:')}
         </p>
         <audio src={unitAudioUrl} controls className={styles.videoAudio} />
       </div>}
@@ -213,7 +215,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
             || ['發音', '問候', '數字'].some(term => String(item.name).includes(term));
           return <li key={item.id} className={`${styles.unitRow} ${isDone ? styles.unitDone : ''}`}>
             <span className={styles.unitNo}>{i + 1}</span>
-            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}{parseVocabularyEntries(item.vocabulary).length ? <small>{`${parseVocabularyEntries(item.vocabulary).length} 個詞彙`}</small> : null}{hasVideo ? <span className={styles.unitBadgeVideo}>🎬 {lang === 'en' ? 'Video' : '教學影音'}</span> : null}</span>
+            <span className={styles.unitTitle}><strong>{pick(item.name, item.name_en)}</strong>{item.hours ? <small>{`${item.hours} 小時`}</small> : null}{parseVocabularyEntries(item.vocabulary).length ? <small>{`${parseVocabularyEntries(item.vocabulary).length} 個詞彙`}</small> : null}{hasVideo ? <span className={styles.unitBadgeVideo}>🎬 {pickLang(lang, '教學影音', 'Video')}</span> : null}</span>
             {!data.readOnly && <span className={`${styles.badge} ${isDone ? styles.badgeDone : ''}`}>{isDone ? '已讀完' : '未讀'}</span>}
             <button type="button" className={`${styles.button} ${!isDone && item.id === progress.nextUnitId ? styles.buttonPrimary : ''}`} onClick={() => setUnitId(item.id)}>{isDone ? '複習' : item.id === progress.nextUnitId && progress.done > 0 ? '繼續學習' : '開始學習'}</button>
           </li>;

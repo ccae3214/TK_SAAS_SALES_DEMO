@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { X, Send, CheckCircle, Mail, Phone, MapPin } from 'lucide-react';
+import { pickLang } from '@/lib/language';
 
 const ContactModal = ({ isOpen, onClose, lang }) => {
   const [submitted, setSubmitted] = useState(false);
@@ -33,7 +34,7 @@ const ContactModal = ({ isOpen, onClose, lang }) => {
       }
     } catch (err) {
       console.error(err);
-      alert(lang === 'zh' ? '提交失敗，請稍後再試。' : 'Submission failed. Please try again later.');
+      alert(pickLang(lang, '提交失敗，請稍後再試。', 'Submission failed. Please try again later.'));
       setFormStatus('idle');
     }
   };
@@ -90,34 +91,32 @@ const ContactModal = ({ isOpen, onClose, lang }) => {
               justifyContent: 'center'
             }}>
                 <h2 style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '24px', lineHeight: 1.1 }}>
-                  {lang === 'zh' ? '開啟您的' : 'Launch your'} <br />
-                  <span style={{ opacity: 0.8 }}>{lang === 'zh' ? '下一個專案' : 'next project'}</span>
+                  {pickLang(lang, '開啟您的', 'Launch your')} <br />
+                  <span style={{ opacity: 0.8 }}>{pickLang(lang, '下一個專案', 'next project')}</span>
                 </h2>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem', marginBottom: '48px', lineHeight: 1.6 }}>
-                  {lang === 'zh' 
-                    ? '與我們的頂級團隊合作，將您的數位品牌願景轉化為現實。' 
-                    : 'Work with the world class team to turn your digital vision into reality.'}
+                  {pickLang(lang, '與我們的頂級團隊合作，將您的數位品牌願景轉化為現實。', 'Work with the world class team to turn your digital vision into reality.')}
                 </p>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '12px' }}><Mail size={20} /></div>
                       <div>
-                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{lang === 'zh' ? '電子信箱' : 'Email'}</div>
+                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{pickLang(lang, '電子信箱', 'Email')}</div>
                          <div style={{ fontWeight: 600 }}>hello@tkwebstudio.co</div>
                       </div>
                    </div>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '12px' }}><Phone size={20} /></div>
                       <div>
-                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{lang === 'zh' ? '聯絡電話' : 'Phone'}</div>
+                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{pickLang(lang, '聯絡電話', 'Phone')}</div>
                          <div style={{ fontWeight: 600 }}>+886 (2) 2345 6789</div>
                       </div>
                    </div>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '12px' }}><MapPin size={20} /></div>
                       <div>
-                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{lang === 'zh' ? '所在地' : 'Location'}</div>
+                         <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 700, textTransform: 'uppercase' }}>{pickLang(lang, '所在地', 'Location')}</div>
                          <div style={{ fontWeight: 600 }}>Taipei, Taiwan</div>
                       </div>
                    </div>
@@ -143,47 +142,45 @@ const ContactModal = ({ isOpen, onClose, lang }) => {
                  >
                     <CheckCircle size={80} color="#22c55e" style={{ marginBottom: '24px' }} />
                     <h3 style={{ fontSize: '1.8rem', color: '#0f172a', marginBottom: '16px' }}>
-                      {lang === 'zh' ? '感謝您的聯絡！' : 'Message Sent!'}
+                      {pickLang(lang, '感謝您的聯絡！', 'Message Sent!')}
                     </h3>
                     <p style={{ color: '#64748b', lineHeight: 1.6 }}>
-                      {lang === 'zh' 
-                        ? '我們已收到您的請求，團隊將在 24 小時內與您聯繫。' 
-                        : "We've received your request. Our team will get back to you within 24 hours."}
+                      {pickLang(lang, '我們已收到您的請求，團隊將在 24 小時內與您聯繫。', "We've received your request. Our team will get back to you within 24 hours.")}
                     </p>
                  </Motion.div>
                ) : (
                  <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
-                      {lang === 'zh' ? '預約免費諮詢' : 'Book Free Consultation'}
+                      {pickLang(lang, '預約免費諮詢', 'Book Free Consultation')}
                     </h3>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                        <div>
-                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{lang === 'zh' ? '您的姓名' : 'Full Name'}</label>
-                          <input type="text" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', outlineColor: 'var(--accent-primary)' }} placeholder={lang === 'zh' ? '例如：約翰 · 威克' : 'John Doe'} />
+                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{pickLang(lang, '您的姓名', 'Full Name')}</label>
+                          <input type="text" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', outlineColor: 'var(--accent-primary)' }} placeholder={pickLang(lang, '例如：約翰 · 威克', 'John Doe')} />
                        </div>
                        <div>
-                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{lang === 'zh' ? '電子信箱' : 'Email Address'}</label>
+                          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{pickLang(lang, '電子信箱', 'Email Address')}</label>
                           <input type="email" required value={form.email} onChange={e => setForm({...form, email: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', outlineColor: 'var(--accent-primary)' }} placeholder="hello@example.com" />
                        </div>
                     </div>
 
                     <div>
-                       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{lang === 'zh' ? '諮詢類型' : 'Service Type'}</label>
+                       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{pickLang(lang, '諮詢類型', 'Service Type')}</label>
                        <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', fontWeight: 600 }}>
-                          <option value="Consultation">{lang === 'zh' ? '免費諮詢 (Consultation)' : 'Free Consultation'}</option>
-                          <option value="Custom">{lang === 'zh' ? '客製化專案 (Custom Project)' : 'Custom Project Build'}</option>
-                          <option value="Enterprise">{lang === 'zh' ? '企業級解決方案 (Enterprise)' : 'Enterprise Solutions'}</option>
+                          <option value="Consultation">{pickLang(lang, '免費諮詢 (Consultation)', 'Free Consultation')}</option>
+                          <option value="Custom">{pickLang(lang, '客製化專案 (Custom Project)', 'Custom Project Build')}</option>
+                          <option value="Enterprise">{pickLang(lang, '企業級解決方案 (Enterprise)', 'Enterprise Solutions')}</option>
                        </select>
                     </div>
 
                     <div>
-                       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{lang === 'zh' ? '訊息內容' : 'How can we help?'}</label>
-                       <textarea rows="4" value={form.message} onChange={e => setForm({...form, message: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', outlineColor: 'var(--accent-primary)', resize: 'none' }} placeholder={lang === 'zh' ? '告訴我們您的專案目標...' : 'Tell us about your project or business goals...'}></textarea>
+                       <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{pickLang(lang, '訊息內容', 'How can we help?')}</label>
+                       <textarea rows="4" value={form.message} onChange={e => setForm({...form, message: e.target.value})} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '2px solid #f1f5f9', background: '#f8fafc', fontSize: '1rem', outlineColor: 'var(--accent-primary)', resize: 'none' }} placeholder={pickLang(lang, '告訴我們您的專案目標...', 'Tell us about your project or business goals...')}></textarea>
                     </div>
 
                     <button disabled={formStatus === 'submitting'} type="submit" style={{ width: '100%', background: '#0f172a', color: '#ffffff', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '1.1rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'all 0.2s', marginTop: '8px', opacity: formStatus === 'submitting' ? 0.7 : 1 }} onMouseOver={e => e.currentTarget.style.background = 'var(--accent-primary)'} onMouseOut={e => e.currentTarget.style.background = '#0f172a'}>
-                      {formStatus === 'submitting' ? '...' : <><Send size={20} /> {lang === 'zh' ? '提交訊息' : 'Send Message'}</>}
+                      {formStatus === 'submitting' ? '...' : <><Send size={20} /> {pickLang(lang, '提交訊息', 'Send Message')}</>}
                     </button>
                  </form>
                )}

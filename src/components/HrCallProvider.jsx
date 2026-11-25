@@ -5,6 +5,7 @@ import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { CallClient } from '@/lib/hr-call-client';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 通話功能的畫面：來電提示、通話視窗。整個 /hr 頁面掛一個（見 app/hr/page.jsx），
 // 聊天室的「語音／視訊通話」按鈕只要發出 hr:start-call 事件，就會在這裡撥號。
@@ -59,8 +60,8 @@ const wsUrl = ticket => `${window.location.protocol === 'https:' ? 'wss' : 'ws'}
 
 export function noticeText(notice, lang) {
   if (!notice) return '';
-  const copy = COPY[lang === 'en' ? 'en' : 'zh'];
-  if (notice.type === 'api') return lang === 'en' ? (notice.en || translateHrText(notice.message, 'en')) : notice.message;
+  const copy = copyFor(COPY, lang);
+  if (notice.type === 'api') return lang !== 'zh' ? translateHrText(notice.en || translateHrText(notice.message, 'en'), lang) : notice.message;
   const entry = copy.notices[notice.type] || copy.notices.unknown;
   return typeof entry === 'function' ? entry(notice.name) : entry;
 }
@@ -80,8 +81,8 @@ function Tile({ stream, name, local = false, state }) {
 // 畫面（純顯示，方便單獨測試）
 export function CallView({ state, lang, actions }) {
   if (!state) return null;
-  const copy = COPY[lang === 'en' ? 'en' : 'zh'];
-  const show = text => (lang === 'en' ? translateHrText(text || '', 'en') : text || '');
+  const copy = copyFor(COPY, lang);
+  const show = text => (lang !== 'zh' ? translateHrText(text || '', lang) : text || '');
   const { call, incoming, notice } = state;
   const ringing = !call && incoming.length > 0 ? incoming[0] : null;
   const status = !call ? '' : call.phase === 'reconnecting' ? copy.reconnecting : call.phase === 'starting' ? (call.everHadPeer ? copy.connecting : copy.calling)

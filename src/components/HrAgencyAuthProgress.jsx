@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { AUTH_CHECKED_SOURCES } from '@/lib/hr-agency-auth-sources';
 import { AUTH_GUIDE_CHECKED_ON, AUTH_ITEMS, AUTH_ROUTES, estimateAuthentication, otherSideOf, pendingItems, progressOf } from '@/lib/hr-agency-auth-guide';
 import styles from './HrAgencyAuthProgress.module.css';
+import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 相互認證的「文件驗證辦理進度」：雙方各自把自己的文件送到對方國家的代表處驗證，這裡讓雙方看到彼此走到哪一關，
 // 並顯示每一關的預估規費與時間。只有自己這一邊的仲介管理者可以更新自己的進度。
@@ -43,13 +44,13 @@ const COPY = {
 
 const money = (fee, lang) => {
   const symbol = fee.currency === 'TWD' ? 'NT$' : 'PHP ';
-  const n = value => value.toLocaleString(lang === 'en' ? 'en-US' : 'zh-TW');
+  const n = value => value.toLocaleString(localeFor(lang));
   return fee.min === fee.max ? `${symbol}${n(fee.min)}` : `${symbol}${n(fee.min)}–${n(fee.max)}`;
 };
 
 export default function HrAgencyAuthProgress({ certification, mySide, canManage }) {
   const { lang } = useLanguage();
-  const t = COPY[lang === 'en' ? 'en' : 'zh'];
+  const t = copyFor(COPY, lang);
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -125,7 +126,7 @@ export default function HrAgencyAuthProgress({ certification, mySide, canManage 
       <label className={styles.toggle}><input type="checkbox" checked={expedited} onChange={event => setExpedited(event.target.checked)} /> {t.expedited}</label>
       <div className={styles.sides}>{[mySide || 'taiwan', otherSideOf(mySide || 'taiwan')].map(section)}</div>
       <p className={styles.disclaimer}>{t.disclaimer}</p>
-      <p className={styles.sources}>{t.sources}：{AUTH_CHECKED_SOURCES.map((source, index) => <span key={source.url}>{index ? ' · ' : ''}<a href={source.url} target="_blank" rel="noreferrer">{lang === 'en' ? source.en : source.zh}</a></span>)}</p>
+      <p className={styles.sources}>{t.sources}：{AUTH_CHECKED_SOURCES.map((source, index) => <span key={source.url}>{index ? ' · ' : ''}<a href={source.url} target="_blank" rel="noreferrer">{lang !== 'zh' ? source.en : source.zh}</a></span>)}</p>
     </>}
   </details>;
 }

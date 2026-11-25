@@ -5,6 +5,7 @@ import { Smartphone, X } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { INSTALL_COPY, detectInstallEnvironment, installGuideKey, shouldShowInstallButton } from '@/lib/hr-install-app-core';
 import styles from './HrInstallApp.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 「加到手機桌面」按鈕。
 //   Android Chrome 等支援一鍵安裝的瀏覽器：按下去直接跳出安裝視窗。
@@ -12,7 +13,7 @@ import styles from './HrInstallApp.module.css';
 //   已經從桌面圖示開啟、或是不支援的電腦瀏覽器：不顯示按鈕。
 export default function HrInstallApp() {
   const { lang } = useLanguage();
-  const t = INSTALL_COPY[lang === 'en' ? 'en' : 'zh'];
+  const t = copyFor(INSTALL_COPY, lang);
   const [environment, setEnvironment] = useState(null);
   const [open, setOpen] = useState(false);
   const deferred = useRef(null);

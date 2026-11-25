@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { User, LogOut, IdCard, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { pickLang, copyFor } from '@/lib/language';
 
 const L = {
   zh: { signIn: '使用 Google 登入', profile: '會員資料', logout: '登出', name: '姓名', email: 'Email', method: '登入方式', points: '點數', spending: '累計消費', close: '關閉', member: '會員' },
@@ -28,7 +29,7 @@ function Avatar({ user, size = 28 }) {
 export default function MemberMenu() {
   const { userProfile, signInWithGoogle, logout } = useAuth();
   const { lang } = useLanguage();
-  const tx = L[lang === 'en' ? 'en' : 'zh'];
+  const tx = copyFor(L, lang);
   const [open, setOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [mounted, setMounted] = useState(false);

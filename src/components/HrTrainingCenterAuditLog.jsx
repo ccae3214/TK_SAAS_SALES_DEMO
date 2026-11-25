@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './HrManagement.module.css';
 import { useLanguage } from '@/context/LanguageContext';
 import { TC_AUDIT_ACTION_ZH, TC_AUDIT_ACTION_EN, TC_AUDIT_TYPE_ZH, TC_AUDIT_TYPE_EN, tcAuditSummaryEn } from '@/lib/hr-tc-audit-shared';
+import { copyFor } from '@/lib/language';
 
 // 訓練中心的操作紀錄（系統管理者與該訓練中心自己看得到）：列出這個訓練中心的新增、編輯、停用、刪除與報名等操作。
 // 這個畫面的中英文都寫在下面的 TEXT（zh／en）；紀錄內容的英文由欄位組出來，不依賴全站翻譯字典。
@@ -43,8 +44,8 @@ function Empty({ title, text }) {
 
 export default function HrTrainingCenterAuditLog({ centerId, centerName }) {
   const { lang } = useLanguage();
-  const en = lang === 'en';
-  const t = TEXT[en ? 'en' : 'zh'];
+  const en = lang !== 'zh';
+  const t = copyFor(TEXT, lang);
   const [rows, setRows] = useState(null);
   const [next, setNext] = useState(null);
   const [error, setError] = useState('');

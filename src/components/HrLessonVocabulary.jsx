@@ -4,12 +4,13 @@ import { Fragment } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { LESSON_TEXT, senseMark } from '@/lib/hr-vocabulary';
 import styles from './HrLessonVocabulary.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 詞彙表：一個詞有多個意思時，逐一列出意思編號；每個詞下面可接造句（可標示是在示範第幾個意思）。
 // 朗讀按鈕由學習頁傳入（speakButtons／isSpeaking），這裡只負責排版。
 export default function HrLessonVocabulary({ entries, speechOn = false, listenLabel = '', isSpeaking = () => false, speakButtons = () => null }) {
   const { lang } = useLanguage();
-  const text = LESSON_TEXT[lang === 'en' ? 'en' : 'zh'];
+  const text = copyFor(LESSON_TEXT, lang);
   const columns = speechOn ? 4 : 3;
   return <div className={styles.tableWrap}><table className={styles.lessonTable}>
     <thead><tr><th>詞彙</th><th>拼音</th><th>英文</th>{speechOn && <th>{listenLabel}</th>}</tr></thead>

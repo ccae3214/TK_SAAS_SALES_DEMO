@@ -7,10 +7,12 @@ import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { translateChatSystemMessage } from '@/lib/hr-translations-chat';
 import { readJson } from '@/lib/hr-read-json';
+import { pickLang } from '@/lib/language';
+import { mapLeaves, tlText } from '@/lib/language';
 
 export default function HrChat() {
   const {lang}=useLanguage();
-  const localizeError=error=>lang==='en'?(error.en||translateHrText(error.message,'en')):error.message;
+  const localizeError=error=>lang!=='zh'?translateHrText(error.en||translateHrText(error.message,'en'),lang):error.message;
   // 系統訊息（指派／挑選）由伺服器以中文存入，英文介面在顯示時翻譯；使用者自己輸入的訊息不會被改動。
   const localizeMessage=body=>translateChatSystemMessage(body,lang,text=>translateHrText(text,'en'));
   const [rooms,setRooms]=useState([]);
@@ -79,11 +81,13 @@ export default function HrChat() {
 
   const selectedRoom=rooms.find(room=>room.id===selectedRoomId);
   // 通話：只發出事件，由 HrCallProvider（整個 /hr 頁面一個）負責撥號與通話視窗。
-  const callText=lang==='en'?{voice:'Voice call',video:'Video call'}:{voice:'語音通話',video:'視訊通話'};
+  const callBase=lang!=='zh'?{voice:'Voice call',video:'Video call'}:{voice:'語音通話',video:'視訊通話'};
+  const callText=lang==='tl'?mapLeaves(callBase,tlText):callBase;
   const startCall=video=>{if(selectedRoomId)window.dispatchEvent(new CustomEvent('hr:start-call',{detail:{roomId:selectedRoomId,video,title:selectedRoom?.title||''}}));};
-  const text=lang==='en'?{
+  const textBase=lang!=='zh'?{
     label:'Member Chat',title:'Agency and Case Chats',description:'Group chats show their members. Select a member to start a private conversation.',refresh:'Refresh',loading:'Loading chats…',none:'No chats are available yet.',list:'Chat list',agency:'Agency chat',case:'Case chat',agencySubtitle:'Agency staff chat',caseSubtitle:'Case conversation',recent:'Latest 200 messages',empty:'No messages yet. Send the first message to start the conversation.',back:'Back to chat list',placeholder:'Write a message…',send:'Send',sending:'Sending…',notFound:'Chat',members:'Group members',privateChat:'Message',direct:'Private chat',
   }:{label:'會員聊天室',title:'機構群組與案件群組',description:'開啟群組可查看群組會員，點選會員即可開始單獨聊天。',refresh:'重新整理',loading:'正在載入聊天室…',none:'目前沒有可參與的聊天室。',list:'聊天室清單',agency:'機構群組',case:'案件群組',agencySubtitle:'機構內部聊天室',caseSubtitle:'案件對話',recent:'最近 200 則訊息',empty:'尚無訊息，送出第一則訊息開始討論。',back:'返回聊天室清單',placeholder:'輸入訊息…',send:'送出',sending:'送出中',notFound:'聊天室',members:'群組會員',privateChat:'單獨聊天',direct:'私訊'};
+  const text=lang==='tl'?mapLeaves(textBase,tlText):textBase;
   function displayRoomTitle(room){return room?.roomType==='agency'?`${room.agencyName} · ${text.agency}`:room?.roomType==='direct'?(room.title||text.direct):room?.caseNumber?`${room.caseNumber} · ${room.workerName} / ${room.employerName}`:text.notFound;}
   return <section id="hr-chat-section" className={`${styles.chatCard} ${mobileChat?styles.chatOpen:''}`}>
     <header className={styles.heading}><div><span><MessageCircle size={17}/> {text.label}</span><h2>{text.title}</h2><p>{text.description}</p></div><button type="button" className={styles.refresh} onClick={()=>{setError('');loadRooms().then(()=>selectedRoomId&&loadMessages(selectedRoomId)).catch(err=>setError(localizeError(err)));}} aria-label={text.refresh}><RefreshCw size={17}/></button></header>
@@ -94,7 +98,7 @@ export default function HrChat() {
         <div className={styles.conversation}>
           <div className={styles.conversationHeader}><button type="button" className={styles.backButton} onClick={()=>{setShowMembers(false);setMobileChat(false);}} aria-label={text.back}><ChevronLeft size={22}/></button><div className={styles.headerText}><strong>{selectedRoom&&displayRoomTitle(selectedRoom)}</strong><small>{selectedRoom&&(selectedRoom.roomType==='agency'?text.agencySubtitle:selectedRoom.roomType==='direct'?text.direct:text.caseSubtitle)}<span className={styles.recentNote}> · {text.recent}</span></small></div>{selectedRoom&&<div className={`hr-call-actions ${styles.headerActions}`}><button type="button" className="hr-call-start" onClick={()=>startCall(false)} aria-label={callText.voice} title={callText.voice}><Phone size={16}/><span className={styles.actionLabel}>{callText.voice}</span></button><button type="button" className="hr-call-start" onClick={()=>startCall(true)} aria-label={callText.video} title={callText.video}><Video size={16}/><span className={styles.actionLabel}>{callText.video}</span></button>{selectedRoom.roomType!=='direct'&&<button type="button" className={styles.memberToggle} onClick={()=>setShowMembers(value=>!value)} aria-label={text.members} title={text.members}><Users size={16}/><span className={styles.actionLabel}>{text.members}</span> <span>({members.length})</span></button>}</div>}</div>
           {showMembers&&selectedRoom?.roomType!=='direct'&&<div className={styles.memberList}><strong>{text.members}</strong>{members.length?members.map(member=><div className={styles.member} key={member.id}><span><b>{member.name}</b><small>{member.role==='agency'?(member.agencyName||'仲介'):member.role==='worker'?'工作者':member.role==='employer'?'雇主':member.role||''}</small></span><button type="button" onClick={()=>void openDirectChat(member.id)}>{text.privateChat}</button></div>):<p className={styles.empty}>—</p>}</div>}
-          <div className={styles.messageList} aria-live="polite" ref={messageListRef} onScroll={event=>{const panel=event.currentTarget;followLatestRef.current=panel.scrollHeight-panel.scrollTop-panel.clientHeight<80;}}>{messages.length?messages.map(message=><article className={styles.message} key={message.id}><div className={styles.messageMeta}><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleString(lang==='en'?'en-US':'zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p>{localizeMessage(message.body)}</p></article>):<div className={styles.empty}>{text.empty}</div>}</div>
+          <div className={styles.messageList} aria-live="polite" ref={messageListRef} onScroll={event=>{const panel=event.currentTarget;followLatestRef.current=panel.scrollHeight-panel.scrollTop-panel.clientHeight<80;}}>{messages.length?messages.map(message=><article className={styles.message} key={message.id}><div className={styles.messageMeta}><strong>{message.sender_name}</strong><span>{new Date(message.created_at).toLocaleString(localeFor(lang),{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p>{localizeMessage(message.body)}</p></article>):<div className={styles.empty}>{text.empty}</div>}</div>
           <form className={styles.composer} onSubmit={send}><textarea aria-label={text.placeholder} value={draft} onChange={event=>setDraft(event.target.value)} maxLength={3000} rows={2} placeholder={text.placeholder}/><button type="submit" disabled={sending||!draft.trim()} aria-label={text.send}><Send size={16}/><span className={styles.sendLabel}>{sending?text.sending:text.send}</span></button></form>
         </div>
       </div>}

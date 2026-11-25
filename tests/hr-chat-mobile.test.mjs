@@ -30,5 +30,5 @@ test('手機版聊天室：樣式只在手機寬度生效，桌機的返回鈕�
 test('通話與送出按鈕在手機只顯示圖示，仍保留無障礙名稱（中英文）', async () => {
   const chat = await read('../src/components/HrChat.jsx');
   for (const label of ['callText.voice', 'callText.video', 'text.members', 'text.send']) assert.ok(chat.includes(`aria-label={${label}}`), `${label} 缺 aria-label`);
-  assert.ok(chat.includes("callText=lang==='en'?{voice:'Voice call',video:'Video call'}"));
+  assert.ok(chat.includes("callBase=lang!=='zh'?{voice:'Voice call',video:'Video call'}"));
 });

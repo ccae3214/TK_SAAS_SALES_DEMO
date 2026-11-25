@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { introVideoText } from '@/lib/hr-intro-video';
 import { HR_INLINE_HELP_ROLES, HR_TOUR_START_EVENT, HR_VIDEO_OPEN_EVENT } from '@/lib/hr-help-events';
 import styles from './HrJourney.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 const COPY = {
   zh: { group: '使用說明', tour: '使用導覽' },
@@ -14,7 +15,7 @@ const COPY = {
 // 工作起點裡的「使用導覽」與「介紹影片」按鈕。介紹影片只有工作者看得到。
 export default function HrStartHelp({ role }) {
   const { lang } = useLanguage();
-  const text = COPY[lang === 'en' ? 'en' : 'zh'];
+  const text = copyFor(COPY, lang);
   if (!HR_INLINE_HELP_ROLES.includes(role)) return null;
   const fire = name => window.dispatchEvent(new CustomEvent(name));
   return <div className={styles.helpRow} role="group" aria-label={text.group}>

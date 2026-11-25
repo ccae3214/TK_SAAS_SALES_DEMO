@@ -5,6 +5,7 @@ import { signOut } from 'next-auth/react';
 import { LogOut } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { HrLanguageToggle } from '@/lib/hr-translations';
+import { pickLang, copyFor } from '@/lib/language';
 
 // 系統管理員頁面手機版：功能菜單固定在畫面最底部（樣式在 hr-admin-mobile-nav.css）。
 // 原本放在側邊欄的「中英文切換」與「登出」在手機版移到頁首右側，由這個元件提供。
@@ -19,7 +20,7 @@ const LANGUAGE_BUTTON_STYLE = { height: 36, minWidth: 44, padding: '0 10px', bor
 
 export default function HrAdminMobileBar() {
   const { lang } = useLanguage();
-  const text = COPY[lang === 'en' ? 'en' : 'zh'];
+  const text = copyFor(COPY, lang);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 720px)');

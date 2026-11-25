@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { decideWorker, shortlistView, swipeDecision, shortlistExperience } from '@/lib/hr-employer-shortlist';
 import styles from './HrEmployerShortlist.module.css';
+import { pickLang, copyFor } from '@/lib/language';
 
 const COPY = {
   zh: { title: '為這張需求挑選人選', hint: '右滑加入待確認，左滑先略過。滑動不會送出，也不會安排面試。', temporary: '初選只暫存在此頁，離開或重新整理後會清空。',
@@ -30,7 +31,7 @@ const COPY = {
 
 export default function HrEmployerShortlist({ order, workers, onProfile, onDownload, downloading = false, onConfirm }) {
   const { lang } = useLanguage();
-  const t = COPY[lang === 'en' ? 'en' : 'zh'];
+  const t = copyFor(COPY, lang);
   const [history, setHistory] = useState([]);
   const [mode, setMode] = useState('cards');
   const [limit, setLimit] = useState(12);

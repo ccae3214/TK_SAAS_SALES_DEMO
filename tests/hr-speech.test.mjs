@@ -59,7 +59,7 @@ test('朗讀控制列的中英文字完整對應，英文都有翻譯', () => {
 test('學習頁已接上朗讀：語音 hook、單元朗讀、每列播放鈕、切換單元會停止', async () => {
   const page = await read('../src/components/HrWorkerLearning.jsx');
   assert.match(page, /useLessonSpeech/);
-  assert.match(page, /SPEECH_TEXT\[lang === 'en' \? 'en' : 'zh'\]/);
+  assert.match(page, /copyFor\(SPEECH_TEXT, lang\)/);
   assert.match(page, /buildUnitSpeechQueue\(/);
   assert.match(page, /rowSpeechItems\(/);
   assert.match(page, /stopSpeech\(\);\s*\}, \[unitId, stopSpeech\]\)/);

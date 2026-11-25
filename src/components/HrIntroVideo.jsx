@@ -13,6 +13,7 @@ import {
 } from '@/lib/hr-intro-video';
 import { HR_VIDEO_OPEN_EVENT } from '@/lib/hr-help-events';
 import styles from './HrIntroVideo.module.css';
+import { pickLang } from '@/lib/language';
 
 // 工作者介紹影片：按工作起點裡的「介紹影片」開啟。
 // 預設播放網站內建的動畫導覽（中英文隨網站語言切換）；
@@ -126,7 +127,7 @@ function SceneVisual({ id, m }) {
 
 function Player({ onClose }) {
   const { lang } = useLanguage();
-  const key = lang === 'en' ? 'en' : 'zh';
+  const key = ((lang === 'zh' ? 'zh' : 'en'));
   const text = introVideoText(key);
   const m = MOCK[key];
   const dialogRef = useRef(null);

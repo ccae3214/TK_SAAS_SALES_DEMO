@@ -11,6 +11,7 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { useLanguage } from '@/context/LanguageContext';
 import styles from './AdminDashboard.module.css';
+import { pickLang, LANGUAGES } from '@/lib/language';
 
 const AdminDashboard = () => {
   const { t, lang, setLang } = useLanguage();
@@ -50,7 +51,7 @@ const AdminDashboard = () => {
   };
 
   const deleteProduct = (id) => {
-    if (!window.confirm(lang === 'en' ? t.admin.products.deleteConfirm : t.admin.products.deleteConfirm)) return;
+    if (!window.confirm(t.admin.products.deleteConfirm)) return;
     fetch(`http://localhost:3001/api/products/${id}`, { method: 'DELETE' }).then(() => fetchStats());
   };
 
@@ -328,24 +329,21 @@ const AdminDashboard = () => {
                       <h3 style={{ fontWeight: 800, marginBottom: '24px' }}>{t.admin.settings.language}</h3>
                       <p style={{ color: '#64748b', marginBottom: '20px' }}>{t.admin.settings.languageDesc}</p>
                       <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
-                         <button 
-                            onClick={() => setLang('zh')} 
-                            style={{ 
-                              padding: '12px 24px', borderRadius: '12px', border: lang === 'zh' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                              background: lang === 'zh' ? '#eff6ff' : '#fff', color: lang === 'zh' ? '#2563eb' : '#64748b',
+                         {LANGUAGES.map(item => {
+                           const active = lang === item.code;
+                           return (
+                         <button
+                            key={item.code}
+                            onClick={() => setLang(item.code)}
+                            style={{
+                              padding: '12px 24px', borderRadius: '12px', border: active ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                              background: active ? '#eff6ff' : '#fff', color: active ? '#2563eb' : '#64748b',
                               fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px'
                             }}>
-                            <Globe size={18} /> {t.admin.settings.chinese}
+                            <Globe size={18} /> {item.code === 'zh' ? t.admin.settings.chinese : item.code === 'en' ? t.admin.settings.english : 'Filipino'}
                          </button>
-                         <button 
-                            onClick={() => setLang('en')} 
-                            style={{ 
-                              padding: '12px 24px', borderRadius: '12px', border: lang === 'en' ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                              background: lang === 'en' ? '#eff6ff' : '#fff', color: lang === 'en' ? '#2563eb' : '#64748b',
-                              fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px'
-                            }}>
-                            <Globe size={18} /> {t.admin.settings.english}
-                         </button>
+                           );
+                         })}
                       </div>
                    </div>
 

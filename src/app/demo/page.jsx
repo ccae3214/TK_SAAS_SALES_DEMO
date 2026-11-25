@@ -13,6 +13,7 @@ import VideoModal from '@/components/VideoModal';
 import ContactModal from '@/components/ContactModal';
 
 import { useLanguage } from '@/context/LanguageContext';
+import { pickLang, LANGUAGES, nextLanguage } from '@/lib/language';
 
 const baseThemesData = [
   {
@@ -128,7 +129,7 @@ export default function Home() {
               {safeT.nav.contact}
             </button>
             <button 
-              onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+              onClick={() => setLang(nextLanguage(lang))}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
                 background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
@@ -138,7 +139,7 @@ export default function Home() {
               }}
             >
               <Languages size={16} />
-              {lang === 'en' ? '中文' : 'EN'}
+              {LANGUAGES.find(item => item.code === nextLanguage(lang)).short}
             </button>
           </nav>
         </div>
@@ -257,43 +258,43 @@ export default function Home() {
             <div className="pricing-grid">
               {[
                 {
-                  name: lang === 'zh' ? '基礎版' : 'Basic',
-                  price: lang === 'zh' ? '免費' : 'Free',
-                  desc: lang === 'zh' ? '適合個人或小型專案' : 'Perfect for individuals',
+                  name: pickLang(lang, '基礎版', 'Basic'),
+                  price: pickLang(lang, '免費', 'Free'),
+                  desc: pickLang(lang, '適合個人或小型專案', 'Perfect for individuals'),
                   features: [
-                    lang === 'zh' ? '單頁面設計' : 'Single Page Design',
-                    lang === 'zh' ? '行動版本化' : 'Mobile Responsive',
-                    lang === 'zh' ? '基本SEO優化' : 'Basic SEO',
-                    lang === 'zh' ? '7天交付' : '7-day Delivery'
+                    pickLang(lang, '單頁面設計', 'Single Page Design'),
+                    pickLang(lang, '行動版本化', 'Mobile Responsive'),
+                    pickLang(lang, '基本SEO優化', 'Basic SEO'),
+                    pickLang(lang, '7天交付', '7-day Delivery')
                   ],
-                  cta: lang === 'zh' ? '免費諮詢' : 'Get Started'
+                  cta: pickLang(lang, '免費諮詢', 'Get Started')
                 },
                 {
-                  name: lang === 'zh' ? '標準版' : 'Standard',
-                  price: lang === 'zh' ? 'NT$15,000' : '$500',
-                  desc: lang === 'zh' ? '最受歡迎的選擇' : 'Most Popular',
+                  name: pickLang(lang, '標準版', 'Standard'),
+                  price: pickLang(lang, 'NT$15,000', '$500'),
+                  desc: pickLang(lang, '最受歡迎的選擇', 'Most Popular'),
                   features: [
-                    lang === 'zh' ? '5個頁面設計' : '5-Page Design',
-                    lang === 'zh' ? '行動版本化' : 'Mobile Responsive',
-                    lang === 'zh' ? '進階SEO優化' : 'Advanced SEO',
-                    lang === 'zh' ? '無限修改次數' : 'Unlimited Revisions',
-                    lang === 'zh' ? '14天交付' : '14-day Delivery'
+                    pickLang(lang, '5個頁面設計', '5-Page Design'),
+                    pickLang(lang, '行動版本化', 'Mobile Responsive'),
+                    pickLang(lang, '進階SEO優化', 'Advanced SEO'),
+                    pickLang(lang, '無限修改次數', 'Unlimited Revisions'),
+                    pickLang(lang, '14天交付', '14-day Delivery')
                   ],
-                  cta: lang === 'zh' ? '立即開始' : 'Choose Plan',
+                  cta: pickLang(lang, '立即開始', 'Choose Plan'),
                   popular: true
                 },
                 {
-                  name: lang === 'zh' ? '進階版' : 'Premium',
-                  price: lang === 'zh' ? 'NT$35,000+' : '$1000+',
-                  desc: lang === 'zh' ? '完整電商解決方案' : 'Full E-Commerce',
+                  name: pickLang(lang, '進階版', 'Premium'),
+                  price: pickLang(lang, 'NT$35,000+', '$1000+'),
+                  desc: pickLang(lang, '完整電商解決方案', 'Full E-Commerce'),
                   features: [
-                    lang === 'zh' ? '不限頁面設計' : 'Unlimited Pages',
-                    lang === 'zh' ? '購物車與支付' : 'Shopping Cart & Payment',
-                    lang === 'zh' ? 'CRM集成' : 'CRM Integration',
-                    lang === 'zh' ? '完整託管與維護' : 'Full Hosting & Support',
-                    lang === 'zh' ? '自訂交付時間' : 'Custom Timeline'
+                    pickLang(lang, '不限頁面設計', 'Unlimited Pages'),
+                    pickLang(lang, '購物車與支付', 'Shopping Cart & Payment'),
+                    pickLang(lang, 'CRM集成', 'CRM Integration'),
+                    pickLang(lang, '完整託管與維護', 'Full Hosting & Support'),
+                    pickLang(lang, '自訂交付時間', 'Custom Timeline')
                   ],
-                  cta: lang === 'zh' ? '聯繫我們' : 'Contact Sales'
+                  cta: pickLang(lang, '聯繫我們', 'Contact Sales')
                 }
               ].map((plan, idx) => (
                 <Motion.div
@@ -314,14 +315,14 @@ export default function Home() {
                       display: 'inline-block',
                       marginBottom: '16px'
                     }}>
-                      ⭐ {lang === 'zh' ? '最受歡迎' : 'MOST POPULAR'}
+                      ⭐ {pickLang(lang, '最受歡迎', 'MOST POPULAR')}
                     </div>
                   )}
                   <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 8px' }}>{plan.name}</h3>
                   <p style={{ color: 'var(--text-secondary)', margin: '0 0 16px', fontSize: '0.95rem' }}>{plan.desc}</p>
                   <div style={{ margin: '24px 0', paddingBottom: '24px', borderBottom: '1px solid rgba(99, 102, 241, 0.1)' }}>
                     <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{plan.price}</div>
-                    {lang === 'zh' ? '（新台幣）' : '(USD)'}
+                    {pickLang(lang, '（新台幣）', '(USD)')}
                   </div>
                   <ul style={{ listStyle: 'none', padding: '0', margin: '0 0 24px' }}>
                     {plan.features.map((feature, fidx) => (

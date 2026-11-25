@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { useLanguage } from '@/context/LanguageContext';
 import { motion as Motion } from 'framer-motion';
 import { Mail, ArrowUpRight, Instagram, Twitter, Linkedin, MapPin, ArrowRight } from 'lucide-react';
+import { pickLang } from '@/lib/language';
 
 function CreativeDemo() {
   const { t, lang } = useLanguage(); 
@@ -59,9 +60,9 @@ function CreativeDemo() {
         </Motion.div>
         <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', display: 'flex', gap: '40px' }}>
           {[
-            { label: lang === 'zh' ? '精選作品' : 'Work', id: 'work' },
-            { label: lang === 'zh' ? '中心理念' : 'Agency', id: 'agency' },
-            { label: lang === 'zh' ? '聯絡我們' : 'Contact', id: 'contact' }
+            { label: pickLang(lang, '精選作品', 'Work'), id: 'work' },
+            { label: pickLang(lang, '中心理念', 'Agency'), id: 'agency' },
+            { label: pickLang(lang, '聯絡我們', 'Contact'), id: 'contact' }
           ].map(item => (
             <Motion.span 
               key={item.id} 

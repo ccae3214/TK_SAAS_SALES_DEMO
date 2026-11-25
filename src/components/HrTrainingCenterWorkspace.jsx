@@ -12,6 +12,8 @@ import { Award, BookOpen, CalendarDays, CircleHelp, ClipboardCheck, ClipboardLis
 import { HR_TOUR_START_EVENT } from '@/lib/hr-help-events';
 import { buildStudentProgress } from '@/lib/hr-tc-student-progress';
 import { QUIZ_PASS_PERCENT } from '@/lib/hr-learning';
+import { pickLang } from '@/lib/language';
+import { tlText } from '@/lib/language';
 
 // 系統管理者的訓練中心工作區：老師與證照、課程、開班與日期、證照批次。
 
@@ -165,7 +167,7 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
   const unitCourse = courses.find(item => Number(item.id) === Number(unitCourseId)) || null;
   const unitsOf = courseId => units.filter(item => Number(item.course_id) === Number(courseId));
   // 英文介面優先顯示英文欄位，沒填英文就顯示中文。
-  const pick = (zh, en) => lang === 'en' && en ? en : zh;
+  const pick = (zh, en) => lang !== 'zh' && en ? (lang === 'tl' ? tlText(en) : en) : zh;
   const activeCerts = certifications.filter(item => item.active);
   const certOptions = activeCerts.map(item => [item.id, item.name]);
   const holdingsOf = teacherId => holdings.filter(item => Number(item.teacher_id) === Number(teacherId));
@@ -264,8 +266,8 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
   });
 
   return <div style={{ ...THEME, display: 'grid', gap: 16 }}>
-    {self && <nav className="workspace-tabs" aria-label={lang === 'en' ? 'Workspace tabs' : '工作區分頁'}>
-      {allTabs.map(([id, label]) => { const Icon = TAB_ICONS[id]; return <button key={id} type="button" data-tour={`tc-tab-${id}`} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17} aria-hidden="true" />{id === 'audit' && lang === 'en' ? 'Activity log' : label}</button>; })}
+    {self && <nav className="workspace-tabs" aria-label={pickLang(lang, '工作區分頁', 'Workspace tabs')}>
+      {allTabs.map(([id, label]) => { const Icon = TAB_ICONS[id]; return <button key={id} type="button" data-tour={`tc-tab-${id}`} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17} aria-hidden="true" />{id === 'audit' && lang !== 'zh' ? tlText('Activity log') : label}</button>; })}
     </nav>}
     <section className={styles.panel}>
       <div className={styles.panelHeader}>
@@ -274,7 +276,7 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
       </div>
       {message && <p className={`${styles.message} ${message.type === 'error' ? styles.messageError : styles.messageSuccess}`} role="status">{message.text}</p>}
       {!self && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '0 4px 4px' }}>
-        {allTabs.map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{id === 'audit' && lang === 'en' ? 'Activity log' : label}</button>)}
+        {allTabs.map(([id, label]) => <button key={id} data-tour={`tc-tab-${id}`} className={tab === id ? styles.primaryButton : styles.secondaryButton} onClick={() => setTab(id)}>{id === 'audit' && lang !== 'zh' ? tlText('Activity log') : label}</button>)}
       </div>}
     </section>
 
@@ -295,7 +297,7 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
       ];
       return <>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-          {self && <button type="button" className={styles.secondaryButton} onClick={() => window.dispatchEvent(new CustomEvent(HR_TOUR_START_EVENT))}><CircleHelp size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6 }} />{lang === 'en' ? 'Quick tour' : '使用導覽'}</button>}
+          {self && <button type="button" className={styles.secondaryButton} onClick={() => window.dispatchEvent(new CustomEvent(HR_TOUR_START_EVENT))}><CircleHelp size={16} aria-hidden="true" style={{ verticalAlign: '-3px', marginRight: 6 }} />{pickLang(lang, '使用導覽', 'Quick tour')}</button>}
           <button type="button" className={styles.secondaryButton} onClick={() => setIntroOpen(true)}>▶ 介紹影片</button>
         </div>
         <div className={styles.statGrid}>{cards.map(([label, value, caption, target]) => <button type="button" key={label} className={styles.statCard} onClick={() => setTab(target)}><p>{label}</p><strong>{value}</strong><small>{caption}</small></button>)}</div>
@@ -323,14 +325,14 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
 
     {tab === 'courses' && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>證照課程</h2><p>每門課程對應一張證照，開班時依課程帶入證照。</p></div><button className={styles.primaryButton} disabled={!activeCerts.length} onClick={() => courseModal(null)}>新增課程</button></div>
-      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} disabled={!unitsOf(row.id).length} title={unitsOf(row.id).length ? undefined : (lang === 'en' ? 'Add course units first' : '請先新增課程單元')} onClick={() => setLearningCourseId(Number(learningCourseId) === Number(row.id) ? null : row.id)}>{lang === 'en' ? 'Preview learning' : '學習預覽'}</button><button className={styles.smallButton} onClick={() => setUnitCourseId(Number(unitCourseId) === Number(row.id) ? null : row.id)}>{`課程單元（${unitsOf(row.id).length}）`}</button><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
+      {courses.length ? <div className={styles.tableWrap}><table><thead><tr><th>證照</th><th>課程</th><th>時數</th><th>課程費用</th><th>說明</th><th>狀態</th><th>操作</th></tr></thead><tbody>{courses.map(row => <tr key={row.id}><td>{row.certification_name}</td><td><strong>{row.name}</strong></td><td>{row.hours ?? '—'}</td><td>{feeText(row)}</td><td>{row.description || '—'}</td><td><Pill tone={row.active ? 'open' : 'neutral'}>{row.active ? '啟用' : '停用'}</Pill></td><td><div className={styles.rowActions}><button className={styles.smallButton} disabled={!unitsOf(row.id).length} title={unitsOf(row.id).length ? undefined : (pickLang(lang, '請先新增課程單元', 'Add course units first'))} onClick={() => setLearningCourseId(Number(learningCourseId) === Number(row.id) ? null : row.id)}>{pickLang(lang, '學習預覽', 'Preview learning')}</button><button className={styles.smallButton} onClick={() => setUnitCourseId(Number(unitCourseId) === Number(row.id) ? null : row.id)}>{`課程單元（${unitsOf(row.id).length}）`}</button><button className={styles.smallButton} onClick={() => courseModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => toggle('course', row)}>{row.active ? '停用' : '啟用'}</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('course', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無課程" text={activeCerts.length ? '新增證照對應的課程。' : '請先到「老師與證照」新增證照。'} />}
     </section>}
 
     {tab === 'courses' && learningCourseId && courses.some(item => Number(item.id) === Number(learningCourseId)) && <div ref={learningRef}><HrWorkerLearning key={learningCourseId} courseId={learningCourseId} onClose={() => setLearningCourseId(null)} /></div>}
 
     {tab === 'courses' && unitCourse && <section className={styles.panel}>
       <div className={styles.panelHeader}><div><h2>{`課程單元：${unitCourse.name}`}</h2><p>{unitsOf(unitCourse.id).length ? `單元時數合計：${unitsOf(unitCourse.id).reduce((sum, item) => sum + (item.hours || 0), 0)} 小時` : '把課程內容拆成單元，每個單元可寫學習重點與例句。'}</p></div><div className={styles.rowActions}><button className={styles.primaryButton} onClick={() => unitModal(null)}>新增單元</button><button className={styles.smallButton} onClick={() => setUnitCourseId(null)}>關閉</button></div></div>
-      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>場合分類</th><th>課程時數</th><th>詞彙量</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang === 'en' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{pick(row.category, row.category_en) || '—'}</td><td>{row.hours ?? '—'}</td><td>{parseVocabularyEntries(row.vocabulary).length}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
+      {unitsOf(unitCourse.id).length ? <div className={styles.tableWrap}><table><thead><tr><th>順序</th><th>單元名稱</th><th>場合分類</th><th>課程時數</th><th>詞彙量</th><th>學習重點</th><th>例句</th><th>操作</th></tr></thead><tbody>{unitsOf(unitCourse.id).map(row => <tr key={row.id}><td>{row.position}</td><td><strong>{pick(row.name, row.name_en)}</strong>{lang !== 'zh' ? null : row.name_en ? <><br /><small>{row.name_en}</small></> : null}</td><td>{pick(row.category, row.category_en) || '—'}</td><td>{row.hours ?? '—'}</td><td>{parseVocabularyEntries(row.vocabulary).length}</td><td>{pick(row.topics, row.topics_en) || '—'}</td><td>{exampleLines(row.examples).length ? exampleLines(row.examples).map((parts, index) => <div key={index}><strong>{parts[0]}</strong>{parts[1] ? ` ${parts[1]}` : ''}{parts[2] ? <><br /><small>{parts[2]}</small></> : null}</div>) : '—'}</td><td><div className={styles.rowActions}><button className={styles.smallButton} onClick={() => unitModal(row)}>編輯</button><button className={styles.smallButton} disabled={saving} onClick={() => remove('unit', row.id, row.name)}>刪除</button></div></td></tr>)}</tbody></table></div> : <Empty title="尚無單元" text="新增課程的第一個單元。" />}
     </section>}
 
     {tab === 'classes' && <section className={styles.panel}>
