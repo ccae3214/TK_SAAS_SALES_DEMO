@@ -8,7 +8,7 @@ import { translateHrText } from '@/lib/hr-translations';
 import HrWorkerLearning from '@/components/HrWorkerLearning';
 import { parseVocabularyEntries } from '@/lib/hr-vocabulary';
 import HrTrainingCenterAuditLog from '@/components/HrTrainingCenterAuditLog';
-import { Award, BookOpen, CalendarDays, CircleHelp, ClipboardCheck, ClipboardList, GraduationCap, LayoutDashboard, ScrollText, UserRound } from 'lucide-react';
+import { Award, BookOpen, CalendarDays, CircleHelp, ClipboardCheck, ClipboardList, GraduationCap, LayoutDashboard, MessagesSquare, ScrollText, UserRound } from 'lucide-react';
 import { HR_TOUR_START_EVENT } from '@/lib/hr-help-events';
 import { buildStudentProgress } from '@/lib/hr-tc-student-progress';
 import { QUIZ_PASS_PERCENT } from '@/lib/hr-learning';
@@ -21,7 +21,7 @@ const TABS = [['overview', '總覽'], ['teachers', '老師與證照'], ['courses
 // 操作紀錄分頁：系統管理者看所選訓練中心的紀錄，訓練中心帳號看自己那一份（伺服器端會依身分擋）。
 const AUDIT_TAB = ['audit', '操作紀錄'];
 // 訓練中心會員頁的功能選單（和工作者頁面一樣，手機放在畫面底部）用的圖示。
-const TAB_ICONS = { overview: LayoutDashboard, teachers: UserRound, courses: BookOpen, classes: CalendarDays, batches: Award, students: GraduationCap, progress: ClipboardCheck, audit: ScrollText, arrangement: ClipboardList };
+const TAB_ICONS = { overview: LayoutDashboard, teachers: UserRound, courses: BookOpen, classes: CalendarDays, batches: Award, students: GraduationCap, progress: ClipboardCheck, audit: ScrollText, arrangement: ClipboardList, chat: MessagesSquare };
 const BATCH_STATUSES = [['preparing', '準備中'], ['submitted', '已送件'], ['issued', '已發證']];
 const CURRENCY_OPTIONS = [['PHP', '菲律賓披索 (PHP)'], ['TWD', '新台幣 (TWD)'], ['USD', '美元 (USD)']];
 // 課程費用顯示：幣別代碼 + 千分位，例如「PHP 35,000」；沒填費用顯示「—」。
@@ -101,9 +101,12 @@ function FormModal({ title, hint, fields, initial, submitLabel = '儲存', onSub
   </div>;
 }
 
-// extraTabs：[{ id, label, render }]，由外層加入的獨立選單（例如訓練安排名單），排在「總覽」後面。
+// extraTabs：[{ id, label, render, position, keepMounted }]，由外層加入的獨立選單。
+// 預設排在「總覽」後面（例如訓練安排名單）；position: 'end' 排在「操作紀錄」前面（例如聊天室）；
+// keepMounted: true 切到別的分頁時不卸載（聊天室要保留已載入的對話與選取的聊天室）。
 export default function HrTrainingCenterWorkspace({ self = false, extraTabs = [] }) {
-  const allTabs = [TABS[0], ...extraTabs.map(item => [item.id, item.label]), ...TABS.slice(1), AUDIT_TAB];
+  const frontTabs = extraTabs.filter(item => item.position !== 'end'), endTabs = extraTabs.filter(item => item.position === 'end');
+  const allTabs = [TABS[0], ...frontTabs.map(item => [item.id, item.label]), ...TABS.slice(1), ...endTabs.map(item => [item.id, item.label]), AUDIT_TAB];
   const { lang } = useLanguage();
   const [data, setData] = useState(null);
   const [centerId, setCenterId] = useState('');
@@ -132,7 +135,7 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
   useEffect(() => { void load(''); }, [load]);
   useEffect(() => {
     const openReminderTarget = event => {
-      if (event.detail?.tab === 'arrangement') setTab('arrangement');
+      if (['arrangement', 'chat'].includes(event.detail?.tab)) setTab(event.detail.tab);
     };
     window.addEventListener('hr:open-training-center-tab', openReminderTarget);
     return () => window.removeEventListener('hr:open-training-center-tab', openReminderTarget);
@@ -409,7 +412,7 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
       </>;
     })()}
 
-    {extraTabs.map(item => tab === item.id ? <div key={item.id}>{item.render()}</div> : null)}
+    {extraTabs.map(item => item.keepMounted ? <div key={item.id} hidden={tab !== item.id}>{item.render()}</div> : tab === item.id ? <div key={item.id}>{item.render()}</div> : null)}
 
     {tab === 'audit' && <HrTrainingCenterAuditLog key={center.id} centerId={center.id} centerName={center.display_name} />}
 

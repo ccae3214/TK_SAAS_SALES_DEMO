@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
+import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
@@ -19,16 +20,21 @@ function getReaderKey(principal,session) {
 
 async function accessibleRoom(roomId, principal, session) {
   const readerKey=getReaderKey(principal,session);
-  const result=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,
-      a.name AS agency_name,c.case_number,w.name AS worker_name,e.name AS employer_name
+  const result=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,r.center_id,
+      a.name AS agency_name,c.case_number,w.name AS worker_name,e.name AS employer_name,cm.display_name AS center_name
     FROM hr_chat_rooms r LEFT JOIN hr_agencies a ON a.id=r.agency_id
     LEFT JOIN hr_cases c ON c.id=r.case_id LEFT JOIN hr_workers w ON w.id=c.worker_id
-    LEFT JOIN hr_employers e ON e.id=c.employer_id
+    LEFT JOIN hr_employers e ON e.id=c.employer_id LEFT JOIN hr_members cm ON cm.id=r.center_id
     WHERE r.id=$1 AND (
       $2::text='admin'
       OR ($2::text='agency' AND r.room_type='agency' AND r.agency_id=$3)
       OR ($2::text='worker' AND r.room_type='case' AND c.worker_id=$4)
       OR ($2::text='employer' AND r.room_type='case' AND c.employer_id=$5)
+      OR ($2::text='training_center' AND r.room_type='training_center' AND r.center_id=$7)
+      OR ($2::text='worker' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id
+        WHERE cl.center_id=r.center_id AND en.worker_id=$4))
+      OR ($2::text='agency' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id
+        WHERE cl.center_id=r.center_id AND tw.agency_id=$3))
       OR (r.room_type='direct' AND EXISTS(SELECT 1 FROM hr_chat_participants p WHERE p.room_id=r.id AND p.participant_key=$8))
       OR ($2::text='agency' AND $6::text='taiwan' AND r.room_type='case' AND (
         EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id
@@ -39,6 +45,11 @@ async function accessibleRoom(roomId, principal, session) {
   return result[0]||null;
 }
 
+// 訓練中心群組的會員：訓練中心本身、已報名該訓練中心班別的工人，以及這些工人所屬的仲介。$1 是訓練中心（會員）編號。
+const TRAINING_CENTER_MEMBER_SQL=`m.id=$1
+  OR m.worker_id IN (SELECT en.worker_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id WHERE cl.center_id=$1)
+  OR m.agency_id IN (SELECT tw.agency_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id WHERE cl.center_id=$1 AND tw.agency_id IS NOT NULL)`;
+
 // 響鈴對象：群組是聊天室成員（與聊天室「群組會員」清單相同），私訊是對方。
 async function inviteeKeys(room) {
   if(room.room_type==='direct'){
@@ -47,6 +58,8 @@ async function inviteeKeys(room) {
   }
   const rows=room.room_type==='agency'
     ? await query('SELECT m.id FROM hr_members m WHERE m.active=TRUE AND m.agency_id=$1',[room.agency_id])
+    : room.room_type==='training_center'
+    ? await query(`SELECT DISTINCT m.id FROM hr_members m WHERE m.active=TRUE AND (${TRAINING_CENTER_MEMBER_SQL})`,[room.center_id])
     : await query('SELECT DISTINCT m.id FROM hr_members m LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id)',[room.case_id]);
   return rows.map(row=>`member:${row.id}`);
 }
@@ -64,6 +77,7 @@ export async function POST(request) {
     const principal=await getHrPrincipal(session);
     if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
     await ensureChatSchema();
+    await ensureTrainingCenterSchema();
     const body=await request.json();
     const key=getReaderKey(principal,session);
     const name=principal.name||session.user.name||'管理者';
@@ -74,7 +88,7 @@ export async function POST(request) {
     const room=await accessibleRoom(roomId,principal,session);
     if(!room)return NextResponse.json({error:'你沒有權限在此聊天室通話。',en:'You do not have access to call in this chat.'},{status:404});
     const invitees=(await inviteeKeys(room)).filter(item=>item!==key);
-    const groupTitle=room.room_type==='agency'?`${room.agency_name} · 機構群組`:`${room.case_number} · ${room.worker_name}／${room.employer_name}`;
+    const groupTitle=room.room_type==='agency'?`${room.agency_name} · 機構群組`:room.room_type==='training_center'?`${room.center_name} · 訓練中心群組`:`${room.case_number} · ${room.worker_name}／${room.employer_name}`;
     let title=groupTitle,callTitle=groupTitle;
     if(room.room_type==='direct'){
       // 私訊：撥的人看到對方的名字，對方看到撥的人的名字

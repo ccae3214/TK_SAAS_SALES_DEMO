@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
+import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
@@ -12,7 +13,13 @@ async function syncRooms() {
   // 新建的仲介機構與案件要有聊天室；這是資料同步（不是資料表遷移），所以留在請求路徑。
   await query("INSERT INTO hr_chat_rooms(room_type,agency_id) SELECT 'agency',id FROM hr_agencies WHERE active=TRUE ON CONFLICT DO NOTHING");
   await query("INSERT INTO hr_chat_rooms(room_type,case_id) SELECT 'case',id FROM hr_cases ON CONFLICT DO NOTHING");
+  await query("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND active=TRUE ON CONFLICT DO NOTHING");
 }
+
+// 訓練中心群組的會員：訓練中心本身、已報名該訓練中心班別的工人，以及這些工人所屬的仲介。$1 是訓練中心（會員）編號。
+const TRAINING_CENTER_MEMBER_SQL=`m.id=$1
+  OR m.worker_id IN (SELECT en.worker_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id WHERE cl.center_id=$1)
+  OR m.agency_id IN (SELECT tw.agency_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id WHERE cl.center_id=$1 AND tw.agency_id IS NOT NULL)`;
 
 function getReaderKey(principal,session) {
   if(principal.id)return `member:${principal.id}`;
@@ -21,16 +28,21 @@ function getReaderKey(principal,session) {
 
 async function accessibleRoom(roomId, principal, session) {
   const readerKey=getReaderKey(principal,session);
-  const result=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,
-      a.name AS agency_name,c.case_number,w.name AS worker_name,e.name AS employer_name
+  const result=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,r.center_id,
+      a.name AS agency_name,c.case_number,w.name AS worker_name,e.name AS employer_name,cm.display_name AS center_name
     FROM hr_chat_rooms r LEFT JOIN hr_agencies a ON a.id=r.agency_id
     LEFT JOIN hr_cases c ON c.id=r.case_id LEFT JOIN hr_workers w ON w.id=c.worker_id
-    LEFT JOIN hr_employers e ON e.id=c.employer_id
+    LEFT JOIN hr_employers e ON e.id=c.employer_id LEFT JOIN hr_members cm ON cm.id=r.center_id
     WHERE r.id=$1 AND (
       $2::text='admin'
       OR ($2::text='agency' AND r.room_type='agency' AND r.agency_id=$3)
       OR ($2::text='worker' AND r.room_type='case' AND c.worker_id=$4)
       OR ($2::text='employer' AND r.room_type='case' AND c.employer_id=$5)
+      OR ($2::text='training_center' AND r.room_type='training_center' AND r.center_id=$7)
+      OR ($2::text='worker' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id
+        WHERE cl.center_id=r.center_id AND en.worker_id=$4))
+      OR ($2::text='agency' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id
+        WHERE cl.center_id=r.center_id AND tw.agency_id=$3))
       OR (r.room_type='direct' AND EXISTS(SELECT 1 FROM hr_chat_participants p WHERE p.room_id=r.id AND p.participant_key=$8))
       OR ($2::text='agency' AND $6::text='taiwan' AND r.room_type='case' AND (
         EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id
@@ -43,6 +55,7 @@ async function accessibleRoom(roomId, principal, session) {
 
 function presentRoom(room,lastMessage) {
   if(room.room_type==='direct')return {id:Number(room.id),roomType:'direct',title:room.peer_name||'私訊',subtitle:'會員私訊',lastMessage:lastMessage?.body||'',lastMessageAt:lastMessage?.created_at||null,unreadCount:Number(room.unread_count||0)};
+  if(room.room_type==='training_center')return {id:Number(room.id),roomType:'training_center',title:`${room.center_name||''} · 訓練中心群組`,centerName:room.center_name||'',subtitle:'訓練中心聊天室',lastMessage:lastMessage?.body||'',lastMessageAt:lastMessage?.created_at||null,unreadCount:Number(room.unread_count||0)};
   return {
     id:Number(room.id), roomType:room.room_type,
     title:room.room_type==='agency'?`${room.agency_name} · 機構群組`:`${room.case_number} · ${room.worker_name}／${room.employer_name}`,
@@ -60,6 +73,7 @@ export async function GET(request) {
     const principal=await getHrPrincipal(session);
     if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
     await ensureChatSchema();
+    await ensureTrainingCenterSchema();
     await syncRooms();
     const roomId=new URL(request.url).searchParams.get('roomId');
     if(roomId){
@@ -71,6 +85,8 @@ export async function GET(request) {
       ) recent ORDER BY created_at,id`,[room.id]);
       const members=room.room_type==='agency'
         ? await query(`SELECT m.id,m.display_name,m.role,a.name agency_name FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id WHERE m.active=TRUE AND m.agency_id=$1 ORDER BY m.display_name`,[room.agency_id])
+        : room.room_type==='training_center'
+        ? await query(`SELECT DISTINCT m.id,m.display_name,m.role,a.name agency_name FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id WHERE m.active=TRUE AND (${TRAINING_CENTER_MEMBER_SQL}) ORDER BY m.display_name`,[room.center_id])
         : room.room_type==='case'
         ? await query(`SELECT DISTINCT m.id,m.display_name,m.role,a.name agency_name FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id) ORDER BY m.display_name`,[room.case_id])
         : await query(`SELECT id,display_name,role,NULL::text AS agency_name FROM hr_members WHERE id IN (SELECT member_id FROM hr_chat_participants WHERE room_id=$1 AND member_id IS NOT NULL) ORDER BY display_name`,[room.id]);
@@ -78,7 +94,7 @@ export async function GET(request) {
       return NextResponse.json({room:presentRoom({...room,peer_name:peer},messages[messages.length-1]),messages,members:members.map(member=>({id:Number(member.id),name:member.display_name,role:member.role,agencyName:member.agency_name||''}))});
     }
     const readerKey=getReaderKey(principal,session);
-    const rooms=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,a.name agency_name,c.case_number,w.name worker_name,e.name employer_name,
+    const rooms=await query(`SELECT r.id,r.room_type,r.agency_id,r.case_id,r.center_id,a.name agency_name,c.case_number,w.name worker_name,e.name employer_name,cm.display_name center_name,
       (SELECT p.display_name FROM hr_chat_participants p WHERE p.room_id=r.id AND p.participant_key<>$7 LIMIT 1) peer_name,
       (SELECT json_build_object('body',m.body,'created_at',m.created_at) FROM hr_chat_messages m WHERE m.room_id=r.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1) AS last_message
       ,(SELECT COUNT(*)::int FROM hr_chat_messages unread
@@ -86,12 +102,17 @@ export async function GET(request) {
         WHERE unread.room_id=r.id AND unread.id>COALESCE(reads.last_read_message_id,0)
           AND ($8::bigint IS NULL OR unread.member_id IS DISTINCT FROM $8::bigint)) AS unread_count
       FROM hr_chat_rooms r LEFT JOIN hr_agencies a ON a.id=r.agency_id LEFT JOIN hr_cases c ON c.id=r.case_id
-      LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id
+      LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id LEFT JOIN hr_members cm ON cm.id=r.center_id
       WHERE (r.room_type='direct' AND EXISTS(SELECT 1 FROM hr_chat_participants p WHERE p.room_id=r.id AND p.participant_key=$7))
         OR $1::text='admin'
         OR ($1::text='agency' AND r.room_type='agency' AND r.agency_id=$2)
         OR ($1::text='worker' AND r.room_type='case' AND c.worker_id=$3)
         OR ($1::text='employer' AND r.room_type='case' AND c.employer_id=$4)
+        OR ($1::text='training_center' AND r.room_type='training_center' AND r.center_id=$6)
+        OR ($1::text='worker' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id
+          WHERE cl.center_id=r.center_id AND en.worker_id=$3))
+        OR ($1::text='agency' AND r.room_type='training_center' AND EXISTS(SELECT 1 FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id
+          WHERE cl.center_id=r.center_id AND tw.agency_id=$2))
         OR ($1::text='agency' AND $5::text='taiwan' AND r.room_type='case' AND (
           EXISTS(SELECT 1 FROM hr_job_order_candidates jc JOIN hr_job_order_routes jr ON jr.id=jc.route_id JOIN hr_job_order_agencies ja ON ja.id=jr.order_agency_id
             WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$2 AND (ja.broker_member_id IS NULL OR ja.broker_member_id=$6))
@@ -114,6 +135,7 @@ export async function POST(request) {
     const principal=await getHrPrincipal(session);
     if(!principal?.role)return NextResponse.json({error:'HR membership required'},{status:403});
     await ensureChatSchema();
+    await ensureTrainingCenterSchema();
     await syncRooms();
     const body=await request.json(),roomId=Number(body.roomId),message=typeof body.message==='string'?body.message.trim():'';
     if(body.type==='direct'){
@@ -123,6 +145,8 @@ export async function POST(request) {
       if(!source||source.room_type==='direct')return NextResponse.json({error:'無法從此聊天室建立私訊。'},{status:404});
       const eligible=source.room_type==='agency'
         ? await query(`SELECT id,display_name FROM hr_members WHERE active=TRUE AND agency_id=$1 AND id=$2`,[source.agency_id,targetId])
+        : source.room_type==='training_center'
+        ? await query(`SELECT m.id,m.display_name FROM hr_members m WHERE m.active=TRUE AND m.id=$2 AND (${TRAINING_CENTER_MEMBER_SQL})`,[source.center_id,targetId])
         : await query(`SELECT m.id,m.display_name FROM hr_members m LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND m.id=$2 AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id)`,[source.case_id,targetId]);
       if(!eligible[0]||Number(targetId)===Number(principal.id))return NextResponse.json({error:'只能私訊此群組內的其他會員。'},{status:403});
       const selfKey=getReaderKey(principal,session),otherKey=`member:${targetId}`,directKey=[selfKey,otherKey].sort().join('|');
