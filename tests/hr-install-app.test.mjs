@@ -64,7 +64,9 @@ test('manifest 與圖示符合安裝條件', () => {
 test('iPhone 桌面圖示用 PNG，且按鈕放在每個會員頁首', () => {
   assert.match(read('src/app/layout.jsx'), /rel="apple-touch-icon" href="\/icons\/apple-touch-icon\.png"/);
   const portal = read('src/components/HrMemberPortal.jsx');
-  const headers = portal.match(/hr-member-header-actions"/g).length;
-  assert.equal(portal.match(/hr-member-header-actions"><HrInstallApp \/>/g).length, headers);
+  // 每個會員頁首的按鈕區都要有「加到手機桌面」。不限定它一定是第一個：前面可以有提醒鈴鐺等其他按鈕。
+  const headers = portal.split('hr-member-header-actions"').slice(1).map(part => part.split('</header>')[0]);
+  assert.equal(headers.length, 3, '會員頁首的數量變了，請一併確認每個頁首都有加到桌面按鈕');
+  for (const header of headers) assert.ok(header.includes('<HrInstallApp />'), '每個會員頁首都要有 <HrInstallApp />');
   assert.match(portal, /import HrInstallApp from '@\/components\/HrInstallApp'/);
 });
