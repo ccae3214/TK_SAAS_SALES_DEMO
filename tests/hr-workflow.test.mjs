@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { agencySnapshot, membershipState, orderJourney, workspaceTasks } from '../src/lib/hr-workflow.js';
+import { MATCH_STEPS, agencySnapshot, membershipState, orderJourney, workspaceTasks } from '../src/lib/hr-workflow.js';
 const order = { id: 1, status: 'open', headcount: 1 };
 const assignments = [{ id: 2, job_order_id: '1', taiwan_agency_id: 3 }];
 const routes = [{ id: 4, order_agency_id: '2', job_order_id: 1, philippines_agency_id: 5 }];
@@ -11,15 +11,16 @@ test('requested role, not pending flag, indicates submitted review', () => asser
 test('approved member enters workspace', () => assert.equal(membershipState({ role: 'worker', requestedRole: 'worker' }), 'ready'));
 test('unknown requested role never renders a confirmed application', () => assert.equal(membershipState({ role: 'pending', requestedRole: 'admin' }), 'choose'));
 test('unassigned demand starts at establishment', () => assert.equal(orderJourney(order).step, 0));
-test('Taiwan assignment enters agency coordination without restoring removed manual forwarding', () => { const flow=orderJourney(order, assignments); assert.equal(flow.step,1); assert.match(flow.next,/雇主可挑選/); assert.doesNotMatch(flow.next,/台灣仲介.*轉交/); });
+test('Taiwan assignment no longer adds a step; the employer can pick certified workers right after the order is created', () => { const flow=orderJourney(order, assignments); assert.equal(flow.step,0); assert.match(flow.next,/已認證的菲律賓仲介/); assert.doesNotMatch(flow.next,/台灣仲介.*轉交/); });
+test('match steps no longer include agency assignment', () => assert.deepEqual(MATCH_STEPS,['需求建立','挑選／推薦人選','面試確認','錄用辦件']));
 test('training center membership request stays waiting under latest-main roles', () => assert.equal(membershipState({role:'pending',requestedRole:'training_center'}),'waiting'));
 test('upstream document migration and employer selection remain wired', async () => { const source=await readFile(new URL('../src/app/api/hr/_post/job-orders.js',import.meta.url),'utf8'); assert.match(await readFile(new URL('../src/lib/hr-schema.js',import.meta.url),'utf8'),/migrateWorkerDocuments/); assert.match(source,/job-order-employer-candidate/); assert.match(source,/job-order-admin-philippines-assignment/); assert.doesNotMatch(source,/body\.type\s*===\s*'job-order-route'/); });
 test('latest-main summary, pending agency selection and document view remain alongside guidance', async () => { const source=await readFile(new URL('../src/components/HrMemberPortal.jsx',import.meta.url),'utf8'); assert.match(source,/<MemberRoleHome/); assert.match(source,/<WorkspaceStart/); assert.match(source,/requestedAgencyId/); assert.match(source,/training_center/); assert.match(source,/HrDocumentReviewList/); assert.match(source,/重新確認審核狀態/); });
 test('pending application UI retains the main canonical form instead of the obsolete role-only guide', async () => {const source=await readFile(new URL('../src/components/HrMemberPortal.jsx',import.meta.url),'utf8'); assert.match(source,/application-form/); assert.doesNotMatch(source,/<MembershipGuide/);});
 test('forwarded demand waits for recommendations', () => assert.match(orderJourney(order, assignments, routes).next, /推薦/));
 test('proposed candidate waits for employer', () => assert.match(orderJourney(order, assignments, routes, [candidate]).next, /雇主/));
-test('interview candidate advances to interview step', () => assert.equal(orderJourney(order, assignments, routes, [{ ...candidate, status: 'scheduled' }]).step, 3));
-test('filled demand disables action and points to casework', () => { const flow=orderJourney({ ...order, status: 'filled' }); assert.equal(flow.actionable,false); assert.equal(flow.step,4); assert.match(flow.next,/來台程序/); });
+test('interview candidate advances to interview step', () => assert.equal(orderJourney(order, assignments, routes, [{ ...candidate, status: 'scheduled' }]).step, 2));
+test('filled demand disables action and points to casework', () => { const flow=orderJourney({ ...order, status: 'filled' }); assert.equal(flow.actionable,false); assert.equal(flow.step,3); assert.match(flow.next,/來台程序/); });
 test('cancelled demand is history, never a new matching task', () => { const flow=orderJourney({ ...order, status: 'cancelled' }); assert.equal(flow.actionable,false); assert.match(flow.next,/取消/); });
 test('capacity reached disables stale open demand actions', () => assert.equal(orderJourney(order,assignments,routes,[{...candidate,status:'passed'}]).actionable,false));
 test('unrelated candidates do not affect capacity or steps', () => assert.equal(orderJourney(order,assignments,routes,[{...candidate,route_id:99,job_order_id:99,status:'passed'}]).actionable,true));
