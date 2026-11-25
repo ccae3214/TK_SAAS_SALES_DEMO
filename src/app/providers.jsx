@@ -1,7 +1,6 @@
 "use client";
 import { SessionProvider } from "next-auth/react";
 import { LanguageProvider } from "@/context/LanguageContext";
-import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import LineLanguageSync from "@/components/LineLanguageSync";
 
@@ -10,10 +9,8 @@ export default function Providers({ children }) {
     <ErrorBoundary>
       <SessionProvider>
         <LanguageProvider>
-          <AuthProvider>
-            <LineLanguageSync />
-            {children}
-          </AuthProvider>
+          <LineLanguageSync />
+          {children}
         </LanguageProvider>
       </SessionProvider>
     </ErrorBoundary>

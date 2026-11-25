@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { getProviders, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { HrLanguageTools } from '@/lib/hr-translations';
-import { AlertCircle, ArrowLeft, ClipboardCheck, FileText, MessagesSquare, MessageCircle, X } from 'lucide-react';
+import { AlertCircle, ClipboardCheck, FileText, MessagesSquare, MessageCircle, X } from 'lucide-react';
 import styles from './login.module.css';
 
 export default function HrLoginPage() {
@@ -76,7 +76,6 @@ export default function HrLoginPage() {
       </aside>
       <div className={styles.formSide}>
       <section className={styles.card}>
-        <Link href="/demo" className={styles.back}><ArrowLeft size={16} aria-hidden="true" />返回首頁</Link>
         <p className={styles.eyebrow}>KOLECION HR</p>
         <h1>{registerMode ? '註冊克雷迅會員' : '克雷迅人力仲介'}</h1>
         <p className={styles.lead}>{registerMode ? '使用 LINE 確認身分，登入後選擇工作者、雇主或仲介類型送交審核。' : '使用人力仲介管理系統專用帳號登入。'}</p>

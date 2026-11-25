@@ -1,4 +1,6 @@
-# TK SaaS Sales Demo
+# 克雷迅人力仲介管理系統
+
+舊 DEMO／NOTE 資料已移至獨立資料庫；連線方式與備份位置見 [DEMO_NOTE_DATABASE](docs/DEMO_NOTE_DATABASE.md)。
 
 ## 本輪：會員／仲介後台完整驗收（不含推播）
 
@@ -43,7 +45,7 @@
 
 ## 克雷迅人力管理
 
-`/`（首頁，亦可由 `/hr` 進入）是克雷迅人力仲介管理系統；原產品展示首頁已移到 `/demo`，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。必要文件屬於工作者、不屬於案件：工作者一建立就會有 22 項文件清單（含上傳、審核、補件紀錄），之後不論配到哪個雇主、有幾個案件都共用同一份，不必重傳。其中「新護照」與「PSA出生證明（附收據）」是前置文件，兩者核准後才能安排體檢及訓練；其餘文件（含體檢 Medical）與體檢、訓練同步追蹤。7 項條件式文件（PSA 結婚證明、子女 PSA 出生證明、CENOMAR、ARC、Health Card、DMW Info Sheet、出生逾 10 年補登證明）會依工作者履歷（婚姻狀況、子女人數、海外／台灣工作經歷）自動判斷是否適用；履歷資訊不足或無法推導的（如補登證明）預設不適用，由仲介覆核。仲介手動調整過的適用狀態不會被自動覆寫，履歷更新時只會重新套用尚未收件、且未經手動調整的文件。案件只會依職類多出「必備證照」（例如家庭看護、機構看護工需要 Caregiving NC2），工作者還沒有證照時，用「未開始→訓練中→考照中→已取得」追蹤取證進度，證照取得前案件不會進入完成階段。
+`/`（首頁，亦可由 `/hr` 進入）是克雷迅人力仲介管理系統；DEMO 商店與展示、NOTE 筆記模組已移除，資料儲存在 Docker PostgreSQL，不載入範例案件。可管理雇主／客戶、工作者、承辦人、案件、文件上傳與審核、體檢訓練進度及工作待辦。必要文件屬於工作者、不屬於案件：工作者一建立就會有 22 項文件清單（含上傳、審核、補件紀錄），之後不論配到哪個雇主、有幾個案件都共用同一份，不必重傳。其中「新護照」與「PSA出生證明（附收據）」是前置文件，兩者核准後才能安排體檢及訓練；其餘文件（含體檢 Medical）與體檢、訓練同步追蹤。7 項條件式文件（PSA 結婚證明、子女 PSA 出生證明、CENOMAR、ARC、Health Card、DMW Info Sheet、出生逾 10 年補登證明）會依工作者履歷（婚姻狀況、子女人數、海外／台灣工作經歷）自動判斷是否適用；履歷資訊不足或無法推導的（如補登證明）預設不適用，由仲介覆核。仲介手動調整過的適用狀態不會被自動覆寫，履歷更新時只會重新套用尚未收件、且未經手動調整的文件。案件只會依職類多出「必備證照」（例如家庭看護、機構看護工需要 Caregiving NC2），工作者還沒有證照時，用「未開始→訓練中→考照中→已取得」追蹤取證進度，證照取得前案件不會進入完成階段。
 
 ## Docker Deploy Verify
 
@@ -58,9 +60,8 @@ The script will:
 1. Build the Docker images
 2. Recreate the containers
 3. Verify the homepage responds with `200`
-4. Verify `/api/products` responds with `200`
-5. Verify `/api/admin/dashboard` responds with `401` when unauthenticated
-6. Print recent app logs
+4. Verify `/api/hr/admin-audit` responds with `401` when unauthenticated
+5. Print recent app logs
 
 Environment variables used by Docker verification:
 

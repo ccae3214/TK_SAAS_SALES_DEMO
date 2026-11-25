@@ -63,7 +63,7 @@ Skills 僅安裝於 Agent profile，不放入專案或 Docker runtime。
 ## main 52b0d7c 整合保留
 
 - src/components/HrOnboardingTour.jsx、HrOnboardingTour.module.css、src/lib/hr-onboarding.js、src/app/api/hr/onboarding/route.js：上游新手導覽與 seen 紀錄；src/lib/hr-access.js 由 main 增加 onboarding_seen，僅於本次批准的隔離 DB 套用。
-- src/app/page.jsx、src/app/demo/page.jsx：首頁改為 HR，展示移到 /demo；保留 main 原始內容，不為修空白重寫展示頁。
+- src/app/page.jsx：首頁改為 HR；DEMO 展示模組已自目前專案移除。
 - scripts/migrate-education-levels.sql、src/lib/hr-resume-fields.js、hr-resume-import.js：main 的教育選項與可選舊資料轉換；SQL 本輪未執行。
 - tests/e2e/member-notifications.spec.mjs：登入預期精確改為 main 的 /；依角色正常操作中英導覽並檢查持久化，保留原 8×2 通知案例。
 - 上游新增的 PDF 由 main 原樣整合，未做內容校對；不作本輪產品／合規驗收依據。
@@ -119,8 +119,11 @@ Skills 僅安裝於 Agent profile，不放入專案或 Docker runtime。
 | /hr/login | src/app/hr/login/page.jsx、login.module.css：沿用 main 新登入 UI，僅顯示已設定 provider |
 | / 與 /hr | src/app/page.jsx（首頁）重用 src/app/hr/page.jsx：依身分分流管理端／會員端 |
 | /hr/workers/[id] | src/app/hr/workers/[id]/page.jsx：main 的工作者進度入口 |
-| /demo | src/app/demo/page.jsx：品牌與產品展示（原首頁） |
-| /admin、/notes、/checkout、/demo/* | 原有商店／筆記／展示，非本輪 HR 驗收範圍 |
+| /hr/login | src/app/hr/login/page.jsx：HR 登入 |
+| /、/hr | src/app/page.jsx、src/app/hr/page.jsx：HR 首頁及角色分流 |
+| /hr/workers/[id] | src/app/hr/workers/[id]/page.jsx：工作者進度 |
+
+DEMO 商店／展示、NOTE 筆記頁面與相關 API 已從執行專案移除；已保存的可攜式快照需從另外保存的資料夾複製，不再由此專案重新匯出。
 
 ## 本輪新增檔案：推薦撤回
 

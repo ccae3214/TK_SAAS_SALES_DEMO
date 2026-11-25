@@ -3,8 +3,8 @@ import Providers from "./providers";
 import { headers } from "next/headers";
 
 export const metadata = {
-  title: "TK SaaS Sales Demo - NEXT EDITION",
-  description: "Advanced SaaS Platform Demo with PWA & OIDC",
+  title: "克雷迅人力仲介管理系統",
+  description: "克雷迅人力仲介管理與工作者服務平台",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
