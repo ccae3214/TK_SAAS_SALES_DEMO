@@ -1,5 +1,16 @@
 # ROADMAP｜main 整合後的本機驗收
 
+## 本輪計畫：驗證既有後台，不重建工作起點
+
+- [x] 依已批准範圍建立全新隔離驗收站／測試密鑰及虛構多機構會員。
+- [x] 為 40 筆案例提供可重跑執行器，逐筆保存成功、失敗或受阻；多案件同時存在，不依次清空重建。
+- [x] 完整既有 Node 20 回歸 575 通過，Docker build 成功；lint／型別仍依既有設定跳過，不冒稱通過。
+- [x] 發現並重現真實 UI／HTTP／DB 缺陷，結果看 [HR_ACCEPTANCE_REPORT](HR_ACCEPTANCE_REPORT.md)，不以單元全綠代替驗收。
+- [ ] 產品缺陷修復（與本輪 test case PR 分開，不擅自混入源碼修改），修復後重跑完整案例。
+- [ ] Filipino 獨立語意校對／新手任務與實體手機驗收。AI／390px Chromium 不代替真人或實機。
+- [ ] 本輪測試交付只可作 Draft 審查；main 合併、正式 DB 與部署不在本輪授權內。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。

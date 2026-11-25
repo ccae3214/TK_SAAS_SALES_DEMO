@@ -1,0 +1,500 @@
+{
+  "base_sha": "69871560d89af96d60e48b0f6087d46cca3f7887",
+  "app_image": "sha256:81666d6bee7638aa80fe41d69ebfa0a049486c095a49e0f7adfe7ce9d8a697ca",
+  "run_id": "5b3d38b6",
+  "started_at": "2026-11-25T11:54:40.007Z",
+  "finished_at": "2026-11-25T11:56:06.301Z",
+  "summary": {
+    "passed": 29,
+    "failed": 9,
+    "blocked": 2
+  },
+  "unit_regression": {
+    "runtime": "Node 20.20.2",
+    "passed": 575,
+    "failed": 0,
+    "skipped": 0
+  },
+  "acceptance_runner_runtime": "Playwright 1.65.0 / Node 26.13.1",
+  "app_runtime": "Node 20.20.2",
+  "product_source_modified": false,
+  "push_delivery_tested": false,
+  "results": [
+    {
+      "id": "START-01",
+      "status": "passed",
+      "detail": "Four independent credential UI logins; /api/hr principal and rendered start; refreshed",
+      "startedAt": "2026-11-25T11:54:54.051Z",
+      "finishedAt": "2026-11-25T11:54:55.635Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-01",
+      "status": "passed",
+      "detail": {
+        "order": "61",
+        "creation": "real employer UI",
+        "assignment": "admin authenticated API"
+      },
+      "startedAt": "2026-11-25T11:54:55.962Z",
+      "finishedAt": "2026-11-25T11:54:57.496Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-02",
+      "status": "failed",
+      "detail": "locator.selectOption: Timeout 6000ms exceeded.\nCall log:\n  - waiting for locator('article.worker-case').filter({ hasText: '需求 #61 ·' }).getByLabel(/^推薦所屬工作者/)\n",
+      "startedAt": "2026-11-25T11:54:57.496Z",
+      "finishedAt": "2026-11-25T11:55:04.283Z",
+      "finding": "F1",
+      "render_error_observed": true
+    },
+    {
+      "id": "FLOW-03",
+      "status": "passed",
+      "detail": "Employer real UI interview, three refreshed sessions",
+      "startedAt": "2026-11-25T11:55:04.314Z",
+      "finishedAt": "2026-11-25T11:55:06.437Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-04",
+      "status": "passed",
+      "detail": {
+        "case": "24",
+        "worker": "98",
+        "order": "61"
+      },
+      "startedAt": "2026-11-25T11:55:06.438Z",
+      "finishedAt": "2026-11-25T11:55:07.813Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-02",
+      "status": "failed",
+      "detail": "ph: Application Error\nError: ReferenceError: localeFor is not defined\n\nStack:\nReferenceError: localeFor is not defined\n    at http://localhost:8092/_next/static/chunks/1988-000d4ecc9006f667.js:1:429083\n    at Array.map (<anonymous>)\n    at H (http://localhost:8092/_next/static/chunks/1988-000d4ecc9006f667.js:1:428873)\n    at l9 (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:51130)\n    at o_ (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:70990)\n    at oq (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:82020)\n    at ik (http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:114682)\n    at http://localhost:8092/_next/static/chunks/4bd1b696-100b9d70ed4",
+      "startedAt": "2026-11-25T11:55:08.091Z",
+      "finishedAt": "2026-11-25T11:55:09.369Z",
+      "finding": "F1",
+      "render_error_observed": true
+    },
+    {
+      "id": "FLOW-05",
+      "status": "passed",
+      "detail": {
+        "parallelOrders": [
+          "61",
+          "62",
+          "63"
+        ],
+        "mutations": "session-authenticated HTTP + true DB; UI visibility START-02"
+      },
+      "startedAt": "2026-11-25T11:55:09.369Z",
+      "finishedAt": "2026-11-25T11:55:09.808Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-06",
+      "status": "passed",
+      "detail": {
+        "statuses": [
+          409,
+          200
+        ],
+        "order": "64"
+      },
+      "startedAt": "2026-11-25T11:55:09.809Z",
+      "finishedAt": "2026-11-25T11:55:10.660Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-07",
+      "status": "passed",
+      "detail": {
+        "statuses": [
+          201,
+          201
+        ],
+        "sameCandidate": "72"
+      },
+      "startedAt": "2026-11-25T11:55:10.660Z",
+      "finishedAt": "2026-11-25T11:55:11.362Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-08",
+      "status": "passed",
+      "detail": "Withdrawal marker/actor/time kept, not a free-text reason feature; worker+document snapshots unchanged",
+      "startedAt": "2026-11-25T11:55:11.362Z",
+      "finishedAt": "2026-11-25T11:55:11.715Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-09",
+      "status": "passed",
+      "detail": "Scheduled and passed both reject withdrawal (HTTP 409)",
+      "startedAt": "2026-11-25T11:55:11.716Z",
+      "finishedAt": "2026-11-25T11:55:11.755Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-10",
+      "status": "failed",
+      "detail": "{\"response\":{\"status\":200,\"body\":{\"id\":\"76\",\"route_id\":\"60\",\"worker_id\":\"105\",\"proposed_by\":\"65\",\"status\":\"passed\",\"interview_at\":null,\"notes\":\"ACCEPTANCE 5b3d38b6\",\"case_id\":\"26\",\"created_at\":\"2026-11-25T11:55:11.866Z\",\"updated_at\":\"2026-11-25T11:55:11.903Z\",\"deposit_amount\":null,\"deposit_paid_at\":null,\"deposit_recorded_by\":null}},\"before\":[],\"after\":[{\"id\":\"26\"}],\"order\":\"67\",\"candidate\":\"76\"}\n\n200 !== 409\n",
+      "startedAt": "2026-11-25T11:55:11.755Z",
+      "finishedAt": "2026-11-25T11:55:12.319Z",
+      "finding": "F2",
+      "render_error_observed": true
+    },
+    {
+      "id": "FLOW-11",
+      "status": "passed",
+      "detail": {
+        "recommendationReplay": "77",
+        "controlledBrowser500": {
+          "injected": true,
+          "errorText": "新增失敗，請稍後再試。",
+          "afterRetryCount": 1
+        },
+        "realRetry": true
+      },
+      "startedAt": "2026-11-25T11:55:12.319Z",
+      "finishedAt": "2026-11-25T11:55:13.435Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "FLOW-12",
+      "status": "passed",
+      "detail": {
+        "unrelatedOrderUnchanged": "70",
+        "exactIDs": true
+      },
+      "startedAt": "2026-11-25T11:55:13.436Z",
+      "finishedAt": "2026-11-25T11:55:13.881Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-03",
+      "status": "passed",
+      "detail": "Dedicated stale-open-at-capacity fixture; UI operations disabled; terminal records preserved across all three roles",
+      "startedAt": "2026-11-25T11:55:13.882Z",
+      "finishedAt": "2026-11-25T11:55:16.032Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-04",
+      "status": "passed",
+      "detail": {
+        "fiveStatusMixture": true,
+        "count": 16
+      },
+      "startedAt": "2026-11-25T11:55:16.033Z",
+      "finishedAt": "2026-11-25T11:55:16.738Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-05",
+      "status": "passed",
+      "detail": "Approved empty agency, real UI refresh; no previous-identity record",
+      "startedAt": "2026-11-25T11:55:16.739Z",
+      "finishedAt": "2026-11-25T11:55:17.060Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-06",
+      "status": "passed",
+      "detail": {
+        "sameApplicantApproved": "72",
+        "worker": "110"
+      },
+      "startedAt": "2026-11-25T11:55:17.061Z",
+      "finishedAt": "2026-11-25T11:55:17.859Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-07",
+      "status": "passed",
+      "detail": "390px Chromium all four role starts; no whole-document overflow, not physical-device evidence",
+      "startedAt": "2026-11-25T11:55:17.860Z",
+      "finishedAt": "2026-11-25T11:55:18.930Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "START-08",
+      "status": "passed",
+      "detail": "Real UI draft survives focus refresh and persists to correct order",
+      "startedAt": "2026-11-25T11:55:18.931Z",
+      "finishedAt": "2026-11-25T11:55:22.275Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "DOC-01",
+      "status": "passed",
+      "detail": "Latest-main three-of-two gate: 0/1 approval denied, passport+LCR opens without PSA",
+      "startedAt": "2026-11-25T11:55:22.275Z",
+      "finishedAt": "2026-11-25T11:55:22.443Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "DOC-02",
+      "status": "passed",
+      "detail": {
+        "oldVersion": 2,
+        "newVersion": 3,
+        "mutations": "authenticated HTTP; read-back worker view+DB"
+      },
+      "startedAt": "2026-11-25T11:55:22.443Z",
+      "finishedAt": "2026-11-25T11:55:22.538Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "DOC-03",
+      "status": "passed",
+      "detail": {
+        "sameWorker": "98",
+        "cases": [
+          "24",
+          "28"
+        ],
+        "documentRows": 25
+      },
+      "startedAt": "2026-11-25T11:55:22.538Z",
+      "finishedAt": "2026-11-25T11:55:22.595Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "DOC-04",
+      "status": "passed",
+      "detail": "Manual ARC retained, auto child document updated, other worker unchanged",
+      "startedAt": "2026-11-25T11:55:22.596Z",
+      "finishedAt": "2026-11-25T11:55:22.644Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "DOC-05",
+      "status": "failed",
+      "detail": "{\"status\":500,\"body\":{\"error\":\"儲存失敗，請稍後再試。\"},\"operation\":{\"method\":\"post\",\"path\":\"/api/hr/training-center\",\"resource\":\"enrollment\"}}\n\n500 !== 200\n",
+      "startedAt": "2026-11-25T11:55:22.645Z",
+      "finishedAt": "2026-11-25T11:55:24.487Z",
+      "finding": "F4",
+      "render_error_observed": true
+    },
+    {
+      "id": "DOC-06",
+      "status": "failed",
+      "detail": "{\"status\":500,\"body\":{\"error\":\"儲存失敗，請稍後再試。\"}}\n\n500 !== 200\n",
+      "startedAt": "2026-11-25T11:55:24.487Z",
+      "finishedAt": "2026-11-25T11:55:25.964Z",
+      "finding": "F3",
+      "render_error_observed": true
+    },
+    {
+      "id": "DOC-07",
+      "status": "passed",
+      "detail": "PDF exact bytes; fake-PDF rejected 415; cross-agency direct download refused",
+      "startedAt": "2026-11-25T11:55:25.965Z",
+      "finishedAt": "2026-11-25T11:55:26.019Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "SEC-01",
+      "status": "passed",
+      "detail": "Independent B agencies; list, direct detail and write denial",
+      "startedAt": "2026-11-25T11:55:26.019Z",
+      "finishedAt": "2026-11-25T11:55:26.122Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "SEC-02",
+      "status": "passed",
+      "detail": "Employer A/B candidate ID substitution denied; worker cross-person upload denied",
+      "startedAt": "2026-11-25T11:55:26.122Z",
+      "finishedAt": "2026-11-25T11:55:26.189Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "SEC-03",
+      "status": "passed",
+      "detail": "Anonymous 401; waiting member mutation 403 and no business data",
+      "startedAt": "2026-11-25T11:55:26.189Z",
+      "finishedAt": "2026-11-25T11:55:26.650Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "SEC-04",
+      "status": "passed",
+      "detail": "Same cookie-context scope switch, real UI sign-out/re-login/back; server prevents cross-identity old mutation",
+      "startedAt": "2026-11-25T11:55:26.652Z",
+      "finishedAt": "2026-11-25T11:55:28.601Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "SEC-05",
+      "status": "passed",
+      "detail": "Real edit→cookie invalidation→UI401 no false success→credential re-login; no business row written",
+      "startedAt": "2026-11-25T11:55:28.602Z",
+      "finishedAt": "2026-11-25T11:55:30.242Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "LANG-01",
+      "status": "failed",
+      "detail": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('button', { name: 'FIL', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByRole('button', { name: 'FIL', exact: true }) with timeout 5000ms\n  - waiting for getByRole('button', { name: 'FIL', exact: true })\n",
+      "startedAt": "2026-11-25T11:55:30.242Z",
+      "finishedAt": "2026-11-25T11:55:38.747Z",
+      "finding": "F1",
+      "render_error_observed": true
+    },
+    {
+      "id": "LANG-02",
+      "status": "blocked",
+      "detail": "No independent Filipino reviewer available; AI/source analysis is not mother-tongue sign-off",
+      "startedAt": "2026-11-25T11:55:38.748Z",
+      "finishedAt": "2026-11-25T11:55:40.266Z",
+      "finding": null,
+      "render_error_observed": true
+    },
+    {
+      "id": "LANG-03",
+      "status": "failed",
+      "detail": "locator.click: Timeout 6000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'FIL', exact: true })\n",
+      "startedAt": "2026-11-25T11:55:40.266Z",
+      "finishedAt": "2026-11-25T11:55:47.853Z",
+      "finding": "F1",
+      "render_error_observed": true
+    },
+    {
+      "id": "LANG-04",
+      "status": "passed",
+      "detail": "Rendered amount/date/acronyms/free text identical in three languages; full API identity snapshots unchanged",
+      "startedAt": "2026-11-25T11:55:47.853Z",
+      "finishedAt": "2026-11-25T11:55:54.698Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "LANG-05",
+      "status": "failed",
+      "detail": "locator.click: Timeout 6000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'FIL', exact: true })\n",
+      "startedAt": "2026-11-25T11:55:54.699Z",
+      "finishedAt": "2026-11-25T11:56:02.599Z",
+      "finding": "F1",
+      "render_error_observed": true
+    },
+    {
+      "id": "LANG-06",
+      "status": "failed",
+      "detail": "Localized option changed persisted job type: Technician sa pabrika\n+ actual - expected\n\n+ 'Technician sa pabrika'\n- '工廠技術工'\n",
+      "startedAt": "2026-11-25T11:56:02.600Z",
+      "finishedAt": "2026-11-25T11:56:04.921Z",
+      "finding": "F5",
+      "render_error_observed": true
+    },
+    {
+      "id": "LANG-07",
+      "status": "passed",
+      "detail": "Real UI invalid saved-locale→zh plus missing-TL-string English fallback function; no blank/undefined",
+      "startedAt": "2026-11-25T11:56:04.921Z",
+      "finishedAt": "2026-11-25T11:56:05.154Z",
+      "finding": null,
+      "render_error_observed": false
+    },
+    {
+      "id": "LANG-08",
+      "status": "blocked",
+      "detail": "No independent first-time Filipino user available; cannot fabricate task-test observation",
+      "startedAt": "2026-11-25T11:56:05.155Z",
+      "finishedAt": "2026-11-25T11:56:06.300Z",
+      "finding": null,
+      "render_error_observed": true
+    }
+  ],
+  "iterations": [
+    {
+      "run_id": "b80d3c0b",
+      "case_entries": 40,
+      "complete_case_list": true,
+      "counts": {
+        "passed": 19,
+        "failed": 11,
+        "blocked": 10
+      }
+    },
+    {
+      "run_id": "622eb987",
+      "case_entries": 12,
+      "complete_case_list": false,
+      "counts": {
+        "passed": 9,
+        "failed": 3
+      }
+    },
+    {
+      "run_id": "99bde29a",
+      "case_entries": 40,
+      "complete_case_list": true,
+      "counts": {
+        "passed": 17,
+        "failed": 20,
+        "blocked": 3
+      }
+    },
+    {
+      "run_id": "5c8286f6",
+      "case_entries": 40,
+      "complete_case_list": true,
+      "counts": {
+        "passed": 27,
+        "failed": 11,
+        "blocked": 2
+      }
+    },
+    {
+      "run_id": "d9d12fb6",
+      "case_entries": 40,
+      "complete_case_list": true,
+      "counts": {
+        "passed": 27,
+        "failed": 11,
+        "blocked": 2
+      }
+    },
+    {
+      "run_id": "5b3d38b6",
+      "case_entries": 40,
+      "complete_case_list": true,
+      "counts": {
+        "passed": 29,
+        "failed": 9,
+        "blocked": 2
+      }
+    }
+  ]
+}

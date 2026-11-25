@@ -1,5 +1,19 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
+## 本輪：完整後台驗收（不含推播）
+
+- `compose.acceptance.yaml`：全新隔離 app／PostgreSQL，loopback 8092、internal network，不提供 LINE／推播 secrets。
+- `scripts/prepare-hr-acceptance.mjs`：產生僅供新隔離站使用的本機測試密鑰，0600、不印值、不覆寫既有檔案。
+- `scripts/acceptance-viewer.mjs`：固定轉送隔離 app 的本機 HTTP 入口；沒有任意代理目標、不支援通話 WebSocket。
+- `scripts/acceptance-bootstrap.mjs`：僅接受指定隔離 DB；建立虛構資料，新 cohort 只追加、不重設舊會員。
+- `scripts/test-hr-acceptance.mjs`：40 筆案例的真實 Chromium／授權 HTTP／PostgreSQL 執行器；失敗與受阻分開，原始證據在忽略的 test-results。
+- `docs/HR_ACCEPTANCE_CASES.md`、`.csv`：案例、實際結果及證據索引；不是全站放行或母語核准。
+- `docs/HR_ACCEPTANCE_REPORT.md`：實際命令、五類缺陷定位、限制與重跑方式。
+- `docs/review/hr-acceptance-results.json`：40 筆最終結果與歷輪計數（已脫敏）。
+- `docs/review/hr-acceptance-render-error.png`、`hr-acceptance-demand-created.png`：真實虛構資料畫面，前者僅裁切上方。
+- 本機 `.env.acceptance.local` 被 Git／Docker 排除；不可提交。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。

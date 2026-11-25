@@ -1,5 +1,12 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+## 本輪：使用者要求先完整驗收，再交付 test case PR
+
+使用者已明確批准新建隔離 DB／schema 初始化、虛構資料及本機測試密鑰。測試基底為 main `69871560d89af96d60e48b0f6087d46cca3f7887`，獨立分支 `test/hr-acceptance-cases`，不修改原選工分支或另一邊推播。
+
+已建 `tk-hr-acceptance` 專案，新 DB volume 與 internal network；不重設既有 DB／帳號、不使用 LINE／Google secrets、關閉到期推播排程。每輪除測試 admin 沿用外都追加新 cohort，保留中途失敗及原始證據。既有 Node 20 完整回歸 575 通過，真實案例的不同結果見 [HR_ACCEPTANCE_REPORT](HR_ACCEPTANCE_REPORT.md)。產品程式、schema 定義及權限政策未修改；新 schema 只由既有 initializer 套入已批准的新 DB。PR 僅交付測試工具、案例、證據與缺陷報告，不表示產品修復或正式放行。
+
+
 ## 現行工作：雇主手機初選卡片（PR 驗證候選）
 
 使用者測試入口與逐步操作：[EMPLOYER_SHORTLIST_TESTING](EMPLOYER_SHORTLIST_TESTING.md)。以下歷史狀態不取代本輪驗證。
