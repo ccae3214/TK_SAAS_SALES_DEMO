@@ -8,6 +8,7 @@ import HrMemberPortal from '@/components/HrMemberPortal';
 import HrMemberNavScroll from '@/components/HrMemberNavScroll';
 import '@/components/hr-member-mobile-nav.css';
 import '@/components/hr-member-side-nav.css';
+import '@/components/hr-member-top-edge.css';
 import '@/components/hr-admin-mobile-nav.css';
 import '@/components/hr-call.css';
 import '@/components/hr-scrollbars.css';
