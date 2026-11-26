@@ -1,38 +1,38 @@
 /*
- * 會員頁面（工作者、雇主、仲介、訓練中心、雇主需求與配對頁）頂端不要出現模糊漸層。
+ * 會員頁面（工作者、雇主、仲介、訓練中心、雇主需求與配對頁）的標題列，寫法和系統管理頁面（HrManagement 的 .topbar）一樣：
+ *   - position: sticky; top: 0 —— 直接貼齊畫面最頂端，上方不留空白
+ *   - 滿版寬、上方沒有圓角 —— 頂端整排都是標題列的實色
+ * 新版 iOS Safari 看到頂端有這種固定的實色標題列，就會沿用它的顏色，不會再在狀態列下方加模糊漸層。
+ * （之前的「頂端細條 + 標題卡固定在 12px 下方」那種寫法，頂端仍有縫隙，所以拿掉了。）
  *
- * 原因：新版 iOS Safari 在頁面捲動時，如果最上方沒有「固定在頂端」的元素，
- * 會自動在狀態列下方加一層模糊／深色漸層（scroll edge effect），把底下的綠色標題卡糊掉。
- * 系統管理頁面（HrManagement）有固定在頂端的白色標題列，所以 Safari 直接沿用那個顏色，不會出現模糊。
- *
- * 做法：在會員頁面最上方放一條固定、實色、與頁面背景同色（#f2f6f3）的細條，
- * 高度和原本的上方留白（12px）相同，有瀏海／動態島時改用安全區域高度。
- * Safari 會改用這條的顏色，不再產生模糊；畫面一開始看起來和原本一樣。
- * 內容的上方留白也改成至少和這條一樣高，避免標題卡一開始就被蓋到。
- * 內嵌在其他頁面（.hr-embedded）時不加。這裡沒有任何會顯示的文字，不需要中英文翻譯。
+ * 會員頁的左右留白：手機 12px、桌機 clamp(14px, 3.5vw, 44px)；標題列用負邊距抵掉，變成滿版。
+ * 桌機有左側選單時，標題列從選單右邊開始（左側選單是 position: fixed，z-index 30，蓋在標題列上面）。
+ * 有瀏海／動態島又讓內容延伸到狀態列下時，用 safe-area 把標題內容往下推。
+ * 內嵌在其他頁面（.hr-embedded）時不套用。這裡沒有任何會顯示的文字，不需要中英文翻譯。
  */
-.hr-member-shell:not(.hr-embedded)::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 25;
-  height: max(12px, env(safe-area-inset-top, 0px));
-  background: #f2f6f3;
-  pointer-events: none;
-}
-
 .hr-member-shell:not(.hr-embedded) {
-  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  --hr-shell-pad: clamp(14px, 3.5vw, 44px);
+  padding-top: 0;
 }
 
-/*
- * 標題卡（克雷迅人力管理／○○工作區、語言、登出）捲動時固定在頂端，和系統管理頁面的標題列一樣。
- * 固定在上面那條細條的正下方，所以細條仍負責讓 Safari 用實色、不產生模糊。
- */
 .hr-member-shell:not(.hr-embedded) > .hr-member-header {
   position: sticky;
-  top: max(12px, env(safe-area-inset-top, 0px));
+  top: 0;
   z-index: 26;
+  max-width: none;
+  margin: 0 calc(-1 * var(--hr-shell-pad)) 18px;
+  padding-top: calc(22px + env(safe-area-inset-top, 0px));
+  border-radius: 0 0 22px 22px;
+  box-shadow: 0 6px 18px rgba(15, 45, 33, 0.12);
+}
+
+@media (max-width: 700px) {
+  .hr-member-shell:not(.hr-embedded) {
+    --hr-shell-pad: 12px;
+  }
+
+  .hr-member-shell:not(.hr-embedded) > .hr-member-header {
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+    border-radius: 0 0 18px 18px;
+  }
 }
