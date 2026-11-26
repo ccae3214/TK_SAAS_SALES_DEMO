@@ -1,0 +1,28 @@
+/*
+ * 會員頁面（工作者、雇主、仲介、訓練中心、雇主需求與配對頁）頂端不要出現模糊漸層。
+ *
+ * 原因：新版 iOS Safari 在頁面捲動時，如果最上方沒有「固定在頂端」的元素，
+ * 會自動在狀態列下方加一層模糊／深色漸層（scroll edge effect），把底下的綠色標題卡糊掉。
+ * 系統管理頁面（HrManagement）有固定在頂端的白色標題列，所以 Safari 直接沿用那個顏色，不會出現模糊。
+ *
+ * 做法：在會員頁面最上方放一條固定、實色、與頁面背景同色（#f2f6f3）的細條，
+ * 高度和原本的上方留白（12px）相同，有瀏海／動態島時改用安全區域高度。
+ * Safari 會改用這條的顏色，不再產生模糊；畫面一開始看起來和原本一樣。
+ * 內容的上方留白也改成至少和這條一樣高，避免標題卡一開始就被蓋到。
+ * 內嵌在其他頁面（.hr-embedded）時不加。這裡沒有任何會顯示的文字，不需要中英文翻譯。
+ */
+.hr-member-shell:not(.hr-embedded)::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 25;
+  height: max(12px, env(safe-area-inset-top, 0px));
+  background: #f2f6f3;
+  pointer-events: none;
+}
+
+.hr-member-shell:not(.hr-embedded) {
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+}
