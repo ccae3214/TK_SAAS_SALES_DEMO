@@ -18,5 +18,12 @@
 .primary:disabled,.secondary:disabled{opacity:.55;cursor:not-allowed}
 .message{margin:0 0 12px;padding:10px 12px;border-radius:12px;font-size:13.5px;line-height:1.55;background:#ecf8f2;color:#176b54}
 .message.isError{background:#fdecea;color:#b42318}
+.switchRow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 12px;border:1px solid #e1e9e4;border-radius:14px;background:#f7fbf9}
+.switchLabel{font-size:15px;font-weight:700;line-height:1.4}
+.switch{display:inline-flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;gap:8px;flex:none;min-width:92px;min-height:40px;padding:0 12px 0 6px;border:0;border-radius:999px;background:#cfd9d4;color:#42524a;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .16s,color .16s}
+.switch.switchOn{flex-direction:row;padding:0 6px 0 12px;background:#176b54;color:#fff}
+.knob{flex:none;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch:focus-visible{outline:3px solid #7cc8ad;outline-offset:2px}
+.switch:disabled{opacity:.6;cursor:not-allowed}
 @media (max-width:680px){.label{display:none}.button{width:40px;padding:0}}
 @media (min-width:681px){.overlay{align-items:center}}
