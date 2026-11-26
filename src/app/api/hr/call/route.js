@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { getHrPrincipal } from '@/lib/hr-access';
+import { trainingCenterIdOf } from '@/lib/hr-training-center-scope';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { buildIceServers, callSecret, signTicket } from '@/lib/hr-call-ticket';
@@ -41,12 +42,12 @@ async function accessibleRoom(roomId, principal, session) {
           WHERE jc.case_id=c.id AND ja.taiwan_agency_id=$3 AND (ja.broker_member_id IS NULL OR ja.broker_member_id=$7))
         OR (NOT EXISTS(SELECT 1 FROM hr_job_order_candidates jc WHERE jc.case_id=c.id) AND e.agency_id=$3)
       ))
-    )`,[roomId,principal.role,principal.agency_id||null,principal.worker_id||null,principal.employer_id||null,principal.agency_type||null,principal.id||null,readerKey]);
+    )`,[roomId,principal.role,principal.agency_id||null,principal.worker_id||null,principal.employer_id||null,principal.agency_type||null,principal.role==='training_center'?trainingCenterIdOf(principal):principal.id||null,readerKey]);
   return result[0]||null;
 }
 
-// 訓練中心群組的會員：訓練中心本身、已報名該訓練中心班別的工人，以及這些工人所屬的仲介。$1 是訓練中心（會員）編號。
-const TRAINING_CENTER_MEMBER_SQL=`m.id=$1
+// 訓練中心群組的會員：訓練中心本身與其成員、已報名該訓練中心班別的工人，以及這些工人所屬的仲介。$1 是訓練中心（會員）編號。
+const TRAINING_CENTER_MEMBER_SQL=`m.id=$1 OR m.training_center_id=$1
   OR m.worker_id IN (SELECT en.worker_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id WHERE cl.center_id=$1)
   OR m.agency_id IN (SELECT tw.agency_id FROM hr_tc_enrollments en JOIN hr_tc_classes cl ON cl.id=en.class_id JOIN hr_workers tw ON tw.id=en.worker_id WHERE cl.center_id=$1 AND tw.agency_id IS NOT NULL)`;
 

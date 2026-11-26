@@ -201,7 +201,7 @@ export function ensureChatSchema() {
     )`);
     await query("INSERT INTO hr_chat_rooms(room_type,agency_id) SELECT 'agency',id FROM hr_agencies WHERE active=TRUE ON CONFLICT DO NOTHING");
     await query("INSERT INTO hr_chat_rooms(room_type,case_id) SELECT 'case',id FROM hr_cases ON CONFLICT DO NOTHING");
-    await query("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND active=TRUE ON CONFLICT DO NOTHING");
+    await query("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND training_center_id IS NULL AND active=TRUE ON CONFLICT DO NOTHING");
   });
 }
 

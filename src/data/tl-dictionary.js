@@ -2277,4 +2277,11 @@ export const TL_DICTIONARY = {
   "Choose workers": "Pumili ng mga manggagawa",
   "Your order is created. Choose workers from the Philippine agencies certified with your Taiwan agency above.": "Nagawa na ang iyong order. Pumili ng mga manggagawa mula sa mga ahensya sa Pilipinas na sertipikado sa iyong ahensya sa Taiwan sa itaas.",
   "This job order is already at the interview or hiring stage, so no more workers can be selected.": "Nasa yugto na ng interview o pagkuha ang job order na ito, kaya hindi na maaaring pumili ng mga manggagawa.",
+  "New training center (this member is the center)": "Bagong training center (ang miyembro mismo ang center)",
+  "Choosing an existing training center makes this member part of that center, sharing its certifications, teachers, courses, classes and students. No agency is required.": "Kapag pumili ng kasalukuyang training center, magiging bahagi ng center na iyon ang miyembro at ibabahagi nila ang mga sertipikasyon, guro, kurso, klase at estudyante. Hindi kailangan ng ahensya.",
+  "Active training center not found.": "Walang nahanap na aktibong training center.",
+  "Please choose a valid training center.": "Pumili ng wastong training center.",
+  "This training center still has other members. Move them to another center before changing this member type.": "May iba pang miyembro ang training center na ito. Ilipat muna sila sa ibang center bago baguhin ang uri ng miyembro.",
+  "This training center already has certifications, teachers, courses or classes, so it cannot join another center.": "May mga sertipikasyon, guro, kurso o klase na ang training center na ito, kaya hindi ito maaaring sumali sa ibang center.",
+  "Training center": "Training center",
 };

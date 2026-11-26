@@ -12,6 +12,7 @@ import { DEPOSIT_EN, translateDepositPattern } from '@/lib/hr-translations-depos
 import { WORKER_MESSAGES_EN, translateWorkerMessagePattern } from '@/lib/hr-translations-worker-messages';
 import { ADMIN_CALENDAR_EN } from '@/lib/hr-translations-calendar';
 import { ORDER_FILTER_EN } from '@/lib/hr-translations-order-filter';
+import { TC_MEMBER_EN } from '@/lib/hr-translations-training-center-member';
 
 const EN = {
   '克雷迅人力管理': 'Kolecion HR', '克雷迅人力仲介管理系統': 'Kolecion Employment Agency Management',
@@ -468,7 +469,7 @@ export function translateHrText(value, lang = 'zh') {
   if (lang !== 'en' || typeof value !== 'string') return value;
   const trimmed = value.trim();
   let translated = FLOW_EN[trimmed] || EN[trimmed] || EN_EXTRA[trimmed] || EN_MORE[trimmed] || WORKER_STAGE_EN[trimmed] || TRAINING_CENTER_EN[trimmed] || EMPLOYER_PROFILE_EN[trimmed] || NATIONALITY_EN[trimmed] || DEPOSIT_EN[trimmed] || WORKER_MESSAGES_EN[trimmed];
-  if (!translated) translated = MEMBER_TRASH_EN[trimmed] || ADMIN_CALENDAR_EN[trimmed] || ORDER_FILTER_EN[trimmed];
+  if (!translated) translated = MEMBER_TRASH_EN[trimmed] || ADMIN_CALENDAR_EN[trimmed] || ORDER_FILTER_EN[trimmed] || TC_MEMBER_EN[trimmed];
   if (!translated) {
     const experience = trimmed.match(/^(海外工作|國內工作)\s*(\d+)$/);
     if (experience) translated = `${experience[1] === '海外工作' ? 'Overseas work' : 'Domestic work'} ${experience[2]}`;
@@ -491,7 +492,9 @@ export function translateHrText(value, lang = 'zh') {
     const requiredMissing=trimmed.match(/^必要文件待補 (\d+) 份$/);
     const needsUpload=trimmed.match(/^有 (\d+) 份必要文件需要上傳或補件。$/);
     const versionRow=trimmed.match(/^第(\d+)版 · (.+)$/);
-    if(versionRow)translated=`Version ${versionRow[1]} · ${versionRow[2]}`;
+    const centerMember=trimmed.match(/^訓練中心成員 · 所屬：(.+)$/);
+    if(centerMember)translated=`Training center member · Center: ${centerMember[1]}`;
+    else if(versionRow)translated=`Version ${versionRow[1]} · ${versionRow[2]}`;
     else if(removeWorkerTitle)translated=`Remove worker "${removeWorkerTitle[1]}" from this agency?`;
     else if(clearResumeConfirm)translated=`Clear the entire resume for "${clearResumeConfirm[1]}"? Worker records and case history will not be deleted.`;
     else if(orderMatch)translated=`Order #${orderMatch[1]} · ${translateHrText(orderMatch[2],'en')} · ${orderMatch[3]} position${orderMatch[3]==='1'?'':'s'}`;

@@ -11,7 +11,7 @@ test('資料表：聊天室可屬於訓練中心，每個訓練中心只有一�
   assert.ok(schema.includes("pg_get_constraintdef(oid) LIKE '%training_center%'"), '舊的限制式要升級成含 training_center');
   assert.ok(schema.includes("(room_type='training_center' AND center_id IS NOT NULL AND agency_id IS NULL AND case_id IS NULL)"));
   assert.ok(schema.includes("CREATE UNIQUE INDEX IF NOT EXISTS hr_chat_rooms_center_unique ON hr_chat_rooms(center_id) WHERE room_type='training_center'"));
-  assert.ok(schema.includes("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND active=TRUE ON CONFLICT DO NOTHING"));
+  assert.ok(schema.includes("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND training_center_id IS NULL AND active=TRUE ON CONFLICT DO NOTHING"));
 });
 
 for (const [name, path] of [['聊天室 API', '../src/app/api/hr/chat/route.js'], ['通話 API', '../src/app/api/hr/call/route.js']]) {
@@ -29,7 +29,7 @@ for (const [name, path] of [['聊天室 API', '../src/app/api/hr/chat/route.js']
 
 test('聊天室 API：同步聊天室、列表、成員、私訊都支援訓練中心群組', async () => {
   const source = await read('../src/app/api/hr/chat/route.js');
-  assert.ok(source.includes("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND active=TRUE ON CONFLICT DO NOTHING"));
+  assert.ok(source.includes("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND training_center_id IS NULL AND active=TRUE ON CONFLICT DO NOTHING"));
   assert.ok(source.includes("OR ($1::text='training_center' AND r.room_type='training_center' AND r.center_id=$6)"), '列表：訓練中心');
   assert.ok(source.includes("OR ($1::text='worker' AND r.room_type='training_center' AND EXISTS("), '列表：已報名的工人');
   assert.ok(source.includes("OR ($1::text='agency' AND r.room_type='training_center' AND EXISTS("), '列表：工人所屬仲介');

@@ -100,6 +100,8 @@ async function migrateHrIdentitySchema() {
   // 會員離開工作者／雇主類型時，記住原本綁定的資料列，之後切換回來就重用同一筆，避免產生重複的工作者／雇主。
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_worker_id BIGINT REFERENCES hr_workers(id) ON DELETE SET NULL');
   await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS last_employer_id BIGINT REFERENCES hr_employers(id) ON DELETE SET NULL');
+  // 訓練中心成員：training_center_id 指向所屬訓練中心（也是 hr_members 的一列，且自己的 training_center_id 為空）。空值代表這位會員本身就是一個訓練中心。
+  await pool.query('ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS training_center_id BIGINT REFERENCES hr_members(id) ON DELETE SET NULL');
   // 新手導覽看過的紀錄：{ 導覽名稱: 版本 }
   await pool.query("ALTER TABLE hr_members ADD COLUMN IF NOT EXISTS onboarding_seen JSONB NOT NULL DEFAULT '{}'::jsonb");
   // 「已刪除帳號」（資源回收區）：刪除會員先標記 deleted_at 並停用，之後可還原。
@@ -165,7 +167,7 @@ export async function getHrPrincipal(session) {
 
   const member = await get(`SELECT m.id, m.email, m.line_user_id, m.display_name, m.role, m.requested_role, m.requested_agency_id,
       requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,
-      m.worker_id, m.employer_id, m.agency_id, m.active, a.agency_type
+      m.worker_id, m.employer_id, m.agency_id, m.training_center_id, m.active, a.agency_type
     FROM hr_members m LEFT JOIN hr_agencies a ON a.id=m.agency_id
     LEFT JOIN hr_agencies requested_agency ON requested_agency.id=m.requested_agency_id
     WHERE m.active=TRUE AND (($1 <> '' AND lower(m.email)=lower($1)) OR ($2 <> '' AND m.line_user_id=$2))`, [email, lineUserId]);

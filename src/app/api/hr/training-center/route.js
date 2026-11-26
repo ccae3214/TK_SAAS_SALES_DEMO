@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool, { query } from '@/lib/db';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
+import { trainingCenterIdOf } from '@/lib/hr-training-center-scope';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
 import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { recordAdminAction } from '@/lib/hr-audit';
@@ -38,13 +39,13 @@ const BATCH_STATUS_NAMES = { preparing: '準備中', submitted: '已送件', iss
 class Refuse extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 const fail = (message, status = 400) => NextResponse.json({ error: message }, { status });
 
-// 系統管理者可管理所有訓練中心；訓練中心會員只能管理自己（self=true，centerId 固定為自己）。
+// 系統管理者可管理所有訓練中心；訓練中心會員只能管理自己所屬的中心（self=true，centerId 固定為所屬中心；成員與中心共用同一份資料）。
 async function accessContext() {
   const session = await auth();
   if (!session?.user) return { error: fail('Authentication required', 401) };
   const principal = await getHrPrincipal(session);
   if (principal?.role === 'admin') return { session, principal, self: false };
-  if (principal?.role === 'training_center' && principal.id) return { session, principal, self: true, centerId: principal.id };
+  if (principal?.role === 'training_center' && trainingCenterIdOf(principal)) return { session, principal, self: true, centerId: trainingCenterIdOf(principal) };
   return { error: fail('僅系統管理者或訓練中心會員可使用訓練中心工作區。', 403) };
 }
 const scope = (ctx, centerId) => {
@@ -67,7 +68,7 @@ const fmtDate = value => value instanceof Date ? `${value.getFullYear()}-${Strin
 const withDates = (rows, keys) => rows.map(row => ({ ...row, ...Object.fromEntries(keys.map(key => [key, fmtDate(row[key])])) }));
 const requireCenter = async id => {
   if (!validId(id)) throw new Refuse('請先選擇訓練中心。');
-  const row = await one("SELECT id, display_name FROM hr_members WHERE id=$1 AND role='training_center'", [id]);
+  const row = await one("SELECT id, display_name FROM hr_members WHERE id=$1 AND role='training_center' AND training_center_id IS NULL", [id]);
   if (!row) throw new Refuse('找不到這個訓練中心。', 404);
   return row;
 };
@@ -84,7 +85,7 @@ export async function GET(request) {
     await ensureTrainingCenterSchema();
     const centers = ctx.self
       ? await query("SELECT id, display_name, email, active FROM hr_members WHERE id=$1 AND role='training_center'", [ctx.centerId])
-      : await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' ORDER BY active DESC, display_name, id");
+      : await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' AND training_center_id IS NULL ORDER BY active DESC, display_name, id");
     const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });

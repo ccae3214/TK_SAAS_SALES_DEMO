@@ -84,7 +84,7 @@ export async function GET() {
         ORDER BY s.created_at DESC LIMIT 200`),
       query(`SELECT a.*, c.case_number FROM hr_case_activity a JOIN hr_cases c ON c.id=a.case_id ORDER BY a.created_at DESC LIMIT 100`),
       query('SELECT * FROM hr_agencies ORDER BY agency_type,name'),
-      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.requested_agency_id,requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.active,m.deleted_at,m.created_at,
+      query(`SELECT m.id,m.email,m.line_user_id,m.display_name,m.role,m.requested_role,m.requested_agency_id,requested_agency.name AS requested_agency_name,requested_agency.agency_type AS requested_agency_type,m.admin_scope,m.worker_id,m.employer_id,m.agency_id,m.training_center_id,(SELECT tc.display_name FROM hr_members tc WHERE tc.id=m.training_center_id) AS training_center_name,m.active,m.deleted_at,m.created_at,
         a.name AS agency_name,a.agency_type,w.name AS worker_name,w.agency_id AS worker_agency_id,worker_agency.name AS worker_agency_name,
         e.name AS employer_name,e.agency_id AS employer_agency_id,employer_agency.name AS employer_agency_name,
         COALESCE((SELECT array_agg(DISTINCT case_taiwan_agency.name ORDER BY case_taiwan_agency.name)
@@ -721,6 +721,11 @@ async function handlePatch(request) {
       if (body.role !== undefined) {
         const role = clean(body.role,20), agencyId = Number(body.agencyId);
         const requiresAgency = !['training_center','system_admin'].includes(role);
+        // 變更為訓練中心時可選「加入既有訓練中心」；留空代表這位會員自己就是一個新的訓練中心。
+        const hasCenterChoice = role === 'training_center' && body.trainingCenterId !== undefined && body.trainingCenterId !== null && body.trainingCenterId !== '';
+        if (hasCenterChoice && !validId(Number(body.trainingCenterId))) return NextResponse.json({ error: '請選擇有效的所屬訓練中心。' }, { status: 400 });
+        const trainingCenterId = hasCenterChoice ? Number(body.trainingCenterId) : null;
+        if (trainingCenterId !== null) await ensureTrainingCenterSchema();
         if (!HR_MEMBER_ROLES.has(role) || (requiresAgency && !validId(agencyId))) return NextResponse.json({ error: '請指定有效的會員類型與所屬仲介。' }, { status: 400 });
         if (role === 'system_admin' && !isRootAdmin) return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以指派系統管理者身分。' }, { status: 403 });
         const client = await pool.connect();
@@ -740,7 +745,7 @@ async function handlePatch(request) {
               return NextResponse.json({ error: role === 'worker' ? '工作者必須指派給菲律賓仲介。' : '雇主必須指派給台灣仲介。' }, { status: 400 });
             }
           }
-          const member = await client.query('SELECT id,role,worker_id,employer_id,last_worker_id,last_employer_id,agency_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
+          const member = await client.query('SELECT id,role,worker_id,employer_id,last_worker_id,last_employer_id,agency_id,training_center_id,admin_scope,display_name,line_user_id FROM hr_members WHERE id=$1 FOR UPDATE', [id]);
           if (!member.rowCount) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '找不到會員帳號。' }, { status: 404 });
@@ -749,6 +754,29 @@ async function handlePatch(request) {
           if ((current.admin_scope === 'system' || current.role === 'system_admin') && !isRootAdmin) {
             await client.query('ROLLBACK');
             return NextResponse.json({ error: '只有 ENV 綁定的 LINE 最高管理者可以變更其他系統管理者身分。' }, { status: 403 });
+          }
+          if (trainingCenterId !== null) {
+            const center = await client.query("SELECT id FROM hr_members WHERE id=$1 AND id<>$2 AND role='training_center' AND training_center_id IS NULL AND active=TRUE FOR SHARE", [trainingCenterId, id]);
+            if (!center.rowCount) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '找不到啟用中的所屬訓練中心。' }, { status: 400 });
+            }
+          }
+          // 這位會員本身是訓練中心：還有成員時不能離開或改加入其他中心；已有中心資料時也不能改成其他中心的成員（資料會變成沒有人管理）。
+          if (current.role === 'training_center' && !current.training_center_id && (role !== 'training_center' || trainingCenterId !== null)) {
+            const staff = await client.query('SELECT 1 FROM hr_members WHERE training_center_id=$1 LIMIT 1', [id]);
+            if (staff.rowCount) {
+              await client.query('ROLLBACK');
+              return NextResponse.json({ error: '這個訓練中心還有其他成員，請先調整他們的所屬訓練中心後再變更會員類型。' }, { status: 409 });
+            }
+            if (trainingCenterId !== null) {
+              const hasData = await client.query(`SELECT 1 FROM hr_tc_certifications WHERE center_id=$1 UNION ALL SELECT 1 FROM hr_tc_teachers WHERE center_id=$1
+                UNION ALL SELECT 1 FROM hr_tc_courses WHERE center_id=$1 UNION ALL SELECT 1 FROM hr_tc_classes WHERE center_id=$1 LIMIT 1`, [id]);
+              if (hasData.rowCount) {
+                await client.query('ROLLBACK');
+                return NextResponse.json({ error: '這個訓練中心已建立證照、老師、課程或班別，無法改為加入其他訓練中心。' }, { status: 409 });
+              }
+            }
           }
           if (current.role === 'worker' && current.worker_id && role !== 'worker') {
             const openCase = await client.query("SELECT 1 FROM hr_cases WHERE worker_id=$1 AND status<>'closed' LIMIT 1", [current.worker_id]);
@@ -805,8 +833,9 @@ async function handlePatch(request) {
             requested_role=NULL,requested_agency_id=NULL,worker_id=$3,employer_id=$4,agency_id=$5,
             last_worker_id=COALESCE($6::bigint,CASE WHEN $3::bigint IS NULL THEN last_worker_id END),
             last_employer_id=COALESCE($7::bigint,CASE WHEN $4::bigint IS NULL THEN last_employer_id END),
+            training_center_id=CASE WHEN $2='training_center' THEN $8::bigint ELSE NULL END,
             active=TRUE,updated_at=NOW()
-            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId,leavingWorkerId,leavingEmployerId]);
+            WHERE id=$1 RETURNING id,email,display_name,role,admin_scope,worker_id,employer_id,agency_id,training_center_id,requested_role,active`, [id,role,workerId,employerId,memberAgencyId,leavingWorkerId,leavingEmployerId,trainingCenterId]);
           await client.query('COMMIT');
           if (current.line_user_id) {
             syncLineRichMenu(current.line_user_id, { role: role === 'system_admin' ? 'admin' : role, agency_type: approvedAgency?.agency_type || null })
