@@ -17,7 +17,7 @@ self.addEventListener('push', event => {
     icon: '/icons/icon-192.png',
     vibrate: [300, 150, 300, 150, 300],
     timestamp: Number(data.ts) || Date.now(),
-    data: { url },
+    data: { url, roomId: Number(data.roomId) || 0 },
   }));
 });
 
@@ -31,6 +31,8 @@ self.addEventListener('notificationclick', event => {
       await client.focus();
       // 已經開著網站就切回去（網頁會重新連線並顯示還在響鈴的來電）；不在 /hr 頁面時帶過去
       if (!new URL(client.url).pathname.startsWith('/hr') && 'navigate' in client) { try { await client.navigate(target); } catch { /* 不能導覽就維持原頁 */ } }
+      // 已經在 /hr：不重新載入，請頁面直接打開來電的聊天室（HrLaunchHandler 接收）
+      else { const roomId = Number(event.notification.data && event.notification.data.roomId) || 0; if (roomId > 0) client.postMessage({ type: 'hr:open-chat-room', roomId }); }
       return;
     }
     await self.clients.openWindow(target);

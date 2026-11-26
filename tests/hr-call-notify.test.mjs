@@ -38,8 +38,8 @@ test('通知文字：中文、英文、菲律賓語；私訊不重複顯示名�
   const base = { from: 'Alice', title: 'C-001 · Maria / ABC', video: true, roomId: 9, callId: 'c1', origin: 'https://hr.example.com' };
   const zh = buildCallNotice({ ...base, lang: 'zh' });
   assert.equal(zh.push.title, '📞 Alice 來電'); assert.equal(zh.push.body, '視訊通話 · C-001 · Maria / ABC，點開接聽');
-  assert.equal(zh.push.tag, 'hr-call-9'); assert.equal(zh.push.url, '/hr');
-  assert.ok(zh.line.includes('https://hr.example.com/hr') && zh.line.includes(String(RING_WINDOW_SECONDS)));
+  assert.equal(zh.push.tag, 'hr-call-9'); assert.equal(zh.push.url, '/hr?chatRoom=9');
+  assert.ok(zh.line.includes('https://hr.example.com/hr?chatRoom=9&openExternalBrowser=1') && zh.line.includes(String(RING_WINDOW_SECONDS)));
   const en = buildCallNotice({ ...base, lang: 'en', video: false });
   assert.equal(en.push.title, '📞 Incoming call from Alice'); assert.equal(en.push.body, 'Voice call · C-001 · Maria / ABC. Tap to answer.');
   assert.ok(buildCallNotice({ ...base, lang: 'tl' }).push.title.includes('Alice'));

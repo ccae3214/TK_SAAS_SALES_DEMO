@@ -10,6 +10,7 @@ import { readJson } from '@/lib/hr-read-json';
 import { pickLang } from '@/lib/language';
 import { localeFor, mapLeaves, tlText } from '@/lib/language';
 import HrCallNotify from '@/components/HrCallNotify';
+import { chatRoomFromUrl, stripChatLinkParams } from '@/lib/hr-chat-link';
 
 export default function HrChat() {
   const {lang}=useLanguage();
@@ -58,6 +59,8 @@ export default function HrChat() {
   }
 
   useEffect(()=>{let active=true;(async()=>{try{await loadRooms();}catch(err){if(active)setError(localizeError(err));}finally{if(active)setLoading(false);}})();const timer=setInterval(()=>{loadRooms().catch(err=>{if(active)setError(localizeError(err));});},30000);return()=>{active=false;clearInterval(timer);};},[lang]);
+  // 從來電通知（LINE／推播）的連結進來：/hr?chatRoom=<id> 直接打開該聊天室，打開後把網址參數拿掉
+  useEffect(()=>{const roomId=chatRoomFromUrl(window.location.href);const cleaned=stripChatLinkParams(window.location.href);if(cleaned)window.history.replaceState(window.history.state,'',cleaned);if(!roomId)return;pendingRoomRef.current=roomId;setSelectedRoomId(roomId);setMobileChat(true);void markRoomRead(roomId);window.requestAnimationFrame(()=>document.getElementById('hr-chat-section')?.scrollIntoView({block:'start'}));},[]);
   useEffect(()=>{const openRoom=event=>{const roomId=Number(event.detail?.roomId);if(!Number.isSafeInteger(roomId)||roomId<1)return;pendingRoomRef.current=roomId;setSelectedRoomId(roomId);setMobileChat(true);void markRoomRead(roomId);};window.addEventListener('hr:open-chat-room',openRoom);return()=>window.removeEventListener('hr:open-chat-room',openRoom);},[]);
   useEffect(()=>{if(!selectedRoomId)return;let active=true;const refresh=()=>loadMessages(selectedRoomId).catch(err=>{if(active)setError(localizeError(err));});refresh();const timer=setInterval(refresh,8000);return()=>{active=false;clearInterval(timer);};},[selectedRoomId,lang]);
   useEffect(()=>{followLatestRef.current=true;},[selectedRoomId,mobileChat]);
