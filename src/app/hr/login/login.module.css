@@ -56,3 +56,11 @@
 @keyframes dialogIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:900px){.page{grid-template-columns:1fr}.brandPanel{display:none}.formSide{min-height:100vh}}
 @media(prefers-reduced-motion:reduce){.btn,.modalBackdrop,.errorDialog{animation:none;transition:none}}
+
+.handoff{margin-bottom:16px;padding:15px;border:1px solid #bbf7d0;border-radius:13px;background:#f0fdf4;color:#166534;font-size:14px;line-height:1.7}
+.handoff h2{margin:0 0 6px;font-size:16px}
+.handoff p{margin:0 0 8px}
+.handoffHint{color:#4b6b57;font-size:13px}
+.handoffError{color:#b91c1c;font-weight:700}
+.handoff .field input{text-align:center;font-size:24px;font-weight:700;letter-spacing:.35em;font-variant-numeric:tabular-nums}
+.ghost{border:1px solid #d3dfd8;background:#fff;color:#425449}

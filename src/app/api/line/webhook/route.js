@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { replyForHrLineEvent } from '@/lib/hr-line-bot';
+import { loginCodeReplyForEvent } from '@/lib/hr-line-handoff-chat';
 import { ensureLineSchema } from '@/lib/hr-schema';
 import { lineMemberPrincipalLoader, syncLineLanguageOnce } from '@/lib/hr-line-language-sync';
 
@@ -90,7 +91,9 @@ export async function POST(request) {
       if (!(await claimEvent(event))) { duplicates += 1; continue; }
       try {
         await syncLanguageForEvent(event);
-        let text = await replyForHrLineEvent(withLegacyCommandTerms(event));
+        // 桌面 App 的「LINE 聊天室傳驗證碼登入」：驗證碼訊息由這裡處理，不交給一般機器人流程。
+        let text = await loginCodeReplyForEvent(event);
+        if (text === null) text = await replyForHrLineEvent(withLegacyCommandTerms(event));
         if (text === null) {
           text = '克雷迅人力仲介 LINE 服務。輸入「說明」查看查詢方式，輸入「會員網站」登入；新會員可輸入「註冊」。';
         }

@@ -19,6 +19,7 @@ import { ensureWorkerLogSchema } from '@/lib/hr-worker-log';
 import { ensureLineLanguageSyncSchema } from '@/lib/hr-line-language-sync';
 import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-reminders-store';
 import { ensurePushSchema } from '@/lib/hr-call-notify-store';
+import { ensureLineHandoffSchema } from '@/lib/hr-line-handoff-store';
 
 // 順序有相依：核心資料表 → 身分／會員 → 其餘功能。
 export const MIGRATION_STEPS = [
@@ -40,6 +41,7 @@ export const MIGRATION_STEPS = [
   ['line-language-sync', () => ensureLineLanguageSyncSchema()],
   ['expiry-reminder-log', () => ensureExpiryReminderLog()],
   ['push-subscriptions', () => ensurePushSchema()],
+  ['line-handoff', () => ensureLineHandoffSchema()],
 ];
 
 export function runStartupMigrations(options = {}) {

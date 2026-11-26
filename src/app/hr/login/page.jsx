@@ -1,15 +1,39 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getProviders, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { HrLanguageTools } from '@/lib/hr-translations';
+import { useLanguage } from '@/context/LanguageContext';
+import { copyFor } from '@/lib/language';
+import { HANDOFF_COPY } from '@/lib/hr-line-handoff-copy';
 import { AlertCircle, ClipboardCheck, FileText, MessagesSquare, MessageCircle, X } from 'lucide-react';
 import styles from './login.module.css';
 
+// 桌面 App 登入 LINE 到一半的交接單（App 被系統回收再開啟時用來接續；10 分鐘後作廢）。
+const HANDOFF_STORAGE_KEY = 'kolecion:line-handoff';
+const HANDOFF_STORAGE_TTL_MS = 10 * 60 * 1000;
+const readSavedHandoff = () => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(HANDOFF_STORAGE_KEY) || 'null');
+    if (saved?.state && saved?.secret && Date.now() - saved.at < HANDOFF_STORAGE_TTL_MS) return { state: saved.state, secret: saved.secret, status: 'pending', error: '' };
+  } catch { /* 讀不到就當作沒有 */ }
+  return null;
+};
+const saveHandoff = ({ state, secret }) => { try { window.localStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify({ state, secret, at: Date.now() })); } catch { /* 無痕模式等無法儲存時，只是少了接續功能 */ } };
+const clearSavedHandoff = () => { try { window.localStorage.removeItem(HANDOFF_STORAGE_KEY); } catch { /* 同上 */ } };
+
 export default function HrLoginPage() {
   const router = useRouter();
+  const { lang } = useLanguage();
+  const handoffText = copyFor(HANDOFF_COPY, lang);
+  const [standalone, setStandalone] = useState(false);
+  const [handoff, setHandoff] = useState(null); // { state, secret, status: pending | ready | expired, error }
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const [handoffCode, setHandoffCode] = useState('');
+  const [handoffWebUrl, setHandoffWebUrl] = useState('');
+  const autoFinishedFor = useRef('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginErrorOpen, setLoginErrorOpen] = useState(false);
@@ -25,6 +49,119 @@ export default function HrLoginPage() {
     setRegisterMode(params.get('register') === '1');
     setAuthError(params.get('error') || '');
   }, []);
+
+  // 從手機桌面圖示開啟時（standalone），LINE 驗證會在另一個瀏覽器完成、cookie 不互通，
+  // 所以改走「交接單 + 確認碼」流程；一般瀏覽器分頁維持原本的 LINE 登入。
+  useEffect(() => {
+    const isStandalone = Boolean(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
+    setStandalone(isStandalone);
+    if (isStandalone) {
+      const saved = readSavedHandoff();
+      if (saved) setHandoff(saved); else clearSavedHandoff();
+    }
+  }, []);
+
+  const handoffState = handoff?.state;
+  const handoffSecret = handoff?.secret;
+  const handoffStatus = handoff?.status;
+  useEffect(() => {
+    if (!handoffState || handoffStatus !== 'pending') return undefined;
+    let active = true;
+    const check = async () => {
+      try {
+        const response = await fetch('/api/hr/line-handoff/status', {
+          method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: handoffState, secret: handoffSecret }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (active && response.ok && data.status && data.status !== 'pending') {
+          setHandoff(current => (current?.state === handoffState ? { ...current, status: data.status, via: data.via || null, error: '' } : current));
+        }
+      } catch { /* 網路暫時斷線：下一輪再查 */ }
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    const timer = window.setInterval(check, 2000);
+    document.addEventListener('visibilitychange', onVisible);
+    check();
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [handoffState, handoffSecret, handoffStatus]);
+
+  useEffect(() => {
+    if (handoffStatus === 'expired') clearSavedHandoff();
+  }, [handoffStatus]);
+
+  async function startLineHandoff() {
+    setHandoffBusy(true);
+    setHandoffCode('');
+    try {
+      const response = await fetch('/api/hr/line-handoff/start', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url || !data.state || !data.secret) throw new Error('unavailable');
+      saveHandoff({ state: data.state, secret: data.secret });
+      setHandoff({ state: data.state, secret: data.secret, status: 'pending', via: null, error: '' });
+      // 主要方式：開啟 LINE 官方帳號聊天室（驗證碼已預填）；查不到官方帳號時直接走網頁驗證。
+      setHandoffWebUrl(data.chatUrl ? data.url : '');
+      window.location.assign(data.chatUrl || data.url);
+    } catch {
+      setHandoff({ state: '', secret: '', status: 'expired', error: 'unavailable' });
+    } finally {
+      setHandoffBusy(false);
+    }
+  }
+
+  function cancelLineHandoff() {
+    clearSavedHandoff();
+    setHandoff(null);
+    setHandoffCode('');
+    setHandoffWebUrl('');
+  }
+
+  // 用交接單換成登入憑證。聊天室驗證（via=chat）不需要確認碼；網頁驗證（via=browser）要帶 6 位數確認碼。
+  async function finishHandoff(code) {
+    if (!handoff) return;
+    setHandoffBusy(true);
+    try {
+      const result = await signIn('line-handoff', {
+        state: handoff.state, secret: handoff.secret, code: String(code || '').replace(/\s+/g, ''), redirect: false, callbackUrl: '/',
+      });
+      if (result?.ok && !result?.error) {
+        clearSavedHandoff();
+        router.replace('/');
+        return;
+      }
+      if (handoff.via === 'chat') {
+        setHandoff(current => (current ? { ...current, status: 'expired', error: '' } : current));
+        return;
+      }
+      // 確認碼錯誤：還有次數就留在輸入畫面；次數用完交接單已作廢，status 會變 expired。
+      const response = await fetch('/api/hr/line-handoff/status', {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: handoff.state, secret: handoff.secret }),
+      }).catch(() => null);
+      const data = response?.ok ? await response.json().catch(() => ({})) : {};
+      setHandoff(current => (current ? { ...current, status: data.status === 'expired' ? 'expired' : 'ready', error: data.status === 'expired' ? '' : 'wrongCode' } : current));
+      setHandoffCode('');
+    } catch {
+      setHandoff(current => (current ? { ...current, error: 'unavailable' } : current));
+    } finally {
+      setHandoffBusy(false);
+    }
+  }
+
+  function submitHandoffCode(event) {
+    event.preventDefault();
+    finishHandoff(handoffCode);
+  }
+
+  // LINE 聊天室驗證完成：自動登入，每張交接單只觸發一次。
+  useEffect(() => {
+    if (handoff?.status === 'ready' && handoff.via === 'chat' && autoFinishedFor.current !== handoff.state) {
+      autoFinishedFor.current = handoff.state;
+      finishHandoff('');
+    }
+  // finishHandoff 每次 render 都是新函式；這裡只在交接單狀態改變時觸發。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff?.state, handoff?.status, handoff?.via]);
 
   useEffect(() => {
     let active = true;
@@ -89,7 +226,32 @@ export default function HrLoginPage() {
             </button>
           </div>
         )}
-        {providers.line && <button type="button" className={`${styles.btn} ${styles.line}`} onClick={() => signIn('line', { callbackUrl: '/' })}>
+        {providers.line && handoff && <div className={styles.handoff} role="status" aria-live="polite">
+          {handoff.status === 'pending' && <>
+            <h2>{handoffText.waitingTitle}</h2>
+            <p>{handoffText.waitingBody}</p>
+            <p className={styles.handoffHint}>{handoffText.sheetHint}</p>
+            {handoffWebUrl && <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={() => window.location.assign(handoffWebUrl)}>{handoffText.webFallback}</button>}
+            <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={cancelLineHandoff}>{handoffText.cancel}</button>
+          </>}
+          {handoff.status === 'ready' && handoff.via === 'chat' && <p>{handoffText.signingIn}</p>}
+          {handoff.status === 'ready' && handoff.via !== 'chat' && <form onSubmit={submitHandoffCode} className={styles.form}>
+            <div><h2>{handoffText.codeTitle}</h2><p>{handoffText.codeBody}</p></div>
+            <label className={styles.field}>{handoffText.codeLabel}
+              <input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" maxLength={6} required autoFocus value={handoffCode} onChange={event => setHandoffCode(event.target.value.replace(/\D/g, ''))} />
+            </label>
+            {handoff.error === 'wrongCode' && <p role="alert" className={styles.handoffError}>{handoffText.wrongCode}</p>}
+            {handoff.error === 'unavailable' && <p role="alert" className={styles.handoffError}>{handoffText.unavailable}</p>}
+            <button type="submit" disabled={handoffBusy || handoffCode.length !== 6} className={`${styles.btn} ${styles.submit}`}>{handoffBusy ? handoffText.confirming : handoffText.confirm}</button>
+            <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={cancelLineHandoff}>{handoffText.cancel}</button>
+          </form>}
+          {handoff.status === 'expired' && <>
+            <p role="alert" className={styles.handoffError}>{handoff.error === 'unavailable' ? handoffText.unavailable : handoffText.expired}</p>
+            <button type="button" disabled={handoffBusy} className={`${styles.btn} ${styles.line}`} onClick={startLineHandoff}><MessageCircle size={20} aria-hidden="true" />{handoffText.restart}</button>
+            <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={cancelLineHandoff}>{handoffText.cancel}</button>
+          </>}
+        </div>}
+        {providers.line && !handoff && <button type="button" disabled={handoffBusy} className={`${styles.btn} ${styles.line}`} onClick={() => (standalone ? startLineHandoff() : signIn('line', { callbackUrl: '/' }))}>
           <MessageCircle size={20} aria-hidden="true" />{registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
         </button>}
         {!registerMode && providers.google && <button type="button" className={`${styles.btn} ${styles.google}`} onClick={() => signIn('google', { callbackUrl: '/' })}>{googleIcon}使用 Google 登入</button>}
