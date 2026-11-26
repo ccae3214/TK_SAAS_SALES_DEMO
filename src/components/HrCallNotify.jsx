@@ -157,13 +157,16 @@ export default function HrCallNotify() {
         {guide && <><ol className={styles.steps}>{guide.steps.map(step => <li key={step}>{step}</li>)}</ol>{guide.note && <p className={styles.note}>{guide.note}</p>}</>}
         {environment === 'available' && <>
           <p className={styles.text}>{t.intro}</p>
-          {subscribed && <p className={styles.status}>{t.on}</p>}
-          <div className={styles.actions}>
-            {subscribed
-              ? <><button type="button" className={styles.primary} disabled={busy} onClick={sendTest}>{busy ? t.working : t.test}</button>
-                <button type="button" className={styles.secondary} disabled={busy} onClick={disable}>{t.disable}</button></>
-              : <button type="button" className={styles.primary} disabled={busy || !config} onClick={enable}>{busy ? t.working : t.enable}</button>}
+          {/* 開關：開著＝這台裝置會收到來電通知；點一下就能開或關 */}
+          <div className={styles.switchRow}>
+            <span id="hr-call-notify-switch-label" className={styles.switchLabel}>{t.title}</span>
+            <button type="button" role="switch" aria-checked={subscribed} aria-labelledby="hr-call-notify-switch-label" className={`${styles.switch} ${subscribed ? styles.switchOn : ''}`} disabled={busy || (!subscribed && !config)} onClick={subscribed ? disable : enable}>
+              <span className={styles.switchState}>{busy ? t.working : subscribed ? t.stateOn : t.stateOff}</span>
+              <span className={styles.knob} aria-hidden="true" />
+            </button>
           </div>
+          {subscribed && <p className={styles.status}>{t.on}</p>}
+          {subscribed && <div className={styles.actions}><button type="button" className={styles.primary} disabled={busy} onClick={sendTest}>{busy ? t.working : t.test}</button></div>}
         </>}
         <p className={styles.note}>{t.lineNote}</p>
       </div>
