@@ -33,6 +33,20 @@ async function registerWorker() {
   return registration;
 }
 
+// 等太久就放棄（例如 Firefox 的權限詢問被收在網址列、Safari 的 Service Worker 卡住），不要讓開關一直停在「處理中」。
+const withTimeout = (promise, ms, code) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error(code), { name: code })), ms)),
+]);
+
+// 舊版 Safari 的 requestPermission 只支援 callback、不回傳 Promise，兩種都要能用。
+function askPermission() {
+  return new Promise(resolve => {
+    const result = Notification.requestPermission(resolve);
+    if (result && typeof result.then === 'function') result.then(resolve, () => resolve(Notification.permission));
+  });
+}
+
 const sameKey = (buffer, bytes) => {
   if (!buffer) return false;
   const a = new Uint8Array(buffer);
@@ -66,11 +80,19 @@ export default function HrCallNotify() {
 
   useEffect(() => { detect(); }, [detect]);
 
-  useEffect(() => {
-    let active = true;
-    callApi('GET').then(result => { if (active && result.ok) setConfig(result.data); }).catch(() => {});
-    return () => { active = false; };
+  // 讀取伺服器的推播設定。失敗時不再默默把開關停用（以前會變成「關閉」而且點不動），
+  // 而是記下原因，按開關時重新讀取一次，還是失敗就顯示錯誤。
+  const [configError, setConfigError] = useState(null);
+  const loadConfig = useCallback(async () => {
+    try {
+      const result = await callApi('GET');
+      if (result.ok) { setConfig(result.data); setConfigError(null); return { data: result.data, error: null }; }
+      setConfigError(result.data || {});
+      return { data: null, error: result.data || {} };
+    } catch { setConfigError({}); return { data: null, error: {} }; }
   }, []);
+
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
   // 已經開啟過的裝置：確認訂閱還在，並把目前的語言與訂閱同步給伺服器（瀏覽器換了訂閱網址也會在這裡補登記）
   useEffect(() => {
@@ -97,16 +119,24 @@ export default function HrCallNotify() {
 
   if (!environment || (config && !config.enabled)) return null;
 
-  const fail = (text, data) => setMessage({ error: true, text: (language === 'zh' ? data?.error : data?.en) || text });
+  // 錯誤訊息後面附上瀏覽器的錯誤代碼（例如 NotAllowedError），回報問題時比較好查。
+  const fail = (text, data, error) => {
+    const detail = error?.name && error.name !== 'Error' ? ` (${error.name})` : '';
+    setMessage({ error: true, text: `${(language === 'zh' ? data?.error : data?.en) || text}${detail}` });
+  };
 
   const enable = async () => {
     setBusy(true); setMessage(null);
     try {
-      const permission = await Notification.requestPermission();
+      // 一定要先要權限：Safari／Firefox 只接受「使用者按下去當下」發出的權限詢問，前面不能先等網路。
+      const permission = await withTimeout(askPermission(), 60000, 'PermissionTimeout');
       detect();
       if (permission !== 'granted') { fail(t.errors.permission); return; }
-      const key = urlBase64ToUint8Array(config.publicKey);
-      const registration = await registerWorker();
+      const loaded = config?.publicKey ? { data: config, error: null } : await loadConfig();
+      const current = loaded.data;
+      if (!current?.enabled || !current.publicKey) { fail(t.errors.config, loaded.error || configError); return; }
+      const key = urlBase64ToUint8Array(String(current.publicKey).trim());
+      const registration = await withTimeout(registerWorker(), 20000, 'ServiceWorkerTimeout');
       let subscription = await registration.pushManager.getSubscription();
       // 推播金鑰換過時，舊訂閱不能再用，要重新訂閱
       if (subscription && !sameKey(subscription.options?.applicationServerKey, key)) { await subscription.unsubscribe(); subscription = null; }
@@ -114,20 +144,23 @@ export default function HrCallNotify() {
       const result = await callApi('POST', { type: 'subscribe', subscription: subscription.toJSON(), lang: language });
       if (!result.ok) { await subscription.unsubscribe().catch(() => {}); fail(t.errors.server, result.data); return; }
       setSubscribed(true);
-    } catch { fail(t.errors.subscribe); } finally { setBusy(false); }
+    } catch (error) {
+      if (error?.name === 'PermissionTimeout') fail(t.errors.permissionTimeout, null, error);
+      else fail(t.errors.subscribe, null, error);
+    } finally { setBusy(false); }
   };
 
   const disable = async () => {
     setBusy(true); setMessage(null);
     try {
-      const registration = await registerWorker();
+      const registration = await withTimeout(registerWorker(), 20000, 'ServiceWorkerTimeout');
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await callApi('POST', { type: 'unsubscribe', endpoint: subscription.endpoint });
         await subscription.unsubscribe();
       }
       setSubscribed(false);
-    } catch { fail(t.errors.server); } finally { setBusy(false); }
+    } catch (error) { fail(t.errors.server, null, error); } finally { setBusy(false); }
   };
 
   const sendTest = async () => {
@@ -142,7 +175,7 @@ export default function HrCallNotify() {
   const plain = { insecure: t.insecure, inapp: t.inapp, unsupported: t.unsupported }[environment];
 
   return <>
-    <button type="button" className={styles.button} onClick={() => { setMessage(null); setOpen(true); }} aria-label={t.button} title={t.button}>
+    <button type="button" className={styles.button} onClick={() => { setMessage(null); setOpen(true); if (!config) loadConfig(); }} aria-label={t.button} title={t.button}>
       <Bell size={16} aria-hidden="true" /><span className={styles.label}>{t.button}</span>
       {subscribed && <i className={styles.dot} aria-hidden="true" />}
     </button>
@@ -160,11 +193,12 @@ export default function HrCallNotify() {
           {/* 開關：開著＝這台裝置會收到來電通知；點一下就能開或關 */}
           <div className={styles.switchRow}>
             <span id="hr-call-notify-switch-label" className={styles.switchLabel}>{t.title}</span>
-            <button type="button" role="switch" aria-checked={subscribed} aria-labelledby="hr-call-notify-switch-label" className={`${styles.switch} ${subscribed ? styles.switchOn : ''}`} disabled={busy || (!subscribed && !config)} onClick={subscribed ? disable : enable}>
+            <button type="button" role="switch" aria-checked={subscribed} aria-labelledby="hr-call-notify-switch-label" className={`${styles.switch} ${subscribed ? styles.switchOn : ''}`} disabled={busy} onClick={subscribed ? disable : enable}>
               <span className={styles.switchState}>{busy ? t.working : subscribed ? t.stateOn : t.stateOff}</span>
               <span className={styles.knob} aria-hidden="true" />
             </button>
           </div>
+          {busy && !subscribed && <p className={styles.note}>{t.permissionHint}</p>}
           {subscribed && <p className={styles.status}>{t.on}</p>}
           {subscribed && <div className={styles.actions}><button type="button" className={styles.primary} disabled={busy} onClick={sendTest}>{busy ? t.working : t.test}</button></div>}
         </>}
