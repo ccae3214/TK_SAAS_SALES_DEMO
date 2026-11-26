@@ -10,8 +10,8 @@ test('手機版聊天室：清單與對話分頁切換，有返回鈕（中英�
   assert.ok(chat.includes("back:'Back to chat list'"), '缺英文返回文字');
   assert.ok(chat.includes("back:'返回聊天室清單'"), '缺中文返回文字');
   assert.ok(chat.includes('aria-label={text.back}'));
-  // 點聊天室、從通知開啟聊天室、開啟私訊，都要切到對話畫面
-  assert.equal(chat.split('setMobileChat(true)').length - 1, 3);
+  // 點聊天室、從通知開啟聊天室、開啟私訊、從來電連結（/hr?chatRoom=）進來，都要切到對話畫面
+  assert.equal(chat.split('setMobileChat(true)').length - 1, 4);
   assert.ok(chat.includes('setMobileChat(false)'));
 });
 

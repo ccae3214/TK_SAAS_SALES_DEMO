@@ -2,6 +2,8 @@
 // 通知管道：1) 網頁推播（Web Push，加到桌面後鎖屏也收得到）；2) LINE 推播（沒開網頁推播、或推播失敗時的備援）。
 // 這個檔案不 import '@/…'，所以 node:test 可以直接測試；資料庫與實際送出在 hr-call-notify-store.js。
 
+import { chatRoomLineUrl, chatRoomPath } from './hr-chat-link.js';
+
 export const RING_WINDOW_SECONDS = 45; // 與信令伺服器的響鈴時間一致；推播過了這段時間就沒有意義，所以 TTL 也用這個值
 export const MAX_NOTIFY_KEYS = 300;
 
@@ -106,9 +108,10 @@ export function buildCallNotice({ lang = 'zh', from = '', title = '', video = fa
   const room = clean(title, 80) === caller ? '' : clean(title, 80);
   const kind = copy.kind(!!video);
   const heading = copy.title(caller);
-  const url = `${origin}/hr`;
+  // LINE 連結直接開到該聊天室，並加上 openExternalBrowser=1（不用 LINE 內建瀏覽器，Android 已安裝 App 時會直接打開 App）
+  const url = chatRoomLineUrl(origin, roomId);
   return {
-    push: { title: heading, body: copy.body(kind, room), tag: `hr-call-${Number(roomId) || 0}`, url: '/hr', roomId: Number(roomId) || 0, callId: String(callId || ''), ts: Date.now() },
+    push: { title: heading, body: copy.body(kind, room), tag: `hr-call-${Number(roomId) || 0}`, url: chatRoomPath(roomId), roomId: Number(roomId) || 0, callId: String(callId || ''), ts: Date.now() },
     line: copy.line(heading, kind, room, url),
   };
 }
