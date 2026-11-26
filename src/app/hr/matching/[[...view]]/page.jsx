@@ -19,7 +19,9 @@ export default async function EmployerMatchingPage({ params }) {
   if (principal?.role !== 'employer') redirect('/hr');
 
   const { view = [] } = await params;
-  if (view.length > 1 || (view.length === 1 && view[0] !== 'new')) notFound();
+  const isCreateView = view.length === 1 && view[0] === 'new';
+  const isPickView = view.length === 2 && view[0] === 'pick' && /^\d+$/.test(view[1]);
+  if (view.length > 0 && !isCreateView && !isPickView) notFound();
 
   const email = session.user.email || 'LINE 帳號';
   return <>

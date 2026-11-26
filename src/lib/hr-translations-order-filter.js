@@ -6,6 +6,10 @@ export const ORDER_FILTER_EN = {
   '顯示全部需求單': 'Show all job orders',
   '雇主可從所屬台灣仲介已認證的菲律賓仲介中，挑選符合工作類型的工作者。': 'The employer can choose workers of the right job type from Philippine agencies certified with their Taiwan agency.',
   '請挑選工作者': 'Choose workers',
-  '需求已建立，請從上方挑選所屬仲介已認證的菲律賓仲介工作者。': 'Your order is created. Choose workers from the Philippine agencies certified with your Taiwan agency above.',
+  '需求已建立，請按「挑選人選」進入挑選區，從所屬仲介已認證的菲律賓仲介工作者中挑選。': 'Your order is created. Press “Choose candidates” to open the picking area and choose workers from the Philippine agencies certified with your Taiwan agency.',
+  '挑選人選': 'Choose candidates',
+  '挑選區': 'Picking area',
+  '從下方人選中挑選合適的工作者，確認後可回到需求與配對查看推薦人選進度。': 'Choose suitable workers from the candidates below. After confirming, go back to Requests & matching to follow the recommended candidates.',
+  '找不到這張需求單。': 'This job order could not be found.',
   '此需求單已進入面試或錄用階段，無法再挑選工作者。': 'This job order is already at the interview or hiring stage, so no more workers can be selected.',
 };

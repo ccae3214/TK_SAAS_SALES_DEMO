@@ -94,10 +94,11 @@ test('進度 3（面試確認）以後、額滿、取消的需求單不能再挑
 test('前端只在可挑選時顯示挑選區，伺服器也拒絕已進入面試的需求單', async () => {
   const portal = await read('../src/components/HrMemberPortal.jsx');
   assert.ok(portal.includes('const pickAllowed=orderAllowsPicking('));
-  assert.ok(portal.includes('{pickAllowed?<HrEmployerShortlist'));
+  assert.ok(portal.includes('{pickAllowed?<div className="candidate-actions order-pick-entry"'), '挑選階段只顯示挑選按鈕');
+  assert.ok(!portal.includes('{pickAllowed?<HrEmployerShortlist'), '挑選區不再內嵌在需求單卡片');
   assert.ok(!portal.includes("pickAllowed||order.status!=='open'"), '額滿／取消的需求單也不應顯示挑選區');
   assert.equal((portal.match(/import \{[^}]*orderAllowsPicking/g) || []).length, 1);
-  assert.equal((portal.match(/orderAllowsPicking/g) || []).length, 2, 'import 與使用各一次，不能重複宣告');
+  assert.equal((portal.match(/orderAllowsPicking/g) || []).length, 3, 'import、需求單卡片與挑選區子頁各一次，不能重複宣告');
   const api = await read('../src/app/api/hr/_post/job-orders.js');
   assert.ok(api.includes("c.status IN ('scheduled','passed')"));
   assert.ok(api.includes(ORDER_PICK_CLOSED_MESSAGE));
