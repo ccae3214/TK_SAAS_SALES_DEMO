@@ -5,7 +5,7 @@ import test from 'node:test';
 // Windows 的工作目錄可能是 CRLF 換行，先統一成 LF 再比對。
 const read = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 
-// 雇主、仲介、訓練中心會員頁（桌機）要和系統管理員頁面一樣：功能選單固定在左側。
+// 工作者、雇主、仲介、訓練中心會員頁（桌機）要和系統管理員頁面一樣：功能選單固定在左側。
 // 手機版維持底部選單，所以側邊樣式只能放在 701px 以上的 media query 裡。
 test('側邊選單樣式只作用在桌機（701px 以上）', async () => {
   const css = await read('../src/components/hr-member-side-nav.css');
@@ -35,11 +35,10 @@ test('不新增任何會顯示的文字（只有品牌符號 K），所以不需
   assert.deepEqual([...new Set(contents)], ['K']);
 });
 
-test('雇主、仲介、訓練中心的 /hr 頁面有 .hr-side-nav 包裝；工作者與管理員沒有', async () => {
+test('工作者、雇主、仲介、訓練中心的 /hr 頁面有 .hr-side-nav 包裝；管理員沒有', async () => {
   const source = await read('../src/app/hr/page.jsx');
   assert.match(source, /import '@\/components\/hr-member-side-nav\.css';/);
-  assert.match(source, /const SIDE_NAV_ROLES = new Set\(\['employer', 'agency', 'training_center'\]\);/);
-  assert.ok(!source.includes("'worker'"), '工作者維持原本的上方分頁');
+  assert.match(source, /const SIDE_NAV_ROLES = new Set\(\['worker', 'employer', 'agency', 'training_center'\]\);/);
   assert.ok(source.includes("className={SIDE_NAV_ROLES.has(principal?.role) ? 'hr-side-nav' : undefined}"));
   const wrapper = source.indexOf('hr-side-nav');
   const admin = source.indexOf('<HrManagement');

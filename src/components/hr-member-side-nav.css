@@ -1,11 +1,10 @@
 /*
- * 雇主、仲介機構、訓練中心會員頁（桌機）：功能選單改成和系統管理員頁面（HrManagement）一樣的左側固定選單。
+ * 工作者、雇主、仲介機構、訓練中心會員頁（桌機）：功能選單改成和系統管理員頁面（HrManagement）一樣的左側固定選單。
  * 只改桌機（寬度 701px 以上）；手機（700px 以下）維持 hr-member-mobile-nav.css 的底部選單。
  *
- * 做法：app/hr 頁面在這三種角色外面包一層 .hr-side-nav，這裡只用 CSS 把既有的 nav.workspace-tabs
+ * 做法：app/hr 頁面在這四種角色外面包一層 .hr-side-nav，這裡只用 CSS 把既有的 nav.workspace-tabs
  * 從「頁面上方的分頁」改成「固定在左側的選單」，不用改 HrMemberPortal／HrTrainingCenterWorkspace。
- * 三種角色共用同一個 nav.workspace-tabs，所以選單長相、切換方式、選中狀態都會一致。
- * 工作者頁面沒有包 .hr-side-nav，維持原本的樣子。
+ * 四種角色共用同一個 nav.workspace-tabs，所以選單長相、切換方式、選中狀態都會一致。
  * 這裡沒有新增任何會顯示的文字（只有品牌符號 K），所以不需要新增中英文翻譯。
  */
 @media (min-width: 701px) {
