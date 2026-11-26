@@ -1,5 +1,8 @@
 # TASK_LOG｜TK SaaS 本機接手紀錄
 
+本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
+
+
 ## 本輪：使用者要求先完整驗收，再交付 test case PR
 
 使用者已明確批准新建隔離 DB／schema 初始化、虛構資料及本機測試密鑰。測試基底為 main `69871560d89af96d60e48b0f6087d46cca3f7887`，獨立分支 `test/hr-acceptance-cases`，不修改原選工分支或另一邊推播。

@@ -1,5 +1,8 @@
 # PROJECT_MAP｜目前 main 整合候選的專案地圖
 
+本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
+
+
 ## 本輪：完整後台驗收（不含推播）
 
 - `compose.acceptance.yaml`：全新隔離 app／PostgreSQL，loopback 8092、internal network，不提供 LINE／推播 secrets。

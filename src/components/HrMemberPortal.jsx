@@ -1075,7 +1075,7 @@ function EmployerOrderForm({ data, activeTaiwanAgencies, orderForm, setOrderForm
 
   return <form className="worker-form order-form order-create-form" onSubmit={submitOrder}>
     <div className="order-create-section-heading form-wide"><span>01</span><div><h3>需求內容</h3><p>填寫工作類型與預計到職資訊。</p></div></div>
-    <label>工作類型<select value={orderForm.jobType} onChange={event => update({ jobType: event.target.value })}><option>家庭看護</option><option>家庭幫傭</option><option>機構看護工</option><option>工廠技術工</option><option>農工</option></select></label>
+    <label>工作類型<select value={orderForm.jobType} onChange={event => update({ jobType: event.target.value })}><option value="家庭看護">家庭看護</option><option value="家庭幫傭">家庭幫傭</option><option value="機構看護工">機構看護工</option><option value="工廠技術工">工廠技術工</option><option value="農工">農工</option></select></label>
     <label>需求人數<input type="number" min="1" max="100" required value={orderForm.headcount} onChange={event => update({ headcount: event.target.value })}/></label>
     <label>預計到職日期<input type="date" value={orderForm.expectedStartDate} onChange={event => update({ expectedStartDate: event.target.value })}/></label>
     <label className="form-wide">工作內容／條件<textarea rows="3" value={orderForm.description} onChange={event => update({ description: event.target.value })}/></label>

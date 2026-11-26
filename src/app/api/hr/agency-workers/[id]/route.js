@@ -196,8 +196,8 @@ export async function PATCH(request, { params }) {
       try {
         await client.query('BEGIN');
         await client.query('SELECT id FROM hr_workers WHERE id=$1 FOR UPDATE', [workerId]);
-        await client.query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,updated_by,updated_at)
-          VALUES($1,$2,$3::date,$4::date,$5,$6,NOW())
+        await client.query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,updated_by,detail,updated_at)
+          VALUES($1,$2,$3::date,$4::date,$5,$6,$7,NOW())
           ON CONFLICT(worker_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
             note=EXCLUDED.note,detail=EXCLUDED.detail,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
         [workerId, stepKey, startedOn || null, completedOn || null, note, actor, detail.value]);

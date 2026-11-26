@@ -1,5 +1,8 @@
 # 克雷迅人力仲介管理系統
 
+本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](docs/HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
+
+
 舊 DEMO／NOTE 資料已移至獨立資料庫；連線方式與備份位置見 [DEMO_NOTE_DATABASE](docs/DEMO_NOTE_DATABASE.md)。
 
 ## 本輪：會員／仲介後台完整驗收（不含推播）

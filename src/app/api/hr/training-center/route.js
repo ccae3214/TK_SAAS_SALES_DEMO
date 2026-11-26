@@ -285,9 +285,9 @@ export async function POST(request) {
       scope(ctx, cls.center_id);
       centerId = cls.center_id;
     } else centerId = (await requireCenter(ctx.self ? ctx.centerId : body.centerId)).id;
-    const record = await buildRecord(resource, body, centerId, null);
+    const fields = await buildRecord(resource, body, centerId, null);
     const parent = resource === 'batch' ? { class_id: Number(body.classId) } : { center_id: centerId };
-    const all = { ...parent, ...record };
+    const all = { ...parent, ...fields };
     const keys = Object.keys(all);
     const created = await one(`INSERT INTO ${TABLES[resource]}(${keys.join(',')}) VALUES(${keys.map((_, i) => `$${i + 1}`).join(',')}) RETURNING *`, keys.map(key => all[key]));
     const center = await one("SELECT display_name FROM hr_members WHERE id=$1", [centerId]);
