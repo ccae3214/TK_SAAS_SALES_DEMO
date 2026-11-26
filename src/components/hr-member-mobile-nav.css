@@ -5,8 +5,9 @@
  */
 @media (max-width: 700px) {
   body .hr-member-shell:not(.hr-embedded) {
-    /* 留出底部選單與 iPhone 底部安全區的空間，最後一張卡片才不會被蓋住 */
-    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    --member-nav-left: max(8px, env(safe-area-inset-left, 0px));
+    --member-nav-right: max(8px, env(safe-area-inset-right, 0px));
+    --member-nav-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs {
@@ -21,7 +22,10 @@
     gap: 2px;
     max-width: none;
     margin: 0;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    padding: 5px var(--member-nav-right) calc(5px + var(--member-nav-bottom)) var(--member-nav-left);
+    scroll-padding-inline: var(--member-nav-left) var(--member-nav-right);
+    scroll-snap-type: x proximity;
     overflow-x: auto;
     overflow-y: hidden;
     border: 0;
@@ -39,7 +43,10 @@
   }
 
   body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs button {
-    flex: 1 0 auto;
+    flex: 1 0 clamp(72px, 24vw, 108px);
+    scroll-snap-align: start;
+    box-sizing: border-box;
+    text-align: center;
     flex-direction: column;
     gap: 3px;
     width: auto;
@@ -49,12 +56,14 @@
     border-radius: 12px;
     font-size: 11.5px;
     line-height: 1.2;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   body .hr-member-shell:not(.hr-embedded) nav.workspace-tabs button svg {
     width: 20px;
     height: 20px;
+    flex-shrink: 0;
   }
 }
 
@@ -81,7 +90,7 @@ body .hr-member-shell .hr-member-header-with-reminders::after { display: none; }
 @media (max-width: 700px) {
   body .hr-member-shell:not(.hr-embedded) {
     min-height: 100dvh;
-    padding: 12px 14px calc(96px + env(safe-area-inset-bottom, 0px));
+    padding: 12px max(14px, var(--member-nav-right)) calc(var(--member-nav-height, 84px) + 14px) max(14px, var(--member-nav-left));
     background: #f3f6f4;
   }
 
@@ -114,7 +123,6 @@ body .hr-member-shell .hr-member-header-with-reminders::after { display: none; }
   body .hr-member-shell:not(.hr-embedded) .workspace-tabs {
     gap: 3px;
     min-height: 62px;
-    padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px));
     border-radius: 15px 15px 0 0;
     border-color: #e0e8e3;
     background: rgba(255,255,255,.97);
