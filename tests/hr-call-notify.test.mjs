@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  RING_WINDOW_SECONDS, buildCallNotice, buildTestNotice, createRateLimiter, dispatchCallNotifications, isAllowedPushEndpoint,
+  RING_WINDOW_SECONDS, adminLineLookups, buildCallNotice, buildTestNotice, createRateLimiter, dispatchCallNotifications, isAllowedPushEndpoint,
   lineModeFrom, normalizeLanguage, normalizeSubscription, publicOrigin, vapidSubject,
 } from '../src/lib/hr-call-notify-core.js';
 import { NOTIFY_COPY, detectNotifyEnvironment, urlBase64ToUint8Array } from '../src/lib/hr-call-notify-client-core.js';
@@ -160,4 +160,12 @@ test('通知按鈕依語言取文字（含菲律賓語），伺服器錯誤訊�
   const component = await readFile(new URL('../src/components/HrCallNotify.jsx', import.meta.url), 'utf8');
   assert.ok(component.includes('copyFor(NOTIFY_COPY, language)'));
   assert.ok(component.includes("language === 'zh' ? data?.error : data?.en"));
+});
+
+test('系統管理員（admin:<email>／admin:<LINE>）也會被找出來送 LINE 來電通知', () => {
+  const env = { HR_ADMIN_LINE_USER_IDS: 'U1111, U2222' };
+  const { byEmail, byLineId } = adminLineLookups(['admin:Boss@Example.com', 'admin:U2222', 'admin:U9999', 'admin:unknown', 'member:3'], env);
+  assert.deepEqual([...byEmail], [['admin:Boss@Example.com', 'boss@example.com']], 'email 轉小寫後去會員表找 LINE 綁定');
+  assert.deepEqual([...byLineId], [['admin:U2222', 'U2222']], '只推播到 HR_ADMIN_LINE_USER_IDS 裡有的 LINE');
+  assert.equal(adminLineLookups(['admin:U2222'], {}).byLineId.size, 0, '沒設定管理員 LINE 時不推播');
 });
