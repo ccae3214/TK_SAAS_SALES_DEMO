@@ -3,6 +3,7 @@
 import React, { cloneElement, Fragment } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LANGUAGES, tlText } from '@/lib/language';
 import { WORKER_STAGE_EN } from '@/lib/hr-worker-stages';
 import { TRAINING_CENTER_EN, translateTrainingCenterPattern } from '@/lib/hr-translations-training';
@@ -588,12 +589,13 @@ function LanguageSwitch({ style = {} }) {
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     window.addEventListener('resize', close);
-    window.addEventListener('scroll', close, true);
+    const reposition = () => { const rect = buttonRef.current?.getBoundingClientRect(); if (rect) setMenu({ top: rect.bottom + 6, right: Math.max(8, window.innerWidth - rect.right) }); };
+    window.addEventListener('scroll', reposition, true);
     return () => {
       document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', reposition, true);
     };
   }, [menu]);
   const toggle = () => {
@@ -603,9 +605,9 @@ function LanguageSwitch({ style = {} }) {
   };
   return <>
     <button ref={buttonRef} type="button" data-tour="language" aria-haspopup="menu" aria-expanded={Boolean(menu)} aria-label="Language / 語言 / Wika" onClick={toggle} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 10px', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...style }}>{current.short}</button>
-    {menu && <div data-language-menu role="menu" aria-label="Language / 語言 / Wika" style={{ position: 'fixed', top: menu.top, right: menu.right, zIndex: 10002, display: 'grid', minWidth: 124, padding: 4, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 8px 24px #0003' }}>
+    {menu && createPortal(<div data-language-menu role="menu" aria-label="Language / 語言 / Wika" style={{ position: 'fixed', top: menu.top, right: menu.right, zIndex: 10002, display: 'grid', minWidth: 124, padding: 4, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 8px 24px #0003' }}>
       {LANGUAGES.map(item => <button key={item.code} type="button" role="menuitemradio" aria-checked={lang === item.code} lang={item.htmlLang} onClick={() => { choose(item.code); setMenu(null); }} style={{ border: 0, borderRadius: 7, padding: '10px 12px', textAlign: 'left', background: lang === item.code ? '#e6f4f1' : '#fff', color: lang === item.code ? '#0f766e' : '#334155', fontWeight: lang === item.code ? 700 : 500, fontSize: 14, cursor: 'pointer' }}>{item.label}</button>)}
-    </div>}
+    </div>, document.body)}
   </>;
 }
 

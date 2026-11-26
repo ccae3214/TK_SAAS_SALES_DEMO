@@ -1,0 +1,358 @@
+{
+  "runId": "7d7ad49e",
+  "base": "5f1dfa5",
+  "summary": {
+    "passed": 37,
+    "blocked": 3
+  },
+  "results": [
+    {
+      "id": "START-01",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:35.248Z",
+      "detail": "Four independent credential UI logins; /api/hr principal and rendered start; refreshed",
+      "finishedAt": "2026-11-26T02:45:37.323Z"
+    },
+    {
+      "id": "FLOW-01",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:37.738Z",
+      "detail": {
+        "order": "120",
+        "creation": "real employer UI",
+        "assignment": "admin authenticated API"
+      },
+      "finishedAt": "2026-11-26T02:45:39.199Z"
+    },
+    {
+      "id": "FLOW-02",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:39.200Z",
+      "detail": "PH real UI recommendation; all three read same candidate",
+      "finishedAt": "2026-11-26T02:45:40.663Z"
+    },
+    {
+      "id": "FLOW-03",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:40.663Z",
+      "detail": "Employer real UI interview, three refreshed sessions",
+      "finishedAt": "2026-11-26T02:45:42.784Z"
+    },
+    {
+      "id": "FLOW-04",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:42.785Z",
+      "detail": {
+        "case": "46",
+        "worker": "174",
+        "order": "120"
+      },
+      "finishedAt": "2026-11-26T02:45:44.526Z"
+    },
+    {
+      "id": "START-02",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:44.996Z",
+      "detail": "Same member sees filled A, recommendation B and interview C concurrently",
+      "finishedAt": "2026-11-26T02:45:46.692Z"
+    },
+    {
+      "id": "FLOW-05",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:46.692Z",
+      "detail": {
+        "parallelOrders": [
+          "120",
+          "121",
+          "122"
+        ],
+        "mutations": "session-authenticated HTTP + true DB; UI visibility START-02"
+      },
+      "finishedAt": "2026-11-26T02:45:47.976Z"
+    },
+    {
+      "id": "FLOW-06",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:47.976Z",
+      "detail": {
+        "statuses": [
+          409,
+          200
+        ],
+        "order": "123"
+      },
+      "finishedAt": "2026-11-26T02:45:49.792Z"
+    },
+    {
+      "id": "FLOW-07",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:49.792Z",
+      "detail": {
+        "statuses": [
+          201,
+          201
+        ],
+        "sameCandidate": "128"
+      },
+      "finishedAt": "2026-11-26T02:45:50.521Z"
+    },
+    {
+      "id": "FLOW-08",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:50.521Z",
+      "detail": "Withdrawal marker/actor/time kept, not a free-text reason feature; worker+document snapshots unchanged",
+      "finishedAt": "2026-11-26T02:45:51.342Z"
+    },
+    {
+      "id": "FLOW-09",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:51.342Z",
+      "detail": "Scheduled and passed both reject withdrawal (HTTP 409)",
+      "finishedAt": "2026-11-26T02:45:51.392Z"
+    },
+    {
+      "id": "FLOW-10",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:51.393Z",
+      "detail": "Cancelled order refuses stale hire",
+      "finishedAt": "2026-11-26T02:45:51.690Z"
+    },
+    {
+      "id": "FLOW-11",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:51.691Z",
+      "detail": {
+        "recommendationReplay": "133",
+        "controlledBrowser500": {
+          "injected": true,
+          "errorText": "新增失敗，請稍後再試。",
+          "afterRetryCount": 1
+        },
+        "realRetry": true
+      },
+      "finishedAt": "2026-11-26T02:45:53.300Z"
+    },
+    {
+      "id": "FLOW-12",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:53.301Z",
+      "detail": {
+        "unrelatedOrderUnchanged": "129",
+        "exactIDs": true
+      },
+      "finishedAt": "2026-11-26T02:45:54.004Z"
+    },
+    {
+      "id": "START-03",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:54.005Z",
+      "detail": "Dedicated stale-open-at-capacity fixture; UI operations disabled; terminal records preserved across all three roles",
+      "finishedAt": "2026-11-26T02:45:58.022Z"
+    },
+    {
+      "id": "START-04",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:58.023Z",
+      "detail": {
+        "fiveStatusMixture": true,
+        "count": 16
+      },
+      "finishedAt": "2026-11-26T02:45:59.390Z"
+    },
+    {
+      "id": "START-05",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:45:59.391Z",
+      "detail": "Approved empty agency, real UI refresh; no previous-identity record",
+      "finishedAt": "2026-11-26T02:46:00.033Z"
+    },
+    {
+      "id": "START-06",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:00.034Z",
+      "detail": {
+        "sameApplicantApproved": "124",
+        "worker": "186"
+      },
+      "finishedAt": "2026-11-26T02:46:01.122Z"
+    },
+    {
+      "id": "START-07",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:01.123Z",
+      "detail": "390px Chromium all four role starts; no whole-document overflow, not physical-device evidence",
+      "finishedAt": "2026-11-26T02:46:02.736Z"
+    },
+    {
+      "id": "START-08",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:02.737Z",
+      "detail": "Real UI draft survives focus refresh and persists to correct order",
+      "finishedAt": "2026-11-26T02:46:06.229Z"
+    },
+    {
+      "id": "DOC-01",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:06.230Z",
+      "detail": "Latest-main three-of-two gate: 0/1 approval denied, passport+LCR opens without PSA",
+      "finishedAt": "2026-11-26T02:46:06.543Z"
+    },
+    {
+      "id": "DOC-02",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:06.543Z",
+      "detail": {
+        "oldVersion": 2,
+        "newVersion": 3,
+        "mutations": "authenticated HTTP; read-back worker view+DB"
+      },
+      "finishedAt": "2026-11-26T02:46:06.909Z"
+    },
+    {
+      "id": "DOC-03",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:06.909Z",
+      "detail": {
+        "sameWorker": "174",
+        "cases": [
+          "46",
+          "49"
+        ],
+        "documentRows": 25
+      },
+      "finishedAt": "2026-11-26T02:46:07.060Z"
+    },
+    {
+      "id": "DOC-04",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:07.061Z",
+      "detail": "Manual ARC retained, auto child document updated, other worker unchanged",
+      "finishedAt": "2026-11-26T02:46:07.138Z"
+    },
+    {
+      "id": "DOC-05",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:07.139Z",
+      "detail": {
+        "enrollment": "8",
+        "worker": "183",
+        "case": "50",
+        "threePartyReadback": true
+      },
+      "finishedAt": "2026-11-26T02:46:08.053Z"
+    },
+    {
+      "id": "DOC-06",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:08.054Z",
+      "detail": "OEC/Visa and TW arrival steps read identically by three roles; outstanding documents/training still prevent all-complete",
+      "finishedAt": "2026-11-26T02:46:08.851Z"
+    },
+    {
+      "id": "DOC-07",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:08.852Z",
+      "detail": "PDF exact bytes; fake-PDF rejected 415; cross-agency direct download refused",
+      "finishedAt": "2026-11-26T02:46:08.917Z"
+    },
+    {
+      "id": "SEC-01",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:08.918Z",
+      "detail": "Independent B agencies; list, direct detail and write denial",
+      "finishedAt": "2026-11-26T02:46:09.208Z"
+    },
+    {
+      "id": "SEC-02",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:09.208Z",
+      "detail": "Employer A/B candidate ID substitution denied; worker cross-person upload denied",
+      "finishedAt": "2026-11-26T02:46:09.393Z"
+    },
+    {
+      "id": "SEC-03",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:09.394Z",
+      "detail": "Anonymous 401; waiting member mutation 403 and no business data",
+      "finishedAt": "2026-11-26T02:46:10.089Z"
+    },
+    {
+      "id": "SEC-04",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:10.090Z",
+      "detail": "Same cookie-context scope switch, real UI sign-out/re-login/back; server prevents cross-identity old mutation",
+      "finishedAt": "2026-11-26T02:46:12.816Z"
+    },
+    {
+      "id": "SEC-05",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:12.817Z",
+      "detail": "Real edit→cookie invalidation→UI401 no false success→credential re-login; no business row written",
+      "finishedAt": "2026-11-26T02:46:14.894Z"
+    },
+    {
+      "id": "LANG-01",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:14.895Z",
+      "detail": "Latest main real website FIL switch, html lang=fil on four roles; LINE not exercised",
+      "finishedAt": "2026-11-26T02:46:17.760Z"
+    },
+    {
+      "id": "LANG-02",
+      "status": "blocked",
+      "startedAt": "2026-11-26T02:46:17.761Z",
+      "detail": "No independent Filipino reviewer available; AI/source analysis is not mother-tongue sign-off",
+      "finishedAt": "2026-11-26T02:46:18.967Z"
+    },
+    {
+      "id": "LANG-03",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:18.967Z",
+      "detail": "FIL preference survives refresh and same-profile re-login; distinct terminal and interview records rendered without ID changes",
+      "finishedAt": "2026-11-26T02:46:20.534Z"
+    },
+    {
+      "id": "LANG-04",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:20.536Z",
+      "detail": "Rendered amount/date/acronyms/free text identical in three languages; full API identity snapshots unchanged",
+      "finishedAt": "2026-11-26T02:46:28.197Z"
+    },
+    {
+      "id": "LANG-05",
+      "status": "blocked",
+      "startedAt": "2026-11-26T02:46:28.198Z",
+      "detail": "390px Chromium FIL starts checked; no physical phone or independent readability reviewer",
+      "finishedAt": "2026-11-26T02:46:30.583Z"
+    },
+    {
+      "id": "LANG-06",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:30.584Z",
+      "detail": {
+        "technical": {
+          "injected": true,
+          "errorText": "Hindi naidagdag ang record. Pakisubukan ulit mamaya.",
+          "afterRetryCount": 1
+        },
+        "semanticReview": "LANG-02 independent reviewer pending"
+      },
+      "finishedAt": "2026-11-26T02:46:31.893Z"
+    },
+    {
+      "id": "LANG-07",
+      "status": "passed",
+      "startedAt": "2026-11-26T02:46:31.894Z",
+      "detail": "Real UI invalid saved-locale→zh plus missing-TL-string English fallback function; no blank/undefined",
+      "finishedAt": "2026-11-26T02:46:32.140Z"
+    },
+    {
+      "id": "LANG-08",
+      "status": "blocked",
+      "startedAt": "2026-11-26T02:46:32.140Z",
+      "detail": "No independent first-time Filipino user available; cannot fabricate task-test observation",
+      "finishedAt": "2026-11-26T02:46:32.220Z"
+    }
+  ],
+  "pageErrors": []
+}

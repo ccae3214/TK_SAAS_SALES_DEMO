@@ -8,25 +8,44 @@ import { useEffect } from 'react';
 export default function HrMemberNavScroll() {
   useEffect(() => {
     const media = window.matchMedia('(max-width: 700px)');
-    let lastActive = null;
-    let frame = 0;
-
+    let nav, active, width, frame = 0;
+    const resize = new ResizeObserver(() => schedule());
     const reveal = () => {
       frame = 0;
-      if (!media.matches) return;
-      const active = document.querySelector('.hr-member-shell nav.workspace-tabs button.active');
-      if (!active || active === lastActive) return;
-      lastActive = active;
-      // block: 'nearest' 只調整選單本身的橫向捲動，不會讓整頁跟著上下跳。
-      active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+      const next = document.querySelector('.hr-member-shell:not(.hr-embedded) nav.workspace-tabs');
+      if (next !== nav) {
+        nav?.closest('.hr-member-shell')?.style.removeProperty('--member-nav-height');
+        resize.disconnect();
+        nav = next;
+        active = null;
+        if (nav) resize.observe(nav);
+      }
+      if (!nav) return;
+      const shell = nav.closest('.hr-member-shell');
+      if (!media.matches) {
+        shell.style.removeProperty('--member-nav-height');
+        active = null;
+        return;
+      }
+      shell.style.setProperty('--member-nav-height', `${nav.offsetHeight}px`);
+      const selected = nav.querySelector('button.active');
+      if (!selected || (selected === active && width === nav.clientWidth)) return;
+      active = selected;
+      width = nav.clientWidth;
+      const item = active.getBoundingClientRect();
+      const bar = nav.getBoundingClientRect();
+      nav.scrollLeft += item.left + item.width / 2 - bar.left - bar.width / 2;
     };
     const schedule = () => { if (!frame) frame = window.requestAnimationFrame(reveal); };
-
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    media.addEventListener('change', schedule);
     schedule();
     return () => {
       observer.disconnect();
+      resize.disconnect();
+      media.removeEventListener('change', schedule);
+      nav?.closest('.hr-member-shell')?.style.removeProperty('--member-nav-height');
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, []);

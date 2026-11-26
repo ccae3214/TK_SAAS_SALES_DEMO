@@ -1,5 +1,8 @@
 # VERIFICATION_REPORT｜目前本機候選與歷史實證
 
+本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
+
+
 ## 本輪：真實後台驗收，不是只有案例文件
 
 唯一結果入口：[HR_ACCEPTANCE_REPORT](HR_ACCEPTANCE_REPORT.md)；逐筆結果：[CSV](HR_ACCEPTANCE_CASES.csv)；可機讀證據：[hr-acceptance-results.json](review/hr-acceptance-results.json)。本輪基底 main `6987156`，使用獨立的 PostgreSQL 與正式 build 的 app，並行角色為不同 Chromium contexts。

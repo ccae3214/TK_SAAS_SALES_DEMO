@@ -390,9 +390,10 @@ async function handlePatch(request) {
       if(!validId(candidateId)||!['scheduled','passed','rejected'].includes(status))return NextResponse.json({error:'面試結果不正確。'},{status:400});
       const client=await pool.connect();
       try { await client.query('BEGIN');
-        const candidate=await client.query(`SELECT c.*,r.id route_id,oa.job_order_id,oa.taiwan_agency_id,o.employer_id,o.job_type,o.expected_start_date,o.headcount FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE c.id=$1 AND o.employer_id=$2 FOR UPDATE OF c,o`,[candidateId,principal.employer_id]);
+        const candidate=await client.query(`SELECT c.*,r.id route_id,oa.job_order_id,oa.taiwan_agency_id,o.employer_id,o.job_type,o.expected_start_date,o.headcount,o.status AS order_status FROM hr_job_order_candidates c JOIN hr_job_order_routes r ON r.id=c.route_id JOIN hr_job_order_agencies oa ON oa.id=r.order_agency_id JOIN hr_job_orders o ON o.id=oa.job_order_id WHERE c.id=$1 AND o.employer_id=$2 FOR UPDATE OF c,o`,[candidateId,principal.employer_id]);
         if(!candidate.rowCount){await client.query('ROLLBACK');return NextResponse.json({error:'找不到此工作需求的人選。'},{status:404});}
         const item=candidate.rows[0];let caseId=item.case_id;
+        if(item.order_status!=='open'){await client.query('ROLLBACK');return NextResponse.json({error:'此需求單已額滿或取消，無法更新面試或錄用。'},{status:409});}
         if(['scheduled','passed'].includes(status)&&!(await isRouteCertified(client,item.route_id))){await client.query('ROLLBACK');return NextResponse.json({error:'台灣仲介與此人選的菲律賓仲介目前沒有有效的相互認證，無法安排面試或錄用。'},{status:409});}
         if(isWithdrawnRecommendation(item)){
           await client.query('ROLLBACK');

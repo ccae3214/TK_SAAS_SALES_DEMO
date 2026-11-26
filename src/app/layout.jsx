@@ -2,6 +2,8 @@ import "./globals.css";
 import Providers from "./providers";
 import { headers } from "next/headers";
 
+export const viewport = { viewportFit: "cover" };
+
 export const metadata = {
   title: "克雷迅人力仲介管理系統",
   description: "克雷迅人力仲介管理與工作者服務平台",

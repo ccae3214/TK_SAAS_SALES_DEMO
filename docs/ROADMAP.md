@@ -1,5 +1,8 @@
 # ROADMAP｜main 整合後的本機驗收
 
+本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
+
+
 ## 本輪計畫：驗證既有後台，不重建工作起點
 
 - [x] 依已批准範圍建立全新隔離驗收站／測試密鑰及虛構多機構會員。
