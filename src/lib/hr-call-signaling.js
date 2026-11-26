@@ -12,6 +12,18 @@ const MAX_CONNECTIONS_PER_KEY = 6;
 const MAX_CONNECTIONS = 500;
 const MAX_MESSAGE_BYTES = 64 * 1024;
 
+// 參加者的麥克風／鏡頭／喇叭狀態：mic、cam 是 'on'（開啟）、'off'（已關閉）、'none'（沒有這個裝置）；speaker 是 'on'／'off'。
+// 只轉送這三個欄位，其他內容一律丟掉；沒有提供就用預設值（麥克風開、鏡頭依通話類型、喇叭開）。
+export function cleanMedia(value, video = false) {
+  const pickState = (input, allowed, fallback) => (allowed.includes(input) ? input : fallback);
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    mic: pickState(source.mic, ['on', 'off', 'none'], 'on'),
+    cam: pickState(source.cam, ['on', 'off', 'none'], video ? 'on' : 'none'),
+    speaker: pickState(source.speaker, ['on', 'off'], 'on'),
+  };
+}
+
 // ---------------------------------------------------------------- 通話邏輯（與連線方式無關，可單獨測試）
 export class CallHub {
   // onNotify(call)：有人撥號時通知「不在線上」的被叫者（網頁推播／LINE），見 hr-call-notify-store.js。通知失敗不影響通話。
@@ -77,6 +89,7 @@ export class CallHub {
       case 'ping': conn.send({ t: 'pong' }); break;
       case 'start': case 'join': this.enter(conn, message); break;
       case 'signal': this.relay(conn, message); break;
+      case 'media': this.setMedia(conn, message); break;
       case 'decline': this.decline(conn, message); break;
       case 'leave': this.leave(conn, 'left'); break;
       default: break;
@@ -103,11 +116,12 @@ export class CallHub {
     } else if (call.participants.size >= MAX_PARTICIPANTS) {
       return conn.send({ t: 'error', code: 'full' });
     }
-    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name }));
+    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, media: item.media || cleanMedia(null, call.video) }));
+    conn.media = cleanMedia(message.media, call.video);
     call.participants.set(conn.id, conn);
     conn.roomId = roomId;
     conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers });
-    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name } });
+    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, media: conn.media } });
     // 同一個人的其他分頁／裝置不用再響鈴
     for (const other of this.byKey.get(conn.key) || []) if (other !== conn && other.roomId == null) other.send({ t: 'ring-stop', roomId });
   }
@@ -117,6 +131,14 @@ export class CallHub {
     const target = call?.participants.get(String(message.to));
     if (!call || !target || target === conn) return;
     target.send({ t: 'signal', from: conn.id, data: message.data });
+  }
+
+  // 參加者開關麥克風、鏡頭、喇叭時，把最新狀態轉送給同一通電話的其他人（只在通話中才有效）。
+  setMedia(conn, message) {
+    const call = this.calls.get(conn.roomId);
+    if (!call || !call.participants.has(conn.id)) return;
+    conn.media = cleanMedia(message.media, call.video);
+    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-media', id: conn.id, media: conn.media });
   }
 
   decline(conn, message) {

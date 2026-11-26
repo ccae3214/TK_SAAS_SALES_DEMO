@@ -111,7 +111,7 @@ test('連線還沒就緒時撥號：立刻重連並等待，連上後照常開�
   assert.equal(client.wsReady, false);
   assert.equal(await client.enter({ roomId: 7, video: false }), true);
   assert.equal(client.notice, null);
-  assert.deepEqual(FakeSocket.last.sent[0], { t: 'start', ticket: 'room-ticket', video: false });
+  assert.deepEqual(FakeSocket.last.sent[0], { t: 'start', ticket: 'room-ticket', video: false, media: { mic: 'on', cam: 'none', speaker: 'on' } });
   client.stop();
 });
 
