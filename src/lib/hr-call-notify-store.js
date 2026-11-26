@@ -1,7 +1,7 @@
 import pool, { query } from '@/lib/db';
 import { migrateOnce } from './migrate-once.js';
 import {
-  RING_WINDOW_SECONDS, createRateLimiter, dispatchCallNotifications, lineModeFrom, normalizeLanguage, publicOrigin, vapidSubject,
+  RING_WINDOW_SECONDS, adminLineLookups, createRateLimiter, dispatchCallNotifications, lineModeFrom, normalizeLanguage, publicOrigin, vapidSubject,
 } from './hr-call-notify-core.js';
 
 // 來電通知（資料庫與實際送出的部分）。誰會被通知、文字怎麼寫在 hr-call-notify-core.js。
@@ -59,21 +59,39 @@ export async function subscriptionsFor(keys) {
   return map;
 }
 
-// 有綁定 LINE 的會員（key 是 member:<id>；管理者帳號沒有 LINE 綁定，略過）。語言用 LINE 個人設定，沒有就工人用英文、其他用中文。
-export async function lineTargetsFor(keys) {
+// 有綁定 LINE 的人：
+//   member:<id>   → 會員表的 line_user_id（含會員表裡的系統管理員）
+//   admin:<LINE>  → 用 LINE 登入、設定在 HR_ADMIN_LINE_USER_IDS 的系統管理員，直接推播到該 LINE
+//   admin:<email> → 用 email 登入的系統管理員，用 email 找會員表裡綁定的 LINE（沒綁定就收不到 LINE 通知）
+// 語言用 LINE 個人設定，沒有就工人用英文、其他用中文。
+export async function lineTargetsFor(keys, env = process.env) {
+  const targets = new Map(); // key → { lineUserId, role }
   const ids = keys.map(key => /^member:(\d+)$/.exec(key)?.[1]).filter(Boolean);
-  if (!ids.length) return new Map();
-  const members = await query(`SELECT id, line_user_id, role FROM hr_members
-    WHERE active=TRUE AND id = ANY($1::bigint[]) AND COALESCE(line_user_id,'')<>''`, [ids]);
-  if (!members.length) return new Map();
+  if (ids.length) {
+    const members = await query(`SELECT id, line_user_id, role FROM hr_members
+      WHERE active=TRUE AND id = ANY($1::bigint[]) AND COALESCE(line_user_id,'')<>''`, [ids]);
+    for (const row of members) targets.set(`member:${row.id}`, { lineUserId: row.line_user_id, role: row.role });
+  }
+  const admins = adminLineLookups(keys, env);
+  for (const [key, lineUserId] of admins.byLineId) targets.set(key, { lineUserId, role: 'admin' });
+  if (admins.byEmail.size) {
+    const rows = await query(`SELECT DISTINCT ON (lower(email)) lower(email) AS email, line_user_id FROM hr_members
+      WHERE active=TRUE AND lower(email) = ANY($1::text[]) AND COALESCE(line_user_id,'')<>''
+      ORDER BY lower(email), id`, [[...new Set(admins.byEmail.values())]]);
+    const lineByEmail = new Map(rows.map(row => [row.email, row.line_user_id]));
+    for (const [key, email] of admins.byEmail) {
+      if (lineByEmail.has(email)) targets.set(key, { lineUserId: lineByEmail.get(email), role: 'admin' });
+    }
+  }
+  if (!targets.size) return new Map();
   let languages = new Map();
   try {
-    const settings = await query('SELECT line_user_id, preferred_language FROM hr_line_member_settings WHERE line_user_id = ANY($1::text[])', [members.map(row => row.line_user_id)]);
+    const settings = await query('SELECT line_user_id, preferred_language FROM hr_line_member_settings WHERE line_user_id = ANY($1::text[])', [[...new Set([...targets.values()].map(row => row.lineUserId))]]);
     languages = new Map(settings.map(row => [row.line_user_id, row.preferred_language]));
   } catch { /* 還沒有語言設定表就用預設語言 */ }
-  return new Map(members.map(row => [`member:${row.id}`, {
-    lineUserId: row.line_user_id,
-    language: normalizeLanguage(languages.get(row.line_user_id), row.role === 'worker' ? 'en' : 'zh'),
+  return new Map([...targets].map(([key, row]) => [key, {
+    lineUserId: row.lineUserId,
+    language: normalizeLanguage(languages.get(row.lineUserId), row.role === 'worker' ? 'en' : 'zh'),
   }]));
 }
 
@@ -103,7 +121,7 @@ export async function notifyCall(call, env = process.env) {
   const keys = (call.keys || []).filter(key => limiter.allow(key));
   return dispatchCallNotifications({
     keys, call, lineMode, pushEnabled, origin: publicOrigin(env),
-    deps: { subscriptionsFor, lineTargetsFor, sendPush: (sub, payload, options) => sendWebPush(sub, payload, options, env), pushLine, removeSubscription },
+    deps: { subscriptionsFor, lineTargetsFor: targetKeys => lineTargetsFor(targetKeys, env), sendPush: (sub, payload, options) => sendWebPush(sub, payload, options, env), pushLine, removeSubscription },
   });
 }
 

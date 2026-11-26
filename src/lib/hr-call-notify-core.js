@@ -57,6 +57,22 @@ export function lineModeFrom(env = {}) {
   return ['always', 'off'].includes(value) ? value : 'fallback';
 }
 
+// 系統管理員（用 ADMIN_EMAILS／HR_ADMIN_EMAILS／HR_ADMIN_LINE_USER_IDS 設定、不在會員表裡的）在通話裡的 key 是
+// admin:<email> 或 admin:<LINE userId>（見 /api/hr/call 的 getReaderKey）。這裡把它拆成要用 email 查 LINE 綁定、
+// 或直接用 LINE userId 推播的兩組。LINE userId 只接受 HR_ADMIN_LINE_USER_IDS 裡有的，避免推播到不認識的帳號。
+export function adminLineLookups(keys = [], env = {}) {
+  const allowedLineIds = new Set(String(env.HR_ADMIN_LINE_USER_IDS || '').split(',').map(id => id.trim()).filter(Boolean));
+  const byEmail = new Map();
+  const byLineId = new Map();
+  for (const key of keys) {
+    const value = /^admin:(.+)$/.exec(String(key || ''))?.[1]?.trim();
+    if (!value || value === 'unknown') continue;
+    if (value.includes('@')) byEmail.set(key, value.toLowerCase());
+    else if (allowedLineIds.has(value)) byLineId.set(key, value);
+  }
+  return { byEmail, byLineId };
+}
+
 const clean = (value, max) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 const COPY = {
