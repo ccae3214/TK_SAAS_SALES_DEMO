@@ -29,3 +29,11 @@ test('/hr 與 /hr/matching 都載入頂端細條樣式', async () => {
     assert.match(source, /import '@\/components\/hr-member-top-edge\.css';/, path);
   }
 });
+
+test('標題卡捲動時固定在頂端細條的正下方', async () => {
+  const css = await read('../src/components/hr-member-top-edge.css');
+  const rule = css.match(/\.hr-member-shell:not\(\.hr-embedded\) > \.hr-member-header \{([^}]*)\}/)?.[1] || '';
+  assert.match(rule, /position: sticky;/);
+  assert.match(rule, /top: max\(12px, env\(safe-area-inset-top, 0px\)\);/, '要和細條同高，才不會重疊或留縫');
+  assert.match(rule, /z-index: 26;/, '要蓋過內容、但在細條（25）之上不重疊');
+});

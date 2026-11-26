@@ -26,3 +26,13 @@
 .hr-member-shell:not(.hr-embedded) {
   padding-top: max(12px, env(safe-area-inset-top, 0px));
 }
+
+/*
+ * 標題卡（克雷迅人力管理／○○工作區、語言、登出）捲動時固定在頂端，和系統管理頁面的標題列一樣。
+ * 固定在上面那條細條的正下方，所以細條仍負責讓 Safari 用實色、不產生模糊。
+ */
+.hr-member-shell:not(.hr-embedded) > .hr-member-header {
+  position: sticky;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  z-index: 26;
+}
