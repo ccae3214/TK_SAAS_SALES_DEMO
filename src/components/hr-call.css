@@ -46,6 +46,11 @@
 .hr-call-tile video.hr-call-audio-only { opacity: 0; pointer-events: none; }
 .hr-call-avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #1f8f6b; font-size: 28px; font-weight: 800; }
 .hr-call-name { position: absolute; left: 8px; bottom: 6px; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.5); font-size: 12px; }
+.hr-call-status { position: absolute; right: 8px; bottom: 6px; display: flex; gap: 4px; }
+.hr-call-status-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, 0.5); color: #fff; }
+.hr-call-status-icon.is-off { background: #d64545; }
+.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-status { right: 4px; bottom: 4px; gap: 2px; }
+.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-status-icon { width: 18px; height: 18px; }
 .hr-call-tile[data-state="connecting"]::after, .hr-call-tile[data-state="new"]::after, .hr-call-tile[data-state="disconnected"]::after, .hr-call-tile[data-state="failed"]::after {
   content: ""; position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: #f0b429;
 }

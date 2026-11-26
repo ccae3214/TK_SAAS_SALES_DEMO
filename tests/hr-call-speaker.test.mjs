@@ -53,3 +53,29 @@ test('沒有通話時切換喇叭不動作；通話結束後下一通電話喇�
   client.cleanup();
   assert.equal(client.speakerOn, true, '掛斷後重置');
 });
+
+test('本機的麥克風／鏡頭／喇叭狀態：開、關、沒有裝置', () => {
+  const { client } = makeClient();
+  client.localStream = new FakeStream([new FakeTrack('audio'), new FakeTrack('video')]);
+  client.call = { roomId: 1, title: 't', phase: 'active', peers: [], everHadPeer: false };
+  assert.deepEqual(client.snapshot().call.media, { mic: 'on', cam: 'on', speaker: 'on' });
+  client.toggleMic(); client.toggleCamera(); client.toggleSpeaker();
+  assert.deepEqual(client.snapshot().call.media, { mic: 'off', cam: 'off', speaker: 'off' });
+  client.localStream = new FakeStream();
+  assert.deepEqual(client.snapshot().call.media, { mic: 'none', cam: 'none', speaker: 'off' }, '沒有裝置顯示為 none');
+});
+
+test('開關麥克風、鏡頭、喇叭會把最新狀態送給信令伺服器；對方的狀態更新後畫面拿得到', () => {
+  const { client, snapshots } = makeClient();
+  const sent = [];
+  client.ws = { send: data => sent.push(JSON.parse(data)) }; client.wsReady = true;
+  client.localStream = new FakeStream([new FakeTrack('audio'), new FakeTrack('video')]);
+  client.call = { roomId: 1, title: 't', phase: 'active', peers: [], everHadPeer: false };
+  client.toggleMic();
+  client.toggleSpeaker();
+  assert.deepEqual(sent.at(-1), { t: 'media', media: { mic: 'off', cam: 'on', speaker: 'off' } });
+  client.peers.set('p1', { id: 'p1', name: 'P', state: 'connected', stream: null, media: { mic: 'on', cam: 'on', speaker: 'on' }, pc: { close() {} } });
+  client.onMessage({ t: 'peer-media', id: 'p1', media: { mic: 'off', cam: 'bogus', speaker: 'off' } });
+  assert.deepEqual(snapshots.at(-1).call.peers[0].media, { mic: 'off', cam: 'none', speaker: 'off' }, '不合法的值退回預設');
+  client.onMessage({ t: 'peer-media', id: 'unknown', media: { mic: 'off' } });
+});

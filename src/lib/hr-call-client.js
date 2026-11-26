@@ -33,6 +33,13 @@ export function unsupportedReason(env = globalThis) {
   return { type: 'unsupported' };
 }
 
+// 對方傳來的裝置狀態：只接受已知的值，其他一律當成預設（麥克風開、鏡頭沒有、喇叭開）。
+export function normalizeMedia(value) {
+  const pick = (input, allowed, fallback) => (allowed.includes(input) ? input : fallback);
+  const source = value && typeof value === 'object' ? value : {};
+  return { mic: pick(source.mic, ['on', 'off', 'none'], 'on'), cam: pick(source.cam, ['on', 'off', 'none'], 'none'), speaker: pick(source.speaker, ['on', 'off'], 'on') };
+}
+
 export class CallClient {
   constructor({ api, wsUrl, onChange, onSound, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
     this.api = api;
@@ -64,6 +71,14 @@ export class CallClient {
 
   supported() { return !!(this.WebSocketCtor && this.PeerCtor && this.media?.getUserMedia); }
 
+  // 自己的麥克風／鏡頭／喇叭狀態（'on' 開啟、'off' 已關閉、'none' 沒有這個裝置），會同步給通話中的其他人。
+  localMedia(stream = this.localStream) {
+    const state = tracks => (!tracks?.length ? 'none' : tracks.some(track => track.enabled) ? 'on' : 'off');
+    return { mic: state(stream?.getAudioTracks()), cam: state(stream?.getVideoTracks()), speaker: this.speakerOn ? 'on' : 'off' };
+  }
+
+  sendMedia() { if (this.call) this.send({ t: 'media', media: this.localMedia() }); }
+
   snapshot() {
     return {
       ready: this.wsReady,
@@ -78,7 +93,8 @@ export class CallClient {
         hasCamera: !!this.localStream?.getVideoTracks().length,
         hasMic: !!this.localStream?.getAudioTracks().length,
         speakerOn: this.speakerOn,
-        peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream })),
+        media: this.localMedia(),
+        peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream, media: peer.media })),
       },
     };
   }
@@ -238,7 +254,7 @@ export class CallClient {
       this.localStream = stream;
       this.call = { roomId: info.roomId, title: info.title || title, roomType: info.roomType, video, callId: null, myId: null, phase: 'starting', everHadPeer: false };
       this.incoming.delete(info.roomId);
-      if (!this.send({ t: 'start', ticket: info.ticket, video })) throw new Error('offline');
+      if (!this.send({ t: 'start', ticket: info.ticket, video, media: this.localMedia(stream) })) throw new Error('offline');
       this.timers.join = setTimeout(() => { if (this.call?.phase === 'starting') { this.cleanup(); this.setNotice({ type: 'timeout' }); } }, JOIN_TIMEOUT_MS);
       this.emit();
       return true;
@@ -257,7 +273,7 @@ export class CallClient {
       const info = await this.api({ type: 'room', roomId: call.roomId });
       this.iceServers = info.iceServers || this.iceServers;
       call.phase = 'starting';
-      if (!this.send({ t: 'start', ticket: info.ticket, video: call.video })) throw new Error('offline');
+      if (!this.send({ t: 'start', ticket: info.ticket, video: call.video, media: this.localMedia() })) throw new Error('offline');
       clearTimeout(this.timers.join);
       this.timers.join = setTimeout(() => { if (this.call?.phase === 'starting') { this.cleanup(); this.setNotice({ type: 'timeout' }); } }, JOIN_TIMEOUT_MS);
       this.emit();
@@ -273,10 +289,10 @@ export class CallClient {
     this.cleanup();
   }
 
-  toggleMic() { this.localStream?.getAudioTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
-  toggleCamera() { this.localStream?.getVideoTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
+  toggleMic() { this.localStream?.getAudioTracks().forEach(track => { track.enabled = !track.enabled; }); this.sendMedia(); this.emit(); }
+  toggleCamera() { this.localStream?.getVideoTracks().forEach(track => { track.enabled = !track.enabled; }); this.sendMedia(); this.emit(); }
   // 關喇叭只是不播放對方的聲音（畫面層把對方的 video 設為靜音），連線與麥克風都不受影響
-  toggleSpeaker() { if (!this.call) return; this.speakerOn = !this.speakerOn; this.emit(); }
+  toggleSpeaker() { if (!this.call) return; this.speakerOn = !this.speakerOn; this.sendMedia(); this.emit(); }
 
   // ------------------------------------------------------------ 信令訊息
   onMessage(message) {
@@ -297,6 +313,7 @@ export class CallClient {
       }
       case 'peer-joined': if (this.call) { clearTimeout(this.timers.alone); this.addPeer(message.peer, false); this.sound('join'); } break;
       case 'peer-left': this.onPeerLeft(message); break;
+      case 'peer-media': this.onPeerMedia(message); break;
       case 'signal': void this.onSignal(message.from, message.data); break;
       case 'declined': this.setNotice({ type: 'declined', name: message.name }); break;
       case 'ended':
@@ -310,6 +327,14 @@ export class CallClient {
         break;
       default: break;
     }
+  }
+
+  // 其他人開關麥克風、鏡頭、喇叭：更新他的狀態讓畫面顯示。
+  onPeerMedia(message) {
+    const peer = this.peers.get(message.id);
+    if (!peer) return;
+    peer.media = normalizeMedia(message.media);
+    this.emit();
   }
 
   // 有人離開：播放離開音效。一對一通話（整通電話最多只有對方一個人）對方按掛斷就立刻結束；
@@ -330,7 +355,7 @@ export class CallClient {
   addPeer(info, initiator) {
     if (!this.call || this.peers.has(info.id)) return;
     const pc = new this.PeerCtor({ iceServers: this.iceServers });
-    const peer = { id: info.id, name: info.name, pc, stream: null, state: 'connecting', queued: [], remoteSet: false, restarted: false, initiator };
+    const peer = { id: info.id, name: info.name, media: normalizeMedia(info.media), pc, stream: null, state: 'connecting', queued: [], remoteSet: false, restarted: false, initiator };
     this.peers.set(info.id, peer);
     this.call.everHadPeer = true;
     this.call.maxPeers = Math.max(this.call.maxPeers || 0, this.peers.size);

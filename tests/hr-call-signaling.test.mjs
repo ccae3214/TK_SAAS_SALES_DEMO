@@ -134,8 +134,8 @@ test('一對一通話：來電 → 接聽 → 交換連線資訊 → 掛斷', as
 
     bob.send({ t: 'join', ticket: room('member:2', 10) });
     const bobJoined = await bob.next(m => m.t === 'joined');
-    assert.deepEqual(bobJoined.peers, [{ id: joined.id, name: 'Alice' }]);
-    assert.deepEqual((await alice.next(m => m.t === 'peer-joined')).peer, { id: bobJoined.id, name: 'Bob' });
+    assert.deepEqual(bobJoined.peers, [{ id: joined.id, name: 'Alice', media: { mic: 'on', cam: 'on', speaker: 'on' } }]);
+    assert.deepEqual((await alice.next(m => m.t === 'peer-joined')).peer, { id: bobJoined.id, name: 'Bob', media: { mic: 'on', cam: 'on', speaker: 'on' } });
     await bob2.next(m => m.t === 'ring-stop');
 
     bob.send({ t: 'signal', to: joined.id, data: { kind: 'offer', sdp: 'v=0' } });
@@ -247,4 +247,23 @@ test('群組通話有人接聽後，沒加入的人的來電提示在響鈴時�
     assert.deepEqual((await host.quiet(50)).filter(m => m.t === 'ended'), [], '通話本身沒有因為響鈴結束而中斷');
     host.close(); joiner.close(); idle.close();
   }, { ringMs: 200 });
+});
+
+test('通話中的麥克風／鏡頭／喇叭狀態：加入時帶入、改變時轉送給其他人，不合法的值用預設值', () => {
+  const hub = new CallHub({ secret: SECRET, setTimer: () => 1, clearTimer: () => {} });
+  const make = (key, name) => { const conn = { id: `${key}-${Math.random()}`, key, name, sent: [], send(message) { this.sent.push(message); } }; assert.ok(hub.addConnection(conn)); return conn; };
+  const a = make('member:1', 'A');
+  const b = make('member:2', 'B');
+  hub.handle(a, { t: 'start', ticket: room('member:1', 40, ['member:2']), video: true, media: { mic: 'off', cam: 'on', speaker: 'off' } });
+  hub.handle(b, { t: 'join', ticket: room('member:2', 40), media: { mic: 'none', cam: 'bogus', speaker: 'on', extra: 'x' } });
+  assert.deepEqual(b.sent.find(m => m.t === 'joined').peers[0].media, { mic: 'off', cam: 'on', speaker: 'off' }, '後加入的人看得到先加入者的狀態');
+  assert.deepEqual(a.sent.find(m => m.t === 'peer-joined').peer.media, { mic: 'none', cam: 'on', speaker: 'on' }, '不合法的值退回預設（視訊通話鏡頭預設開）');
+
+  hub.handle(b, { t: 'media', media: { mic: 'on', cam: 'off', speaker: 'off' } });
+  assert.deepEqual(a.sent.find(m => m.t === 'peer-media'), { t: 'peer-media', id: b.id, media: { mic: 'on', cam: 'off', speaker: 'off' } });
+  assert.equal(b.sent.some(m => m.t === 'peer-media'), false, '不會回傳給自己');
+
+  const outsider = make('member:3', 'C');
+  hub.handle(outsider, { t: 'media', media: { mic: 'off', cam: 'off', speaker: 'off' } });
+  assert.equal(a.sent.filter(m => m.t === 'peer-media').length, 1, '沒有在通話中的人送狀態會被忽略');
 });

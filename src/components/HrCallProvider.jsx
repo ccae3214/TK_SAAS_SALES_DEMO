@@ -17,6 +17,11 @@ export const COPY = {
     mute: '關閉麥克風', unmute: '開啟麥克風', speakerOff: '關閉喇叭', speakerOn: '開啟喇叭', cameraOff: '關閉鏡頭', cameraOn: '開啟鏡頭', me: '我',
     calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
     dismiss: '關閉', callWindow: '通話視窗',
+    status: {
+      micOn: '麥克風已開啟', micOff: '麥克風已關閉', micNone: '沒有麥克風',
+      camOn: '鏡頭已開啟', camOff: '鏡頭已關閉', camNone: '沒有鏡頭',
+      speakerOn: '喇叭已開啟', speakerOff: '喇叭已關閉',
+    },
     notices: {
       permission: '無法使用麥克風或鏡頭。請在瀏覽器的網址列旁允許權限；如果是在 LINE 內開啟，請改用 Chrome 或 Safari 開啟本網站。',
       'no-device': '找不到麥克風，請確認裝置後再試一次。', 'device-busy': '麥克風或鏡頭正被其他程式使用，請關閉後再試一次。',
@@ -32,6 +37,11 @@ export const COPY = {
     mute: 'Mute microphone', unmute: 'Unmute microphone', speakerOff: 'Turn speaker off', speakerOn: 'Turn speaker on', cameraOff: 'Turn camera off', cameraOn: 'Turn camera on', me: 'Me',
     calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
     dismiss: 'Close', callWindow: 'Call window',
+    status: {
+      micOn: 'Microphone on', micOff: 'Microphone off', micNone: 'No microphone',
+      camOn: 'Camera on', camOff: 'Camera off', camNone: 'No camera',
+      speakerOn: 'Speaker on', speakerOff: 'Speaker off',
+    },
     notices: {
       permission: 'The microphone or camera cannot be used. Allow access in the browser address bar. If you opened this site inside LINE, open it in Chrome or Safari instead.',
       'no-device': 'No microphone was found. Check your device and try again.', 'device-busy': 'The microphone or camera is being used by another app. Close it and try again.',
@@ -66,7 +76,20 @@ export function noticeText(notice, lang) {
   return typeof entry === 'function' ? entry(notice.name) : entry;
 }
 
-function Tile({ stream, name, local = false, state, speakerOff = false }) {
+// 每個畫面右下角的三個小圖示：麥克風、鏡頭、喇叭是否開啟（關閉或沒有裝置時變紅色並加斜線）。
+export function MediaStatus({ media, copy }) {
+  const m = media || { mic: 'on', cam: 'none', speaker: 'on' };
+  const items = [
+    { key: 'mic', on: m.mic === 'on', text: m.mic === 'on' ? copy.status.micOn : m.mic === 'off' ? copy.status.micOff : copy.status.micNone, On: Mic, Off: MicOff },
+    { key: 'cam', on: m.cam === 'on', text: m.cam === 'on' ? copy.status.camOn : m.cam === 'off' ? copy.status.camOff : copy.status.camNone, On: Video, Off: VideoOff },
+    { key: 'speaker', on: m.speaker === 'on', text: m.speaker === 'on' ? copy.status.speakerOn : copy.status.speakerOff, On: Volume2, Off: VolumeX },
+  ];
+  return <span className="hr-call-status" role="group" aria-label={items.map(item => item.text).join('，')}>
+    {items.map(({ key, on, text, On, Off }) => <span key={key} className={`hr-call-status-icon ${on ? '' : 'is-off'}`} data-kind={key} data-on={on ? 'true' : 'false'} title={text}>{on ? <On size={13} /> : <Off size={13} />}</span>)}
+  </span>;
+}
+
+function Tile({ stream, name, local = false, state, speakerOff = false, media, copy }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null; }, [stream]);
   const hasVideo = !!stream?.getVideoTracks().some(track => track.readyState === 'live' && (local ? track.enabled : true));
@@ -75,6 +98,7 @@ function Tile({ stream, name, local = false, state, speakerOff = false }) {
     <video ref={ref} autoPlay playsInline muted={local || speakerOff} className={hasVideo ? '' : 'hr-call-audio-only'} />
     {!hasVideo && <span className="hr-call-avatar" aria-hidden="true">{(name || '?').trim().slice(0, 1).toUpperCase()}</span>}
     <span className="hr-call-name">{name}</span>
+    <MediaStatus media={media} copy={copy} />
   </div>;
 }
 
@@ -103,8 +127,8 @@ export function CallView({ state, lang, actions }) {
     {call && <section className={`hr-call-overlay ${call.peers.length === 1 ? 'is-pip' : ''}`} role="dialog" aria-label={copy.callWindow}>
       <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
       <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 6)}`}>
-        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} />)}
-        <Tile stream={call.localStream} name={copy.me} local />
+        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} />)}
+        <Tile stream={call.localStream} name={copy.me} local media={call.media} copy={copy} />
       </div>
       <footer className="hr-call-controls">
         {call.hasMic && <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>}
