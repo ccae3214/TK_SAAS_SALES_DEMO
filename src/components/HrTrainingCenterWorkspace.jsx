@@ -268,7 +268,8 @@ export default function HrTrainingCenterWorkspace({ self = false, extraTabs = []
     submit: values => record ? save('PATCH', { resource: 'batch', id: record.id, ...values }, '已更新證照批次') : save('POST', { resource: 'batch', ...values }, '已新增證照批次'),
   });
 
-  return <div style={{ ...THEME, display: 'grid', gap: 16 }}>
+  // minmax(0, 1fr)：單欄 grid 預設會被最寬的內容（表格）撐開，手機上整頁就會超出螢幕。
+    return <div style={{ ...THEME, display: 'grid', gap: 16, gridTemplateColumns: 'minmax(0, 1fr)' }}>
     {self && <nav className="workspace-tabs" aria-label={pickLang(lang, '工作區分頁', 'Workspace tabs')}>
       {allTabs.map(([id, label]) => { const Icon = TAB_ICONS[id]; return <button key={id} type="button" data-tour={`tc-tab-${id}`} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={17} aria-hidden="true" />{id === 'audit' && lang !== 'zh' ? tlText('Activity log') : label}</button>; })}
     </nav>}
