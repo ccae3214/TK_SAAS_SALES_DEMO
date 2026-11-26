@@ -56,6 +56,7 @@ export class CallClient {
     this.peers = new Map();
     this.call = null;
     this.localStream = null;
+    this.speakerOn = true; // 喇叭（聽對方的聲音）開關；每通電話開始時預設開啟
     this.notice = null;
     this.entering = false;
     this.timers = {};
@@ -76,6 +77,7 @@ export class CallClient {
         camOn: !!this.localStream?.getVideoTracks().some(track => track.enabled),
         hasCamera: !!this.localStream?.getVideoTracks().length,
         hasMic: !!this.localStream?.getAudioTracks().length,
+        speakerOn: this.speakerOn,
         peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream })),
       },
     };
@@ -273,6 +275,8 @@ export class CallClient {
 
   toggleMic() { this.localStream?.getAudioTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
   toggleCamera() { this.localStream?.getVideoTracks().forEach(track => { track.enabled = !track.enabled; }); this.emit(); }
+  // 關喇叭只是不播放對方的聲音（畫面層把對方的 video 設為靜音），連線與麥克風都不受影響
+  toggleSpeaker() { if (!this.call) return; this.speakerOn = !this.speakerOn; this.emit(); }
 
   // ------------------------------------------------------------ 信令訊息
   onMessage(message) {
@@ -403,6 +407,7 @@ export class CallClient {
     this.localStream?.getTracks().forEach(track => track.stop());
     this.localStream = null;
     this.call = null;
+    this.speakerOn = true;
     this.emit();
   }
 }
