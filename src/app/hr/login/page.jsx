@@ -8,6 +8,7 @@ import { HrLanguageTools } from '@/lib/hr-translations';
 import { useLanguage } from '@/context/LanguageContext';
 import { copyFor } from '@/lib/language';
 import { HANDOFF_COPY } from '@/lib/hr-line-handoff-copy';
+import { isMobileDevice, lineLoginMode } from '@/lib/hr-line-login-mode';
 import { AlertCircle, ClipboardCheck, FileText, MessagesSquare, MessageCircle, X } from 'lucide-react';
 import styles from './login.module.css';
 
@@ -24,11 +25,17 @@ const readSavedHandoff = () => {
 const saveHandoff = ({ state, secret }) => { try { window.localStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify({ state, secret, at: Date.now() })); } catch { /* 無痕模式等無法儲存時，只是少了接續功能 */ } };
 const clearSavedHandoff = () => { try { window.localStorage.removeItem(HANDOFF_STORAGE_KEY); } catch { /* 同上 */ } };
 
+// 電腦版按下 LINE 登入的時間：LINE 網頁登入若在別的視窗／分頁完成（cookie 與瀏覽器共用），
+// 回到這個視窗時用它判斷要不要檢查登入狀態；10 分鐘後作廢。
+const WEB_LOGIN_KEY = 'kolecion:line-web-login';
+const WEB_LOGIN_TTL_MS = 10 * 60 * 1000;
+
 export default function HrLoginPage() {
   const router = useRouter();
   const { lang } = useLanguage();
   const handoffText = copyFor(HANDOFF_COPY, lang);
-  const [standalone, setStandalone] = useState(false);
+  const [standalone, setStandalone] = useState(false); // 只有「手機的桌面圖示 App」才是 true（走交接單）
+  const [desktop, setDesktop] = useState(false); // 電腦（瀏覽器或桌面 App）：LINE 直接在這個視窗做網頁登入
   const [handoff, setHandoff] = useState(null); // { state, secret, status: pending | ready | expired, error }
   const [handoffBusy, setHandoffBusy] = useState(false);
   const [handoffCode, setHandoffCode] = useState('');
@@ -51,15 +58,41 @@ export default function HrLoginPage() {
   }, []);
 
   // 從手機桌面圖示開啟時（standalone），LINE 驗證會在另一個瀏覽器完成、cookie 不互通，
-  // 所以改走「交接單 + 確認碼」流程；一般瀏覽器分頁維持原本的 LINE 登入。
+  // 所以改走「交接單 + 確認碼」流程；電腦（瀏覽器或桌面 App）與手機的一般瀏覽器分頁，直接在同一個視窗做 LINE 網頁登入。
   useEffect(() => {
     const isStandalone = Boolean(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
-    setStandalone(isStandalone);
-    if (isStandalone) {
+    const device = { userAgent: window.navigator.userAgent, maxTouchPoints: window.navigator.maxTouchPoints };
+    const useHandoff = lineLoginMode({ standalone: isStandalone, ...device }) === 'handoff';
+    setStandalone(useHandoff);
+    setDesktop(!isMobileDevice(device));
+    if (useHandoff) {
       const saved = readSavedHandoff();
       if (saved) setHandoff(saved); else clearSavedHandoff();
-    }
+    } else clearSavedHandoff();
   }, []);
+
+  // 電腦版：LINE 網頁登入如果是在別的視窗／分頁完成的，回到這個視窗時直接進入系統。
+  useEffect(() => {
+    if (!desktop) return undefined;
+    let active = true;
+    const started = () => { try { return Date.now() - Number(window.localStorage.getItem(WEB_LOGIN_KEY) || 0) < WEB_LOGIN_TTL_MS; } catch { return false; } };
+    const check = async () => {
+      if (!started()) return;
+      try {
+        const response = await fetch('/api/auth/session', { cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+        if (active && data?.user) {
+          try { window.localStorage.removeItem(WEB_LOGIN_KEY); } catch { /* 同上 */ }
+          router.replace('/');
+        }
+      } catch { /* 暫時連不上：下次回到這個視窗再查 */ }
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    check();
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { active = false; window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', onVisible); };
+  }, [desktop, router]);
 
   const handoffState = handoff?.state;
   const handoffSecret = handoff?.secret;
@@ -175,6 +208,13 @@ export default function HrLoginPage() {
   // 這是 LINE 官方建議的處理方式。
   const retryLineWithoutAutoLogin = () => signIn('line', { callbackUrl: '/' }, { disable_auto_login: 'true' });
 
+  // 一般 LINE 登入。電腦沒有手機版 LINE App 可以自動認證，所以關閉自動登入，
+  // 直接在這個視窗顯示 LINE 網頁登入（掃 QR Code 或輸入 LINE 帳號密碼）。
+  const startLineWebLogin = () => {
+    if (desktop) { try { window.localStorage.setItem(WEB_LOGIN_KEY, String(Date.now())); } catch { /* 無法儲存時只是少了跨視窗接續 */ } }
+    return signIn('line', { callbackUrl: '/' }, desktop ? { disable_auto_login: 'true' } : undefined);
+  };
+
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
@@ -251,7 +291,7 @@ export default function HrLoginPage() {
             <button type="button" className={`${styles.btn} ${styles.ghost}`} onClick={cancelLineHandoff}>{handoffText.cancel}</button>
           </>}
         </div>}
-        {providers.line && !handoff && <button type="button" disabled={handoffBusy} className={`${styles.btn} ${styles.line}`} onClick={() => (standalone ? startLineHandoff() : signIn('line', { callbackUrl: '/' }))}>
+        {providers.line && !handoff && <button type="button" disabled={handoffBusy} className={`${styles.btn} ${styles.line}`} onClick={() => (standalone ? startLineHandoff() : startLineWebLogin())}>
           <MessageCircle size={20} aria-hidden="true" />{registerMode ? '使用 LINE 授權並繼續註冊' : '使用 LINE 登入'}
         </button>}
         {!registerMode && providers.google && <button type="button" className={`${styles.btn} ${styles.google}`} onClick={() => signIn('google', { callbackUrl: '/' })}>{googleIcon}使用 Google 登入</button>}
