@@ -50,7 +50,8 @@ export const NOTIFY_COPY = {
     iosInstall: { title: 'iPhone 要先加到主畫面', steps: ['先按頁面上的「加到手機桌面」，依說明把網站加入主畫面', '回到手機桌面，點「克雷迅」圖示開啟網站', '登入後回到這裡，按「開啟來電通知」並選擇「允許」'], note: 'iPhone 需要 iOS 16.4 以上；在 Safari 一般分頁無法開啟通知。' },
     unsupported: '這個瀏覽器不支援通知。請改用最新版的 Chrome（Android／電腦）或 Safari（iPhone，需先加入主畫面）。',
     denied: { title: '通知已被封鎖', steps: ['在瀏覽器網址列旁的鎖頭（或設定）找到本網站的「通知」，改成「允許」', 'iPhone／Android 另外請到手機的「設定 → 通知」，確認本網站（或「克雷迅」App）允許通知', '回到這裡重新整理頁面，再按「開啟來電通知」'] },
-    errors: { permission: '沒有取得通知權限，請在跳出的視窗按「允許」。', server: '無法開啟，請稍後再試。', subscribe: '這台裝置無法訂閱通知，請稍後再試或換一個瀏覽器。', test: '測試通知送不出去，請關閉後重新開啟來電通知。' },
+    errors: { permission: '沒有取得通知權限，請在跳出的視窗按「允許」。', server: '無法開啟，請稍後再試。', subscribe: '這台裝置無法訂閱通知，請稍後再試或換一個瀏覽器。', test: '測試通知送不出去，請關閉後重新開啟來電通知。', config: '無法取得伺服器的通知設定，請重新整理頁面後再試。', permissionTimeout: '沒有收到通知權限的回覆。請看網址列左邊是否有通知圖示，點它並選「允許」，再按一次開關。' },
+    permissionHint: '如果沒看到詢問視窗，請看網址列左邊的通知圖示（Firefox）或網址列下方（Safari），選「允許」。',
   },
   en: {
     button: 'Call alerts', close: 'Close', title: 'Call notifications',
@@ -64,7 +65,8 @@ export const NOTIFY_COPY = {
     iosInstall: { title: 'On iPhone, add the site to your Home Screen first', steps: ['Tap "Add to Home Screen" on this page and follow the steps to add the site', 'Go to your home screen and open the site from the "Kolecion" icon', 'Sign in, come back here, tap "Turn on call notifications" and choose "Allow"'], note: 'Requires iOS 16.4 or later. Notifications cannot be turned on in a normal Safari tab.' },
     unsupported: 'This browser does not support notifications. Use the latest Chrome (Android / computer) or Safari (iPhone, after adding the site to your Home Screen).',
     denied: { title: 'Notifications are blocked', steps: ['Tap the lock icon (or settings) next to the address bar, find "Notifications" for this site and set it to "Allow"', 'On iPhone / Android, also open Settings → Notifications and make sure this site (or the "Kolecion" app) is allowed', 'Come back here, refresh the page and tap "Turn on call notifications"'] },
-    errors: { permission: 'Notification permission was not granted. Tap "Allow" in the pop-up.', server: 'Could not turn it on. Please try again later.', subscribe: 'This device could not subscribe to notifications. Try again later or use another browser.', test: 'The test notification could not be sent. Turn call notifications off and on again.' },
+    errors: { permission: 'Notification permission was not granted. Tap "Allow" in the pop-up.', server: 'Could not turn it on. Please try again later.', subscribe: 'This device could not subscribe to notifications. Try again later or use another browser.', test: 'The test notification could not be sent. Turn call notifications off and on again.', config: 'Could not load the notification settings from the server. Refresh the page and try again.', permissionTimeout: 'No answer to the notification permission request. Look for a notification icon at the left of the address bar, click it, choose "Allow", then tap the switch again.' },
+    permissionHint: 'If you do not see a pop-up, look for the notification icon at the left of the address bar (Firefox) or below the address bar (Safari) and choose "Allow".',
   },
   tl: {
     button: 'Abiso sa tawag', close: 'Isara', title: 'Mga abiso sa tawag',
@@ -78,6 +80,7 @@ export const NOTIFY_COPY = {
     iosInstall: { title: 'Sa iPhone, idagdag muna ang site sa Home Screen', steps: ['I-tap ang "Add to Home Screen" sa page na ito at sundin ang mga hakbang para idagdag ang site', 'Pumunta sa home screen at buksan ang site mula sa icon na "Kolecion"', 'Mag-sign in, bumalik dito, i-tap ang "I-on ang mga abiso sa tawag" at piliin ang "Allow"'], note: 'Kailangan ng iOS 16.4 o mas bago. Hindi maaaring i-on ang mga abiso sa karaniwang Safari tab.' },
     unsupported: 'Hindi sinusuportahan ng browser na ito ang mga abiso. Gamitin ang pinakabagong Chrome (Android / computer) o Safari (iPhone, pagkatapos idagdag ang site sa Home Screen).',
     denied: { title: 'Naka-block ang mga abiso', steps: ['I-tap ang lock icon (o settings) sa tabi ng address bar, hanapin ang "Notifications" para sa site na ito at gawing "Allow"', 'Sa iPhone / Android, buksan din ang Settings → Notifications at tiyaking pinapayagan ang site na ito (o ang app na "Kolecion")', 'Bumalik dito, i-refresh ang page at i-tap ang "I-on ang mga abiso sa tawag"'] },
-    errors: { permission: 'Hindi naibigay ang pahintulot sa abiso. I-tap ang "Allow" sa lumabas na pop-up.', server: 'Hindi ma-on. Pakisubukan ulit mamaya.', subscribe: 'Hindi makapag-subscribe sa mga abiso ang device na ito. Subukan ulit mamaya o gumamit ng ibang browser.', test: 'Hindi naipadala ang test na abiso. I-off at i-on ulit ang mga abiso sa tawag.' },
+    errors: { permission: 'Hindi naibigay ang pahintulot sa abiso. I-tap ang "Allow" sa lumabas na pop-up.', server: 'Hindi ma-on. Pakisubukan ulit mamaya.', subscribe: 'Hindi makapag-subscribe sa mga abiso ang device na ito. Subukan ulit mamaya o gumamit ng ibang browser.', test: 'Hindi naipadala ang test na abiso. I-off at i-on ulit ang mga abiso sa tawag.', config: 'Hindi makuha ang notification settings mula sa server. I-refresh ang page at subukan ulit.', permissionTimeout: 'Walang sagot sa hiling na pahintulot sa abiso. Hanapin ang notification icon sa kaliwa ng address bar, i-click ito, piliin ang "Allow", saka i-tap ulit ang switch.' },
+    permissionHint: 'Kung walang lumabas na pop-up, hanapin ang notification icon sa kaliwa ng address bar (Firefox) o sa ilalim ng address bar (Safari) at piliin ang "Allow".',
   },
 };
