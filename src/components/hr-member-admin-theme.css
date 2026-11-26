@@ -1,0 +1,195 @@
+/*
+ * 會員頁面（工作者、雇主、仲介、訓練中心、會員類型審核、雇主需求與配對頁）整體改成和系統管理頁面（HrManagement）同一套樣式：
+ *   - 頁面背景：桌機 #f5f7f8、手機 #f3f6f4（同管理頁 .app）
+ *   - 頁首：原本的綠色大標題卡 → 管理頁的白色標題列（.topbar）：sticky、top: 0、滿版、高 64px（手機 60px）、
+ *           白底半透明、下邊框，左邊是頁面名稱，右邊是白底外框的方形按鈕（通知、安裝、語言、登出）
+ *   - 卡片：同管理頁 .panel（圓角 18px／手機 15px、細邊框、淡陰影），標題 16px，不再有左側綠色色條
+ *   - 左側選單（桌機）與底部選單（手機）原本就和管理頁一樣，這裡不動
+ *
+ * 選擇器都以 `html body .hr-member-shell:not(.hr-embedded)` 開頭：
+ * hr-member-mobile-nav.css 用的是 `body .hr-member-shell...`，之前就是被它蓋掉，頂端才一直留 12px 的縫。
+ * 內嵌在其他頁面（.hr-embedded）時不套用。這裡沒有新增任何會顯示的文字，不需要中英文翻譯。
+ */
+
+/* ── 頁面背景與留白 ── */
+html body .hr-member-shell:not(.hr-embedded) {
+  --hr-pad-left: clamp(14px, 3.5vw, 44px);
+  --hr-pad-right: clamp(14px, 3.5vw, 44px);
+  padding-top: 0;
+  background: #f5f7f8;
+}
+
+/* ── 頁首 → 管理頁的白色標題列 ── */
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header {
+  position: sticky;
+  top: 0;
+  z-index: 905;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: none;
+  min-height: calc(64px + env(safe-area-inset-top, 0px));
+  margin: 0 calc(-1 * var(--hr-pad-right)) 25px calc(-1 * var(--hr-pad-left));
+  padding: env(safe-area-inset-top, 0px) 34px 0;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid rgba(225, 233, 228, 0.9);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: none;
+  color: #14231d;
+  animation: none;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header::after { display: none; }
+
+/* 左邊：頁面名稱（同管理頁的麵包屑：灰色系統名 / 粗體頁名），頭像和使用者名稱不顯示 */
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-avatar { display: none; }
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header > div:first-child div,
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header.application-header > div:first-child,
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header-with-reminders > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header > div:first-child span:not(.hr-member-avatar) {
+  display: inline;
+  color: #929da2;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header > div:first-child span:not(.hr-member-avatar)::after {
+  content: '/';
+  margin-left: 10px;
+  color: #bdc5c8;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header h1 {
+  margin: 0;
+  overflow: hidden;
+  color: #14231d;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header p { display: none; }
+
+/* 右邊：白底外框的方形按鈕（同管理頁 .iconButton） */
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 12px !important;
+  border: 1px solid #e1e9e4;
+  border-radius: 10px !important;
+  background: #fff;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none !important;
+  color: #65747a;
+  font-size: 13px;
+  font-weight: 700;
+  transform: none;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header button:hover {
+  background: #f2f9f5;
+  border-color: #cfe8dc;
+  color: #176b54;
+  transform: none;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header button:focus-visible {
+  outline: 3px solid #247a63;
+  outline-offset: 2px;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header-actions button[class*="bellButton"],
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions button[class*="bellButton"] {
+  width: 40px;
+  padding: 0 !important;
+}
+html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions button[data-tour="language"] {
+  color: #14231d;
+}
+
+/* ── 卡片 → 管理頁的 .panel ── */
+html body .hr-member-shell:not(.hr-embedded) .hr-member-card {
+  border: 1px solid #e1e9e4;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 45, 33, 0.05), 0 4px 14px rgba(15, 45, 33, 0.05);
+  animation: none;
+}
+html body .hr-member-shell:not(.hr-embedded) .hr-member-card h2 {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+html body .hr-member-shell:not(.hr-embedded) .hr-member-card > h2::before,
+html body .hr-member-shell:not(.hr-embedded) .card-title h2::before { display: none; }
+
+/* ── 手機（同管理頁 720px 以下的樣子；會員頁的手機斷點是 700px） ── */
+@media (max-width: 700px) {
+  html body .hr-member-shell:not(.hr-embedded) {
+    --hr-pad-left: max(14px, var(--member-nav-left, 0px));
+    --hr-pad-right: max(14px, var(--member-nav-right, 0px));
+    padding-top: 0;
+    background: #f3f6f4;
+  }
+
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header {
+    min-height: calc(60px + env(safe-area-inset-top, 0px));
+    margin-bottom: 20px;
+    padding: env(safe-area-inset-top, 0px) 14px 0;
+    border-radius: 0;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  /* 手機只顯示頁面名稱（同管理頁手機版隱藏麵包屑前段） */
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header > div:first-child span:not(.hr-member-avatar) { display: none; }
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header h1 { font-size: 15px; }
+
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions { gap: 8px; }
+
+  /* 有圖示的按鈕（例如登出）在手機只顯示圖示，同管理頁手機版；文字仍在，螢幕閱讀器讀得到 */
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions > button:last-child:has(svg) {
+    width: 40px;
+    padding: 0 !important;
+    font-size: 0;
+  }
+  html body .hr-member-shell:not(.hr-embedded) > .hr-member-header .hr-member-header-actions > button:last-child:has(svg) svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  html body .hr-member-shell:not(.hr-embedded) .hr-member-card {
+    border-color: #e0e8e3;
+    border-radius: 15px;
+    box-shadow: 0 2px 9px rgba(20, 55, 39, 0.035);
+  }
+  html body .hr-member-shell:not(.hr-embedded) .hr-member-card h2 { font-size: 14px; }
+}
