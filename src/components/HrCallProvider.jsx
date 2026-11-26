@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { CallClient } from '@/lib/hr-call-client';
@@ -14,7 +14,7 @@ import { pickLang, copyFor } from '@/lib/language';
 export const COPY = {
   zh: {
     incomingVoice: '語音來電', incomingVideo: '視訊來電', accept: '接聽', acceptVoice: '僅語音接聽', decline: '拒絕', hangUp: '掛斷',
-    mute: '靜音', unmute: '取消靜音', cameraOff: '關閉鏡頭', cameraOn: '開啟鏡頭', me: '我',
+    mute: '關閉麥克風', unmute: '開啟麥克風', speakerOff: '關閉喇叭', speakerOn: '開啟喇叭', cameraOff: '關閉鏡頭', cameraOn: '開啟鏡頭', me: '我',
     calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
     dismiss: '關閉', callWindow: '通話視窗',
     notices: {
@@ -29,7 +29,7 @@ export const COPY = {
   },
   en: {
     incomingVoice: 'Voice call', incomingVideo: 'Video call', accept: 'Answer', acceptVoice: 'Answer with voice only', decline: 'Decline', hangUp: 'Hang up',
-    mute: 'Mute', unmute: 'Unmute', cameraOff: 'Turn camera off', cameraOn: 'Turn camera on', me: 'Me',
+    mute: 'Mute microphone', unmute: 'Unmute microphone', speakerOff: 'Turn speaker off', speakerOn: 'Turn speaker on', cameraOff: 'Turn camera off', cameraOn: 'Turn camera on', me: 'Me',
     calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
     dismiss: 'Close', callWindow: 'Call window',
     notices: {
@@ -66,13 +66,13 @@ export function noticeText(notice, lang) {
   return typeof entry === 'function' ? entry(notice.name) : entry;
 }
 
-function Tile({ stream, name, local = false, state }) {
+function Tile({ stream, name, local = false, state, speakerOff = false }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null; }, [stream]);
   const hasVideo = !!stream?.getVideoTracks().some(track => track.readyState === 'live' && (local ? track.enabled : true));
   return <div className={`hr-call-tile ${local ? 'is-local' : ''} ${hasVideo ? '' : 'no-video'}`} data-state={state || ''}>
     {/* 沒有影像時 video 元素仍保留（聲音要靠它播放），只是看不到 */}
-    <video ref={ref} autoPlay playsInline muted={local} className={hasVideo ? '' : 'hr-call-audio-only'} />
+    <video ref={ref} autoPlay playsInline muted={local || speakerOff} className={hasVideo ? '' : 'hr-call-audio-only'} />
     {!hasVideo && <span className="hr-call-avatar" aria-hidden="true">{(name || '?').trim().slice(0, 1).toUpperCase()}</span>}
     <span className="hr-call-name">{name}</span>
   </div>;
@@ -103,11 +103,12 @@ export function CallView({ state, lang, actions }) {
     {call && <section className={`hr-call-overlay ${call.peers.length === 1 ? 'is-pip' : ''}`} role="dialog" aria-label={copy.callWindow}>
       <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
       <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 6)}`}>
-        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} />)}
+        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} />)}
         <Tile stream={call.localStream} name={copy.me} local />
       </div>
       <footer className="hr-call-controls">
         {call.hasMic && <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>}
+        <button type="button" className={`hr-call-round ${call.speakerOn ? '' : 'is-off'}`} onClick={actions.toggleSpeaker} aria-pressed={!call.speakerOn} aria-label={call.speakerOn ? copy.speakerOff : copy.speakerOn} title={call.speakerOn ? copy.speakerOff : copy.speakerOn}>{call.speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}</button>
         {call.hasCamera && <button type="button" className={`hr-call-round ${call.camOn ? '' : 'is-off'}`} onClick={actions.toggleCamera} aria-pressed={!call.camOn} aria-label={call.camOn ? copy.cameraOff : copy.cameraOn} title={call.camOn ? copy.cameraOff : copy.cameraOn}>{call.camOn ? <Video size={22} /> : <VideoOff size={22} />}</button>}
         <button type="button" className="hr-call-round is-hangup" onClick={actions.leave} aria-label={copy.hangUp} title={copy.hangUp}><PhoneOff size={22} /></button>
       </footer>
@@ -221,6 +222,7 @@ export default function HrCallProvider() {
     leave: () => clientRef.current?.leave(),
     toggleMic: () => clientRef.current?.toggleMic(),
     toggleCamera: () => clientRef.current?.toggleCamera(),
+    toggleSpeaker: () => clientRef.current?.toggleSpeaker(),
     dismissNotice: () => clientRef.current?.clearNotice(),
   };
   return <CallView state={state} lang={lang} actions={actions} />;
