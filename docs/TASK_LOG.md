@@ -2,6 +2,13 @@
 
 本輪修復複驗：37 通過／0 失敗／3 受阻，尚待真人與實機驗收。見[報告](HR_ACCEPTANCE_REPORT.md)。逐筆證據：`docs/review/hr-acceptance-recheck.json`。
 
+## 2026-11-28：後端 schema 檢查與調整（PR #103、#105、#106，已合併並部署）
+
+- #103：履歷照片改為加密存到 `hr_worker_photos`（正式機 23 張已搬移，`resume_profile` 不再有明文照片）；已核准文件打包下載改為逐份串流。
+- #105：系統管理員與仲介操作紀錄新增 `before_data`／`after_data`，記下工作者、雇主、仲介、會員、案件的改前／改後有變動欄位；後台可展開查看。
+- #106：`hr_case_requirements`、`hr_staff`、`schema_migrations` 封存到 `hr_archive`（不刪資料）；移除全空的 `hr_cases.assigned_staff_id`；新增 `hr_document_types` 與 `type_key`；補 33 個外鍵索引；6 個狀態欄位加 CHECK。
+- 每次合併前都有備份並驗證可還原；#106 先在還原的正式機副本上演練，確認資料內容不變。部署後唯讀確認正式機狀態正確。
+- 說明文件：[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)。尚未處理的項目列在該文件最後一節。
 
 ## 本輪：使用者要求先完整驗收，再交付 test case PR
 

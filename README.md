@@ -5,6 +5,8 @@
 
 舊 DEMO／NOTE 資料已移至獨立資料庫；連線方式與備份位置見 [DEMO_NOTE_DATABASE](docs/DEMO_NOTE_DATABASE.md)。
 
+資料庫結構、檔案加密儲存、操作紀錄的改前／改後資料與封存的舊表，見 [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md)；會改資料表的 PR 合併前請先備份（[BACKUP](docs/BACKUP.md)）。
+
 ## 本輪：會員／仲介後台完整驗收（不含推播）
 
 本輪測試與發現：[HR_ACCEPTANCE_REPORT](docs/HR_ACCEPTANCE_REPORT.md)；逐筆案例：[閱讀版](docs/HR_ACCEPTANCE_CASES.md)／[可填寫 CSV](docs/HR_ACCEPTANCE_CASES.csv)。已建立真實登入、Chromium、授權 HTTP 與全新 PostgreSQL 隔離驗收站，不再只交付靜態案例。發現實際流程缺陷，**驗收未通過，不能作為上線放行依據**。完整數字、重跑及未驗限制以本輪報告為準；下方各輪「現行」為歷史候選紀錄。
