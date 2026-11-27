@@ -76,7 +76,11 @@ test('接線：兩張操作紀錄表都加了欄位並寫入、讀取，畫面�
     read('../src/components/HrManagement.jsx'), read('../src/components/HrAgencyAuditLog.jsx'),
   ]);
   for (const source of [audit, agency]) assert.match(source, /ADD COLUMN IF NOT EXISTS before_data JSONB, ADD COLUMN IF NOT EXISTS after_data JSONB/);
-  assert.match(audit, /summary,before_data,after_data\)/);
+  // 系統管理員紀錄的 INSERT 在 hr-admin-audit-core.js（hr-audit.js 的 write 用它）。
+  const { ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL } = await import('../src/lib/hr-admin-audit-core.js');
+  assert.match(ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, /summary,before_data,after_data\)/);
+  assert.match(ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, /\$9::jsonb,\$10::jsonb\)/);
+  assert.match(audit, /ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, \[/);
   assert.match(audit, /takeSnapshot\(runQuery, type, id\)/);
   assert.match(audit, /diffSnapshots\(ctx\.snapshot, after\)/);
   assert.match(audit, /recordAgencyAction\(\{[^}]*before: changes\.before, after: changes\.after/);

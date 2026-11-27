@@ -162,78 +162,129 @@ function done(status, certification, audit, extra = {}) {
   return { status, body: { ok: true, certification, ...extra }, audit };
 }
 
-async function requestOrCertify(client, ctx, principal, action, input, stamp) {
-  const side = ctx.side;
-  const taiwanId = ctx.admin ? input.taiwanAgencyId : side === 'taiwan' ? ctx.agencyId : input.counterpartAgencyId;
-  const philippinesId = ctx.admin ? input.philippinesAgencyId : side === 'philippines' ? ctx.agencyId : input.counterpartAgencyId;
-  if (!validId(taiwanId) || !validId(philippinesId)) return fail(400, ctx.admin ? '請選擇台灣仲介與菲律賓仲介。' : '請選擇要申請認證的對方仲介。');
+const pairNames = (taiwanName, philippinesName) => ({
+  zh: `台灣仲介「${taiwanName}」與菲律賓仲介「${philippinesName}」`,
+  en: `Taiwan agency "${taiwanName}" and Philippines agency "${philippinesName}"`,
+});
+
+// 申請或直接認證的對象：管理者兩邊都要指定；仲介只指定對方，自己這一邊用所屬機構。
+function requestedPair(ctx, input) {
+  if (ctx.admin) return { taiwanId: input.taiwanAgencyId, philippinesId: input.philippinesAgencyId };
+  return ctx.side === 'taiwan'
+    ? { taiwanId: ctx.agencyId, philippinesId: input.counterpartAgencyId }
+    : { taiwanId: input.counterpartAgencyId, philippinesId: ctx.agencyId };
+}
+
+// 兩邊都必須是啟用中、而且國別正確的仲介；不符合回傳 null。
+async function loadPairAgencies(client, taiwanId, philippinesId) {
   const found = (await client.query('SELECT id,name,agency_type FROM hr_agencies WHERE id=ANY($1::bigint[]) AND active=TRUE', [[Number(taiwanId), Number(philippinesId)]])).rows || [];
   const taiwan = found.find(row => Number(row.id) === Number(taiwanId) && row.agency_type === 'taiwan');
   const philippines = found.find(row => Number(row.id) === Number(philippinesId) && row.agency_type === 'philippines');
-  if (!taiwan || !philippines) return fail(400, '台灣仲介只能與菲律賓仲介相互認證，且雙方都必須是啟用中的仲介。');
-  const memberId = principal?.id || null;
-  const base = { taiwan_agency_id: Number(taiwanId), philippines_agency_id: Number(philippinesId), requested_by_member_id: memberId, decided_by_member_id: null };
-  const names = `台灣仲介「${taiwan.name}」與菲律賓仲介「${philippines.name}」`;
-  const namesEn = `Taiwan agency "${taiwan.name}" and Philippines agency "${philippines.name}"`;
-
-  const fresh = ctx.admin
-    ? { ...base, status: 'certified', requested_by_side: null, taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId }
-    : { ...base, status: 'pending', requested_by_side: side, taiwan_confirmed_at: side === 'taiwan' ? stamp : null, philippines_confirmed_at: side === 'philippines' ? stamp : null, source: 'request' };
-  const insertedId = await insertRow(client, fresh);
-  if (insertedId) return done(201, await reload(client, insertedId, side), { action: ctx.admin ? '直接認證' : '申請認證', phrase: `${ctx.admin ? '直接認證了' : '代為申請認證：'}${names}`, zh: `申請了相互認證：${names}`, en: `Requested mutual certification: ${namesEn}`, key: 'request' });
-
-  const existing = (await client.query('SELECT * FROM hr_agency_certifications WHERE taiwan_agency_id=$1 AND philippines_agency_id=$2 FOR UPDATE', [taiwanId, philippinesId])).rows?.[0];
-  if (!existing) return fail(409, '認證資料剛剛被其他人更新，請重新整理後再試。');
-  if (existing.status === 'certified') return done(200, await reload(client, existing.id, side), null, { already: 'certified' });
-  if (ctx.admin) {
-    await updateRow(client, { ...existing, status: 'certified', taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId });
-    return done(200, await reload(client, existing.id, side), { action: '直接認證', phrase: `直接認證了${names}`, zh: `直接認證了${names}`, en: `Directly certified ${namesEn}`, key: 'approve' });
-  }
-  if (existing.status === 'pending') {
-    if (existing.requested_by_side === side) return done(200, await reload(client, existing.id, side), null, { already: 'pending' });
-    // 對方早已申請，我方再申請等同同意：雙方都確認，認證完成。
-    await updateRow(client, { ...existing, status: 'certified', [STAMP[side]]: stamp, decided_by_member_id: memberId });
-    return done(200, await reload(client, existing.id, side), { action: '同意認證', phrase: `同意並完成了${names}的相互認證`, zh: `同意並完成了${names}的相互認證`, en: `Approved and completed mutual certification with ${namesEn}`, key: 'approve' }, { completed: true });
-  }
-  // rejected／revoked：重新開始一輪申請。
-  await updateRow(client, { ...existing, status: 'pending', requested_by_side: side, requested_by_member_id: memberId, decided_by_member_id: null, taiwan_confirmed_at: side === 'taiwan' ? stamp : null, philippines_confirmed_at: side === 'philippines' ? stamp : null, source: 'request' });
-  return done(200, await reload(client, existing.id, side), { action: '申請認證', phrase: `重新申請認證：${names}`, zh: `重新申請了相互認證：${names}`, en: `Re-requested mutual certification: ${namesEn}`, key: 'request' }, { reopened: true });
+  return taiwan && philippines ? pairNames(taiwan.name, philippines.name) : null;
 }
 
-async function decide(client, ctx, principal, action, input, stamp) {
-  if (!validId(input.id)) return fail(400, '認證紀錄編號不正確。');
-  const row = (await client.query('SELECT * FROM hr_agency_certifications WHERE id=$1 FOR UPDATE', [input.id])).rows?.[0];
-  if (!row) return fail(404, '找不到這筆認證紀錄。');
-  if (!ctx.admin) {
-    const owns = ctx.side === 'taiwan' ? Number(row.taiwan_agency_id) === ctx.agencyId : Number(row.philippines_agency_id) === ctx.agencyId;
-    if (!owns) return fail(404, '找不到這筆認證紀錄。'); // 不透露其他機構的紀錄是否存在
-  }
-  const memberId = principal?.id || null;
-  const nameParts = async () => { const full = await reload(client, row.id, null); return [full?.taiwan_agency_name, full?.philippines_agency_name]; };
-  const names = async () => { const [t, p] = await nameParts(); return `台灣仲介「${t}」與菲律賓仲介「${p}」`; };
-  const namesEn = async () => { const [t, p] = await nameParts(); return `Taiwan agency "${t}" and Philippines agency "${p}"`; };
+// 第一次建立這個組合：管理者直接認證完成；仲介是一方確認、等待對方。
+function freshCertification(ctx, base, stamp, memberId) {
+  if (ctx.admin) return { ...base, status: 'certified', requested_by_side: null, taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId };
+  const side = ctx.side;
+  return { ...base, status: 'pending', requested_by_side: side, taiwan_confirmed_at: side === 'taiwan' ? stamp : null, philippines_confirmed_at: side === 'philippines' ? stamp : null, source: 'request' };
+}
 
-  if (action === 'approve') {
-    if (row.status !== 'pending') return fail(409, '這筆申請已不在等待確認狀態，請重新整理。');
-    if (!ctx.admin && row.requested_by_side === ctx.side) return fail(409, '這筆申請由貴機構提出，需由對方仲介確認。');
-    const next = ctx.admin
+// 這個組合已經有紀錄：依目前狀態決定是否已完成、直接認證、視為同意，或重新開始申請。
+async function requestExisting(client, ctx, existing, stamp, memberId, names) {
+  const side = ctx.side;
+  const finish = async (audit, extra) => done(200, await reload(client, existing.id, side), audit, extra);
+  if (existing.status === 'certified') return finish(null, { already: 'certified' });
+  if (ctx.admin) {
+    await updateRow(client, { ...existing, status: 'certified', taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId });
+    return finish({ action: '直接認證', phrase: `直接認證了${names.zh}`, zh: `直接認證了${names.zh}`, en: `Directly certified ${names.en}`, key: 'approve' });
+  }
+  if (existing.status === 'pending' && existing.requested_by_side === side) return finish(null, { already: 'pending' });
+  if (existing.status === 'pending') {
+    // 對方早已申請，我方再申請等同同意：雙方都確認，認證完成。
+    await updateRow(client, { ...existing, status: 'certified', [STAMP[side]]: stamp, decided_by_member_id: memberId });
+    return finish({ action: '同意認證', phrase: `同意並完成了${names.zh}的相互認證`, zh: `同意並完成了${names.zh}的相互認證`, en: `Approved and completed mutual certification with ${names.en}`, key: 'approve' }, { completed: true });
+  }
+  // rejected／revoked：重新開始一輪申請。
+  await updateRow(client, { ...existing, ...freshCertification(ctx, {}, stamp, memberId), requested_by_member_id: memberId, decided_by_member_id: null });
+  return finish({ action: '申請認證', phrase: `重新申請認證：${names.zh}`, zh: `重新申請了相互認證：${names.zh}`, en: `Re-requested mutual certification: ${names.en}`, key: 'request' }, { reopened: true });
+}
+
+async function requestOrCertify(client, ctx, principal, action, input, stamp) {
+  const { taiwanId, philippinesId } = requestedPair(ctx, input);
+  if (!validId(taiwanId) || !validId(philippinesId)) return fail(400, ctx.admin ? '請選擇台灣仲介與菲律賓仲介。' : '請選擇要申請認證的對方仲介。');
+  const names = await loadPairAgencies(client, taiwanId, philippinesId);
+  if (!names) return fail(400, '台灣仲介只能與菲律賓仲介相互認證，且雙方都必須是啟用中的仲介。');
+  const memberId = principal?.id || null;
+  const base = { taiwan_agency_id: Number(taiwanId), philippines_agency_id: Number(philippinesId), requested_by_member_id: memberId, decided_by_member_id: null };
+  const insertedId = await insertRow(client, freshCertification(ctx, base, stamp, memberId));
+  if (insertedId) {
+    const verb = ctx.admin ? '直接認證了' : '代為申請認證：';
+    return done(201, await reload(client, insertedId, ctx.side), { action: ctx.admin ? '直接認證' : '申請認證', phrase: `${verb}${names.zh}`, zh: `申請了相互認證：${names.zh}`, en: `Requested mutual certification: ${names.en}`, key: 'request' });
+  }
+  const existing = (await client.query('SELECT * FROM hr_agency_certifications WHERE taiwan_agency_id=$1 AND philippines_agency_id=$2 FOR UPDATE', [taiwanId, philippinesId])).rows?.[0];
+  if (!existing) return fail(409, '認證資料剛剛被其他人更新，請重新整理後再試。');
+  return requestExisting(client, ctx, existing, stamp, memberId, names);
+}
+
+// 鎖定要處理的紀錄；仲介只能處理自己機構的紀錄（別人的一律回 404，不透露是否存在）。
+async function lockOwnedRow(client, ctx, id) {
+  if (!validId(id)) return { error: fail(400, '認證紀錄編號不正確。') };
+  const row = (await client.query('SELECT * FROM hr_agency_certifications WHERE id=$1 FOR UPDATE', [id])).rows?.[0];
+  const ownId = ctx.side === 'taiwan' ? row?.taiwan_agency_id : row?.philippines_agency_id;
+  if (!row || (!ctx.admin && Number(ownId) !== ctx.agencyId)) return { error: fail(404, '找不到這筆認證紀錄。') };
+  return { row };
+}
+
+const NOT_PENDING = '這筆申請已不在等待確認狀態，請重新整理。';
+const ownRequest = (ctx, row) => !ctx.admin && row.requested_by_side === ctx.side;
+
+const DECISIONS = {
+  approve: {
+    check: (ctx, row) => {
+      if (row.status !== 'pending') return NOT_PENDING;
+      return ownRequest(ctx, row) ? '這筆申請由貴機構提出，需由對方仲介確認。' : null;
+    },
+    next: (ctx, row, stamp, memberId) => (ctx.admin
       ? { ...row, status: 'certified', taiwan_confirmed_at: stamp, philippines_confirmed_at: stamp, source: 'admin', decided_by_member_id: memberId }
-      : { ...row, status: 'certified', [STAMP[ctx.side]]: stamp, decided_by_member_id: memberId };
-    await updateRow(client, next);
-    return done(200, await reload(client, row.id, ctx.side), { action: '同意認證', phrase: `同意並完成了${await names()}的相互認證`, zh: `同意並完成了${await names()}的相互認證`, en: `Approved and completed mutual certification with ${await namesEn()}`, key: 'approve' });
-  }
-  if (action === 'reject') {
-    if (row.status !== 'pending') return fail(409, '這筆申請已不在等待確認狀態，請重新整理。');
-    if (!ctx.admin && row.requested_by_side === ctx.side) return fail(409, '這筆申請由貴機構提出，如要取消請使用「撤回申請」。');
-    await updateRow(client, { ...row, status: 'rejected', decided_by_member_id: memberId });
-    return done(200, await reload(client, row.id, ctx.side), { action: '拒絕認證', phrase: `拒絕了${await names()}的認證申請`, zh: `拒絕了${await names()}的認證申請`, en: `Rejected the certification request from ${await namesEn()}`, key: 'return' });
-  }
+      : { ...row, status: 'certified', [STAMP[ctx.side]]: stamp, decided_by_member_id: memberId }),
+    audit: names => ({ action: '同意認證', phrase: `同意並完成了${names.zh}的相互認證`, zh: `同意並完成了${names.zh}的相互認證`, en: `Approved and completed mutual certification with ${names.en}`, key: 'approve' }),
+  },
+  reject: {
+    check: (ctx, row) => {
+      if (row.status !== 'pending') return NOT_PENDING;
+      return ownRequest(ctx, row) ? '這筆申請由貴機構提出，如要取消請使用「撤回申請」。' : null;
+    },
+    next: (ctx, row, stamp, memberId) => ({ ...row, status: 'rejected', decided_by_member_id: memberId }),
+    audit: names => ({ action: '拒絕認證', phrase: `拒絕了${names.zh}的認證申請`, zh: `拒絕了${names.zh}的認證申請`, en: `Rejected the certification request from ${names.en}`, key: 'return' }),
+  },
   // revoke：解除已完成的認證，或撤回自己提出、尚未被確認的申請。
-  const canRevoke = row.status === 'certified' || (row.status === 'pending' && (ctx.admin || row.requested_by_side === ctx.side));
-  if (!canRevoke) return fail(409, row.status === 'pending' ? '這筆申請由對方提出，請使用「拒絕」。' : '這筆認證目前不是有效狀態。');
-  await updateRow(client, { ...row, status: 'revoked', decided_by_member_id: memberId });
-  return done(200, await reload(client, row.id, ctx.side), { action: row.status === 'certified' ? '解除認證' : '撤回申請', phrase: `${row.status === 'certified' ? '解除了' : '撤回了'}${await names()}的認證`,
-    zh: `${row.status === 'certified' ? '解除了' : '撤回了'}${await names()}的認證`, en: `${row.status === 'certified' ? 'Revoked' : 'Withdrew'} certification of ${await namesEn()}`, key: row.status === 'certified' ? 'disable' : 'withdraw' });
+  revoke: {
+    check: (ctx, row) => {
+      if (row.status === 'certified' || (row.status === 'pending' && (ctx.admin || row.requested_by_side === ctx.side))) return null;
+      return row.status === 'pending' ? '這筆申請由對方提出，請使用「拒絕」。' : '這筆認證目前不是有效狀態。';
+    },
+    next: (ctx, row, stamp, memberId) => ({ ...row, status: 'revoked', decided_by_member_id: memberId }),
+    audit: (names, row) => {
+      const certified = row.status === 'certified';
+      const verb = certified ? '解除了' : '撤回了';
+      return { action: certified ? '解除認證' : '撤回申請', phrase: `${verb}${names.zh}的認證`, zh: `${verb}${names.zh}的認證`,
+        en: `${certified ? 'Revoked' : 'Withdrew'} certification of ${names.en}`, key: certified ? 'disable' : 'withdraw' };
+    },
+  },
+};
+
+async function decide(client, ctx, principal, action, input, stamp) {
+  const locked = await lockOwnedRow(client, ctx, input.id);
+  if (locked.error) return locked.error;
+  const { row } = locked;
+  const decision = DECISIONS[action];
+  const conflict = decision.check(ctx, row);
+  if (conflict) return fail(409, conflict);
+  await updateRow(client, decision.next(ctx, row, stamp, principal?.id || null));
+  const full = await reload(client, row.id, null);
+  const audit = decision.audit(pairNames(full?.taiwan_agency_name, full?.philippines_agency_name), row);
+  return done(200, await reload(client, row.id, ctx.side), audit);
 }
 
 export async function applyCertificationAction(pool, principal, input = {}, now = () => new Date()) {

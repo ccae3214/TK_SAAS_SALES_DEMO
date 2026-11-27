@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { requestIsSameOrigin } from '../src/lib/request-origin.js';
 
 const request = (headers = {}, url = 'http://app:3000/api/hr') => new Request(url, { method: 'POST', headers });
@@ -43,7 +44,7 @@ async function sourceFiles(dir) {
   return out;
 }
 test('no route defines its own same-origin check or reads x-forwarded-host', async () => {
-  const root = new URL('../src', import.meta.url).pathname;
+  const root = fileURLToPath(new URL('../src', import.meta.url));
   const offenders = [];
   for (const file of await sourceFiles(root)) {
     const text = await readFile(file, 'utf8');

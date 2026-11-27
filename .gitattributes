@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
-* text=auto
+# eol=lf：Windows／WSL／Linux／Docker 的工作目錄一律是 LF，
+# 讀原始碼比對的測試與 /mnt/c 上用 WSL 跑測試時結果才會一致。
+* text=auto eol=lf

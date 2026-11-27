@@ -258,3 +258,102 @@ test('自己按掛斷：播放一次離開音效；靜音掛斷（自動結束�
   assert.deepEqual(second.sounds, []);
   first.client.stop(); second.client.stop();
 });
+
+// ---- 彼此直連（mesh）的信令：offer／answer／ICE 候選 ----
+function signalPeer({ failOn = null } = {}) {
+  const log = [];
+  const step = async (name, value) => { log.push(name); if (failOn === name) throw new Error(name); return value; };
+  const pc = {
+    localDescription: null,
+    setRemoteDescription: description => step(`remote:${description.type}`),
+    createAnswer: () => step('createAnswer', { type: 'answer', sdp: 'answer-sdp' }),
+    setLocalDescription: async description => { await step('local'); pc.localDescription = description; },
+    addIceCandidate: candidate => step(`candidate:${candidate.id}`),
+  };
+  return { log, peer: { id: 'p1', pc, queued: [], remoteSet: false } };
+}
+
+function signalClient(peer) {
+  const { client } = makeClient({ mic: true });
+  const sent = [];
+  client.send = message => { sent.push(message); return true; };
+  client.peers.set(peer.id, peer);
+  return { client, sent };
+}
+
+test('收到 offer：設定遠端、送出先前排隊的候選、回覆 answer', async () => {
+  const { log, peer } = signalPeer();
+  const { client, sent } = signalClient(peer);
+  await client.onSignal('p1', { kind: 'candidate', candidate: { id: 'early' } });
+  assert.deepEqual(peer.queued, [{ id: 'early' }], '遠端還沒設定前，候選先排隊');
+  await client.onSignal('p1', { kind: 'offer', sdp: 'offer-sdp' });
+  assert.deepEqual(log, ['remote:offer', 'candidate:early', 'createAnswer', 'local']);
+  assert.equal(peer.remoteSet, true);
+  assert.deepEqual(peer.queued, []);
+  assert.deepEqual(sent, [{ t: 'signal', to: 'p1', data: { kind: 'answer', sdp: 'answer-sdp' } }]);
+  await client.onSignal('p1', { kind: 'candidate', candidate: { id: 'late' } });
+  assert.equal(log.at(-1), 'candidate:late', '遠端設定後的候選直接加入');
+});
+
+test('收到 answer：設定遠端並送出排隊的候選；不回覆任何訊息', async () => {
+  const { log, peer } = signalPeer();
+  const { client, sent } = signalClient(peer);
+  peer.queued.push({ id: 'q' });
+  await client.onSignal('p1', { kind: 'answer', sdp: 'x' });
+  assert.deepEqual(log, ['remote:answer', 'candidate:q']);
+  assert.deepEqual(sent, []);
+});
+
+test('未知的對象、沒有內容、沒有候選或失敗的訊息都安靜略過，不影響通話', async () => {
+  const { log, peer } = signalPeer({ failOn: 'remote:offer' });
+  const { client, sent } = signalClient(peer);
+  await client.onSignal('nobody', { kind: 'offer', sdp: 'x' });
+  await client.onSignal('p1', null);
+  await client.onSignal('p1', { kind: 'candidate' });
+  await client.onSignal('p1', { kind: 'unknown' });
+  await client.onSignal('p1', { kind: 'offer', sdp: 'x' });
+  assert.deepEqual(log, ['remote:offer']);
+  assert.deepEqual(sent, []);
+  assert.equal(peer.remoteSet, false);
+});
+
+// ---- 斷線後重新加入 ----
+test('重新加入：取得新票證後送出 start，逾時沒加入就結束並提示', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { client } = makeClient({ mic: true });
+  const sent = [];
+  client.send = message => { sent.push(message); return true; };
+  client.localMedia = () => ({ mic: 'on' });
+  client.api = async body => { assert.deepEqual(body, { type: 'room', roomId: 7 }); return { ticket: 'tk', iceServers: [{ urls: 'stun:x' }], sfu: { url: '/lk' } }; };
+  client.call = { roomId: 7, video: true, phase: 'reconnecting' };
+  await client.rejoin();
+  assert.deepEqual(sent, [{ t: 'start', ticket: 'tk', video: true, media: { mic: 'on' } }]);
+  assert.equal(client.call.phase, 'starting');
+  assert.deepEqual(client.iceServers, [{ urls: 'stun:x' }]);
+  assert.deepEqual(client.sfuInfo, { url: '/lk' });
+  t.mock.timers.tick(12000);
+  assert.equal(client.call, null);
+  assert.deepEqual(client.notice, { type: 'timeout' });
+});
+
+test('重新加入：沒有通話不做事；取票失敗或送不出去都結束並提示連線中斷', async () => {
+  const { client } = makeClient({ mic: true });
+  let calls = 0;
+  client.api = async () => { calls++; throw new Error('offline'); };
+  await client.rejoin();
+  assert.equal(calls, 0);
+  client.call = { roomId: 1, video: false };
+  await client.rejoin();
+  assert.equal(client.call, null);
+  assert.deepEqual(client.notice, { type: 'connection-lost' });
+
+  const second = makeClient({ mic: true }).client;
+  second.api = async () => ({ ticket: 't' });
+  second.send = () => false;
+  second.call = { roomId: 2, video: false };
+  const before = second.iceServers;
+  await second.rejoin();
+  assert.equal(second.call, null);
+  assert.equal(second.iceServers, before, '沒有提供新的 ICE 伺服器就沿用原本的');
+  assert.deepEqual(second.notice, { type: 'connection-lost' });
+});

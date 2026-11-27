@@ -315,44 +315,51 @@ export const TRAINING_CENTER_EN = {
 const OWNER_EN = { 訓練中心: 'training center', 菲律賓仲介: 'Philippines agency', 台灣仲介: 'Taiwan agency', 指定單位: 'designated party' };
 const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 
-// 含變數的句型。translate 用來翻譯句型裡包含的子字串（例如「今天」「3 天後」）。
+// 含變數的句型：依序比對，第一個符合的規則產生英文。
+// 每條規則是 [正規式, (match, translate) => 英文]；translate 用來翻譯句型裡包含的子字串（例如「今天」「3 天後」）。
+const PATTERN_RULES = [
+  [/^報名到「(.+)」$/, m => `Enroll in "${m[1]}"`],
+  [/^課程單元：(.+)$/, m => `Course units: ${m[1]}`],
+  [/^課程單元（(\d+)）$/, m => `Course units (${m[1]})`],
+  [/^學習：(.*)$/, m => `Learning: ${m[1]}`],
+  [/^已讀完 (\d+) \/ (\d+) 個單元$/, m => `${m[1]} of ${m[2]} units completed`],
+  [/^(\d+) \/ (\d+) · (\d+) 小時$/, m => `${m[1]} / ${m[2]} · ${m[3]} hours`],
+  [/^· (\d+) 小時$/, m => Number(m[1]) === 1 ? '· 1 hour' : `· ${m[1]} hours`],
+  [/^(\d+) 小時$/, m => Number(m[1]) === 1 ? '1 hour' : `${m[1]} hours`],
+  [/^(?:· )?(\d+) 個詞彙$/, m => `${m[0].startsWith('· ') ? '· ' : ''}${m[1]} ${Number(m[1]) === 1 ? 'word' : 'words'}`],
+  [/^單元時數合計：(\d+) 小時$/, m => `Total unit hours: ${m[1]}`],
+  [/^(\d+) 天後$/, m => Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`],
+  [/^已過 (\d+) 天$/, m => Number(m[1]) === 1 ? '1 day ago' : `${m[1]} days ago`],
+  [/^已過期（(.+)）$/, (m, translate) => `Expired (${translate(m[1]).toLowerCase()})`],
+  [/^· 有效至 (.+)$/, m => `· Valid until ${m[1]}`],
+  [/^共 (\d+) 個班別$/, m => plural(m[1], 'class', 'classes') + ' in total'],
+  [/^共登記 (\d+) 筆持證$/, m => plural(m[1], 'certification holding', 'certification holdings') + ' registered'],
+  [/^證照批次 (\d+) 筆未發證$/, m => plural(m[1], 'certification batch', 'certification batches') + ' not yet issued'],
+  [/^考證日期（(.+)）$/, m => `Exam date (${m[1]})`],
+  [/^證照辦件日期（(.+)）$/, (m, translate) => `Certification application date (${translate(m[1])})`],
+  [/^答對 (\d+) \/ (\d+) 題$/, m => `${m[1]} of ${m[2]} correct`],
+  [/^(\d+) 位學員$/, m => plural(m[1], 'student', 'students')],
+  [/^(\d+) \/ (\d+) 個單元$/, m => `${m[1]} / ${m[2]} units`],
+  [/^(\d+) \/ (\d+) 小時$/, m => `${m[1]} / ${m[2]} hours`],
+  [/^及格標準為答對 (\d+)% 以上。$/, m => `Pass mark: ${m[1]}% or more correct.`],
+  [/^已(停用|啟用)「(.+)」$/, m => `${m[1] === '停用' ? 'Deactivated' : 'Activated'} "${translateLabel(m[2])}"`],
+  [/^已刪除「(.+)」$/, m => `Deleted "${translateLabel(m[1])}"`],
+  [/^確定刪除「(.+)」？此操作無法復原。$/, m => `Delete "${translateLabel(m[1])}"? This cannot be undone.`],
+  [/^(.+)老師持有的證照$/, m => `Certifications held by teacher ${m[1]}`],
+  [/^(.+)老師仍是「(.+)」班的授課老師，請先更換授課老師後再移除證照。$/, m => `Teacher ${m[1]} is still the instructor of class "${m[2]}". Change the instructor before removing the certification.`],
+  [/^(.+)老師尚未持有這門課程的證照，請先到「老師與證照」登記。$/, m => `Teacher ${m[1]} does not hold the certification for this course. Register it first under "Teachers & Certifications".`],
+  [/^缺 (\d+) 份$/, m => `${m[1]} missing`],
+  [/^入境 (.+)$/, m => `Entered ${m[1]}`],
+  [/^(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理$/, m => `Handled by the ${OWNER_EN[m[1]]}`],
+  [/^「(.+)」由(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理。$/, (m, translate) => `"${translate(m[1])}" is handled by the ${OWNER_EN[m[2]]}.`],
+  [/^送出成功！你的(.*)會員申請已送交管理團隊，審核完成後會開通你的工作區。$/, (m, translate) => `Submitted! Your ${m[1] ? translate(m[1]) + ' ' : ''}membership application has been sent to the management team. Your workspace will be activated once the review is complete.`],
+];
+
 export function translateTrainingCenterPattern(text, translate = value => value) {
-  let m;
-  if ((m = text.match(/^報名到「(.+)」$/))) return `Enroll in "${m[1]}"`;
-  if ((m = text.match(/^課程單元：(.+)$/))) return `Course units: ${m[1]}`;
-  if ((m = text.match(/^課程單元（(\d+)）$/))) return `Course units (${m[1]})`;
-  if ((m = text.match(/^學習：(.*)$/))) return `Learning: ${m[1]}`;
-  if ((m = text.match(/^已讀完 (\d+) \/ (\d+) 個單元$/))) return `${m[1]} of ${m[2]} units completed`;
-  if ((m = text.match(/^(\d+) \/ (\d+) · (\d+) 小時$/))) return `${m[1]} / ${m[2]} · ${m[3]} hours`;
-  if ((m = text.match(/^· (\d+) 小時$/))) return Number(m[1]) === 1 ? '· 1 hour' : `· ${m[1]} hours`;
-  if ((m = text.match(/^(\d+) 小時$/))) return Number(m[1]) === 1 ? '1 hour' : `${m[1]} hours`;
-  if ((m = text.match(/^(?:· )?(\d+) 個詞彙$/))) return `${m[0].startsWith('· ') ? '· ' : ''}${m[1]} ${Number(m[1]) === 1 ? 'word' : 'words'}`;
-  if ((m = text.match(/^單元時數合計：(\d+) 小時$/))) return `Total unit hours: ${m[1]}`;
-  if ((m = text.match(/^(\d+) 天後$/))) return Number(m[1]) === 1 ? 'in 1 day' : `in ${m[1]} days`;
-  if ((m = text.match(/^已過 (\d+) 天$/))) return Number(m[1]) === 1 ? '1 day ago' : `${m[1]} days ago`;
-  if ((m = text.match(/^已過期（(.+)）$/))) return `Expired (${translate(m[1]).toLowerCase()})`;
-  if ((m = text.match(/^· 有效至 (.+)$/))) return `· Valid until ${m[1]}`;
-  if ((m = text.match(/^共 (\d+) 個班別$/))) return plural(m[1], 'class', 'classes') + ' in total';
-  if ((m = text.match(/^共登記 (\d+) 筆持證$/))) return plural(m[1], 'certification holding', 'certification holdings') + ' registered';
-  if ((m = text.match(/^證照批次 (\d+) 筆未發證$/))) return plural(m[1], 'certification batch', 'certification batches') + ' not yet issued';
-  if ((m = text.match(/^考證日期（(.+)）$/))) return `Exam date (${m[1]})`;
-  if ((m = text.match(/^證照辦件日期（(.+)）$/))) return `Certification application date (${translate(m[1])})`;
-  if ((m = text.match(/^答對 (\d+) \/ (\d+) 題$/))) return `${m[1]} of ${m[2]} correct`;
-  if ((m = text.match(/^(\d+) 位學員$/))) return plural(m[1], 'student', 'students');
-  if ((m = text.match(/^(\d+) \/ (\d+) 個單元$/))) return `${m[1]} / ${m[2]} units`;
-  if ((m = text.match(/^(\d+) \/ (\d+) 小時$/))) return `${m[1]} / ${m[2]} hours`;
-  if ((m = text.match(/^及格標準為答對 (\d+)% 以上。$/))) return `Pass mark: ${m[1]}% or more correct.`;
-  if ((m = text.match(/^已(停用|啟用)「(.+)」$/))) return `${m[1] === '停用' ? 'Deactivated' : 'Activated'} "${translateLabel(m[2])}"`;
-  if ((m = text.match(/^已刪除「(.+)」$/))) return `Deleted "${translateLabel(m[1])}"`;
-  if ((m = text.match(/^確定刪除「(.+)」？此操作無法復原。$/))) return `Delete "${translateLabel(m[1])}"? This cannot be undone.`;
-  if ((m = text.match(/^(.+)老師持有的證照$/))) return `Certifications held by teacher ${m[1]}`;
-  if ((m = text.match(/^(.+)老師仍是「(.+)」班的授課老師，請先更換授課老師後再移除證照。$/))) return `Teacher ${m[1]} is still the instructor of class "${m[2]}". Change the instructor before removing the certification.`;
-  if ((m = text.match(/^(.+)老師尚未持有這門課程的證照，請先到「老師與證照」登記。$/))) return `Teacher ${m[1]} does not hold the certification for this course. Register it first under "Teachers & Certifications".`;
-  if ((m = text.match(/^缺 (\d+) 份$/))) return `${m[1]} missing`;
-  if ((m = text.match(/^入境 (.+)$/))) return `Entered ${m[1]}`;
-  if ((m = text.match(/^(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理$/))) return `Handled by the ${OWNER_EN[m[1]]}`;
-  if ((m = text.match(/^「(.+)」由(訓練中心|菲律賓仲介|台灣仲介|指定單位)辦理。$/))) return `"${translate(m[1])}" is handled by the ${OWNER_EN[m[2]]}.`;
-  if ((m = text.match(/^送出成功！你的(.*)會員申請已送交管理團隊，審核完成後會開通你的工作區。$/))) return `Submitted! Your ${m[1] ? translate(m[1]) + ' ' : ''}membership application has been sent to the management team. Your workspace will be activated once the review is complete.`;
+  for (const [pattern, render] of PATTERN_RULES) {
+    const m = text.match(pattern);
+    if (m) return render(m, translate);
+  }
   return null;
 }
 

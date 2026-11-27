@@ -111,3 +111,17 @@ test('save: unexpected database errors are rethrown after rollback and release',
   assert.ok(pool.log.some(entry => entry[0] === 'ROLLBACK'));
   assert.equal(pool.log.at(-1)[0], 'RELEASE');
 });
+
+test('readAgencyProfile：找不到機構回傳 null；沒有聯絡資料時給空白預設值', async () => {
+  const fakeDb = rowsBySql => ({ query: async sql => ({ rows: rowsBySql.find(([pattern]) => pattern.test(sql))?.[1] ?? [] }) });
+  assert.equal(await m.readAgencyProfile(fakeDb([]), 1), null);
+  const agency = { id: 1, name: 'A', agency_type: 'taiwan', country: 'TW' };
+  const empty = await m.readAgencyProfile(fakeDb([[/FROM hr_agencies /, [agency]]]), 1);
+  assert.deepEqual(empty.agency, agency);
+  assert.equal(empty.profile.contact_person, '');
+  assert.equal(empty.profile.updated_at, null);
+  assert.deepEqual(empty.certificates, []);
+  const profile = { contact_person: 'Lee', phone: '1', email: '', address: '', license_number: '', updated_by: '', updated_at: null };
+  const full = await m.readAgencyProfile(fakeDb([[/FROM hr_agencies /, [agency]], [/FROM hr_agency_profiles/, [profile]], [/FROM hr_agency_certificates/, [{ id: 9 }]]]), 1);
+  assert.deepEqual(full, { agency, profile, certificates: [{ id: 9 }] });
+});

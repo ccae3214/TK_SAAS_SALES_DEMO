@@ -61,3 +61,6 @@ deliverables/mandarin-a1-unit1-voxcpm2-tone-audition.txt
 *.vtt
 
 /public/videos
+
+# CRAP / coverage reports
+coverage

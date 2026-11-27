@@ -69,7 +69,26 @@ export async function enqueueMemberRequest(client, memberId, authority) {
 
 export class MemberRequestConflict extends Error {}
 
-export async function submitMemberRequest(pool, { email, lineUserId, displayName, requestedRole, requestedAgencyId }, authority) {
+// 申請的仲介要存在、啟用中，且類型符合（工作者 → 菲律賓仲介、雇主 → 台灣仲介）。
+const AGENCY_TYPE_FOR_ROLE = { worker: 'philippines', employer: 'taiwan' };
+async function assertRequestedAgency(client, requestedAgencyId, requestedRole) {
+  if (!requestedAgencyId) return;
+  const agency = await client.query(`SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE
+        AND ($2::text IS NULL OR agency_type=$2) FOR SHARE`, [requestedAgencyId, AGENCY_TYPE_FOR_ROLE[requestedRole] || null]);
+  if (!agency.rowCount) throw new MemberRequestConflict();
+}
+
+// 已有尚未核准的帳號就更新申請內容，否則新建一筆沒有角色的會員。
+function saveMemberRequest(client, previous, { email, lineUserId, displayName, requestedRole, requestedAgencyId }) {
+  return previous
+    ? client.query(`UPDATE hr_members SET requested_role=$2,requested_agency_id=$3,updated_at=NOW()
+          WHERE id=$1 AND role IS NULL RETURNING id,requested_role,requested_agency_id`, [previous.id, requestedRole, requestedAgencyId])
+    : client.query(`INSERT INTO hr_members(email,line_user_id,display_name,role,requested_role,requested_agency_id,active)
+          VALUES($1,$2,$3,NULL,$4,$5,TRUE) RETURNING id,requested_role,requested_agency_id`, [email, lineUserId, displayName, requestedRole, requestedAgencyId]);
+}
+
+export async function submitMemberRequest(pool, request, authority) {
+  const { email, lineUserId, requestedRole, requestedAgencyId } = request;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -79,16 +98,8 @@ export async function submitMemberRequest(pool, { email, lineUserId, displayName
       WHERE ($1::text IS NOT NULL AND lower(email)=lower($1)) OR ($2::text IS NOT NULL AND line_user_id=$2) FOR UPDATE`, [email, lineUserId]);
     if (found.rowCount > 1 || found.rows.some(row => row.role || !row.active)) throw new MemberRequestConflict();
     const previous = found.rows[0];
-    if (requestedAgencyId) {
-      const agency = await client.query(`SELECT id FROM hr_agencies WHERE id=$1 AND active=TRUE
-        AND ($2::text IS NULL OR agency_type=$2) FOR SHARE`, [requestedAgencyId, requestedRole === 'worker' ? 'philippines' : requestedRole === 'employer' ? 'taiwan' : null]);
-      if (!agency.rowCount) throw new MemberRequestConflict();
-    }
-    const saved = previous
-      ? await client.query(`UPDATE hr_members SET requested_role=$2,requested_agency_id=$3,updated_at=NOW()
-          WHERE id=$1 AND role IS NULL RETURNING id,requested_role,requested_agency_id`, [previous.id, requestedRole, requestedAgencyId])
-      : await client.query(`INSERT INTO hr_members(email,line_user_id,display_name,role,requested_role,requested_agency_id,active)
-          VALUES($1,$2,$3,NULL,$4,$5,TRUE) RETURNING id,requested_role,requested_agency_id`, [email, lineUserId, displayName, requestedRole, requestedAgencyId]);
+    await assertRequestedAgency(client, requestedAgencyId, requestedRole);
+    const saved = await saveMemberRequest(client, previous, request);
     if (!saved.rowCount) throw new MemberRequestConflict();
     const notificationIds = previous?.requested_role ? [] : await enqueueMemberRequest(client, saved.rows[0].id, authority);
     await client.query('COMMIT');
@@ -142,25 +153,33 @@ async function recipientLanguage(db, line) {
   return result.rows[0]?.preferred_language || 'zh';
 }
 
-// Dependency injection is for deterministic tests; production never accepts a browser-supplied transport/recipient.
-export async function dispatchNotifications(pool, {
-  authority = notificationAuthority(), baseUrl = process.env.APP_ORIGIN || process.env.NEXTAUTH_URL,
-  token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN, send = null, ids = null, limit = 5,
-} = {}) {
-  const counts = { claimed: 0, sent: 0, retry: 0, failed: 0, cancelled: 0, configurationMissing: false };
-  if ((!token && !send) || !baseUrl) { counts.configurationMissing = true; return counts; }
-  // Validate configuration before claiming: do not burn retries while the environment is unconfigured.
-  try { renderRequestNotification(baseUrl, 1); } catch { counts.configurationMissing = true; return counts; }
+// 預設值只在沒有提供（undefined）時套用，與原本的參數預設值行為一致。
+function dispatchOptions(options = {}) {
+  const or = (value, fallback) => (value === undefined ? fallback() : value);
+  return {
+    authority: or(options.authority, () => notificationAuthority()),
+    baseUrl: or(options.baseUrl, () => process.env.APP_ORIGIN || process.env.NEXTAUTH_URL),
+    token: or(options.token, () => process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN),
+    send: or(options.send, () => null),
+    ids: or(options.ids, () => null),
+    limit: or(options.limit, () => 5),
+  };
+}
+
+// Validate configuration before claiming: do not burn retries while the environment is unconfigured.
+function configurationMissing({ token, send, baseUrl }) {
+  if ((!token && !send) || !baseUrl) return true;
+  try { renderRequestNotification(baseUrl, 1); return false; } catch { return true; }
+}
+
+async function claimDueNotifications(pool, ids, batchLimit, lease) {
   const client = await pool.connect();
-  let claimed;
-  const batchLimit = Math.max(1, Math.min(20, Math.floor(Number(limit)) || 5));
-  const lease = randomUUID();
   try {
     await client.query('BEGIN');
     await client.query(`UPDATE hr_notification_outbox SET status='failed',last_error_code='attempts_exhausted',updated_at=NOW(),
       attempt_history=attempt_history || jsonb_build_array(jsonb_build_object('at',NOW(),'status','failed','code','attempts_exhausted'))
       WHERE status='processing' AND lease_until<NOW() AND attempts>=5 AND ($1::bigint[] IS NULL OR id=ANY($1::bigint[]))`, [ids]);
-    claimed = (await client.query(`WITH due AS (
+    const claimed = (await client.query(`WITH due AS (
       SELECT id FROM hr_notification_outbox WHERE attempts<5 AND ($1::bigint[] IS NULL OR id=ANY($1::bigint[]))
         AND ((status IN ('pending','retry') AND next_attempt_at<=NOW()) OR (status='processing' AND lease_until<NOW()))
       ORDER BY id FOR UPDATE SKIP LOCKED LIMIT $2
@@ -168,29 +187,50 @@ export async function dispatchNotifications(pool, {
       lease_until=NOW()+($4::integer*INTERVAL '1 second'),updated_at=NOW() FROM due WHERE n.id=due.id RETURNING n.*`,
     [ids, batchLimit, lease, Math.max(30, batchLimit * 10 + 5)])).rows;
     await client.query('COMMIT');
+    return claimed;
   } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
   finally { client.release(); }
-  counts.claimed = claimed.length;
-  for (const row of claimed) {
-    let outcome;
-    try {
-      if (!(await validateDelivery(pool, row, authority))) outcome = { status: 'cancelled', code: 'recipient_or_request_changed' };
-      else {
-        const messages = renderRequestNotification(baseUrl, row.subject_member_id, await recipientLanguage(pool, row.recipient_line_id));
-        outcome = send ? await send(row, messages) : await pushNotification(row, messages, { token });
-        if (!['sent', 'retry', 'failed'].includes(outcome?.status)) outcome = { status: 'failed', code: 'invalid_transport_result' };
-      }
-    } catch { outcome = { status: 'retry', code: 'transport_or_store_error' }; }
-    if (outcome.status === 'retry' && row.attempts >= 5) outcome = { status: 'failed', code: 'attempts_exhausted' };
-    // Only fixed safe codes are persisted; never serialize provider exceptions or message payloads.
-    const safeCode = /^(line_http_\d{3}|recipient_or_request_changed|transport_or_store_error|attempts_exhausted|invalid_transport_result)$/.test(outcome.code || '') ? outcome.code : null;
-    const saved = await pool.query(`UPDATE hr_notification_outbox SET status=$3,last_error_code=$4,
+}
+
+const TRANSPORT_STATUSES = ['sent', 'retry', 'failed'];
+
+// 送出一筆通知，回傳 { status, code }；送出前再確認申請與收件人仍然有效。
+async function deliverNotification(pool, row, { authority, baseUrl, token, send }) {
+  try {
+    if (!(await validateDelivery(pool, row, authority))) return { status: 'cancelled', code: 'recipient_or_request_changed' };
+    const messages = renderRequestNotification(baseUrl, row.subject_member_id, await recipientLanguage(pool, row.recipient_line_id));
+    const outcome = send ? await send(row, messages) : await pushNotification(row, messages, { token });
+    return TRANSPORT_STATUSES.includes(outcome?.status) ? outcome : { status: 'failed', code: 'invalid_transport_result' };
+  } catch { return { status: 'retry', code: 'transport_or_store_error' }; }
+}
+
+// Only fixed safe codes are persisted; never serialize provider exceptions or message payloads.
+const SAFE_CODE = /^(line_http_\d{3}|recipient_or_request_changed|transport_or_store_error|attempts_exhausted|invalid_transport_result)$/;
+
+async function saveNotificationOutcome(pool, row, lease, outcome) {
+  const safeCode = SAFE_CODE.test(outcome.code || '') ? outcome.code : null;
+  const saved = await pool.query(`UPDATE hr_notification_outbox SET status=$3,last_error_code=$4,
       next_attempt_at=NOW()+($5::integer*INTERVAL '1 second'),lease_until=NULL,lease_key=NULL,
       sent_at=CASE WHEN $3='sent' THEN NOW() ELSE sent_at END,updated_at=NOW(),
       attempt_history=attempt_history || jsonb_build_array(jsonb_build_object('at',NOW(),'status',$3::text,'code',$4::text,'attempt',attempts))
       WHERE id=$1 AND status='processing' AND lease_key=$2 RETURNING id`,
-    [row.id, lease, outcome.status, safeCode, Math.min(300, 5 * (2 ** (row.attempts - 1)))]);
-    if (saved.rowCount) counts[outcome.status]++;
+  [row.id, lease, outcome.status, safeCode, Math.min(300, 5 * (2 ** (row.attempts - 1)))]);
+  return saved.rowCount > 0;
+}
+
+// Dependency injection is for deterministic tests; production never accepts a browser-supplied transport/recipient.
+export async function dispatchNotifications(pool, options) {
+  const config = dispatchOptions(options);
+  const counts = { claimed: 0, sent: 0, retry: 0, failed: 0, cancelled: 0, configurationMissing: false };
+  if (configurationMissing(config)) { counts.configurationMissing = true; return counts; }
+  const batchLimit = Math.max(1, Math.min(20, Math.floor(Number(config.limit)) || 5));
+  const lease = randomUUID();
+  const claimed = await claimDueNotifications(pool, config.ids, batchLimit, lease);
+  counts.claimed = claimed.length;
+  for (const row of claimed) {
+    let outcome = await deliverNotification(pool, row, config);
+    if (outcome.status === 'retry' && row.attempts >= 5) outcome = { status: 'failed', code: 'attempts_exhausted' };
+    if (await saveNotificationOutcome(pool, row, lease, outcome)) counts[outcome.status]++;
   }
   return counts;
 }

@@ -98,36 +98,63 @@ export class CallHub {
     }
   }
 
-  enter(conn, message) {
+  // 通話票證要是這個連線本人的、而且指向合法的聊天室；不合法回傳 null。
+  enterTicket(conn, message) {
     const ticket = verifyTicket(message.ticket, this.secret, this.now());
     const roomId = Number(ticket?.r);
-    if (!ticket || ticket.k !== conn.key || !Number.isSafeInteger(roomId) || roomId < 1) return conn.send({ t: 'error', code: 'bad-ticket' });
+    if (!ticket || ticket.k !== conn.key || !Number.isSafeInteger(roomId) || roomId < 1) return null;
+    return { ticket, roomId };
+  }
+
+  // 第一個人開始通話：建立通話、開始響鈴計時，通知在線上的被叫者，離線的改發推播。
+  startCall(conn, message, ticket, roomId) {
+    const invitees = (Array.isArray(ticket.invitees) ? ticket.invitees : []).filter(key => typeof key === 'string' && key !== conn.key).slice(0, 300);
+    const call = {
+      id: crypto.randomUUID(), roomId, title: String(ticket.ct || ticket.title || '').slice(0, 200), video: !!message.video,
+      startedBy: conn.key, startedByName: conn.name, invitees: new Set(invitees),
+      participants: new Map(), declined: new Set(), ringing: true, timer: null,
+      sfu: ticket.sfu === true, // 這通電話的影像聲音走 SFU 還是彼此直連，由第一個開始通話的人的票證決定
+    };
+    this.calls.set(roomId, call);
+    call.timer = this.setTimer(() => this.ringTimeout(call), this.ringMs);
+    call.nudgeTimer = this.nudgeMs > 0 ? this.setTimer(() => this.nudge(call), this.nudgeMs) : null;
+    for (const key of call.invitees) for (const other of this.byKey.get(key) || []) other.send(this.incomingMessage(call));
+    this.notify(call, [...call.invitees].filter(key => !this.isOnline(key)), 'offline');
+    return call;
+  }
+
+  // 傳給其他參加者的「這個人是誰」：SFU 通話才帶 lk。
+  peerInfo(item, call) {
+    return { id: item.id, name: item.name, ...(item.lk ? { lk: item.lk } : {}), media: item.media || cleanMedia(null, call.video) };
+  }
+
+  // SFU 通話：LiveKit 的參加者識別碼來自簽章票證（不能自己亂填），其他人用它把畫面對應到這個人
+  sfuIdentity(call, ticket) {
+    return call.sfu && typeof ticket.lk === 'string' && /^[0-9a-f]{18}$/.test(ticket.lk) ? ticket.lk : null;
+  }
+
+  enter(conn, message) {
+    const entry = this.enterTicket(conn, message);
+    if (!entry) return conn.send({ t: 'error', code: 'bad-ticket' });
     if (conn.roomId != null) return conn.send({ t: 'error', code: 'already-in-call' });
-    let call = this.calls.get(roomId);
-    if (!call) {
-      call = {
-        id: crypto.randomUUID(), roomId, title: String(ticket.ct || ticket.title || '').slice(0, 200), video: !!message.video,
-        startedBy: conn.key, startedByName: conn.name, invitees: new Set((Array.isArray(ticket.invitees) ? ticket.invitees : []).filter(key => typeof key === 'string' && key !== conn.key).slice(0, 300)),
-        participants: new Map(), declined: new Set(), ringing: true, timer: null,
-        sfu: ticket.sfu === true, // 這通電話的影像聲音走 SFU 還是彼此直連，由第一個開始通話的人的票證決定
-      };
-      this.calls.set(roomId, call);
-      call.timer = this.setTimer(() => this.ringTimeout(call), this.ringMs);
-      call.nudgeTimer = this.nudgeMs > 0 ? this.setTimer(() => this.nudge(call), this.nudgeMs) : null;
-      for (const key of call.invitees) for (const other of this.byKey.get(key) || []) other.send(this.incomingMessage(call));
-      this.notify(call, [...call.invitees].filter(key => !this.isOnline(key)), 'offline');
-    } else if (call.participants.size >= maxParticipantsFor(call)) {
-      return conn.send({ t: 'error', code: 'full' });
-    }
-    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, ...(item.lk ? { lk: item.lk } : {}), media: item.media || cleanMedia(null, call.video) }));
+    const { ticket, roomId } = entry;
+    const existing = this.calls.get(roomId);
+    if (existing && existing.participants.size >= maxParticipantsFor(existing)) return conn.send({ t: 'error', code: 'full' });
+    const call = existing || this.startCall(conn, message, ticket, roomId);
+    const peers = [...call.participants.values()].map(item => this.peerInfo(item, call));
     conn.media = cleanMedia(message.media, call.video);
-    // SFU 通話：LiveKit 的參加者識別碼來自簽章票證（不能自己亂填），其他人用它把畫面對應到這個人
-    conn.lk = call.sfu && typeof ticket.lk === 'string' && /^[0-9a-f]{18}$/.test(ticket.lk) ? ticket.lk : null;
+    conn.lk = this.sfuIdentity(call, ticket);
     if (call.sfu && !conn.lk) return conn.send({ t: 'error', code: 'bad-ticket' });
+    this.joinCall(conn, call, peers);
+  }
+
+  joinCall(conn, call, peers) {
+    const { roomId } = call;
     call.participants.set(conn.id, conn);
     conn.roomId = roomId;
     conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers, ...(call.sfu ? { sfu: true } : {}) });
-    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, ...(conn.lk ? { lk: conn.lk } : {}), media: conn.media } });
+    const joined = { t: 'peer-joined', peer: this.peerInfo(conn, call) };
+    for (const other of call.participants.values()) if (other !== conn) other.send(joined);
     // 同一個人的其他分頁／裝置不用再響鈴
     for (const other of this.byKey.get(conn.key) || []) if (other !== conn && other.roomId == null) other.send({ t: 'ring-stop', roomId });
   }
@@ -230,6 +257,49 @@ function rejectUpgrade(socket, status, text) {
 // 通知掛鉤由 Next 那邊（instrumentation）登記在 globalThis；server.js 不直接碰資料庫。
 const notifyViaGlobalHook = call => globalThis.__hrCallNotifyHook?.(call);
 
+// 網站只允許從自己的頁面連線（避免別的網站利用使用者的瀏覽器連進來）；沒有 Origin 的非瀏覽器用戶端放行。
+function sameOriginUpgrade(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try { return new URL(origin).host === req.headers.host; } catch { return false; }
+}
+
+// 檢查 WebSocket 升級請求：不合法回傳 { reject: [狀態碼, 說明] }，合法回傳 { key, ticket }。
+function checkUpgrade(req, url, secret, hub) {
+  const key = req.headers['sec-websocket-key'];
+  if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket' || req.headers['sec-websocket-version'] !== '13' || typeof key !== 'string') return { reject: [400, 'Bad Request'] };
+  if (!sameOriginUpgrade(req)) return { reject: [403, 'Forbidden'] };
+  const ticket = verifyTicket(url.searchParams.get('ticket'), secret, hub.now());
+  if (!ticket || ticket.p !== 'presence' || typeof ticket.k !== 'string' || !ticket.k) return { reject: [401, 'Unauthorized'] };
+  if (hub.connectionCount >= MAX_CONNECTIONS || (hub.byKey.get(ticket.k)?.size || 0) >= MAX_CONNECTIONS_PER_KEY) return { reject: [503, 'Service Unavailable'] };
+  return { key, ticket };
+}
+
+function socketConnection(socket, ticket) {
+  return {
+    id: crypto.randomBytes(8).toString('hex'), key: ticket.k, name: String(ticket.n || '').slice(0, 80), roomId: null,
+    send(message) {
+      if (socket.destroyed || !socket.writable) return;
+      if (socket.writableLength > 1024 * 1024) return socket.destroy();
+      socket.write(encodeFrame(1, Buffer.from(JSON.stringify(message))));
+    },
+  };
+}
+
+// 控制影格與不支援的影格要怎麼處理；回傳 null 代表是文字資料（opcode 1 或接續的 0）。
+// 只收文字：二進位（2）回 1003；未知 opcode、或上一則分段還沒收完又來新的文字訊息，回 1002。
+export function controlFrameAction(opcode, hasFragments) {
+  switch (opcode) {
+    case 8: return { close: 1000 };
+    case 9: return { pong: true };
+    case 10: return { skip: true };
+    case 2: return { close: 1003 };
+    case 0: return null;
+    case 1: return hasFragments ? { close: 1002 } : null;
+    default: return { close: 1002 };
+  }
+}
+
 export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secret, hub = new CallHub({ secret, onNotify: notifyViaGlobalHook }), heartbeatMs = 25000, log = console } = {}) {
   const sockets = new Set();
   httpServer.on('upgrade', (req, socket, head) => {
@@ -237,23 +307,10 @@ export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secr
     try { url = new URL(req.url, 'http://localhost'); } catch { return socket.destroy(); }
     if (url.pathname !== path) { if (httpServer.listenerCount('upgrade') === 1) socket.destroy(); return; }
     socket.on('error', () => {});
-    const key = req.headers['sec-websocket-key'];
-    if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket' || req.headers['sec-websocket-version'] !== '13' || typeof key !== 'string') return rejectUpgrade(socket, 400, 'Bad Request');
-    // 網站只允許從自己的頁面連線（避免別的網站利用使用者的瀏覽器連進來）
-    const origin = req.headers.origin;
-    if (origin) { try { if (new URL(origin).host !== req.headers.host) return rejectUpgrade(socket, 403, 'Forbidden'); } catch { return rejectUpgrade(socket, 403, 'Forbidden'); } }
-    const ticket = verifyTicket(url.searchParams.get('ticket'), secret, hub.now());
-    if (!ticket || ticket.p !== 'presence' || typeof ticket.k !== 'string' || !ticket.k) return rejectUpgrade(socket, 401, 'Unauthorized');
-
-    const conn = {
-      id: crypto.randomBytes(8).toString('hex'), key: ticket.k, name: String(ticket.n || '').slice(0, 80), roomId: null,
-      send(message) {
-        if (socket.destroyed || !socket.writable) return;
-        if (socket.writableLength > 1024 * 1024) return socket.destroy();
-        socket.write(encodeFrame(1, Buffer.from(JSON.stringify(message))));
-      },
-    };
-    if (hub.connectionCount >= MAX_CONNECTIONS || (hub.byKey.get(conn.key)?.size || 0) >= MAX_CONNECTIONS_PER_KEY) return rejectUpgrade(socket, 503, 'Service Unavailable');
+    const checked = checkUpgrade(req, url, secret, hub);
+    if (checked.reject) return rejectUpgrade(socket, ...checked.reject);
+    const { key, ticket } = checked;
+    const conn = socketConnection(socket, ticket);
     // 先回 101 完成握手，再登記連線（登記時會補送還在響鈴的來電，必須排在握手回應之後）
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${crypto.createHash('sha1').update(key + GUID).digest('base64')}\r\n\r\n`);
     socket.setNoDelay(true);
@@ -282,6 +339,26 @@ export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secr
     socket.on('end', () => socket.end());
     socket.on('close', () => { clearInterval(heartbeat); sockets.delete(socket); closed = true; hub.removeConnection(conn); });
 
+    // 收集文字影格（可能分段）：回傳 { close } 超過大小、{ wait } 還沒收完、{ text } 完整訊息。
+    const collect = frame => {
+      fragments.push(frame.payload);
+      fragmentBytes += frame.payload.length;
+      if (fragmentBytes > MAX_MESSAGE_BYTES) return { close: 1009 };
+      if (!frame.fin) return { wait: true };
+      const text = Buffer.concat(fragments).toString('utf8');
+      fragments = []; fragmentBytes = 0;
+      return { text };
+    };
+    // 10 秒超過 600 則訊息就斷線，避免被灌爆
+    const rateLimited = () => {
+      if (Date.now() - windowStart > 10000) { windowStart = Date.now(); windowCount = 0; }
+      return ++windowCount > 600;
+    };
+    const dispatch = text => {
+      let message;
+      try { message = JSON.parse(text); } catch { return; }
+      try { hub.handle(conn, message); } catch (error) { log.error?.('hr_call_message_failed', error?.name || 'Error'); }
+    };
     const drain = () => {
       for (;;) {
         const frame = decodeFrame(pending);
@@ -289,23 +366,15 @@ export function attachCallSignaling(httpServer, { path = '/api/hr/call/ws', secr
         if (frame.error) return close(frame.error);
         pending = pending.subarray(frame.size);
         lastSeen = Date.now();
-        if (frame.opcode === 8) return close(1000);
-        if (frame.opcode === 9) { if (socket.writable) socket.write(encodeFrame(10, frame.payload)); continue; }
-        if (frame.opcode === 10) continue;
-        if (frame.opcode === 2) return close(1003);
-        if (frame.opcode !== 1 && frame.opcode !== 0) return close(1002);
-        if (frame.opcode === 1 && fragments.length) return close(1002);
-        fragments.push(frame.payload);
-        fragmentBytes += frame.payload.length;
-        if (fragmentBytes > MAX_MESSAGE_BYTES) return close(1009);
-        if (!frame.fin) continue;
-        const text = Buffer.concat(fragments).toString('utf8');
-        fragments = []; fragmentBytes = 0;
-        if (Date.now() - windowStart > 10000) { windowStart = Date.now(); windowCount = 0; }
-        if (++windowCount > 600) return close(1008); // 10 秒超過 600 則訊息就斷線，避免被灌爆
-        let message;
-        try { message = JSON.parse(text); } catch { continue; }
-        try { hub.handle(conn, message); } catch (error) { log.error?.('hr_call_message_failed', error?.name || 'Error'); }
+        const control = controlFrameAction(frame.opcode, fragments.length > 0);
+        if (control?.close) return close(control.close);
+        if (control?.pong && socket.writable) socket.write(encodeFrame(10, frame.payload));
+        if (control) continue;
+        const data = collect(frame);
+        if (data.close) return close(data.close);
+        if (data.wait) continue;
+        if (rateLimited()) return close(1008);
+        dispatch(data.text);
       }
     };
     socket.on('data', chunk => { pending = pending.length ? Buffer.concat([pending, chunk]) : chunk; drain(); });

@@ -92,3 +92,26 @@ test('案件專屬證照：看護類職類需要 Caregiving NC2，其他職類�
   assert.deepEqual(certificationNamesForJobType(undefined), []);
   assert.deepEqual(CERTIFICATION_STATUSES, ['not_started', 'training', 'assessment', 'obtained']);
 });
+test('syncWorkerDocuments：找不到工人回傳 false；只更新自動判斷、尚未收件的文件，有變動才回傳 true', async () => {
+  const { syncWorkerDocuments } = await import('../src/lib/hr-requirements.js');
+  const runner = (workerRows, updatedNames = []) => {
+    const calls = [];
+    return { calls, query: async (sql, params) => {
+      calls.push({ sql, params });
+      if (/FROM hr_workers/.test(sql)) return { rows: workerRows };
+      return { rows: updatedNames.includes(params[1]) ? [{ id: 1 }] : [] };
+    } };
+  };
+  assert.equal(await syncWorkerDocuments(runner([]), 5), false);
+  const conditional = WORKER_DOCUMENTS.filter(([, applicability]) => applicability);
+  const unchanged = runner([{ resume_profile: {}, job_preference: '' }]);
+  assert.equal(await syncWorkerDocuments(unchanged, 5), false);
+  const updates = unchanged.calls.filter(call => /UPDATE hr_worker_documents/.test(call.sql));
+  assert.equal(updates.length, conditional.length);
+  for (const call of updates) {
+    assert.match(call.sql, /applicability_source='auto' AND status='missing'/);
+    assert.equal(call.params[0], 5);
+    assert.equal(typeof call.params[2], 'boolean');
+  }
+  assert.equal(await syncWorkerDocuments(runner([{ resume_profile: {}, job_preference: '' }], [conditional[0][0]]), 5), true);
+});
