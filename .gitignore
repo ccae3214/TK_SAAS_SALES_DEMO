@@ -45,6 +45,7 @@ tmp
 .tests
 certs
 certbot_www
+deliverables
 # Local browser artifacts may contain test credentials/session data; never commit.
 **/.auth/
 playwright-report/
@@ -52,3 +53,11 @@ test-results/
 
 # Database backups hold personal data and encrypted documents; never commit.
 backups/
+deliverables/mandarin-a1-unit1-voxcpm2-tone-audition.txt
+/deliverables
+*.mp4
+
+*.mp3
+*.vtt
+
+/public/videos
