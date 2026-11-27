@@ -22,6 +22,7 @@ import { ensurePushSchema } from '@/lib/hr-call-notify-store';
 import { ensureLineHandoffSchema } from '@/lib/hr-line-handoff-store';
 import { ensureSchemaNormalization } from '@/lib/hr-schema-normalize';
 import { ensureWorkerPhotoSchema, migrateLegacyWorkerPhotos } from '@/lib/hr-worker-photo';
+import { ensureTrainingCenterEntitySchema } from '@/lib/hr-training-center-entity';
 
 // 順序有相依：核心資料表 → 身分／會員 → 其餘功能。
 export const MIGRATION_STEPS = [
@@ -37,6 +38,8 @@ export const MIGRATION_STEPS = [
   ['agency-cert-progress', () => ensureProgressSchema(pool)],
   ['agency-profile', () => ensureAgencyProfileSchema(pool)],
   ['training-center', () => ensureTrainingCenterSchema()],
+  // 訓練中心獨立資料表：hr_tc_* 改指向 hr_training_centers，刪除中心帳號不再連帶刪掉中心資料（見 hr-training-center-entity.js）。
+  ['training-center-entity', () => ensureTrainingCenterEntitySchema(pool)],
   ['employer-documents', () => ensureEmployerDocumentsSchema()],
   ['notifications', () => ensureNotificationSchema(pool)],
   ['audit', () => ensureAuditSchema()],
