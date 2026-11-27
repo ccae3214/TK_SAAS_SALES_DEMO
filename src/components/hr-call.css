@@ -52,6 +52,14 @@
 .hr-call-tile.is-selectable { cursor: pointer; }
 .hr-call-tile.is-selectable:hover { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
 .hr-call-tile.is-selectable:focus-visible { outline: 3px solid #9ed9c0; outline-offset: -3px; }
+/* 7 個畫面以上（自架 SFU 通話最多 20 人）：每個畫面固定高度，超出視窗就上下捲動；放大時被點的人佔上方，其他人在下方可捲動 */
+.hr-call-grid.count-7 { overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: 96px; align-content: start; }
+.hr-call-grid.count-7.has-focus { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); grid-template-rows: none; grid-auto-rows: 72px; }
+.hr-call-grid.count-7.has-focus .hr-call-tile.is-focused { grid-row: span 4; }
+.hr-call-grid.count-7 .hr-call-status { right: 4px; bottom: 4px; gap: 2px; }
+.hr-call-grid.count-7 .hr-call-status-icon { width: 18px; height: 18px; }
+.hr-call-grid.count-7 .hr-call-name { left: 4px; bottom: 4px; max-width: calc(100% - 68px); padding: 1px 6px; font-size: 11px; }
+.hr-call-grid.count-7 .hr-call-avatar { width: 40px; height: 40px; font-size: 18px; }
 .hr-call-tile { position: relative; overflow: hidden; display: grid; place-items: center; min-height: 0; border-radius: 12px; background: #16342a; }
 .hr-call-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hr-call-tile.is-local video { transform: scaleX(-1); }

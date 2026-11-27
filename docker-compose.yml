@@ -50,6 +50,10 @@ services:
       - HR_CALL_STUN_URLS=${HR_CALL_STUN_URLS:-stun:stun.l.google.com:19302}
       - HR_CALL_TURN_URLS=${HR_CALL_TURN_URLS:-}
       - HR_CALL_TURN_SECRET=${HR_CALL_TURN_SECRET:-}
+      # 自架 SFU（LiveKit，選配）：三個都設定後，通話影像聲音改走 SFU，人數上限 20 人；沒設定就維持彼此直連（6 人）。
+      - LIVEKIT_URL=${LIVEKIT_URL:-}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
       # 來電通知：對方不在線上時，用網頁推播（Web Push，加到桌面後鎖屏也收得到）通知，沒送到再用 LINE。
       # 推播金鑰用「npx web-push generate-vapid-keys」產生；沒設定時網站不會顯示「來電通知」按鈕。
       - HR_PUSH_VAPID_PUBLIC_KEY=${HR_PUSH_VAPID_PUBLIC_KEY:-}
@@ -152,6 +156,34 @@ services:
       - PROXIED=false
       - RRTYPE=A
       - CRON=${CLOUDFLARE_DDNS_CRON:-*/5 * * * *}
+    restart: unless-stopped
+
+  # 通話的自架 SFU（LiveKit，選配：docker-compose --profile sfu up -d）。
+  # 開啟後，聊天室通話的影像聲音改由這台伺服器轉送，同時通話人數上限從 6 人（彼此直連）提高到 20 人。
+  # 影像聲音只經過你自己的主機，不會送到 LiveKit 的雲端。沒啟用時（.env 沒有 LIVEKIT_URL）通話維持原本的彼此直連。
+  # 需要：1) 路由器把 7882（UDP）和 7881（TCP）轉到這台電腦、防火牆放行（UDP 7882 是影像聲音，TCP 7881 是 UDP 被擋時的備援）；
+  #       2) .env 設定 LIVEKIT_API_KEY、LIVEKIT_API_SECRET，以及 LIVEKIT_URL=/livekit（網站與 SFU 同網域，由 nginx 轉送信令）；
+  #       3) 信令（7880）不對外開埠，由 nginx 的 /livekit/ 轉送，所以走 Cloudflare 沒問題；影像聲音的 UDP 是直連主機的對外 IP。
+  livekit:
+    image: livekit/livekit-server:latest
+    profiles: ["sfu"]
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}
+      - |
+        LIVEKIT_CONFIG=
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        room:
+          max_participants: 20
+          empty_timeout: 60
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+      # 信令只開給本機，對外一律經過 nginx 的 /livekit/
+      - "127.0.0.1:7880:7880"
     restart: unless-stopped
 
   nginx:
