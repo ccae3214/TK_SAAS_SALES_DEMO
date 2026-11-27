@@ -1,0 +1,12 @@
+.changes{margin-top:6px;font-size:12px}
+.changes summary{cursor:pointer;color:#2f7d65;font-weight:700;font-size:12px;width:fit-content}
+.changes summary:focus-visible{outline:2px solid #42977f;outline-offset:2px;border-radius:4px}
+.scroll{margin-top:8px;max-width:100%;overflow-x:auto;border:1px solid #e3eaea;border-radius:8px}
+.scroll table{width:100%;border-collapse:collapse;min-width:420px}
+.scroll th,.scroll td{padding:7px 9px;text-align:left;vertical-align:top;border-bottom:1px solid #eef2f2;word-break:break-word;font-size:12px;line-height:1.5}
+.scroll thead th{background:#f5f8f7;color:#5d6c71;font-weight:700}
+.scroll tbody th{color:#3d5158;font-weight:700;white-space:nowrap}
+.scroll tr:last-child th,.scroll tr:last-child td{border-bottom:none}
+.before{color:#9a4a3c;background:#fdf4f2}
+.after{color:#22684f;background:#f1f9f5}
+.empty{color:#99a5a9;font-style:italic}

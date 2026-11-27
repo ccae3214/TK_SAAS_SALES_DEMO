@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { AGENCY_AUDIT_ACTIONS } from '@/lib/hr-agency-audit-core';
 import styles from './HrAgencyAuditLog.module.css';
+import HrAuditChanges from './HrAuditChanges';
 import { pickLang, localeFor, copyFor } from '@/lib/language';
 
 // 仲介機構的操作紀錄（只有該機構的仲介管理者看得到；後端另外驗證，這裡只是不顯示入口）。
@@ -109,6 +110,7 @@ export default function HrAgencyAuditLog() {
             <time dateTime={new Date(row.created_at).toISOString()}>{timeText(row.created_at, language)}</time>
           </div>
           <p className={styles.summary}>{(language === 'en' ? row.summary_en : '') || row.summary_zh}</p>
+          <HrAuditChanges before={row.before_data} after={row.after_data} lang={language} />
         </li>;
       })}
     </ul>}
