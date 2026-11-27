@@ -84,6 +84,37 @@
 }
 .hr-call-toast button { flex: none; border: 0; background: transparent; color: #bfe6d6; font-size: 20px; line-height: 1; cursor: pointer; }
 
+/* 通話中的文字聊天：電腦版在通話視窗右側多一欄，手機版從下方滑出蓋住下半部 */
+.hr-call-chat-toggle { position: relative; }
+.hr-call-chat-toggle.is-active { background: #1fa971; }
+.hr-call-chat-badge {
+  position: absolute; top: -2px; right: -2px; display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 10px; background: #d64545; color: #fff; font-size: 11px; font-weight: 800; line-height: 1; box-shadow: 0 0 0 2px #0b1f18;
+}
+.hr-call-overlay.has-chat {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 10px;
+  width: min(1040px, calc(100vw - 40px));
+}
+.hr-call-overlay.has-chat .hr-call-header, .hr-call-overlay.has-chat .hr-call-grid, .hr-call-overlay.has-chat .hr-call-controls { grid-column: 1; }
+.hr-call-chat { grid-column: 2; grid-row: 1 / 4; display: flex; flex-direction: column; min-height: 0; border-radius: 12px; background: #fff; color: #17312a; overflow: hidden; }
+.hr-call-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e3eee8; }
+.hr-call-chat-header strong { font-size: 14px; }
+.hr-call-chat-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #4b6a60; cursor: pointer; }
+.hr-call-chat-close:hover { background: #f0f6f3; }
+.hr-call-chat-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.hr-call-chat-message { align-self: flex-start; max-width: 88%; padding: 6px 10px; border-radius: 12px; background: #f0f6f3; }
+.hr-call-chat-message.is-mine { align-self: flex-end; background: #dff3ea; }
+.hr-call-chat-meta { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: #5d7a70; }
+.hr-call-chat-meta strong { color: #17312a; font-size: 12px; }
+.hr-call-chat-message p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hr-call-chat-empty { margin: auto 0; text-align: center; font-size: 12.5px; color: #6f8a80; }
+.hr-call-chat-error { margin: 0; padding: 6px 12px; font-size: 12px; color: #b42318; background: #fdecea; }
+.hr-call-chat-composer { display: flex; align-items: flex-end; gap: 6px; padding: 8px; border-top: 1px solid #e3eee8; }
+.hr-call-chat-composer textarea { flex: 1; min-height: 38px; max-height: 96px; padding: 8px 10px; border: 1px solid #cfe3d8; border-radius: 10px; font: inherit; font-size: 14px; resize: none; }
+.hr-call-chat-composer textarea:focus { outline: 2px solid #7cc8ad; outline-offset: 0; }
+.hr-call-chat-composer button { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border: 0; border-radius: 10px; background: #1fa971; color: #fff; cursor: pointer; }
+.hr-call-chat-composer button:disabled { opacity: 0.45; cursor: default; }
+
 @media (max-width: 720px) {
   .hr-call-incoming { flex-wrap: wrap; }
   .hr-call-incoming-actions { width: 100%; }
@@ -97,5 +128,9 @@
   .hr-call-grid.count-2 { grid-template-columns: 1fr; }
   .hr-call-grid.count-5, .hr-call-grid.count-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hr-call-grid.has-focus { grid-template-columns: repeat(var(--hr-call-others, 1), minmax(0, 1fr)); }
+  /* 手機：聊天面板蓋住下半部，上半部仍看得到畫面 */
+  .hr-call-overlay.has-chat { display: flex; width: auto; }
+  .hr-call-chat { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; height: 58%; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35); }
+  .hr-call-chat-composer textarea { font-size: 16px; } /* iPhone 小於 16px 會自動放大畫面 */
 }
 @media (prefers-reduced-motion: reduce) { .hr-call-incoming { animation: none; } }
