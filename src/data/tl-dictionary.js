@@ -1050,6 +1050,7 @@ export const TL_DICTIONARY = {
   "No resume details added yet.": "Wala pang naidagdag na detalye ng resume.",
   "Additional information": "Karagdagang impormasyon",
   "White": "Maputi",
+  "Brown": "Kayumanggi",
   "Yellow": "Dilaw",
   "Black": "Maitim",
   "Religion": "Relihiyon",
