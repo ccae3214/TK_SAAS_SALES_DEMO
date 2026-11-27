@@ -30,7 +30,7 @@ export const WORKER_RESUME_SELECTS = {
 };
 
 export const WORKER_RESUME_SKIN_COMPLEXIONS = ['白','棕','黑'];
-// 舊資料的「黃」仍可顯示（翻譯表保留 Yellow），但不再是可選選項。
+// 舊資料的「黃」可用 scripts/migrate-skin-complexion-brown.sql 一次改成「棕」。
 
 // 每個履歷欄位可儲存的最大字元數；超過的內容在儲存前會被截斷。
 export const WORKER_RESUME_FIELD_LIMITS = {
