@@ -32,15 +32,11 @@ export function ensureSchema() {
       || '-' || (CASE WHEN job_preference IN ('家庭看護','家庭幫傭') THEN '' ELSE $1::text END) || LPAD(id::text,3,'0')
     ),true) WHERE COALESCE(resume_profile->>'referenceNo','') = '' AND job_preference IN ('家庭看護','家庭幫傭','工廠技術工','農工','機構看護工')
       AND lower(resume_profile->>'gender') IN ('male','m','男','男性','female','f','女','女性')`,[String(new Date().getFullYear()).slice(-2)]);
-    await pool.query(`CREATE TABLE IF NOT EXISTS hr_staff (
-      id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
-      phone TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`);
+    // 舊的 hr_staff（承辦人）已由 hr_cases.assigned_member_id 取代，表已移到 hr_archive（見 hr-schema-normalize.js）。
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_cases (
       id BIGSERIAL PRIMARY KEY, case_number TEXT NOT NULL UNIQUE,
       employer_id BIGINT NOT NULL REFERENCES hr_employers(id), worker_id BIGINT NOT NULL REFERENCES hr_workers(id),
-      assigned_staff_id BIGINT REFERENCES hr_staff(id), job_type TEXT NOT NULL DEFAULT '',
+      job_type TEXT NOT NULL DEFAULT '',
       stage TEXT NOT NULL DEFAULT 'intake' CHECK (stage IN ('intake','matching','documents','medical_training','application','arrangement','completed')),
       status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','on_hold','closed')),
       expected_start_date DATE, notes TEXT NOT NULL DEFAULT '',
@@ -48,9 +44,6 @@ export function ensureSchema() {
     )`);
     await ensureHrIdentitySchema();
     await pool.query('ALTER TABLE hr_cases ADD COLUMN IF NOT EXISTS assigned_member_id BIGINT REFERENCES hr_members(id) ON DELETE SET NULL');
-    await pool.query(`UPDATE hr_cases c SET assigned_member_id=m.id FROM hr_staff s JOIN hr_members m ON lower(m.email)=lower(s.email)
-      JOIN hr_agencies a ON a.id=m.agency_id AND a.agency_type='taiwan'
-      WHERE c.assigned_staff_id=s.id AND c.assigned_member_id IS NULL AND m.role='agency' AND m.active=TRUE`);
     await pool.query(`CREATE TABLE IF NOT EXISTS hr_job_orders (
       id BIGSERIAL PRIMARY KEY, employer_id BIGINT NOT NULL REFERENCES hr_employers(id),
       job_type TEXT NOT NULL DEFAULT '', headcount INTEGER NOT NULL CHECK(headcount>0),
