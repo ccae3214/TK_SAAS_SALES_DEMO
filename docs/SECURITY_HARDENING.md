@@ -151,7 +151,7 @@ Permissions-Policy: geolocation=(),
 | CSRF 防護 | ✅ | **P1** | `/api/csrf`, `requireCsrf()` |
 | 認證檢查 | ✅ | **P1** | `requireUser()` |
 | 伺服器端驗證 | ✅ | **P1** | `src/app/api/orders/route.js` |
-| 資料庫加密 | ✅ | **P0** | TLS + `.env` 隱藏密碼 |
+| 資料庫加密 | ✅ | **P0** | TLS + `.env` 隱藏密碼；HR 上傳文件與履歷照片以 AES-256-GCM 加密存放（`HR_DOCUMENT_ENCRYPTION_KEY`，見 [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)） |
 | 記錄與監控 | ⏳ | **P2** | 未來可加 ELK 或 DataDog |
 
 ---
