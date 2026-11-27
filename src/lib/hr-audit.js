@@ -77,17 +77,20 @@ async function prepare(request, method) {
     id = method === 'POST' ? null : targetIdOf(type, body);
   }
   // 推薦工作者：操作對象是工作者（編號在 workerId），先查名字才記得到。
-  const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : type, type === 'job-order-candidate' ? idOf(body.workerId) : id);
+  // 標記測試資料：操作對象是 body.target 指定的工作者／雇主／仲介／會員。
+  const targetType = type === 'test-flag' ? String(body.target || '') : type;
+  const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : targetType, type === 'job-order-candidate' ? idOf(body.workerId) : id);
   // 操作前的完整快照（只有人與機構這類資料才有，其餘為 null）。
-  const snapshot = method === 'POST' ? null : await takeSnapshot(runQuery, type, id);
-  return { principal, session, method, type, body, id, before, snapshot, kind };
+  const snapshot = method === 'POST' ? null : await takeSnapshot(runQuery, targetType, id);
+  return { principal, session, method, type, targetType, body, id, before, snapshot, kind };
 }
 
 // 操作成功後再拍一次，算出變動的欄位。
 async function changesOf(ctx, created) {
   const targetId = ctx.id || idOf(created?.id);
-  if (!snapshotKindOf(ctx.type) || !targetId) return { before: null, after: null };
-  const after = await takeSnapshot(runQuery, ctx.type, targetId);
+  const snapshotType = ctx.targetType || ctx.type;
+  if (!snapshotKindOf(snapshotType) || !targetId) return { before: null, after: null };
+  const after = await takeSnapshot(runQuery, snapshotType, targetId);
   return diffSnapshots(ctx.snapshot, after);
 }
 

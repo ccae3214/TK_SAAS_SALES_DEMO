@@ -170,10 +170,14 @@ DEMO 商店／展示、NOTE 筆記頁面與相關 API 已從執行專案移除�
 - src/lib/hr-worker-documents-schema.js：main 的案件→工作者文件遷移、重複文件合併及案件證照；B 不修改此 SQL。
 - src/app/api/hr/documents/route.js、documents/[submissionId]/route.js：main 的加密上傳／授權查看與審核資料。
 - src/app/api/hr/agency-workers/[id]/route.js：main 的機構工作者進度 API。
-- src/app/api/hr/workers/[id]/resume-photo/route.js：main 履歷照片 API。
+- src/app/api/hr/workers/[id]/resume-photo/route.js：main 履歷照片 API；照片讀自加密表 `hr_worker_photos`，尚未搬移的才讀 JSONB。
+- src/lib/hr-worker-photo.js：履歷照片的加密存取與舊照片搬移（PR #103）；履歷寫入點都經過 `_shared.js` 的 `persistWorkerPhoto`。
+- src/app/api/hr/workers/[id]/documents-zip/route.js、src/lib/zip-store.js：已核准文件打包下載，`createZipStream` 一次只解密一份（PR #103）。
+- src/lib/hr-audit-snapshot.js、src/components/HrAuditChanges.jsx：操作紀錄的改前／改後快照與「查看變更內容」（PR #105）。
+- src/lib/hr-schema-normalize.js：封存舊表、文件種類代碼、外鍵索引、狀態約束（PR #106，啟動遷移最後一步）。說明見 [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)。
 - src/app/api/hr/member-request/route.js：main 會員類型＋所屬機構送審；不回復舊的只選角色政策。
 - src/app/api/hr/chat/route.js：聊天室資料。
-- 重要表：hr_members／hr_agencies／hr_workers／hr_employers；hr_job_orders→hr_job_order_agencies→hr_job_order_routes→hr_job_order_candidates→hr_cases；hr_worker_documents→hr_document_submissions／files／reviews；hr_case_certifications；工作者／案件進度與聊天表。
+- 重要表：hr_members／hr_agencies／hr_workers／hr_employers；hr_job_orders→hr_job_order_agencies→hr_job_order_routes→hr_job_order_candidates→hr_cases；hr_worker_documents→hr_document_submissions／files／reviews；hr_document_types（文件種類代碼）；hr_worker_photos（加密履歷照片）；hr_case_certifications；工作者／案件進度與聊天表。已停用的 hr_case_requirements、hr_staff、schema_migrations 封存在 `hr_archive` schema。
 - 某些登入 GET 也會執行 schema／資料更新，不是純讀。遷移前先取得指定 DB 授權；本輪只改已批准的 review DB，正式 DB 未動。
 
 ## 本機工具與驗證

@@ -12,14 +12,17 @@ const MAX_STRING = 600;
 const MAX_JSON = 30000;
 
 // 操作類型 → 快照查詢。只列出「人與機構」這類改錯會造成困擾的資料。
+// is_test（測試資料標記）用 to_jsonb 讀取：欄位還沒建立的環境也能查詢（值為 NULL）。
 const SNAPSHOT_SQL = {
-  worker: `SELECT id,name,nationality,phone,email,job_preference,notes,status,agency_id,resume_profile-'photoDataUrl' AS resume_profile
+  worker: `SELECT id,name,nationality,phone,email,job_preference,notes,status,agency_id,resume_profile-'photoDataUrl' AS resume_profile,
+      (to_jsonb(hr_workers)->>'is_test')::boolean AS is_test
     FROM hr_workers WHERE id=$1`,
-  employer: `SELECT id,name,contact_name,phone,email,address,notes,status,agency_id,employer_type,employer_profile
+  employer: `SELECT id,name,contact_name,phone,email,address,notes,status,agency_id,employer_type,employer_profile,
+      (to_jsonb(hr_employers)->>'is_test')::boolean AS is_test
     FROM hr_employers WHERE id=$1`,
-  agency: 'SELECT id,name,agency_type,country,active FROM hr_agencies WHERE id=$1',
+  agency: "SELECT id,name,agency_type,country,active,(to_jsonb(hr_agencies)->>'is_test')::boolean AS is_test FROM hr_agencies WHERE id=$1",
   member: `SELECT id,email,display_name,role,admin_scope,active,deleted_at,requested_role,requested_agency_id,
-      worker_id,employer_id,agency_id,training_center_id,last_worker_id,last_employer_id
+      worker_id,employer_id,agency_id,training_center_id,last_worker_id,last_employer_id,(to_jsonb(hr_members)->>'is_test')::boolean AS is_test
     FROM hr_members WHERE id=$1`,
   case: `SELECT id,case_number,employer_id,worker_id,assigned_member_id,job_type,stage,status,expected_start_date,notes,medical_status,training_status
     FROM hr_cases WHERE id=$1`,

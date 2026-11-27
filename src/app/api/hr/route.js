@@ -9,6 +9,7 @@ import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
 import { notifyAfterDocumentReview, notifyAccountStatusChange, notifyApplicationRejected } from '@/lib/hr-member-notices';
 import { withAdminAudit } from '@/lib/hr-audit';
+import { ensureTestDataFlagSchema, parseTestFlagRequest } from '@/lib/hr-test-data';
 import { trashMember, restoreTrashedMember } from '@/lib/hr-member-trash';
 import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, STEP_OWNERS, OWNER_LABELS, WORKFLOW_DENIED_MESSAGES } from '@/lib/hr-case-flow';
 import { refreshCaseStage as refreshStage } from '@/lib/hr-case-stage';
@@ -1002,6 +1003,16 @@ async function handlePatch(request) {
       const result = await query('UPDATE hr_case_tasks SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *', [id,status]);
       if (!result.length) return NextResponse.json({ error: '找不到待辦。' }, { status: 404 });
       await recordActivity(result[0].case_id, actor, '更新待辦', `${result[0].title}：${status}`);
+      return NextResponse.json(result[0]);
+    }
+    if (body.type === 'test-flag') {
+      // 測試資料標記：只有系統管理者可以標記；只改 is_test，不動其他欄位，也不刪除任何資料。
+      if (principal.role !== 'admin') return NextResponse.json({ error: '只有系統管理者可以標記測試資料。' }, { status: 403 });
+      const flag = parseTestFlagRequest(body);
+      if (flag.error) return NextResponse.json({ error: flag.error }, { status: 400 });
+      await ensureTestDataFlagSchema(pool);
+      const result = await query(`UPDATE ${flag.table} SET is_test=$2 WHERE id=$1 RETURNING id,is_test`, [flag.id, flag.isTest]);
+      if (!result.length) return NextResponse.json({ error: '找不到資料。' }, { status: 404 });
       return NextResponse.json(result[0]);
     }
     if (body.type === 'worker-resume') {
