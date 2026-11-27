@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { CallClient } from '@/lib/hr-call-client';
+import HrCallChat from '@/components/HrCallChat';
 import { pickLang, copyFor } from '@/lib/language';
 
 // 通話功能的畫面：來電提示、通話視窗。整個 /hr 頁面掛一個（見 app/hr/page.jsx），
@@ -18,6 +19,8 @@ export const COPY = {
     calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
     dismiss: '關閉', callWindow: '通話視窗',
     enlarge: '放大畫面', backToGrid: '回到並排畫面',
+    openChat: '開啟文字聊天', closeChat: '關閉文字聊天', chatTitle: '文字聊天', chatEmpty: '還沒有訊息。這裡的訊息也會留在聊天室裡。',
+    chatPlaceholder: '輸入訊息…', chatSend: '送出', chatSending: '送出中…', chatLoadFailed: '無法載入訊息，稍後會自動重試。', chatSendFailed: '訊息未能送出，請再試一次。', chatUnread: count => `${count} 則未讀訊息`,
     status: {
       micOn: '麥克風已開啟', micOff: '麥克風已關閉', micNone: '沒有麥克風',
       camOn: '鏡頭已開啟', camOff: '鏡頭已關閉', camNone: '沒有鏡頭',
@@ -39,6 +42,8 @@ export const COPY = {
     calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
     dismiss: 'Close', callWindow: 'Call window',
     enlarge: 'Enlarge video', backToGrid: 'Back to side-by-side view',
+    openChat: 'Open text chat', closeChat: 'Close text chat', chatTitle: 'Text chat', chatEmpty: 'No messages yet. Messages here also stay in the chat room.',
+    chatPlaceholder: 'Write a message…', chatSend: 'Send', chatSending: 'Sending…', chatLoadFailed: 'Messages could not be loaded. Retrying automatically.', chatSendFailed: 'The message was not sent. Please try again.', chatUnread: count => `${count} unread messages`,
     status: {
       micOn: 'Microphone on', micOff: 'Microphone off', micNone: 'No microphone',
       camOn: 'Camera on', camOff: 'Camera off', camNone: 'No camera',
@@ -112,6 +117,11 @@ function Tile({ stream, name, local = false, state, speakerOff = false, media, c
 export function CallView({ state, lang, actions }) {
   // 放大中的畫面（peer.id，自己是 'me'）；null 表示所有人並排
   const [focusedId, setFocusedId] = useState(null);
+  // 通話中的文字聊天：是否打開面板、沒打開時的未讀數。換一通電話就重設。
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const callRoomId = state?.call?.roomId || null;
+  useEffect(() => { setChatOpen(false); setChatUnread(0); }, [callRoomId]);
   if (!state) return null;
   const copy = copyFor(COPY, lang);
   const show = text => (lang !== 'zh' ? translateHrText(text || '', lang) : text || '');
@@ -139,7 +149,7 @@ export function CallView({ state, lang, actions }) {
         <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
       </div>
     </div>}
-    {call && <section className={`hr-call-overlay ${focused ? 'has-focus' : ''}`} role="dialog" aria-label={copy.callWindow}>
+    {call && <section className={`hr-call-overlay ${focused ? 'has-focus' : ''} ${chatOpen ? 'has-chat' : ''}`} role="dialog" aria-label={copy.callWindow}>
       <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
       {/* 所有人並排；點某個人的畫面就放大他，其他人縮成下方一排小畫面。只有自己一個人時不用放大。 */}
       <div className={`hr-call-grid count-${tileCount} ${focused ? 'has-focus' : ''}`} style={focused ? { '--hr-call-others': tileTotal - 1 } : undefined}>
@@ -150,8 +160,13 @@ export function CallView({ state, lang, actions }) {
         {call.hasMic && <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>}
         <button type="button" className={`hr-call-round ${call.speakerOn ? '' : 'is-off'}`} onClick={actions.toggleSpeaker} aria-pressed={!call.speakerOn} aria-label={call.speakerOn ? copy.speakerOff : copy.speakerOn} title={call.speakerOn ? copy.speakerOff : copy.speakerOn}>{call.speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}</button>
         {call.hasCamera && <button type="button" className={`hr-call-round ${call.camOn ? '' : 'is-off'}`} onClick={actions.toggleCamera} aria-pressed={!call.camOn} aria-label={call.camOn ? copy.cameraOff : copy.cameraOn} title={call.camOn ? copy.cameraOff : copy.cameraOn}>{call.camOn ? <Video size={22} /> : <VideoOff size={22} />}</button>}
+        <button type="button" className={`hr-call-round hr-call-chat-toggle ${chatOpen ? 'is-active' : ''}`} onClick={() => setChatOpen(open => !open)} aria-pressed={chatOpen}
+          aria-label={chatOpen ? copy.closeChat : chatUnread ? `${copy.openChat} · ${copy.chatUnread(chatUnread)}` : copy.openChat} title={chatOpen ? copy.closeChat : copy.openChat}>
+          <MessageCircle size={22} />{!chatOpen && chatUnread > 0 && <span className="hr-call-chat-badge" aria-hidden="true">{chatUnread > 99 ? '99+' : chatUnread}</span>}
+        </button>
         <button type="button" className="hr-call-round is-hangup" onClick={actions.leave} aria-label={copy.hangUp} title={copy.hangUp}><PhoneOff size={22} /></button>
       </footer>
+      <HrCallChat roomId={call.roomId} open={chatOpen} lang={lang} copy={copy} onClose={() => setChatOpen(false)} onUnreadChange={setChatUnread} />
     </section>}
     {notice && <div className="hr-call-toast" role="status"><span>{noticeText(notice, lang)}</span><button type="button" onClick={actions.dismissNotice} aria-label={copy.dismiss}>×</button></div>}
   </>;
