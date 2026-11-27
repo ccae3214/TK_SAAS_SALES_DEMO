@@ -643,8 +643,17 @@ async function handlePatch(request) {
           note=EXCLUDED.note,detail=CASE WHEN $12::boolean THEN EXCLUDED.detail ELSE hr_application_steps.detail END,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING *`,
         [caseId,stepKey,step[1],body.startedOn||null,body.completedOn||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null,detail.value,hasDetail]);
       if (!saved.length) return NextResponse.json({error:'找不到可管理的所屬工作者案件。'},{status:404});
+      // 進度以工作者層級為準：尚未結案的案件存檔時，同一份進度也寫到工作者層級
+      // （資料庫 trigger 會再同步到這位工作者其他尚未結案的案件，見 hr-worker-status-sync.js）。已結案的案件只改歷史，不影響工作者。
+      await query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,detail,updated_by,updated_at)
+        SELECT c.worker_id,s.step_key,s.started_on,s.completed_on,s.note,s.detail,s.updated_by,NOW()
+        FROM hr_application_steps s JOIN hr_cases c ON c.id=s.case_id WHERE s.id=$1 AND c.status<>'closed'
+        ON CONFLICT(worker_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
+          note=EXCLUDED.note,detail=EXCLUDED.detail,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,[saved[0].id]);
       await recordActivity(caseId,actor,'更新申請程序',`${step[1]} · ${body.completedOn||body.startedOn||'更新備註'}`);
-      await refreshCaseStage(caseId);
+      const workerCases=await query('SELECT worker_id FROM hr_cases WHERE id=$1',[caseId]);
+      if (workerCases[0]?.worker_id) await refreshWorkerCases(workerCases[0].worker_id);
+      else await refreshCaseStage(caseId);
       return NextResponse.json(saved[0]);
     }
     if (body.type === 'agency') {
