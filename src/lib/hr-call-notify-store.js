@@ -3,6 +3,7 @@ import { migrateOnce } from './migrate-once.js';
 import {
   RING_WINDOW_SECONDS, adminLineLookups, createRateLimiter, dispatchCallNotifications, lineModeFrom, normalizeLanguage, publicOrigin, vapidSubject,
 } from './hr-call-notify-core.js';
+import { normalizeVapidPrivateKey, normalizeVapidPublicKey } from './vapid-key.js';
 
 // 來電通知（資料庫與實際送出的部分）。誰會被通知、文字怎麼寫在 hr-call-notify-core.js。
 // 信令伺服器（server.js）在有人撥號時呼叫 globalThis.__hrCallNotifyHook（由 registerCallNotifyHook 在伺服器啟動時登記），
@@ -102,7 +103,7 @@ export async function sendWebPush(subscription, payload, options = {}, env = pro
   return webPush.sendNotification(
     { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
     payload,
-    { ...options, timeout: 8000, vapidDetails: { subject: vapidSubject(env), publicKey: env.HR_PUSH_VAPID_PUBLIC_KEY, privateKey: env.HR_PUSH_VAPID_PRIVATE_KEY } },
+    { ...options, timeout: 8000, vapidDetails: { subject: vapidSubject(env), publicKey: normalizeVapidPublicKey(env.HR_PUSH_VAPID_PUBLIC_KEY) || env.HR_PUSH_VAPID_PUBLIC_KEY, privateKey: normalizeVapidPrivateKey(env.HR_PUSH_VAPID_PRIVATE_KEY) || env.HR_PUSH_VAPID_PRIVATE_KEY } },
   );
 }
 
