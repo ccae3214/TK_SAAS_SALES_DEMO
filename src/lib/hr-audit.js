@@ -5,6 +5,10 @@ import { migrateOnce } from './migrate-once.js';
 import { describeAgencyOperation, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
 import { recordAgencyAction } from './hr-agency-audit.js';
 import { prepareWorkerLog, writeWorkerLog } from './hr-worker-log.js';
+import {
+  ADMIN_AUDIT_INSERT_SQL, ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, adminActionParams, adminActorName, adminAuditParams, describeAdminOperation, idOf, lineAdminActionParams, targetIdOf,
+} from './hr-admin-audit-core.js';
+import { diffSnapshots, snapshotKindOf, takeSnapshot } from './hr-audit-snapshot.js';
 
 // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
 // 紀錄失敗只會寫 log，不會影響原本的操作。
@@ -24,17 +28,13 @@ export function ensureAuditSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_admin_audit_log_created ON hr_admin_audit_log(created_at DESC, id DESC)');
+    // 改之前／改之後（只存變動的欄位，見 hr-audit-snapshot.js）。舊紀錄維持 NULL。
+    await pool.query('ALTER TABLE hr_admin_audit_log ADD COLUMN IF NOT EXISTS before_data JSONB, ADD COLUMN IF NOT EXISTS after_data JSONB');
   });
 }
 
-const ROLE_NAMES = { worker: '工作者', employer: '雇主', agency: '仲介機構員工', training_center: '訓練中心', system_admin: '系統管理者' };
-const SCOPE_NAMES = { none: '一般會員', agency: '仲介管理者', system: '系統管理者' };
-const CASE_STATUS_NAMES = { open: '進行中', on_hold: '暫停', closed: '結案' };
-const TASK_STATUS_NAMES = { todo: '待處理', in_progress: '進行中', done: '完成', blocked: '卡關' };
-const ORDER_STATUS_NAMES = { open: '開放中', filled: '已滿額', cancelled: '已取消' };
-const TYPE_LABELS = { employer: '雇主', worker: '工作者', agency: '仲介機構', member: '會員帳號' };
+const runQuery = (sql, params) => query(sql, params);
 
-const idOf = value => { const n = Number(value); return Number.isInteger(n) && n > 0 ? n : null; };
 const one = async (sql, params) => (await query(sql, params))[0] || null;
 
 // 取得操作對象目前的名稱與狀態（刪除或變更前先查，才記得到名字）。
@@ -58,67 +58,6 @@ async function lookupTarget(type, id) {
   } catch { return null; }
 }
 
-// 各操作對象的編號放在 body 的不同欄位。
-function targetIdOf(type, body) {
-  if (type === 'review') return idOf(body.submissionId);
-  if (type === 'requirement-applicability') return idOf(body.requirementId);
-  if (type === 'workflow' || type === 'application-step') return idOf(body.caseId);
-  return idOf(body.id);
-}
-
-const quoted = (type, name) => type === 'case' ? `案件 ${name}` : type === 'task' ? `待辦「${name}」` : type === 'requirement' ? `文件項目「${name}」` : name;
-
-// 依操作內容產生「做了什麼」的敘述；回傳 null 代表不需要記錄。
-function describe(method, type, body, name, before, created) {
-  const label = TYPE_LABELS[type] || '';
-  if (method === 'POST') {
-    const n = created?.name || created?.display_name || created?.case_number || created?.title || body.name || body.title || name;
-    if (!n && type !== 'case') return null;
-    if (['employer', 'worker', 'agency', 'member'].includes(type)) return { action: '新增', name: n, phrase: `新增了${n}${label}` };
-    if (type === 'case') return { action: '新增', name: n, phrase: `新增了案件 ${n || ''}`.trim() };
-    if (type === 'requirement' || type === 'task') return { action: '新增', name: n, phrase: `新增了${quoted(type, n)}` };
-    return null;
-  }
-  if (method === 'DELETE') {
-    if (type === 'member') return before?.role && !body.purge
-      ? { action: '移到已刪除帳號', name, phrase: `將${name}會員帳號移到「已刪除帳號」（可還原）` }
-      : { action: '刪除', name, phrase: `${body.purge ? '永久' : ''}刪除了${name}會員帳號` };
-    if (type === 'employer' || type === 'worker' || type === 'agency') return { action: '刪除', name, phrase: `刪除了${name}${label}` };
-    if (type === 'case') return { action: '刪除', name, phrase: `刪除了案件 ${name}` };
-    return null;
-  }
-  switch (type) {
-    case 'employer': case 'worker':
-      if (body.name !== undefined) return { action: '編輯', name, phrase: `編輯了${name}${label}的資料` };
-      return body.status === 'inactive'
-        ? { action: '停用', name, phrase: `停用了${name}${label}` }
-        : { action: '啟用', name, phrase: `啟用了${name}${label}` };
-    case 'agency':
-      if (body.name !== undefined) return { action: '編輯', name, phrase: `編輯了${name}${label}的資料` };
-      return body.active === false
-        ? { action: '停用', name, phrase: `停用了${name}${label}` }
-        : { action: '啟用', name, phrase: `啟用了${name}${label}` };
-    case 'member':
-      if (body.role !== undefined) return { action: '變更類型', name, phrase: `將${name}的會員類型變更為${ROLE_NAMES[body.role] || body.role}` };
-      return body.active === false
-        ? { action: '停用', name, phrase: `停用了${name}會員帳號` }
-        : { action: '啟用', name, phrase: `啟用了${name}會員帳號` };
-    case 'member-restore': return { action: '還原', name, phrase: `還原了${name}會員帳號` };
-    case 'member-profile': return { action: '編輯', name, phrase: `編輯了${name}會員帳號的資料` };
-    case 'member-admin-scope': return { action: '調整權限', name, phrase: `將${name}的管理者權限調整為${SCOPE_NAMES[body.adminScope] || body.adminScope}` };
-    case 'case': return { action: '更新', name, phrase: `將案件 ${name} 的狀態變更為${CASE_STATUS_NAMES[body.status] || body.status}` };
-    case 'task': return { action: '更新', name, phrase: `將待辦「${name}」的狀態更新為${TASK_STATUS_NAMES[body.status] || body.status}` };
-    case 'review': return { action: body.decision === 'approved' ? '核准' : '退回', name, phrase: `${body.decision === 'approved' ? '核准' : '退回'}了${name}` };
-    case 'workflow': return { action: '更新', name, phrase: `更新了案件 ${name} 的${body.workflowType === 'medical' ? '體檢' : '訓練'}狀態` };
-    case 'certification': return { action: '更新', name, phrase: `更新了案件 ${name} 的證照取證進度` };
-    case 'application-step': return { action: '更新', name, phrase: `更新了案件 ${name} 的申請程序` };
-    case 'requirement-applicability': return { action: '更新', name, phrase: `調整了${name}的適用設定` };
-    case 'worker-resume': return { action: '編輯', name, phrase: `更新了${name}工作者的履歷` };
-    case 'job-order-admin-status': return { action: '更新', name, phrase: `將媒合需求單 ${name} 的狀態變更為${ORDER_STATUS_NAMES[body.status] || body.status}` };
-    default: return null;
-  }
-}
-
 async function prepare(request, method) {
   const session = await auth();
   if (!session?.user) return null;
@@ -139,58 +78,60 @@ async function prepare(request, method) {
   }
   // 推薦工作者：操作對象是工作者（編號在 workerId），先查名字才記得到。
   const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : type, type === 'job-order-candidate' ? idOf(body.workerId) : id);
-  return { principal, session, method, type, body, id, before, kind };
+  // 操作前的完整快照（只有人與機構這類資料才有，其餘為 null）。
+  const snapshot = method === 'POST' ? null : await takeSnapshot(runQuery, type, id);
+  return { principal, session, method, type, body, id, before, snapshot, kind };
 }
+
+// 操作成功後再拍一次，算出變動的欄位。
+async function changesOf(ctx, created) {
+  const targetId = ctx.id || idOf(created?.id);
+  if (!snapshotKindOf(ctx.type) || !targetId) return { before: null, after: null };
+  const after = await takeSnapshot(runQuery, ctx.type, targetId);
+  return diffSnapshots(ctx.snapshot, after);
+}
+
+const jsonOrNull = value => value ? JSON.stringify(value) : null;
 
 async function write(ctx, response) {
   let created = null;
   if (ctx.method === 'POST') { try { created = await response.clone().json(); } catch { created = null; } }
   const targetName = ctx.before?.name || '';
+  const changes = await changesOf(ctx, created);
   if (ctx.kind === 'agency') {
     const agencyEntry = describeAgencyOperation({ method: ctx.method, type: ctx.type, body: ctx.body, name: targetName, before: ctx.before, created });
     if (!agencyEntry) return;
-    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en });
+    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en, before: changes.before, after: changes.after });
     return;
   }
-  const entry = describe(ctx.method, ctx.type, ctx.body, targetName || (ctx.id ? `#${ctx.id}` : ''), ctx.before, created);
+  const entry = describeAdminOperation(ctx.method, ctx.type, ctx.body, targetName || (ctx.id ? `#${ctx.id}` : ''), ctx.before, created);
   if (!entry) return;
-  const actorName = String(ctx.principal.name || ctx.session.user.name || ctx.session.user.email || '系統管理員').slice(0, 160);
+  const actorName = adminActorName(ctx.principal, ctx.session);
   await ensureAuditSchema();
-  await pool.query(
-    `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [ctx.principal.id || null, actorName, String(ctx.session.user.email || '').slice(0, 254), entry.action, ctx.type,
-      ctx.id || idOf(created?.id), String(entry.name || '').slice(0, 200), `${actorName}系統管理員${entry.phrase}`.slice(0, 500)]
-  );
+  await pool.query(ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, [
+    ...adminAuditParams({
+      memberId: ctx.principal.id, actorName, email: ctx.session.user.email, action: entry.action, type: ctx.type,
+      id: ctx.id || idOf(created?.id), name: entry.name, summary: `${actorName}系統管理員${entry.phrase}`,
+    }),
+    jsonOrNull(changes.before), jsonOrNull(changes.after),
+  ]);
 }
 
 // 給不走 withAdminAudit 的管理 API 直接寫入一筆操作紀錄（例如訓練中心工作區）；失敗只記 log。
-export async function recordAdminAction({ principal, session, action, type, id, name, phrase }) {
+export async function recordAdminAction(input) {
   try {
-    const actorName = String(principal?.name || session?.user?.name || session?.user?.email || '系統管理員').slice(0, 160);
     await ensureAuditSchema();
-    await pool.query(
-      `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [principal?.id || null, actorName, String(session?.user?.email || '').slice(0, 254), action, type || '', idOf(id), String(name || '').slice(0, 200), `${actorName}系統管理員${phrase}`.slice(0, 500)]
-    );
+    await pool.query(ADMIN_AUDIT_INSERT_SQL, adminActionParams(input));
   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
 }
 
 // LINE 機器人上的系統管理員資料操作（新增／編輯／停用）也寫入同一份操作紀錄，網頁的「操作紀錄」看得到。
 // 以 LINE 身分操作的管理者不一定有會員資料列（例如 .env 設定的管理者），沒有時改記 LINE User ID 方便追查。
 // 失敗只記 log，不影響原本的操作。
-export async function recordLineAdminAction({ principal, lineUserId, action, type, id, name, phrase }) {
+export async function recordLineAdminAction(input) {
   try {
-    const actorName = String((principal?.id && principal?.name) || 'LINE 管理者').slice(0, 160);
-    const lineSuffix = principal?.id ? '' : `（LINE ID：${String(lineUserId || '').slice(0, 64)}）`;
     await ensureAuditSchema();
-    await pool.query(
-      `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [principal?.id || null, actorName, String(principal?.email || '').slice(0, 254), action, type || '', idOf(id), String(name || '').slice(0, 200),
-        `${actorName}系統管理員透過 LINE 機器人${phrase}${lineSuffix}`.slice(0, 500)]
-    );
+    await pool.query(ADMIN_AUDIT_INSERT_SQL, lineAdminActionParams(input));
   } catch (error) { console.error('hr_audit_write_failed', error?.name || 'Error'); }
 }
 

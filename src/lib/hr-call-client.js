@@ -52,6 +52,20 @@ export function normalizeMedia(value) {
   return { mic: pick(source.mic, ['on', 'off', 'none'], 'on'), cam: pick(source.cam, ['on', 'off', 'none'], 'none'), speaker: pick(source.speaker, ['on', 'off'], 'on') };
 }
 
+// 信令訊息類型 → CallClient 的處理方法（以 this 呼叫）。不在表裡的類型直接忽略。
+const MESSAGE_HANDLERS = {
+  incoming(message) { this.onIncoming(message); },
+  'ring-stop'(message) { this.incoming.delete(message.roomId); this.emit(); },
+  joined(message) { this.onJoined(message); },
+  'peer-joined'(message) { this.onPeerJoined(message); },
+  'peer-left'(message) { this.onPeerLeft(message); },
+  'peer-media'(message) { this.onPeerMedia(message); },
+  signal(message) { void this.onSignal(message.from, message.data); },
+  declined(message) { this.setNotice({ type: 'declined', name: message.name }); },
+  ended(message) { this.onEnded(message); },
+  error(message) { this.onServerError(message); },
+};
+
 export class CallClient {
   // loadSfu：回傳 livekit-client 模組的函式（要用到 SFU 時才載入，沒設定 SFU 的網站不會多下載）。
   constructor({ api, wsUrl, onChange, onSound, loadSfu = null, env = globalThis, readyWaitMs = READY_WAIT_MS, peerConnectMs = PEER_CONNECT_TIMEOUT_MS }) {
@@ -317,38 +331,41 @@ export class CallClient {
 
   // ------------------------------------------------------------ 信令訊息
   onMessage(message) {
-    switch (message.t) {
-      case 'incoming':
-        if (this.call?.roomId === message.roomId) break;
-        this.incoming.set(message.roomId, { roomId: message.roomId, callId: message.callId, title: message.title, video: message.video, from: message.from });
-        this.emit();
-        break;
-      case 'ring-stop': this.incoming.delete(message.roomId); this.emit(); break;
-      case 'joined': {
-        if (!this.call) { this.send({ t: 'leave' }); break; }
-        clearTimeout(this.timers.join); clearTimeout(this.timers.alone);
-        Object.assign(this.call, { callId: message.callId, myId: message.id, phase: 'active', mode: message.video ? 'video' : 'voice', sfu: !!message.sfu });
-        if (message.sfu) void this.startSfu();
-        for (const peer of message.peers || []) this.addPeer(peer, true);
-        this.emit();
-        break;
-      }
-      case 'peer-joined': if (this.call) { clearTimeout(this.timers.alone); this.addPeer(message.peer, false); this.sound('join'); } break;
-      case 'peer-left': this.onPeerLeft(message); break;
-      case 'peer-media': this.onPeerMedia(message); break;
-      case 'signal': void this.onSignal(message.from, message.data); break;
-      case 'declined': this.setNotice({ type: 'declined', name: message.name }); break;
-      case 'ended':
-        this.incoming.delete(message.roomId);
-        if (this.call?.roomId === message.roomId) { this.cleanup(); if (message.reason !== 'ended') this.notice = { type: message.reason }; }
-        this.emit();
-        break;
-      case 'error':
-        if (this.call?.phase === 'starting') this.cleanup();
-        this.setNotice({ type: message.code });
-        break;
-      default: break;
-    }
+    const handler = Object.hasOwn(MESSAGE_HANDLERS, message.t) ? MESSAGE_HANDLERS[message.t] : null;
+    handler?.call(this, message);
+  }
+
+  onIncoming(message) {
+    if (this.call?.roomId === message.roomId) return;
+    this.incoming.set(message.roomId, { roomId: message.roomId, callId: message.callId, title: message.title, video: message.video, from: message.from });
+    this.emit();
+  }
+
+  onJoined(message) {
+    if (!this.call) { this.send({ t: 'leave' }); return; }
+    clearTimeout(this.timers.join); clearTimeout(this.timers.alone);
+    Object.assign(this.call, { callId: message.callId, myId: message.id, phase: 'active', mode: message.video ? 'video' : 'voice', sfu: !!message.sfu });
+    if (message.sfu) void this.startSfu();
+    for (const peer of message.peers || []) this.addPeer(peer, true);
+    this.emit();
+  }
+
+  onPeerJoined(message) {
+    if (!this.call) return;
+    clearTimeout(this.timers.alone);
+    this.addPeer(message.peer, false);
+    this.sound('join');
+  }
+
+  onEnded(message) {
+    this.incoming.delete(message.roomId);
+    if (this.call?.roomId === message.roomId) { this.cleanup(); if (message.reason !== 'ended') this.notice = { type: message.reason }; }
+    this.emit();
+  }
+
+  onServerError(message) {
+    if (this.call?.phase === 'starting') this.cleanup();
+    this.setNotice({ type: message.code });
   }
 
   // 其他人開關麥克風、鏡頭、喇叭：更新他的狀態讓畫面顯示。
@@ -399,35 +416,51 @@ export class CallClient {
       // adaptiveStream 要靠 track.attach() 量畫面大小；這裡自己組 MediaStream 播放，所以關掉，畫質改由 applySfuQuality 控制
       const next = new lk.Room({ adaptiveStream: false, dynacast: true });
       this.sfuRoom = next; this.lk = lk;
-      const events = lk.RoomEvent;
-      next.on(events.TrackSubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, true));
-      next.on(events.TrackUnsubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, false));
-      next.on(events.ParticipantConnected, participant => { this.lkPresent.add(participant.identity); this.refreshSfuPeers(); });
-      next.on(events.ParticipantDisconnected, participant => { this.lkPresent.delete(participant.identity); this.lkStreams.delete(participant.identity); this.refreshSfuPeers(); });
-      next.on(events.Disconnected, () => {
-        if (this.sfuRoom !== next || !this.call) return;
-        this.leave({ silent: true });
-        this.setNotice({ type: 'connection-lost' });
-      });
+      this.bindSfuEvents(next, lk.RoomEvent);
       await next.connect(resolveSfuUrl(info.url, this.env), info.token);
       if (this.sfuRoom !== next || !this.call) { try { next.disconnect(false); } catch { /* 已經離開 */ } return; }
-      for (const track of this.localStream?.getTracks() || []) {
-        const isVideo = track.kind === 'video';
-        await next.localParticipant.publishTrack(track, { source: isVideo ? lk.Track.Source.Camera : lk.Track.Source.Microphone, simulcast: isVideo });
-      }
-      for (const participant of next.remoteParticipants.values()) {
-        this.lkPresent.add(participant.identity);
-        for (const publication of participant.trackPublications.values()) if (publication.track) this.onSfuTrack(participant.identity, publication.track, true);
-      }
+      await this.publishLocalTracks(next, lk);
+      this.adoptSfuParticipants(next);
       this.refreshSfuPeers();
       this.applySfuQuality();
     } catch (error) {
-      // 只記在瀏覽器主控台（F12），方便判斷是 SFU 沒設定、信令被擋，還是影像的 UDP/TCP 連不上
-      try { globalThis.console?.warn?.('hr_call_sfu_failed', error?.name || '', error?.message || String(error)); } catch { /* 記錄失敗不影響通話 */ }
-      if (this.call === call) {
-        this.leave({ silent: true });
-        this.setNotice({ type: 'sfu-failed' });
-      }
+      this.onSfuFailed(call, error);
+    }
+  }
+
+  bindSfuEvents(room, events) {
+    room.on(events.TrackSubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, true));
+    room.on(events.TrackUnsubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, false));
+    room.on(events.ParticipantConnected, participant => { this.lkPresent.add(participant.identity); this.refreshSfuPeers(); });
+    room.on(events.ParticipantDisconnected, participant => { this.lkPresent.delete(participant.identity); this.lkStreams.delete(participant.identity); this.refreshSfuPeers(); });
+    room.on(events.Disconnected, () => {
+      if (this.sfuRoom !== room || !this.call) return;
+      this.leave({ silent: true });
+      this.setNotice({ type: 'connection-lost' });
+    });
+  }
+
+  async publishLocalTracks(room, lk) {
+    for (const track of this.localStream?.getTracks() || []) {
+      const isVideo = track.kind === 'video';
+      await room.localParticipant.publishTrack(track, { source: isVideo ? lk.Track.Source.Camera : lk.Track.Source.Microphone, simulcast: isVideo });
+    }
+  }
+
+  // 加入時房間裡已經有的人：記錄在場，並接上他們已發布的影像聲音。
+  adoptSfuParticipants(room) {
+    for (const participant of room.remoteParticipants.values()) {
+      this.lkPresent.add(participant.identity);
+      for (const publication of participant.trackPublications.values()) if (publication.track) this.onSfuTrack(participant.identity, publication.track, true);
+    }
+  }
+
+  onSfuFailed(call, error) {
+    // 只記在瀏覽器主控台（F12），方便判斷是 SFU 沒設定、信令被擋，還是影像的 UDP/TCP 連不上
+    try { globalThis.console?.warn?.('hr_call_sfu_failed', error?.name || '', error?.message || String(error)); } catch { /* 記錄失敗不影響通話 */ }
+    if (this.call === call) {
+      this.leave({ silent: true });
+      this.setNotice({ type: 'sfu-failed' });
     }
   }
 

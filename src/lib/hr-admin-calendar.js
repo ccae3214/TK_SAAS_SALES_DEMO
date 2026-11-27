@@ -16,43 +16,51 @@ export function normalizeDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === text ? text : '';
 }
 
-// 回傳依日期、再依種類排序的事件陣列：{ id, date, kind, title, detail, caseId, phase }
-//   phase：同一個進度項目有開始與完成兩個不同日期時，分別標成 'start' / 'done'，其餘為 ''。
-export function buildCalendarEvents({ applicationSteps = [], cases = [], tasks = [], jobOrders = [] } = {}) {
-  const caseById = new Map(cases.map(item => [Number(item.id), item]));
-  const events = [];
+const joinDetail = (...parts) => parts.filter(Boolean).join(' · ');
 
+// 案件進度：開始與完成各一筆；同一天只算一筆。
+function stepEvents(applicationSteps, caseById) {
+  const events = [];
   for (const step of applicationSteps) {
     const item = caseById.get(Number(step.case_id));
     if (!item) continue;
     const start = normalizeDate(step.started_on), done = normalizeDate(step.completed_on);
-    const both = start && done && start !== done;
-    const detail = [item.worker_name, item.case_number].filter(Boolean).join(' · ');
-    const base = { kind: 'step', title: step.label || step.step_key || '', detail, caseId: Number(item.id) };
-    if (start) events.push({ ...base, id: `step:${step.case_id}:${step.step_key}:start`, date: start, phase: both ? 'start' : '' });
-    if (done && done !== start) events.push({ ...base, id: `step:${step.case_id}:${step.step_key}:done`, date: done, phase: both ? 'done' : '' });
+    const both = Boolean(start && done && start !== done);
+    const base = { kind: 'step', title: step.label || step.step_key || '', detail: joinDetail(item.worker_name, item.case_number), caseId: Number(item.id) };
+    const id = phase => `step:${step.case_id}:${step.step_key}:${phase}`;
+    if (start) events.push({ ...base, id: id('start'), date: start, phase: both ? 'start' : '' });
+    if (done && done !== start) events.push({ ...base, id: id('done'), date: done, phase: both ? 'done' : '' });
   }
+  return events;
+}
 
-  for (const task of tasks) {
-    const date = normalizeDate(task.due_date);
-    if (!date || task.status === 'done') continue;
-    events.push({
-      id: `task:${task.id}`, date, kind: 'task', phase: '', title: task.title || '',
-      detail: [task.worker_name, task.case_number].filter(Boolean).join(' · '), caseId: Number(task.case_id) || null,
-    });
-  }
+// 待辦：尚未完成、有到期日。
+const taskEvents = tasks => tasks
+  .map(task => ({ task, date: normalizeDate(task.due_date) }))
+  .filter(({ task, date }) => date && task.status !== 'done')
+  .map(({ task, date }) => ({
+    id: `task:${task.id}`, date, kind: 'task', phase: '', title: task.title || '',
+    detail: joinDetail(task.worker_name, task.case_number), caseId: Number(task.case_id) || null,
+  }));
 
-  for (const order of jobOrders) {
-    const date = normalizeDate(order.expected_start_date);
-    if (!date || order.status === 'cancelled' || order.status === 'closed') continue;
-    events.push({
-      id: `order:${order.id}`, date, kind: 'order', phase: '', title: order.job_type || '',
-      detail: order.employer_name || '', caseId: null,
-    });
-  }
+// 需求單：有預計開始日、沒有取消或結案。
+const CLOSED_ORDER_STATUSES = new Set(['cancelled', 'closed']);
+const orderEvents = jobOrders => jobOrders
+  .map(order => ({ order, date: normalizeDate(order.expected_start_date) }))
+  .filter(({ order, date }) => date && !CLOSED_ORDER_STATUSES.has(order.status))
+  .map(({ order, date }) => ({
+    id: `order:${order.id}`, date, kind: 'order', phase: '', title: order.job_type || '',
+    detail: order.employer_name || '', caseId: null,
+  }));
 
-  const rank = kind => EVENT_KINDS.indexOf(kind);
-  return events.sort((a, b) => a.date.localeCompare(b.date) || rank(a.kind) - rank(b.kind) || a.title.localeCompare(b.title));
+const rank = kind => EVENT_KINDS.indexOf(kind);
+const compareEvents = (a, b) => a.date.localeCompare(b.date) || rank(a.kind) - rank(b.kind) || a.title.localeCompare(b.title);
+
+// 回傳依日期、再依種類排序的事件陣列：{ id, date, kind, title, detail, caseId, phase }
+//   phase：同一個進度項目有開始與完成兩個不同日期時，分別標成 'start' / 'done'，其餘為 ''。
+export function buildCalendarEvents({ applicationSteps = [], cases = [], tasks = [], jobOrders = [] } = {}) {
+  const caseById = new Map(cases.map(item => [Number(item.id), item]));
+  return [...stepEvents(applicationSteps, caseById), ...taskEvents(tasks), ...orderEvents(jobOrders)].sort(compareEvents);
 }
 
 export function groupEventsByDate(events) {

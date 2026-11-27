@@ -74,3 +74,25 @@ test('production route uses the tested handler; only admin activity view mounts 
   const ui = await readFile(new URL('../src/components/HrManagement.jsx', import.meta.url), 'utf8');
   assert.match(ui, /data.role==='admin'&&<><AdminAuditList\/><HrOrganizationAuditLog\/><\/>/);
 });
+
+test('訓練中心操作紀錄的英文敘述：報名、老師證照、證照批次狀態與一般操作', async () => {
+  const { tcAuditSummaryEn } = await import('../src/lib/hr-tc-audit-shared.js');
+  const admin = { actor_name: 'Ann', actor_kind: 'system_admin' };
+  const center = { actor_name: 'A Center', actor_kind: 'training_center' };
+  assert.equal(tcAuditSummaryEn({ ...center, target_type: 'enrollment', action: 'enroll', target_name: 'Maria', detail: 'Class 1' }),
+    'A Center (training center) enrolled worker "Maria" in class "Class 1"');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'enrollment', action: 'unenroll', target_name: 'Maria', detail: 'Class 1' }),
+    'Ann (system administrator) cancelled the enrollment of worker "Maria" from class "Class 1"');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'enrollment', action: 'enroll', target_name: 'Maria' }),
+    'Ann (system administrator) enrolled worker "Maria"');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'teacher-certification', action: 'register', target_name: 'Wang', detail: 'Welding' }),
+    'Ann (system administrator) registered certification "Welding" for teacher "Wang"');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'teacher-certification', action: 'delete', target_name: 'Wang' }),
+    'Ann (system administrator) removed certification from teacher "Wang"');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'batch', action: 'status', target_name: 'B1', detail: 'issued' }),
+    'Ann (system administrator) set the status of certification batch "B1" to Issued');
+  assert.equal(tcAuditSummaryEn({ ...admin, target_type: 'batch', action: 'status', target_name: 'B1', detail: 'custom' }),
+    'Ann (system administrator) set the status of certification batch "B1" to custom');
+  assert.match(tcAuditSummaryEn({ ...admin, target_type: 'course', action: 'create', target_name: 'Mandarin' }), /^Ann \(system administrator\) added .+ "Mandarin"$/);
+  assert.equal(tcAuditSummaryEn({ ...admin, action: 'archive' }), 'Ann (system administrator) archive item');
+});

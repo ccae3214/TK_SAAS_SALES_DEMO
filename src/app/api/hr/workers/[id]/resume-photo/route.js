@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getHrPrincipal } from '@/lib/hr-access';
-import { query } from '@/lib/db';
+import pool, { query } from '@/lib/db';
+import { ensureWorkerPhotoSchema, readWorkerPhotoDataUrl } from '@/lib/hr-worker-photo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,10 @@ export async function GET(_request, { params }) {
         ))
       )`, [Number(rawId), principal.role, Number(principal.worker_id)||null, Number(principal.agency_id)||null, Number(principal.employer_id)||null]);
     if (!rows.length) return NextResponse.json({ error: 'Worker record not found.' }, { status: 404 });
-    return NextResponse.json({ photoDataUrl: rows[0].photo_data_url || '' }, { headers: { 'Cache-Control': 'private, no-store' } });
+    // 權限已在上面的查詢確認；照片先讀加密表，尚未搬移的舊資料才用 JSONB 裡的值。
+    await ensureWorkerPhotoSchema(pool);
+    const photoDataUrl = await readWorkerPhotoDataUrl(pool, Number(rawId), rows[0].photo_data_url || '');
+    return NextResponse.json({ photoDataUrl }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('hr_worker_resume_photo_failed', error?.name || 'Error');
     return NextResponse.json({ error: 'Could not load resume photo.' }, { status: 500 });

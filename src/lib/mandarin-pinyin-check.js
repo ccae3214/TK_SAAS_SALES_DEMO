@@ -148,50 +148,64 @@ export function createPinyinChecker(readingsJson) {
     words.forEach((word, wordIndex) => {
       if (/\d/.test(word)) { issues.push({ code: 'BAD_TONE_MARK', message: `拼音不可用數字標調或混入數字：${word}` }); return; }
       if (/v/i.test(word)) issues.push({ code: 'UMLAUT', message: `ü 不要寫成 v：${word}` });
-      const parts = word.split('-');
       const wordSyllables = [];
-      parts.forEach(part => {
-        const pieces = part.split(/['’]/);
-        pieces.forEach((piece, pieceIndex) => {
-          if (!piece) return;
-          const letters = lettersOf(piece);
-          for (const item of letters) {
-            if (item.badMark) issues.push({ code: 'BAD_TONE_MARK', message: `聲調符號不合法（${JSON.stringify(item.badMark)}）：${word}` });
-            if (item.doubleTone) issues.push({ code: 'BAD_TONE_MARK', message: `同一個字母標了兩個聲調：${word}` });
-          }
-          const clean = letters.filter(item => item.letter);
-          if (clean.some(item => !/^[a-zü]$/.test(item.letter))) {
-            issues.push({ code: 'BAD_TONE_MARK', message: `拼音含有不合法的字元：${word}` });
-            return;
-          }
-          if (pieceIndex > 0 && !/^[aoe]/.test(clean[0]?.letter || '')) issues.push({ code: 'APOSTROPHE', message: `隔音符號 ' 只用在 a、o、e 開頭的音節前：${word}` });
-          let segs = segment(clean, vowelStart);
-          if (!segs) {
-            segs = segment(clean, true);
-            if (segs) issues.push({ code: 'APOSTROPHE', message: `缺隔音符號 '（a、o、e 開頭的音節接在後面要加 '）：${word}` });
-          }
-          if (!segs) {
-            const text = clean.map(item => item.letter).join('');
-            if (/[jqxy]ü/.test(text)) issues.push({ code: 'UMLAUT', message: `j、q、x、y 後面寫 u，不寫 ü：${word}` });
-            else issues.push({ code: 'INVALID_SYLLABLE', message: `拆不出合法的普通話音節：${word}` });
-            return;
-          }
-          for (const seg of segs) {
-            const own = clean.slice(seg.start, seg.end);
-            const toned = own.map((item, index) => ({ ...item, index })).filter(item => item.tone);
-            if (toned.length > 1) issues.push({ code: 'BAD_TONE_MARK', message: `一個音節只能有一個聲調符號：${word}` });
-            const tone = toned[0]?.tone || 0;
-            if (tone && toneIndex(seg.base) >= 0 && toned[0].index !== toneIndex(seg.base)) {
-              issues.push({ code: 'BAD_TONE_MARK', message: `聲調符號位置不對：${word} 裡的 ${seg.base} 應寫成 ${formatSyllable(seg.base, tone)}` });
-            }
-            wordSyllables.push({ base: seg.base, tone, upper: own[0]?.upper, word, wordIndex });
-          }
+      for (const part of word.split('-')) {
+        part.split(/['’]/).forEach((piece, pieceIndex) => {
+          if (piece) wordSyllables.push(...parsePiece(piece, pieceIndex, word, wordIndex, issues, vowelStart));
         });
-      });
+      }
       wordSyllables.forEach((syllable, index) => { syllable.wordFinal = index === wordSyllables.length - 1; });
       result.push(...wordSyllables);
     });
     return result;
+  }
+
+  // 一段（以 - 或 ' 分開的）拼音 → 音節清單；有問題就記到 issues，拆不出音節時回傳空陣列。
+  function parsePiece(piece, pieceIndex, word, wordIndex, issues, vowelStart) {
+    const letters = lettersOf(piece);
+    reportMarkIssues(letters, word, issues);
+    const clean = letters.filter(item => item.letter);
+    if (clean.some(item => !/^[a-zü]$/.test(item.letter))) {
+      issues.push({ code: 'BAD_TONE_MARK', message: `拼音含有不合法的字元：${word}` });
+      return [];
+    }
+    if (pieceIndex > 0 && !/^[aoe]/.test(clean[0]?.letter || '')) issues.push({ code: 'APOSTROPHE', message: `隔音符號 ' 只用在 a、o、e 開頭的音節前：${word}` });
+    const segs = segmentPiece(clean, word, issues, vowelStart);
+    return segs ? segs.map(seg => toSyllable(seg, clean.slice(seg.start, seg.end), word, wordIndex, issues)) : [];
+  }
+
+  function reportMarkIssues(letters, word, issues) {
+    for (const item of letters) {
+      if (item.badMark) issues.push({ code: 'BAD_TONE_MARK', message: `聲調符號不合法（${JSON.stringify(item.badMark)}）：${word}` });
+      if (item.doubleTone) issues.push({ code: 'BAD_TONE_MARK', message: `同一個字母標了兩個聲調：${word}` });
+    }
+  }
+
+  // 照規則切音節；切不出來再試「a、o、e 開頭也可接在後面」（代表少了隔音符號）。都失敗回傳 null。
+  function segmentPiece(clean, word, issues, vowelStart) {
+    const segs = segment(clean, vowelStart);
+    if (segs) return segs;
+    const relaxed = segment(clean, true);
+    if (relaxed) {
+      issues.push({ code: 'APOSTROPHE', message: `缺隔音符號 '（a、o、e 開頭的音節接在後面要加 '）：${word}` });
+      return relaxed;
+    }
+    const text = clean.map(item => item.letter).join('');
+    if (/[jqxy]ü/.test(text)) issues.push({ code: 'UMLAUT', message: `j、q、x、y 後面寫 u，不寫 ü：${word}` });
+    else issues.push({ code: 'INVALID_SYLLABLE', message: `拆不出合法的普通話音節：${word}` });
+    return null;
+  }
+
+  // 一個音節：檢查聲調符號數量與位置。
+  function toSyllable(seg, own, word, wordIndex, issues) {
+    const toned = own.map((item, index) => ({ ...item, index })).filter(item => item.tone);
+    if (toned.length > 1) issues.push({ code: 'BAD_TONE_MARK', message: `一個音節只能有一個聲調符號：${word}` });
+    const tone = toned[0]?.tone || 0;
+    const expectedIndex = toneIndex(seg.base);
+    if (tone && expectedIndex >= 0 && toned[0].index !== expectedIndex) {
+      issues.push({ code: 'BAD_TONE_MARK', message: `聲調符號位置不對：${word} 裡的 ${seg.base} 應寫成 ${formatSyllable(seg.base, tone)}` });
+    }
+    return { base: seg.base, tone, upper: own[0]?.upper, word, wordIndex };
   }
 
   // 先照正常規則切音節；切出來讀音對不上時，再試「a、o、e 開頭的音節也可以接在後面」，
@@ -230,43 +244,65 @@ export function createPinyinChecker(readingsJson) {
       return options.find(option => option.base === next.base && option.tone)?.tone || 4;
     };
 
-    hanzi.forEach((ch, i) => {
-      const syl = syls[i];
+    const sandhiBase = ch => (ch === '不' ? 'bu' : 'yi');
+    // 「一」單用、詞尾、接在數字或「第」後、或後面接數字／序數 → 一聲。
+    const yiIsFirstTone = (i, syl, prev, next) => !next
+      || (syl.wordFinal && syls[i - 1]?.wordIndex === syl.wordIndex)
+      || NUMERALS.has(prev) || YI_AFTER.has(prev) || DIGITS.has(next) || YI_ORDINAL_NEXT.has(next);
+    const expectedSandhiTone = (ch, i, syl, prev, next) => {
+      if (ch === '一' && yiIsFirstTone(i, syl, prev, next)) return 1;
+      return nextTone(i) === 4 ? 2 : 4;
+    };
+
+    // 「不」「一」的變調。
+    const checkBuYi = (ch, i, syl, shown) => {
       const prev = hanzi[i - 1], next = hanzi[i + 1];
-      const shown = formatSyllable(syl.base, syl.tone);
-      if (ch === '不' || ch === '一') {
-        if (syl.base !== (ch === '不' ? 'bu' : 'yi')) { issues.push({ code: 'READING', message: `「${ch}」讀音不對：${shown}` }); return; }
+      if (syl.base !== sandhiBase(ch)) { issues.push({ code: 'READING', message: `「${ch}」讀音不對：${shown}` }); return; }
+      if (!syl.tone) {
         const sameWord = syls[i + 1] && syls[i + 1].wordIndex === syl.wordIndex && syls[i - 1]?.wordIndex === syl.wordIndex;
-        if (!syl.tone) {
-          if ((prev && prev === next) || (ch === '不' && sameWord)) return; // 看一看、好不好、對不起
-          issues.push({ code: 'MISSING_TONE', message: `「${ch}」缺聲調：${shown}` });
-          return;
-        }
-        let expected;
-        if (ch === '不') expected = nextTone(i) === 4 ? 2 : 4;
-        else if (!next || (syl.wordFinal && syls[i - 1]?.wordIndex === syl.wordIndex) || NUMERALS.has(prev) || YI_AFTER.has(prev) || DIGITS.has(next) || YI_ORDINAL_NEXT.has(next)) expected = 1;
-        else expected = nextTone(i) === 4 ? 2 : 4;
-        if (syl.tone !== expected) {
-          const rule = ch === '不' ? '「不」在四聲前標 bú，其他標 bù' : '「一」單用、詞尾、數字或序數標 yī；在四聲前標 yí；在一、二、三聲前標 yì';
-          issues.push({ code: ch === '不' ? 'SANDHI_BU' : 'SANDHI_YI', message: `「${ch}${next || ''}」應標 ${formatSyllable(syl.base, expected)}，不是 ${shown}（${rule}）` });
-        }
+        if ((prev && prev === next) || (ch === '不' && sameWord)) return; // 看一看、好不好、對不起
+        issues.push({ code: 'MISSING_TONE', message: `「${ch}」缺聲調：${shown}` });
         return;
       }
+      const expected = expectedSandhiTone(ch, i, syl, prev, next);
+      if (syl.tone === expected) return;
+      const [code, rule] = ch === '不'
+        ? ['SANDHI_BU', '「不」在四聲前標 bú，其他標 bù']
+        : ['SANDHI_YI', '「一」單用、詞尾、數字或序數標 yī；在四聲前標 yí；在一、二、三聲前標 yì'];
+      issues.push({ code, message: `「${ch}${next || ''}」應標 ${formatSyllable(syl.base, expected)}，不是 ${shown}（${rule}）` });
+    };
+
+    // 沒標聲調時，是否可以讀輕聲。
+    const neutralAllowed = (ch, i, sameBase) => {
+      const prev = hanzi[i - 1];
+      return NEUTRAL_CHARS.has(ch) || ch === prev || NEUTRAL_WORDS.has(`${prev}${ch}`)
+        || NEUTRAL_WORDS.has(`${hanzi[i - 2]}${prev}${ch}`) || sameBase.some(option => !option.tone);
+    };
+
+    // 一般字：對字音表檢查讀音與聲調。
+    const checkReading = (ch, i, syl, shown) => {
       const options = readings[ch];
       if (!options) { issues.push({ code: 'UNKNOWN_CHAR', message: `字音表沒有「${ch}」，請執行 python scripts/generate-mandarin-char-readings.py` }); return; }
       const sameBase = options.filter(option => option.base === syl.base);
+      const list = (items, sep) => items.map(o => formatSyllable(o.base, o.tone)).join(sep);
       if (!sameBase.length) {
-        issues.push({ code: 'READING', message: `「${ch}」讀音不對：${shown}（字典：${options.map(o => formatSyllable(o.base, o.tone)).join('、')}）` });
+        issues.push({ code: 'READING', message: `「${ch}」讀音不對：${shown}（字典：${list(options, '、')}）` });
         return;
       }
       if (!syl.tone) {
-        const neutralOk = NEUTRAL_CHARS.has(ch) || ch === prev || NEUTRAL_WORDS.has(`${prev}${ch}`) || NEUTRAL_WORDS.has(`${hanzi[i - 2]}${prev}${ch}`) || sameBase.some(option => !option.tone);
-        if (!neutralOk) issues.push({ code: 'MISSING_TONE', message: `「${ch}」缺聲調：${shown}（不是輕聲字，應標 ${sameBase.filter(o => o.tone).map(o => formatSyllable(o.base, o.tone)).join(' 或 ')}）` });
+        if (!neutralAllowed(ch, i, sameBase)) issues.push({ code: 'MISSING_TONE', message: `「${ch}」缺聲調：${shown}（不是輕聲字，應標 ${list(sameBase.filter(o => o.tone), ' 或 ')}）` });
         return;
       }
       if (!sameBase.some(option => option.tone === syl.tone)) {
-        issues.push({ code: 'TONE', message: `「${ch}」聲調不對：${shown}（字典：${sameBase.map(o => formatSyllable(o.base, o.tone)).join('、')}）` });
+        issues.push({ code: 'TONE', message: `「${ch}」聲調不對：${shown}（字典：${list(sameBase, '、')}）` });
       }
+    };
+
+    hanzi.forEach((ch, i) => {
+      const syl = syls[i];
+      const shown = formatSyllable(syl.base, syl.tone);
+      if (ch === '不' || ch === '一') checkBuYi(ch, i, syl, shown);
+      else checkReading(ch, i, syl, shown);
     });
     return issues;
   }

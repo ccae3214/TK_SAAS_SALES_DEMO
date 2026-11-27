@@ -24,9 +24,8 @@ test('護照與照片換成對應語言；中文與未知名稱維持原樣', ()
   assert.equal(documentDisplayName('未來新增的文件', 'en'), '未來新增的文件');
 });
 
-test('LINE 文件清單與退件通知都用翻譯後的文件名稱', async () => {
+// 退件通知的文件名稱翻譯改由 tests/hr-member-notices.test.mjs 實際產生訊息來驗證。
+test('LINE 文件清單用翻譯後的文件名稱', async () => {
   const bot = await readFile(new URL('../src/lib/hr-line-bot.js', import.meta.url), 'utf8');
-  const notices = await readFile(new URL('../src/lib/hr-member-notices.js', import.meta.url), 'utf8');
   assert.match(bot, /documentDisplayName\(item\.name, activeLanguage\)/);
-  assert.match(notices, /documentDisplayName\(d\.name, language\)/);
 });

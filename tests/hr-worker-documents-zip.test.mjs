@@ -12,6 +12,12 @@ const link = await readFile(new URL('../src/components/HrWorkerDocumentsZipLink.
 const portal = await readFile(new URL('../src/components/HrMemberPortal.jsx', import.meta.url), 'utf8');
 const textSource = await readFile(new URL('../src/lib/hr-worker-documents-zip-text.js', import.meta.url), 'utf8');
 
+// 用系統上的 Python zipfile 獨立驗證 ZIP。WSL／Linux 是 python3，Windows 常是 python 或 py -3；
+// Windows 的 Microsoft Store 假 python 會執行失敗，所以實際跑 --version 確認。
+const python = [['python3'], ['python'], ['py', '-3']].find(([cmd, ...args]) => {
+  try { execFileSync(cmd, [...args, '--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+});
+
 const worker = { agency_id: 20 };
 const cases = [{ employer_id: 1, employer_agency_id: 10 }];
 
@@ -20,7 +26,7 @@ test('CRC32 與標準值一致', () => {
   assert.equal(crc32(Buffer.alloc(0)), 0);
 });
 
-test('ZIP 可被系統 unzip 驗證並還原內容（含中文檔名與二進位資料）', async () => {
+test('ZIP 可被系統 unzip 驗證並還原內容（含中文檔名與二進位資料）', { skip: python ? false : '找不到可執行的 Python（python3／python／py -3）' }, async () => {
   const binary = Buffer.from(Array.from({ length: 5000 }, (_, i) => (i * 31 + 7) % 256));
   const zip = createZip([
     { name: '01_新護照.pdf', data: Buffer.from('%PDF-1.4 passport') },
@@ -32,14 +38,16 @@ test('ZIP 可被系統 unzip 驗證並還原內容（含中文檔名與二進位
   await writeFile(file, zip);
   let unzipOk = true;
   try { execFileSync('unzip', ['-tqq', file]); } catch (error) { if (error.code === 'ENOENT') unzipOk = false; else throw error; }
-  const py = execFileSync('python3', ['-I', '-c', `
+  const [pyCmd, ...pyArgs] = python;
+  const py = execFileSync(pyCmd, [...pyArgs, '-I', '-c', `
 import zipfile, sys
+sys.stdout.reconfigure(encoding='utf-8')
 z = zipfile.ZipFile(sys.argv[1])
 assert z.testzip() is None
 print('|'.join(sorted(z.namelist())))
 print(len(z.read('02_PSA出生證明（附收據）.jpg')))
 print(z.read('00_文件清單.txt').decode('utf-8'))
-`, file]).toString().split('\n');
+`, file]).toString('utf8').split(/\r?\n/);
   assert.equal(py[0], ['00_文件清單.txt', '01_新護照.pdf', '02_PSA出生證明（附收據）.jpg'].join('|'));
   assert.equal(py[1], '5000');
   assert.equal(py[2], 'hello 你好');

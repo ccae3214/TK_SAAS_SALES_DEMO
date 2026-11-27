@@ -21,11 +21,18 @@ import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-remin
 import { ensurePushSchema } from '@/lib/hr-call-notify-store';
 import { ensureLineHandoffSchema } from '@/lib/hr-line-handoff-store';
 import { ensureSchemaNormalization } from '@/lib/hr-schema-normalize';
+import { ensureWorkerPhotoSchema, migrateLegacyWorkerPhotos } from '@/lib/hr-worker-photo';
 
 // 順序有相依：核心資料表 → 身分／會員 → 其餘功能。
 export const MIGRATION_STEPS = [
   ['core', () => ensureSchema()],
   ['identity', () => ensureHrIdentitySchema()],
+  // 履歷照片：建立加密表，再把 JSONB 裡的舊照片逐筆搬過去（已搬過的不會重複處理）。
+  ['worker-photos', async () => {
+    await ensureWorkerPhotoSchema(pool);
+    const result = await migrateLegacyWorkerPhotos(pool);
+    if (result.moved || result.skipped) console.info('hr_worker_photo_migration', JSON.stringify(result));
+  }],
   ['agency-certification', () => ensureCertificationSchema(pool)],
   ['agency-cert-progress', () => ensureProgressSchema(pool)],
   ['agency-profile', () => ensureAgencyProfileSchema(pool)],
