@@ -32,14 +32,26 @@
 /* 通話視窗：電腦是右下角的浮動視窗，手機是整個畫面 */
 .hr-call-overlay {
   position: fixed; right: 20px; bottom: 20px; z-index: 9500; display: flex; flex-direction: column; gap: 8px;
-  width: min(600px, calc(100vw - 40px)); height: min(460px, calc(100dvh - 40px)); padding: 12px; border-radius: 18px;
+  width: min(720px, calc(100vw - 40px)); height: min(520px, calc(100dvh - 40px)); padding: 12px; border-radius: 18px;
   background: #0b1f18; color: #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
 .hr-call-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
 .hr-call-header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .hr-call-header span { flex: none; font-size: 12.5px; color: #9ed9c0; }
-.hr-call-grid { position: relative; display: grid; flex: 1; gap: 6px; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); grid-auto-rows: 1fr; }
+/* 並排：依人數排成 1／2／3 欄 */
+.hr-call-grid { position: relative; display: grid; flex: 1; gap: 6px; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
 .hr-call-grid.count-1 { grid-template-columns: 1fr; }
+.hr-call-grid.count-5, .hr-call-grid.count-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* 放大：被點的人佔滿上方，其他人在下方排成一排小畫面 */
+.hr-call-grid.has-focus { grid-template-columns: repeat(var(--hr-call-others, 1), minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) clamp(64px, 20%, 110px); grid-auto-rows: 0; }
+.hr-call-grid.has-focus .hr-call-tile { order: 1; }
+.hr-call-grid.has-focus .hr-call-tile.is-focused { order: 0; grid-column: 1 / -1; }
+.hr-call-tile.is-focused video { object-fit: contain; background: #000; }
+.hr-call-grid.has-focus .hr-call-tile:not(.is-focused) .hr-call-avatar { width: 36px; height: 36px; font-size: 16px; }
+.hr-call-grid.has-focus .hr-call-tile:not(.is-focused) .hr-call-status { display: none; }
+.hr-call-tile.is-selectable { cursor: pointer; }
+.hr-call-tile.is-selectable:hover { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.hr-call-tile.is-selectable:focus-visible { outline: 3px solid #9ed9c0; outline-offset: -3px; }
 .hr-call-tile { position: relative; overflow: hidden; display: grid; place-items: center; min-height: 0; border-radius: 12px; background: #16342a; }
 .hr-call-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hr-call-tile.is-local video { transform: scaleX(-1); }
@@ -49,15 +61,9 @@
 .hr-call-status { position: absolute; right: 8px; bottom: 6px; display: flex; gap: 4px; }
 .hr-call-status-icon { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(0, 0, 0, 0.5); color: #fff; }
 .hr-call-status-icon.is-off { background: #d64545; }
-.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-status { right: 4px; bottom: 4px; gap: 2px; }
-.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-status-icon { width: 18px; height: 18px; }
 .hr-call-tile[data-state="connecting"]::after, .hr-call-tile[data-state="new"]::after, .hr-call-tile[data-state="disconnected"]::after, .hr-call-tile[data-state="failed"]::after {
   content: ""; position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: #f0b429;
 }
-/* 一對一：對方滿版，自己縮成小畫面 */
-.hr-call-overlay.is-pip .hr-call-grid { grid-template-columns: 1fr; }
-.hr-call-overlay.is-pip .hr-call-tile.is-local { position: absolute; right: 10px; bottom: 10px; z-index: 2; width: 28%; max-width: 150px; min-width: 84px; aspect-ratio: 3 / 4; border: 2px solid rgba(255, 255, 255, 0.5); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
-.hr-call-overlay.is-pip .hr-call-tile.is-local .hr-call-name { display: none; }
 .hr-call-controls { display: flex; justify-content: center; gap: 14px; padding-top: 2px; }
 .hr-call-round { display: grid; place-items: center; width: 52px; height: 52px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.16); color: #fff; cursor: pointer; }
 .hr-call-round.is-off { background: #fff; color: #0b1f18; }
@@ -79,5 +85,9 @@
     padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(14px + env(safe-area-inset-bottom, 0px));
   }
   .hr-call-toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  /* 手機直向：兩人上下並排；3～6 人兩欄 */
+  .hr-call-grid.count-2 { grid-template-columns: 1fr; }
+  .hr-call-grid.count-5, .hr-call-grid.count-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-call-grid.has-focus { grid-template-columns: repeat(var(--hr-call-others, 1), minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .hr-call-incoming { animation: none; } }
