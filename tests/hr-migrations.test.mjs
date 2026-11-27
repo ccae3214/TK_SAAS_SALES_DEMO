@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { MIGRATION_LOCK_KEY, runMigrationSteps } from '../src/lib/migration-runner.js';
 
@@ -46,7 +47,7 @@ test('資料庫一直連不上：重試到上限後回報失敗，不丟出例�
 // 防護：資料表遷移只能放在 lib 的遷移函式裡，請求路徑（src/app）不可以自己 CREATE／ALTER；
 // 新增的 ensure* 遷移函式也一定要登記到啟動遷移清單，否則啟動時不會跑。
 const walk = (dir, found = []) => { for (const name of readdirSync(dir)) { const path = join(dir, name); if (statSync(path).isDirectory()) walk(path, found); else if (/\.(js|jsx)$/.test(name)) found.push(path); } return found; };
-const srcDir = new URL('../src', import.meta.url).pathname;
+const srcDir = fileURLToPath(new URL('../src', import.meta.url));
 
 test('src/app 的請求路徑沒有任何資料表遷移 SQL', () => {
   const offenders = walk(join(srcDir, 'app')).filter(path => /CREATE\s+(UNIQUE\s+)?(TABLE|INDEX)|ALTER\s+TABLE|DROP\s+TRIGGER|CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER)/i.test(readFileSync(path, 'utf8')));

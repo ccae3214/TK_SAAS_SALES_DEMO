@@ -15,7 +15,8 @@
     "notifications:once": "node scripts/hr-notification-worker.mjs --once",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
-    "docker:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-verify.ps1"
+    "docker:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-verify.ps1",
+    "test:crap": "node scripts/crap-report.mjs"
   },
   "dependencies": {
     "express": "^5.2.1",

@@ -12,18 +12,20 @@ export { normalizeVapidPublicKey } from './vapid-key.js';
 
 const IN_APP = /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|KAKAOTALK|Messenger|; wv\)/i;
 
-export function detectNotifyEnvironment({
-  userAgent = '', maxTouchPoints = 0, standalone = false, isSecureContext = true,
-  hasServiceWorker = true, hasPushManager = true, hasNotification = true, permission = 'default',
-} = {}) {
-  const ua = String(userAgent || '');
-  const ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && Number(maxTouchPoints) > 1);
-  if (isSecureContext === false) return 'insecure';
+// iPadOS 的 Safari 會假裝是 Mac，要用觸控點數分辨。
+const isIos = (ua, maxTouchPoints) => /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && Number(maxTouchPoints) > 1);
+
+// 沒提供（undefined）的瀏覽器能力一律當作「有」。
+const hasPushSupport = env => [env.hasServiceWorker, env.hasPushManager, env.hasNotification]
+  .every(value => value === undefined || Boolean(value));
+
+export function detectNotifyEnvironment(env = {}) {
+  const ua = String(env.userAgent || '');
+  if (env.isSecureContext === false) return 'insecure';
   if (IN_APP.test(ua)) return 'inapp';
-  if (ios && !standalone) return 'ios-install';
-  if (!hasServiceWorker || !hasPushManager || !hasNotification) return 'unsupported';
-  if (permission === 'denied') return 'denied';
-  return 'available';
+  if (isIos(ua, env.maxTouchPoints ?? 0) && !env.standalone) return 'ios-install';
+  if (!hasPushSupport(env)) return 'unsupported';
+  return env.permission === 'denied' ? 'denied' : 'available';
 }
 
 // 瀏覽器訂閱推播要用 Uint8Array 的公開金鑰。

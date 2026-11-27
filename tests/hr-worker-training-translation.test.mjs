@@ -37,3 +37,22 @@ test('單元詞彙量有英文翻譯', () => {
   assert.equal(translate('· 35 個詞彙'), '· 35 words');
   assert.equal(translate('1 個詞彙'), '1 word');
 });
+
+test('近期提醒：只列今天到 30 天內的事件，已發證的取證日不提醒，依日期排序', async () => {
+  const { collectTrainingReminders } = await import('../src/lib/hr-worker-training.js');
+  const today = new Date(2026, 0, 10);
+  const course = {
+    id: 7, course_name: '中文', certification_name: '', class_name: 'A 班',
+    training_start_date: '2026-01-20', training_end_date: '2026-03-01', exam_date: '2026-01-10',
+    batch_applied_date: '2026-01-05', certificate_issue_date: '2026-01-15', batch_status: 'submitted',
+  };
+  const reminders = collectTrainingReminders([course], today);
+  assert.deepEqual(reminders.map(r => [r.id, r.days, r.date]), [['7:exam', 0, '2026-01-10'], ['7:issue', 5, '2026-01-15'], ['7:start', 10, '2026-01-20']]);
+  assert.equal(reminders[0].course, '中文');
+  assert.equal(reminders[0].className, 'A 班');
+  const issued = collectTrainingReminders([{ ...course, batch_status: 'issued', certification_name: '華語證照' }], today);
+  assert.deepEqual(issued.map(r => r.id), ['7:exam', '7:start']);
+  assert.equal(issued[0].course, '華語證照');
+  assert.deepEqual(collectTrainingReminders([{ id: 1, exam_date: 'not-a-date' }], today), []);
+  assert.deepEqual(collectTrainingReminders(), []);
+});

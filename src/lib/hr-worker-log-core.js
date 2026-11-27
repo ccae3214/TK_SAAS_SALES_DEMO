@@ -69,84 +69,95 @@ const WORKER_RELATED_TYPES = new Set([
 ]);
 export const isWorkerRelatedType = type => WORKER_RELATED_TYPES.has(type);
 
+// 二選一的敘述：flag 為真用 yes，否則用 no（兩者都是 [action, zh, en]）。
+const either = (flag, yes, no) => result(...(flag ? yes : no));
+
+const POST_DESCRIBERS = {
+  worker: () => result('create', '建立了工作者資料', 'Created the worker profile'),
+  'job-order-candidate': () => result('recommend', '被推薦到雇主的工作需求', 'Was recommended for an employer job order'),
+};
+
+const DELETE_DESCRIBERS = {
+  worker: () => result('delete', '刪除了工作者資料', 'Deleted the worker profile'),
+  member: ({ body }) => either(body.purge,
+    ['delete', '永久刪除了會員帳號', 'Permanently deleted the member account'],
+    ['delete', '將會員帳號移到「已刪除帳號」（可還原）', 'Moved the member account to Deleted accounts (can be restored)']),
+};
+
+function describeWorkerEdit({ body, isSelf }) {
+  if (body.name !== undefined) {
+    return either(isSelf,
+      ['edit', '更新了自己的基本資料與履歷', 'Updated their own profile and resume'],
+      ['edit', '編輯了工作者的基本資料', "Edited the worker's profile"]);
+  }
+  return either(body.status === 'inactive' || body.active === false,
+    ['disable', '停用了工作者', 'Deactivated the worker'],
+    ['enable', '啟用了工作者', 'Activated the worker']);
+}
+
+function describeReview({ body, n }) {
+  const approved = body.decision === 'approved';
+  if (!n) return either(approved, ['approve', '核准了一份文件', 'Approved a document'], ['return', '退回了一份文件', 'Returned a document']);
+  return either(approved, ['approve', `核准了文件${q(n)}`, `Approved document ${e(n)}`], ['return', `退回了文件${q(n)}`, `Returned document ${e(n)}`]);
+}
+
+function describeApplicability({ body, n }) {
+  if (!n) return result('update', '調整了文件的適用設定', 'Changed the applicability of a document');
+  const [zh, en] = body.applicable ? ['適用', 'applicable'] : ['不適用', 'not applicable'];
+  return result('update', `將文件${q(n)}標示為${zh}`, `Marked document ${e(n)} as ${en}`);
+}
+
+function describeWorkflow({ body }) {
+  const [map, zh, en] = body.workflowType === 'medical'
+    ? [MEDICAL_STATUS, '抵台體檢', 'medical exam']
+    : [TRAINING_STATUS, '訓練', 'training'];
+  return result('update', `將${zh}狀態更新為${pick(map, body.status, 0)}`, `Changed the ${en} status to ${pick(map, body.status, 1)}`);
+}
+
+function describeMember({ body }) {
+  if (body.role !== undefined) {
+    return result('change_type', `將會員類型變更為${pick(MEMBER_ROLE, body.role, 0)}`, `Changed the member type to ${pick(MEMBER_ROLE, body.role, 1)}`);
+  }
+  return either(body.active === false,
+    ['disable', '停用了會員帳號', 'Deactivated the member account'],
+    ['enable', '啟用了會員帳號', 'Activated the member account']);
+}
+
+function describeInterview({ body }) {
+  const status = Object.hasOwn(INTERVIEW_STATUS, body.status) ? INTERVIEW_STATUS[body.status] : null;
+  return status ? result('interview', `雇主${status[0]}`, `The employer ${status[1]}`) : null;
+}
+
+const PATCH_DESCRIBERS = {
+  worker: describeWorkerEdit,
+  'worker-resume': ({ body }) => either(body.clear === true,
+    ['edit', '清除了工作者的履歷', "Cleared the worker's resume"],
+    ['edit', '更新了工作者的履歷', "Updated the worker's resume"]),
+  'worker-acknowledge': ({ body }) => either(body.confirmed === false,
+    ['unacknowledge', '取消確認了案件事項', 'Withdrew a confirmation on a case item'],
+    ['acknowledge', '確認了案件事項', 'Confirmed a case item']),
+  review: describeReview,
+  'requirement-applicability': describeApplicability,
+  workflow: describeWorkflow,
+  'application-step': () => result('update', '更新了來台申請程序', 'Updated the application steps'),
+  case: ({ body }) => result('update', `將案件狀態變更為${pick(CASE_STATUS, body.status, 0)}`, `Changed the case status to ${pick(CASE_STATUS, body.status, 1)}`),
+  certification: () => result('update', '更新了證照取證進度', 'Updated the certification progress'),
+  member: describeMember,
+  'member-profile': () => result('edit', '編輯了會員帳號資料', 'Edited the member account details'),
+  'member-admin-scope': () => result('update', '調整了管理者權限', 'Changed the administrator scope'),
+  'member-restore': () => result('enable', '還原了會員帳號', 'Restored the member account'),
+  'job-order-candidate-interview': describeInterview,
+  'job-order-candidate-withdraw': () => result('withdraw', '推薦已被撤回', 'The recommendation was withdrawn'),
+};
+
+const DESCRIBERS_BY_METHOD = { POST: POST_DESCRIBERS, DELETE: DELETE_DESCRIBERS };
+
 // 依操作內容產生「做了什麼」的中英文敘述（主詞是操作人員，不含主詞）；回傳 null 代表不需要記錄。
 // input: { method, type, body, name（文件或項目名稱）, isSelf（工人本人操作） }
 export function describeWorkerOperation({ method, type, body = {}, name = '', isSelf = false } = {}) {
-  const n = label(name);
-  if (method === 'POST') {
-    if (type === 'worker') return result('create', '建立了工作者資料', 'Created the worker profile');
-    if (type === 'job-order-candidate') return result('recommend', '被推薦到雇主的工作需求', 'Was recommended for an employer job order');
-    return null;
-  }
-  if (method === 'DELETE') {
-    if (type === 'worker') return result('delete', '刪除了工作者資料', 'Deleted the worker profile');
-    if (type === 'member') return body.purge
-      ? result('delete', '永久刪除了會員帳號', 'Permanently deleted the member account')
-      : result('delete', '將會員帳號移到「已刪除帳號」（可還原）', 'Moved the member account to Deleted accounts (can be restored)');
-    return null;
-  }
-  switch (type) {
-    case 'worker':
-      if (body.name !== undefined) {
-        return isSelf
-          ? result('edit', '更新了自己的基本資料與履歷', 'Updated their own profile and resume')
-          : result('edit', '編輯了工作者的基本資料', "Edited the worker's profile");
-      }
-      return body.status === 'inactive' || body.active === false
-        ? result('disable', '停用了工作者', 'Deactivated the worker')
-        : result('enable', '啟用了工作者', 'Activated the worker');
-    case 'worker-resume':
-      return body.clear === true
-        ? result('edit', '清除了工作者的履歷', "Cleared the worker's resume")
-        : result('edit', '更新了工作者的履歷', "Updated the worker's resume");
-    case 'worker-acknowledge':
-      return body.confirmed === false
-        ? result('unacknowledge', '取消確認了案件事項', 'Withdrew a confirmation on a case item')
-        : result('acknowledge', '確認了案件事項', 'Confirmed a case item');
-    case 'review':
-      if (!n) return body.decision === 'approved'
-        ? result('approve', '核准了一份文件', 'Approved a document')
-        : result('return', '退回了一份文件', 'Returned a document');
-      return body.decision === 'approved'
-        ? result('approve', `核准了文件${q(n)}`, `Approved document ${e(n)}`)
-        : result('return', `退回了文件${q(n)}`, `Returned document ${e(n)}`);
-    case 'requirement-applicability':
-      return n
-        ? result('update', `將文件${q(n)}標示為${body.applicable ? '適用' : '不適用'}`, `Marked document ${e(n)} as ${body.applicable ? 'applicable' : 'not applicable'}`)
-        : result('update', '調整了文件的適用設定', 'Changed the applicability of a document');
-    case 'workflow': {
-      const medical = body.workflowType === 'medical';
-      const map = medical ? MEDICAL_STATUS : TRAINING_STATUS;
-      return result('update', `將${medical ? '抵台體檢' : '訓練'}狀態更新為${pick(map, body.status, 0)}`, `Changed the ${medical ? 'medical exam' : 'training'} status to ${pick(map, body.status, 1)}`);
-    }
-    case 'application-step':
-      return result('update', '更新了來台申請程序', 'Updated the application steps');
-    case 'case':
-      return result('update', `將案件狀態變更為${pick(CASE_STATUS, body.status, 0)}`, `Changed the case status to ${pick(CASE_STATUS, body.status, 1)}`);
-    case 'certification':
-      return result('update', '更新了證照取證進度', 'Updated the certification progress');
-    case 'member':
-      if (body.role !== undefined) {
-        return result('change_type', `將會員類型變更為${pick(MEMBER_ROLE, body.role, 0)}`, `Changed the member type to ${pick(MEMBER_ROLE, body.role, 1)}`);
-      }
-      return body.active === false
-        ? result('disable', '停用了會員帳號', 'Deactivated the member account')
-        : result('enable', '啟用了會員帳號', 'Activated the member account');
-    case 'member-profile':
-      return result('edit', '編輯了會員帳號資料', 'Edited the member account details');
-    case 'member-admin-scope':
-      return result('update', '調整了管理者權限', 'Changed the administrator scope');
-    case 'member-restore':
-      return result('enable', '還原了會員帳號', 'Restored the member account');
-    case 'job-order-candidate-interview':
-      return INTERVIEW_STATUS[body.status]
-        ? result('interview', `雇主${INTERVIEW_STATUS[body.status][0]}`, `The employer ${INTERVIEW_STATUS[body.status][1]}`)
-        : null;
-    case 'job-order-candidate-withdraw':
-      return result('withdraw', '推薦已被撤回', 'The recommendation was withdrawn');
-    default:
-      return null;
-  }
+  const describers = DESCRIBERS_BY_METHOD[method] || PATCH_DESCRIBERS;
+  const describe = Object.hasOwn(describers, type) ? describers[type] : null;
+  return describe ? describe({ body, n: label(name), isSelf }) : null;
 }
 
 // 工人自己的學習與文件操作（不是經過 /api/hr 的那一類）的敘述。

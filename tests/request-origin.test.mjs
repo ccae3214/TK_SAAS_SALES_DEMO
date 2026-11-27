@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { requestIsSameOrigin } from '../src/lib/request-origin.js';
 
@@ -34,6 +35,6 @@ test('APP_ORIGIN 設定的網址視為本站', () => {
 test('src 內只有 request-origin.js 定義同源檢查', () => {
   const found = [];
   const walk = dir => { for (const name of readdirSync(dir)) { const path = join(dir, name); if (statSync(path).isDirectory()) walk(path); else if (/\.(js|jsx)$/.test(name) && /function\s+(sameOrigin|requestIsSameOrigin)\s*\(/.test(readFileSync(path, 'utf8'))) found.push(path.replaceAll('\\', '/')); } };
-  walk(new URL('../src', import.meta.url).pathname);
+  walk(fileURLToPath(new URL('../src', import.meta.url)));
   assert.deepEqual(found.map(path => path.split('/src/')[1]), ['lib/request-origin.js']);
 });
