@@ -7,6 +7,7 @@ import { trainingCenterIdOf } from '@/lib/hr-training-center-scope';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { buildIceServers, callSecret, signTicket } from '@/lib/hr-call-ticket';
+import { createSfuToken, newSfuIdentity, sfuConfig } from '@/lib/hr-call-sfu';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -97,8 +98,12 @@ export async function POST(request) {
       title=peer[0]?.display_name||'私訊';
       callTitle=name;
     }
-    const ticket=signTicket({k:key,n:name,r:Number(room.id),invitees,ct:callTitle},secret,90);
-    return NextResponse.json({ticket,roomId:Number(room.id),roomType:room.room_type,title,iceServers:buildIceServers(process.env,key)});
+    // 有設定自架 SFU（LiveKit）時：票證記下「這通電話走 SFU」與這個人的 LiveKit 識別碼，並附上連 SFU 的限時憑證；沒設定就維持彼此直連。
+    const sfu=sfuConfig();
+    const lk=sfu?newSfuIdentity():null;
+    const ticket=signTicket({k:key,n:name,r:Number(room.id),invitees,ct:callTitle,...(sfu?{sfu:true,lk}:{})},secret,90);
+    const sfuInfo=sfu?{url:sfu.url,token:await createSfuToken(sfu,{identity:lk,name,roomId:room.id})}:null;
+    return NextResponse.json({ticket,roomId:Number(room.id),roomType:room.room_type,title,iceServers:buildIceServers(process.env,key),...(sfuInfo?{sfu:sfuInfo}:{})});
   } catch(error) {
     if(error instanceof SyntaxError)return NextResponse.json({error:'資料格式不正確。',en:'Invalid request.'},{status:400});
     console.error('hr_call_ticket_failed',error?.code||error?.name||'Error');

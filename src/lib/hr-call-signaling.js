@@ -6,6 +6,8 @@ import { verifyTicket } from './hr-call-ticket.js';
 // WebSocket 協定（RFC 6455）自己實作在下面，不需要額外安裝套件。
 
 export const MAX_PARTICIPANTS = 6; // 多人通話是每個人彼此直連（mesh），超過約 4～6 人手機會吃不消
+export const SFU_MAX_PARTICIPANTS = 20; // 有設定自架 SFU（LiveKit）時，影像聲音經過伺服器轉送，上限提高到 20 人
+export const maxParticipantsFor = call => (call.sfu ? SFU_MAX_PARTICIPANTS : MAX_PARTICIPANTS);
 export const RING_MS = 45000;
 export const NUDGE_MS = 10000; // 響鈴這麼久還沒人接，連著網頁卻沒反應的人（例如手機切到背景）也補發一次通知
 const MAX_CONNECTIONS_PER_KEY = 6;
@@ -107,21 +109,25 @@ export class CallHub {
         id: crypto.randomUUID(), roomId, title: String(ticket.ct || ticket.title || '').slice(0, 200), video: !!message.video,
         startedBy: conn.key, startedByName: conn.name, invitees: new Set((Array.isArray(ticket.invitees) ? ticket.invitees : []).filter(key => typeof key === 'string' && key !== conn.key).slice(0, 300)),
         participants: new Map(), declined: new Set(), ringing: true, timer: null,
+        sfu: ticket.sfu === true, // 這通電話的影像聲音走 SFU 還是彼此直連，由第一個開始通話的人的票證決定
       };
       this.calls.set(roomId, call);
       call.timer = this.setTimer(() => this.ringTimeout(call), this.ringMs);
       call.nudgeTimer = this.nudgeMs > 0 ? this.setTimer(() => this.nudge(call), this.nudgeMs) : null;
       for (const key of call.invitees) for (const other of this.byKey.get(key) || []) other.send(this.incomingMessage(call));
       this.notify(call, [...call.invitees].filter(key => !this.isOnline(key)), 'offline');
-    } else if (call.participants.size >= MAX_PARTICIPANTS) {
+    } else if (call.participants.size >= maxParticipantsFor(call)) {
       return conn.send({ t: 'error', code: 'full' });
     }
-    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, media: item.media || cleanMedia(null, call.video) }));
+    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, lk: item.lk, media: item.media || cleanMedia(null, call.video) }));
     conn.media = cleanMedia(message.media, call.video);
+    // SFU 通話：LiveKit 的參加者識別碼來自簽章票證（不能自己亂填），其他人用它把畫面對應到這個人
+    conn.lk = call.sfu && typeof ticket.lk === 'string' && /^[0-9a-f]{18}$/.test(ticket.lk) ? ticket.lk : null;
+    if (call.sfu && !conn.lk) return conn.send({ t: 'error', code: 'bad-ticket' });
     call.participants.set(conn.id, conn);
     conn.roomId = roomId;
-    conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers });
-    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, media: conn.media } });
+    conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers, ...(call.sfu ? { sfu: true } : {}) });
+    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, lk: conn.lk, media: conn.media } });
     // 同一個人的其他分頁／裝置不用再響鈴
     for (const other of this.byKey.get(conn.key) || []) if (other !== conn && other.roomId == null) other.send({ t: 'ring-stop', roomId });
   }

@@ -40,6 +40,8 @@
 .hr-call-header span { flex: none; font-size: 12.5px; color: #9ed9c0; }
 .hr-call-grid { position: relative; display: grid; flex: 1; gap: 6px; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); grid-auto-rows: 1fr; }
 .hr-call-grid.count-1 { grid-template-columns: 1fr; }
+/* 7 個畫面以上（SFU 通話最多 20 人）：每個畫面固定高度，超出視窗就上下捲動 */
+.hr-call-grid.count-7 { overflow-y: auto; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: 96px; align-content: start; }
 .hr-call-tile { position: relative; overflow: hidden; display: grid; place-items: center; min-height: 0; border-radius: 12px; background: #16342a; }
 .hr-call-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hr-call-tile.is-local video { transform: scaleX(-1); }

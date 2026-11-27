@@ -28,7 +28,7 @@ export const COPY = {
       'no-camera': '找不到可用的鏡頭，已改用語音通話。', 'peer-hangup': '對方已掛斷，通話已結束。', 'no-mic': '找不到麥克風，已加入通話但對方聽不到你的聲音。請確認裝置後重新加入。', unsupported: '這個瀏覽器不支援通話，請改用最新版的 Chrome 或 Safari。', insecure: '目前的網址不是安全連線（https），瀏覽器會封鎖麥克風與鏡頭。請改用 https 網址開啟本網站。', 'in-app': '應用程式內建的瀏覽器（例如 LINE）不支援通話。請從選單選擇用 Safari 或 Chrome 開啟本網站。',
       offline: '通話連線尚未就緒，請稍後再試。', session: '登入已逾時，請重新整理頁面並重新登入後再試。', service: '通話服務暫時無法使用，請稍後再試；若持續發生請聯絡管理員。', 'ws-failed': '無法連上通話伺服器，請檢查網路後再試；若持續發生請聯絡管理員。', timeout: '連線逾時，請再試一次。', 'connection-lost': '網路中斷，通話已結束。',
       declined: name => `${name || '對方'}已拒絕通話。`, 'no-answer': '沒有人接聽。', 'everyone-left': '其他人都已離開，通話結束。',
-      full: '通話人數已滿（最多 6 人）。', 'bad-ticket': '通話驗證失敗，請重新整理頁面後再試。', 'already-in-call': '你已經在通話中。',
+      full: '通話人數已滿。', 'sfu-failed': '無法連上影像伺服器，請檢查網路後再試；若持續發生請聯絡管理員。', 'bad-ticket': '通話驗證失敗，請重新整理頁面後再試。', 'already-in-call': '你已經在通話中。',
       unknown: '無法開始通話，請稍後再試。',
     },
   },
@@ -48,7 +48,7 @@ export const COPY = {
       'no-camera': 'No usable camera was found, so the call was started with voice only.', 'peer-hangup': 'The other person hung up, so the call ended.', 'no-mic': 'No microphone was found. You joined the call, but others cannot hear you. Check your device and rejoin.', unsupported: 'This browser does not support calls. Please use the latest Chrome or Safari.', insecure: 'This page is not on a secure (https) connection, so the browser blocks the microphone and camera. Please open the site with its https address.', 'in-app': 'In-app browsers such as LINE do not support calls. Open this site in Safari or Chrome from the menu.',
       offline: 'The call connection is not ready yet. Please try again shortly.', session: 'Your session has expired. Refresh the page and sign in again.', service: 'The call service is temporarily unavailable. Try again later, and contact your administrator if it keeps happening.', 'ws-failed': 'Cannot reach the call server. Check your connection and try again, and contact your administrator if it keeps happening.', timeout: 'The connection timed out. Please try again.', 'connection-lost': 'The network was interrupted and the call ended.',
       declined: name => `${name || 'The other person'} declined the call.`, 'no-answer': 'No one answered.', 'everyone-left': 'Everyone else has left, so the call ended.',
-      full: 'The call is full (up to 6 people).', 'bad-ticket': 'Call verification failed. Refresh the page and try again.', 'already-in-call': 'You are already in a call.',
+      full: 'The call is full.', 'sfu-failed': 'Cannot reach the video server. Check your connection and try again, and contact your administrator if it keeps happening.', 'bad-ticket': 'Call verification failed. Refresh the page and try again.', 'already-in-call': 'You are already in a call.',
       unknown: 'Unable to start the call. Please try again later.',
     },
   },
@@ -126,7 +126,7 @@ export function CallView({ state, lang, actions }) {
     </div>}
     {call && <section className={`hr-call-overlay ${call.peers.length === 1 ? 'is-pip' : ''}`} role="dialog" aria-label={copy.callWindow}>
       <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
-      <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 6)}`}>
+      <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 7)}`}>
         {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} />)}
         <Tile stream={call.localStream} name={copy.me} local media={call.media} copy={copy} />
       </div>
@@ -202,7 +202,7 @@ export default function HrCallProvider() {
   const clientRef = useRef(null);
 
   useEffect(() => {
-    const client = new CallClient({ api: callApi, wsUrl, onChange: setState, onSound: playCallTone });
+    const client = new CallClient({ api: callApi, wsUrl, onChange: setState, onSound: playCallTone, loadSfu: () => import('livekit-client') });
     window.addEventListener('pointerdown', unlockAudio, { passive: true });
     window.addEventListener('keydown', unlockAudio);
     clientRef.current = client;

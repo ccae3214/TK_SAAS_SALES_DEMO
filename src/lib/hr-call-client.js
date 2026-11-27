@@ -1,11 +1,22 @@
-// 通話核心（瀏覽器端，不依賴 React）：連信令 WebSocket、管理來電、建立每個人之間的 WebRTC 連線。
-// 多人通話是「每個人彼此直連」(mesh)：新加入的人主動向每位現有參加者送 offer，現有參加者回 answer。
+// 通話核心（瀏覽器端，不依賴 React）：連信令 WebSocket、管理來電、建立影像與聲音的連線。
+// 影像聲音有兩種走法：
+// 1) 預設「每個人彼此直連」(mesh)：新加入的人主動向每位現有參加者送 offer，現有參加者回 answer（上限 6 人）。
+// 2) 伺服器有設定自架 SFU（LiveKit）時改走 SFU：每個人只連到 SFU 伺服器，由它轉送給其他人（上限 20 人）。
+//    信令（響鈴、加入離開、麥克風／鏡頭／喇叭狀態）兩種走法都一樣，仍由這裡的 WebSocket 處理。
 // 畫面在 components/HrCallProvider.jsx；這個檔案也是為了能單獨用瀏覽器測試而不 import 任何東西。
 
 const JOIN_TIMEOUT_MS = 12000;
 const RECONNECT_GIVE_UP_MS = 30000;
 const ALONE_HANGUP_MS = 8000;
 const READY_WAIT_MS = 6000;
+const SFU_LOW_QUALITY_FROM = 7; // 同時收到超過 6 個人的影像時，改收較低畫質，手機才撐得住
+
+// SFU 位址可以寫相對路徑（例如 /livekit，由 nginx 轉送），這裡補成瀏覽器要連的 ws:// 或 wss:// 位址。
+export function resolveSfuUrl(url, env = globalThis) {
+  const value = String(url || '').trim();
+  if (value.startsWith('/')) return `${env.location?.protocol === 'https:' ? 'wss' : 'ws'}://${env.location?.host}${value}`;
+  return value.replace(/^http/i, 'ws');
+}
 
 export function classifyError(error) {
   const name = error?.name || '';
@@ -41,8 +52,14 @@ export function normalizeMedia(value) {
 }
 
 export class CallClient {
-  constructor({ api, wsUrl, onChange, onSound, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
+  // loadSfu：回傳 livekit-client 模組的函式（要用到 SFU 時才載入，沒設定 SFU 的網站不會多下載）。
+  constructor({ api, wsUrl, onChange, onSound, loadSfu = null, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
     this.api = api;
+    this.loadSfu = loadSfu;
+    this.sfuInfo = null; // /api/hr/call 回傳的 { url, token }；沒有就代表這次通話彼此直連
+    this.sfuRoom = null;
+    this.lkStreams = new Map(); // LiveKit 參加者識別碼 → 他的 MediaStream
+    this.lkPresent = new Set(); // 已經連上 SFU 的參加者識別碼
     this.env = env;
     this.readyWaitMs = readyWaitMs;
     this.connecting = false;
@@ -94,7 +111,7 @@ export class CallClient {
         hasMic: !!this.localStream?.getAudioTracks().length,
         speakerOn: this.speakerOn,
         media: this.localMedia(),
-        peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.stream, media: peer.media })),
+        peers: [...this.peers.values()].map(peer => ({ id: peer.id, name: peer.name, state: peer.state, stream: peer.lk ? this.lkStreams.get(peer.lk) || null : peer.stream, media: peer.media })),
       },
     };
   }
@@ -251,6 +268,7 @@ export class CallClient {
       stream = await this.getMedia(video);
       const info = await this.api({ type: 'room', roomId });
       this.iceServers = info.iceServers || [];
+      this.sfuInfo = info.sfu || null;
       this.localStream = stream;
       this.call = { roomId: info.roomId, title: info.title || title, roomType: info.roomType, video, callId: null, myId: null, phase: 'starting', everHadPeer: false };
       this.incoming.delete(info.roomId);
@@ -272,6 +290,7 @@ export class CallClient {
     try {
       const info = await this.api({ type: 'room', roomId: call.roomId });
       this.iceServers = info.iceServers || this.iceServers;
+      this.sfuInfo = info.sfu || null;
       call.phase = 'starting';
       if (!this.send({ t: 'start', ticket: info.ticket, video: call.video, media: this.localMedia() })) throw new Error('offline');
       clearTimeout(this.timers.join);
@@ -306,7 +325,8 @@ export class CallClient {
       case 'joined': {
         if (!this.call) { this.send({ t: 'leave' }); break; }
         clearTimeout(this.timers.join); clearTimeout(this.timers.alone);
-        Object.assign(this.call, { callId: message.callId, myId: message.id, phase: 'active', mode: message.video ? 'video' : 'voice' });
+        Object.assign(this.call, { callId: message.callId, myId: message.id, phase: 'active', mode: message.video ? 'video' : 'voice', sfu: !!message.sfu });
+        if (message.sfu) void this.startSfu();
         for (const peer of message.peers || []) this.addPeer(peer, true);
         this.emit();
         break;
@@ -351,9 +371,98 @@ export class CallClient {
     }
   }
 
+  // ------------------------------------------------------------ SFU（LiveKit）
+  // SFU 通話的參加者沒有自己的 RTCPeerConnection：畫面對應靠簽章票證裡的 LiveKit 識別碼（info.lk），影像聲音從 SFU 收。
+  addSfuPeer(info) {
+    const peer = { id: info.id, name: info.name, lk: info.lk || null, media: normalizeMedia(info.media), pc: null, stream: null, state: 'connecting' };
+    this.peers.set(info.id, peer);
+    this.call.everHadPeer = true;
+    this.call.maxPeers = Math.max(this.call.maxPeers || 0, this.peers.size);
+    this.refreshSfuPeers();
+  }
+
+  refreshSfuPeers() {
+    for (const peer of this.peers.values()) if (peer.lk) peer.state = this.lkPresent.has(peer.lk) ? 'connected' : 'connecting';
+    this.emit();
+  }
+
+  async startSfu() {
+    if (this.sfuRoom) return;
+    const call = this.call;
+    const info = this.sfuInfo;
+    try {
+      if (!call || !info || !this.loadSfu) throw new Error('sfu unavailable');
+      const lk = await this.loadSfu();
+      if (this.call !== call) return;
+      // adaptiveStream 要靠 track.attach() 量畫面大小；這裡自己組 MediaStream 播放，所以關掉，畫質改由 applySfuQuality 控制
+      const next = new lk.Room({ adaptiveStream: false, dynacast: true });
+      this.sfuRoom = next; this.lk = lk;
+      const events = lk.RoomEvent;
+      next.on(events.TrackSubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, true));
+      next.on(events.TrackUnsubscribed, (track, publication, participant) => this.onSfuTrack(participant.identity, track, false));
+      next.on(events.ParticipantConnected, participant => { this.lkPresent.add(participant.identity); this.refreshSfuPeers(); });
+      next.on(events.ParticipantDisconnected, participant => { this.lkPresent.delete(participant.identity); this.lkStreams.delete(participant.identity); this.refreshSfuPeers(); });
+      next.on(events.Disconnected, () => {
+        if (this.sfuRoom !== next || !this.call) return;
+        this.leave({ silent: true });
+        this.setNotice({ type: 'connection-lost' });
+      });
+      await next.connect(resolveSfuUrl(info.url, this.env), info.token);
+      if (this.sfuRoom !== next || !this.call) { try { next.disconnect(false); } catch { /* 已經離開 */ } return; }
+      for (const track of this.localStream?.getTracks() || []) {
+        const isVideo = track.kind === 'video';
+        await next.localParticipant.publishTrack(track, { source: isVideo ? lk.Track.Source.Camera : lk.Track.Source.Microphone, simulcast: isVideo });
+      }
+      for (const participant of next.remoteParticipants.values()) {
+        this.lkPresent.add(participant.identity);
+        for (const publication of participant.trackPublications.values()) if (publication.track) this.onSfuTrack(participant.identity, publication.track, true);
+      }
+      this.refreshSfuPeers();
+      this.applySfuQuality();
+    } catch {
+      if (this.call === call) {
+        this.leave({ silent: true });
+        this.setNotice({ type: 'sfu-failed' });
+      }
+    }
+  }
+
+  onSfuTrack(identity, track, added) {
+    const mediaTrack = track?.mediaStreamTrack;
+    if (!mediaTrack || !this.MediaStreamCtor) return;
+    let stream = this.lkStreams.get(identity);
+    if (added) {
+      if (!stream) { stream = new this.MediaStreamCtor(); this.lkStreams.set(identity, stream); }
+      stream.addTrack(mediaTrack);
+    } else if (stream) stream.removeTrack(mediaTrack);
+    this.lkPresent.add(identity);
+    this.refreshSfuPeers();
+    this.applySfuQuality();
+  }
+
+  // 人多的時候只收較低畫質的影像（SFU 會轉送對應的 simulcast 層），減少手機與網路的負擔
+  applySfuQuality() {
+    const room = this.sfuRoom;
+    if (!room || !this.lk?.VideoQuality) return;
+    const quality = room.remoteParticipants.size >= SFU_LOW_QUALITY_FROM ? this.lk.VideoQuality.LOW : this.lk.VideoQuality.HIGH;
+    for (const participant of room.remoteParticipants.values()) {
+      for (const publication of participant.trackPublications.values()) if (publication.kind === 'video') { try { publication.setVideoQuality?.(quality); } catch { /* 單一影像失敗不影響通話 */ } }
+    }
+  }
+
+  // 離開 SFU：disconnect(false) 不會順便停掉本機的麥克風／鏡頭（斷線重連時還要繼續用），要停由 cleanup 負責
+  stopSfu() {
+    const room = this.sfuRoom;
+    this.sfuRoom = null;
+    this.lkStreams.clear();
+    this.lkPresent.clear();
+    if (room) { try { room.disconnect(false); } catch { /* 已經離開 */ } }
+  }
+
   // ------------------------------------------------------------ WebRTC
   addPeer(info, initiator) {
     if (!this.call || this.peers.has(info.id)) return;
+    if (this.call.sfu) { this.addSfuPeer(info); return; }
     const pc = new this.PeerCtor({ iceServers: this.iceServers });
     const peer = { id: info.id, name: info.name, media: normalizeMedia(info.media), pc, stream: null, state: 'connecting', queued: [], remoteSet: false, restarted: false, initiator };
     this.peers.set(info.id, peer);
@@ -411,8 +520,8 @@ export class CallClient {
   removePeer(id) {
     const peer = this.peers.get(id);
     if (!peer) return;
-    peer.pc.onconnectionstatechange = null; peer.pc.ontrack = null; peer.pc.onicecandidate = null;
-    peer.pc.close();
+    if (peer.pc) { peer.pc.onconnectionstatechange = null; peer.pc.ontrack = null; peer.pc.onicecandidate = null; peer.pc.close(); }
+    if (peer.lk) this.lkStreams.delete(peer.lk);
     this.peers.delete(id);
     // 大家都走了就自動掛斷（一對一通話對方掛掉時，自己這邊也結束）
     if (!this.peers.size && this.call?.everHadPeer && this.call.phase === 'active') {
@@ -422,13 +531,14 @@ export class CallClient {
     this.emit();
   }
 
-  dropPeers() { for (const id of [...this.peers.keys()]) this.removePeer(id); }
+  dropPeers() { for (const id of [...this.peers.keys()]) this.removePeer(id); this.stopSfu(); }
 
   cleanup() {
     for (const name of Object.keys(this.timers)) clearTimeout(this.timers[name]);
     this.timers = {};
-    for (const peer of this.peers.values()) { peer.pc.onconnectionstatechange = null; peer.pc.close(); }
+    for (const peer of this.peers.values()) { if (peer.pc) { peer.pc.onconnectionstatechange = null; peer.pc.close(); } }
     this.peers.clear();
+    this.stopSfu();
     this.localStream?.getTracks().forEach(track => track.stop());
     this.localStream = null;
     this.call = null;
