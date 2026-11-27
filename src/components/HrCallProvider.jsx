@@ -168,6 +168,35 @@ function startRingtone() {
   return () => { clearInterval(timer); try { navigator.vibrate?.(0); } catch { /* 不支援震動 */ } };
 }
 
+// 撥出方的等待答鈴：撥出後、還沒有人接聽時，播放電話的「嘟—」回鈴音（440＋480 Hz，響 1 秒、停 2 秒），語音、視訊都一樣。
+// 撥號是點擊動作，AudioContext 已經啟用，所以 iPhone／Safari 也會響。關掉喇叭時不播放。
+export const RINGBACK_FREQUENCIES = [440, 480];
+export const RINGBACK_ON_SECONDS = 1;
+export const RINGBACK_INTERVAL_MS = 3000;
+function startRingback() {
+  const ring = () => {
+    unlockAudio();
+    const context = sharedAudio;
+    if (!context || context.state !== 'running') return;
+    const start = context.currentTime; const end = start + RINGBACK_ON_SECONDS;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.06, start + 0.03);
+    gain.gain.setValueAtTime(0.06, end - 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    gain.connect(context.destination);
+    for (const frequency of RINGBACK_FREQUENCIES) {
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sine'; oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(start); oscillator.stop(end + 0.05);
+    }
+  };
+  ring();
+  const timer = setInterval(ring, RINGBACK_INTERVAL_MS);
+  return () => clearInterval(timer);
+}
+
 // 通話中的提示音：有人加入（往上兩聲）、有人離開或掛斷（往下兩聲）。
 // 瀏覽器要求聲音必須在使用者操作之後才能播放，所以第一次點擊／按鍵時先建立並啟用 AudioContext（撥號、接聽都是點擊）。
 let sharedAudio = null;
@@ -224,6 +253,14 @@ export default function HrCallProvider() {
     const stopRingtone = startRingtone();
     return () => { document.title = original; stopRingtone(); };
   }, [ringing]);
+
+  // 撥出方等待接聽（還沒有任何人加入過）時播放答鈴；有人接聽、掛斷、逾時或關掉喇叭就停止。
+  const call = state?.call;
+  const waitingForAnswer = !!call && call.phase !== 'reconnecting' && !call.everHadPeer && !call.peers.length && call.speakerOn !== false;
+  useEffect(() => {
+    if (!waitingForAnswer) return undefined;
+    return startRingback();
+  }, [waitingForAnswer]);
 
   const inCall = !!state?.call;
   useEffect(() => {

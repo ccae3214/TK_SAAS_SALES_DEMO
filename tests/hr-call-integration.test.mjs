@@ -114,6 +114,20 @@ test('來電鈴聲：共用已啟用的 AudioContext（不另外新建、不關�
   assert.ok(provider.includes('export const RING_PATTERN'));
 });
 
+test('撥出方等待答鈴：還沒人接聽時播放回鈴音，語音、視訊都一樣，有人接聽或關喇叭就停', async () => {
+  const provider = await read('../src/components/HrCallProvider.jsx');
+  const start = provider.indexOf('function startRingback()');
+  const ringback = provider.slice(start, provider.indexOf('\n}\n', start));
+  assert.ok(start > 0);
+  assert.ok(ringback.includes('sharedAudio') && ringback.includes('unlockAudio()'));
+  assert.ok(!ringback.includes('new AudioContextCtor') && !ringback.includes('.close('), '不能自己新建或關閉共用的 AudioContext');
+  assert.ok(ringback.includes('setInterval(ring, RINGBACK_INTERVAL_MS)') && ringback.includes('return () => clearInterval(timer)'));
+  const condition = provider.slice(provider.indexOf('const waitingForAnswer'), provider.indexOf('\n', provider.indexOf('const waitingForAnswer')));
+  assert.ok(condition.includes('!call.everHadPeer') && condition.includes('!call.peers.length') && condition.includes("call.speakerOn !== false"));
+  assert.ok(!condition.includes('video'), '語音、視訊都要響');
+  assert.ok(provider.includes('return startRingback();'));
+});
+
 test('來電通知：推播訂閱 API 的聊天室識別與聊天室 API 相同，所有環節都接上', async () => {
   const chat = await read('../src/app/api/hr/chat/route.js');
   const push = await read('../src/app/api/hr/push/route.js');
