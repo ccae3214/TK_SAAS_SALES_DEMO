@@ -1,26 +1,32 @@
 import argparse
+import gc
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-import torch
-from kokoro import KPipeline
-from voxcpm import VoxCPM
-
-from audio_processing import slow_mandarin_audio
-
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK_DIR = ROOT / "tmp" / "mandarin_a1_unit1_tagalog_preview"
 DEFAULT_SLIDES_DIR = WORK_DIR / "slides"
-DEFAULT_OUTPUT_DIR = ROOT / "deliverables"
+DEFAULT_OUTPUT_DIR = ROOT / "public" / "videos"
 MODEL_ID = "openbmb/VoxCPM2"
 SAMPLE_RATE = 24_000
-CHINESE_VOICE = "zm_yunjian"
-CHINESE_TEACHER_VOICE = "zf_xiaobei"
+REPEAT_GAP_SECONDS = 1.0
+ITEM_GAP_SECONDS = 0.6
+MANDARIN_TTS_SEEDS: dict[tuple[int, int], int] = {
+    (3, 1): 20261128,
+    (6, 1): 20261128,
+}
+VOICE_REFERENCE = (
+    ROOT
+    / "tmp"
+    / "mandarin_a1_unit1_voxcpm2_audition"
+    / "mandarin_demo_voice_reference.wav"
+)
 FILIPINO_VOICE_CONTROL = (
     "A clear, warm, natural female voice speaking Tagalog with a Filipino accent, "
     "like a patient Mandarin A1 teacher, at a moderate and steady pace."
@@ -29,6 +35,23 @@ FILIPINO_VOICE_REFERENCE_TEXT = (
     "Magandang araw. Ako ang inyong guro sa araling Mandarin. "
     "Makinig nang mabuti at ulitin ang bawat salita."
 )
+HIGHLIGHT_BOXES = {
+    3: [(74, 232, 270, 360), (360, 232, 270, 360), (660, 232, 270, 360), (958, 232, 270, 360)],
+    4: [(160, 176, 1040, 116), (160, 320, 1040, 126), (160, 535, 264, 72), (385, 535, 429, 72)],
+    5: [
+        (92, 230, 488, 80), (92, 331, 488, 80), (92, 432, 488, 80), (92, 533, 488, 80),
+        (672, 230, 488, 80), (672, 331, 488, 80), (672, 432, 488, 80),
+    ],
+    6: [(90, 214 + 57 * index, 1090, 54) for index in range(7)],
+    7: [(90, 230, 1090, 72), (90, 318, 1090, 76), (90, 410, 1090, 80), (90, 504, 1090, 80)],
+    8: [
+        (88, 208, 548, 96), (676, 208, 508, 96),
+        (88, 310, 548, 100), (676, 310, 508, 100),
+        (88, 416, 548, 100), (676, 416, 508, 100),
+        (88, 522, 548, 118), (676, 522, 508, 118),
+    ],
+    9: [(96, 488, 140, 56), (246, 488, 250, 56), (508, 488, 172, 56)],
+}
 
 
 SCENES = [
@@ -59,10 +82,10 @@ SCENES = [
             "Ang ikaapat na tono ay mabilis na pababa. Makinig at ulitin ang bawat tunog."
         ),
         "mandarin": [
-            {"text": "媽", "voice": "demo"},
-            {"text": "麻", "voice": "demo"},
-            {"text": "馬", "voice": "demo"},
-            {"text": "罵", "voice": "demo"},
+            {"text": "媽", "pinyin": "ma1"},
+            {"text": "麻", "pinyin": "ma2"},
+            {"text": "馬", "pinyin": "ma3"},
+            {"text": "罵", "pinyin": "ma4"},
         ],
     },
     {
@@ -75,10 +98,10 @@ SCENES = [
             "Pakinggan ang bawat halimbawa at ulitin pagkatapos ng maikling paghinto."
         ),
         "mandarin": [
-            {"text": "你好", "voice": "demo"},
-            {"text": "不是", "voice": "demo"},
-            {"text": "一次", "voice": "demo"},
-            {"text": "一天", "voice": "demo"},
+            {"text": "你好", "pinyin": "ni2 hao3"},
+            {"text": "不是", "pinyin": "bu2 shi4"},
+            {"text": "一次", "pinyin": "yi2 ci4"},
+            {"text": "一天", "pinyin": "yi4 tian1"},
         ],
     },
     {
@@ -88,13 +111,13 @@ SCENES = [
             "Pagkatapos ng bawat salita, may maikling paghinto bago ito ulitin."
         ),
         "mandarin": [
-            {"text": "你", "voice": "demo"},
-            {"text": "好", "voice": "demo"},
-            {"text": "我", "voice": "demo"},
-            {"text": "他", "voice": "demo"},
-            {"text": "她", "voice": "demo"},
-            {"text": "是", "voice": "demo"},
-            {"text": "不", "voice": "demo"},
+            {"text": "你", "pinyin": "ni3"},
+            {"text": "好", "pinyin": "hao3"},
+            {"text": "我", "pinyin": "wo3"},
+            {"text": "他", "pinyin": "ta1"},
+            {"text": "她", "pinyin": "ta1"},
+            {"text": "是", "pinyin": "shi4"},
+            {"text": "不", "pinyin": "bu4"},
         ],
     },
     {
@@ -105,13 +128,13 @@ SCENES = [
             "at ulitin ito nang dahan-dahan."
         ),
         "mandarin": [
-            {"text": "謝謝", "voice": "demo"},
-            {"text": "再見", "voice": "demo"},
-            {"text": "對不起", "voice": "demo"},
-            {"text": "不客氣", "voice": "demo"},
-            {"text": "老師", "voice": "demo"},
-            {"text": "同學", "voice": "demo"},
-            {"text": "請問", "voice": "demo"},
+            {"text": "謝謝", "pinyin": "xie4 xie5"},
+            {"text": "再見", "pinyin": "zai4 jian4"},
+            {"text": "對不起", "pinyin": "dui4 bu4 qi3"},
+            {"text": "不客氣", "pinyin": "bu4 ke4 qi5"},
+            {"text": "老師", "pinyin": "lao3 shi1"},
+            {"text": "同學", "pinyin": "tong2 xue2"},
+            {"text": "請問", "pinyin": "qing3 wen4"},
         ],
     },
     {
@@ -122,10 +145,10 @@ SCENES = [
             "Kung hindi mo naintindihan, sabihin ito nang tapat."
         ),
         "mandarin": [
-            {"text": "你好。", "voice": "demo"},
-            {"text": "謝謝。", "voice": "demo"},
-            {"text": "請再說一次。", "voice": "demo"},
-            {"text": "我不懂。", "voice": "demo"},
+            {"text": "你好。", "pinyin": "ni2 hao3"},
+            {"text": "謝謝。", "pinyin": "xie4 xie5"},
+            {"text": "請再說一次。", "pinyin": "qing3 zai4 shuo1 yi2 ci4"},
+            {"text": "我不懂。", "pinyin": "wo3 bu4 dong3"},
         ],
     },
     {
@@ -135,14 +158,14 @@ SCENES = [
             "Bawat linya sa Mandarin ay uulitin nang dalawang beses, na may malinaw na paghinto sa gitna."
         ),
         "mandarin": [
-            {"text": "你好！", "voice": "teacher"},
-            {"text": "你好！", "voice": "student"},
-            {"text": "請問，你叫什麼名字？", "voice": "teacher"},
-            {"text": "我叫王明。", "voice": "student"},
-            {"text": "請再說一次。", "voice": "teacher"},
-            {"text": "王，明。", "voice": "student"},
-            {"text": "謝謝。", "voice": "teacher"},
-            {"text": "不客氣。", "voice": "student"},
+            {"text": "你好！", "pinyin": "ni2 hao3"},
+            {"text": "你好！", "pinyin": "ni2 hao3"},
+            {"text": "請問，你叫什麼名字？", "pinyin": "qing3 wen4 ni3 jiao4 shen2 me5 ming2 zi5"},
+            {"text": "我叫王明。", "pinyin": "wo3 jiao4 wang2 ming2"},
+            {"text": "請再說一次。", "pinyin": "qing3 zai4 shuo1 yi2 ci4"},
+            {"text": "王，明。", "pinyin": "wang2 ming2"},
+            {"text": "謝謝。", "pinyin": "xie4 xie5"},
+            {"text": "不客氣。", "pinyin": "bu4 ke4 qi5"},
         ],
     },
     {
@@ -152,9 +175,9 @@ SCENES = [
             "Sa susunod na yunit, pag-aaralan natin ang pagbati at pagpapakilala."
         ),
         "mandarin": [
-            {"text": "你好", "voice": "demo"},
-            {"text": "請再說一次", "voice": "demo"},
-            {"text": "我不懂", "voice": "demo"},
+            {"text": "你好", "pinyin": "ni2 hao3"},
+            {"text": "請再說一次", "pinyin": "qing3 zai4 shuo1 yi2 ci4"},
+            {"text": "我不懂", "pinyin": "wo3 bu4 dong3"},
         ],
     },
 ]
@@ -181,18 +204,24 @@ def resample(audio: np.ndarray, source_rate: int) -> np.ndarray:
     return np.frombuffer(result.stdout, dtype="<f4").copy()
 
 
-def synthesize_chinese(pipeline: KPipeline, text: str, voice: str) -> np.ndarray:
-    chunks = []
-    for _, _, audio in pipeline(text, voice=voice, speed=0.98):
-        if isinstance(audio, torch.Tensor):
-            audio = audio.detach().cpu().numpy()
-        chunks.append(np.asarray(audio, dtype=np.float32).reshape(-1))
-    if not chunks:
-        raise RuntimeError(f"Kokoro returned empty audio for {text!r}")
-    audio = slow_mandarin_audio(np.concatenate(chunks), SAMPLE_RATE)
-    if audio.size == 0 or not np.isfinite(audio).all():
-        raise RuntimeError(f"Kokoro returned invalid Mandarin audio for {text!r}")
-    return audio
+def validate_mandarin_pinyin(item: dict[str, str]) -> None:
+    pinyin = item["pinyin"]
+    syllables = pinyin.split()
+    if not syllables or any(not re.fullmatch(r"[a-z]+[1-5]", syllable) for syllable in syllables):
+        raise ValueError(f"Invalid tone-numbered Pinyin for {item['text']!r}: {pinyin!r}")
+
+
+def mandarin_tts_input(
+    scene_id: int,
+    index: int,
+    item: dict[str, str],
+) -> tuple[str, int | None]:
+    validate_mandarin_pinyin(item)
+    return item["pinyin"], MANDARIN_TTS_SEEDS.get((scene_id, index))
+
+
+def repeat_chinese_practice(audio: np.ndarray) -> np.ndarray:
+    return np.concatenate((audio, silence(REPEAT_GAP_SECONDS), audio))
 
 
 def vtt_timestamp(seconds: float) -> str:
@@ -202,6 +231,24 @@ def vtt_timestamp(seconds: float) -> str:
     whole_seconds = (milliseconds % 60_000) // 1000
     remainder = milliseconds % 1000
     return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}.{remainder:03d}"
+
+
+def highlight_filter(
+    start: float,
+    end: float,
+    box: tuple[int, int, int, int],
+) -> str:
+    if start < 0 or end <= start:
+        raise ValueError(f"Invalid highlight interval: {start}..{end}")
+    x, y, width, height = box
+    if x < 0 or y < 0 or width <= 0 or height <= 0 or x + width > 1280 or y + height > 720:
+        raise ValueError(f"Highlight box is outside the 1280x720 slide: {box}")
+
+    enable = f"between(t\\,{start:.6f}\\,{end:.6f})"
+    return (
+        f"drawbox=x={x}:y={y}:w={width}:h={height}:color=0xFFB703@0.20:t=fill:enable='{enable}',"
+        f"drawbox=x={x}:y={y}:w={width}:h={height}:color=0xFFB703@0.95:t=4:enable='{enable}'"
+    )
 
 
 def run_ffmpeg(command: list[str], action: str) -> None:
@@ -214,6 +261,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--slides-dir", type=Path, default=DEFAULT_SLIDES_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--reuse-tagalog-audio", action="store_true")
     args = parser.parse_args()
 
     slides_dir = args.slides_dir.resolve()
@@ -227,65 +275,83 @@ def main() -> None:
         if not slide_path.is_file():
             raise FileNotFoundError(f"Missing slide image from the reviewed deck: {slide_path}")
 
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    print("Loading local VoxCPM2 model for Tagalog narration...", flush=True)
-    filipino_model = VoxCPM.from_pretrained(
-        MODEL_ID,
-        load_denoiser=False,
-        local_files_only=True,
-        optimize=False,
-        device="cpu",
-    )
-    sample_rate = int(filipino_model.tts_model.sample_rate)
-
-    reference_path = audio_dir / "tagalog_teacher_reference.wav"
-    reference_audio = filipino_model.generate(
-        text=f"({FILIPINO_VOICE_CONTROL}){FILIPINO_VOICE_REFERENCE_TEXT}",
-        cfg_value=2.0,
-        inference_timesteps=10,
-    )
-    if reference_audio.size == 0 or not np.isfinite(reference_audio).all():
-        raise RuntimeError("VoxCPM2 returned an invalid Tagalog voice reference")
-    sf.write(reference_path, reference_audio, sample_rate)
-    print("Created a single Tagalog teacher voice reference.", flush=True)
-
     filipino_narration: dict[int, np.ndarray] = {}
-    for scene in SCENES:
-        audio = filipino_model.generate(
-            text=f"({FILIPINO_VOICE_CONTROL}){scene['narration']}",
-            reference_wav_path=str(reference_path),
+    if args.reuse_tagalog_audio:
+        for scene in SCENES:
+            audio_path = audio_dir / f"tagalog-slide-{scene['id']}.wav"
+            if not audio_path.is_file():
+                raise FileNotFoundError(f"Missing Tagalog narration WAV: {audio_path}")
+            audio, sample_rate = sf.read(audio_path, dtype="float32")
+            if audio.ndim != 1 or audio.size == 0 or not np.isfinite(audio).all():
+                raise RuntimeError(f"Invalid Tagalog narration WAV: {audio_path}")
+            filipino_narration[scene["id"]] = resample(audio, int(sample_rate))
+            print(f"Reused Tagalog narration for slide {scene['id']}.", flush=True)
+    else:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        print("Loading local VoxCPM2 model for Tagalog narration...", flush=True)
+        from voxcpm import VoxCPM
+
+        filipino_model = VoxCPM.from_pretrained(
+            MODEL_ID,
+            load_denoiser=False,
+            local_files_only=True,
+            optimize=False,
+            device="cpu",
+        )
+        sample_rate = int(filipino_model.tts_model.sample_rate)
+
+        reference_path = audio_dir / "tagalog_teacher_reference.wav"
+        reference_audio = filipino_model.generate(
+            text=f"({FILIPINO_VOICE_CONTROL}){FILIPINO_VOICE_REFERENCE_TEXT}",
             cfg_value=2.0,
             inference_timesteps=10,
         )
-        if audio.size == 0 or not np.isfinite(audio).all():
-            raise RuntimeError(f"VoxCPM2 returned invalid Tagalog narration for slide {scene['id']}")
-        output_path = audio_dir / f"tagalog-slide-{scene['id']}.wav"
-        sf.write(output_path, audio, sample_rate)
-        filipino_narration[scene["id"]] = resample(audio, sample_rate)
-        print(f"Generated Tagalog narration for slide {scene['id']}.", flush=True)
+        if reference_audio.size == 0 or not np.isfinite(reference_audio).all():
+            raise RuntimeError("VoxCPM2 returned an invalid Tagalog voice reference")
+        sf.write(reference_path, reference_audio, sample_rate)
+        print("Created a single Tagalog teacher voice reference.", flush=True)
 
-    print("Loading local Kokoro Mandarin voices...", flush=True)
-    chinese_pipeline = KPipeline(lang_code="z", repo_id="hexgrad/Kokoro-82M", device="cpu")
+        for scene in SCENES:
+            audio = filipino_model.generate(
+                text=f"({FILIPINO_VOICE_CONTROL}){scene['narration']}",
+                reference_wav_path=str(reference_path),
+                cfg_value=2.0,
+                inference_timesteps=10,
+            )
+            if audio.size == 0 or not np.isfinite(audio).all():
+                raise RuntimeError(
+                    f"VoxCPM2 returned invalid Tagalog narration for slide {scene['id']}"
+                )
+            output_path = audio_dir / f"tagalog-slide-{scene['id']}.wav"
+            sf.write(output_path, audio, sample_rate)
+            filipino_narration[scene["id"]] = resample(audio, sample_rate)
+            print(f"Generated Tagalog narration for slide {scene['id']}.", flush=True)
+
+        del reference_audio, filipino_model
+        gc.collect()
+
+    print("Loading local MOSS-TTS Mandarin model...", flush=True)
+    from moss_tts import MossTTS
+
+    chinese_tts = MossTTS(VOICE_REFERENCE)
     mandarin_audio: dict[tuple[int, int], np.ndarray] = {}
     for scene in SCENES:
         for index, item in enumerate(scene["mandarin"]):
-            voice = {
-                "demo": CHINESE_VOICE,
-                "teacher": CHINESE_TEACHER_VOICE,
-                "student": CHINESE_VOICE,
-            }[item["voice"]]
-            mandarin_audio[(scene["id"], index)] = synthesize_chinese(
-                chinese_pipeline, item["text"], voice
+            tts_text, seed = mandarin_tts_input(scene["id"], index, item)
+            audio = chinese_tts.synthesize(tts_text, seed=seed)
+            mandarin_audio[(scene["id"], index)] = resample(
+                audio, chinese_tts.sample_rate
             )
             print(
-                f"Generated Mandarin sample slide {scene['id']} line {index + 1} "
-                f"({item['voice']}).",
+                f"Generated MOSS-TTS Mandarin sample slide {scene['id']} "
+                f"line {index + 1} ({item['pinyin']}).",
                 flush=True,
             )
 
     scene_metadata = []
     caption_cues = []
     master_parts = []
+    scene_highlights: dict[int, list[tuple[float, float, tuple[int, int, int, int]]]] = {}
     timeline = 0.0
     for scene in SCENES:
         parts = [silence(0.25), filipino_narration[scene["id"]]]
@@ -299,14 +365,25 @@ def main() -> None:
         if scene["mandarin"]:
             parts.append(silence(0.65))
             elapsed += 0.65
+            boxes = HIGHLIGHT_BOXES.get(scene["id"], [])
+            if len(boxes) != len(scene["mandarin"]):
+                raise ValueError(
+                    f"Expected one highlight box per Mandarin sample on slide {scene['id']}"
+                )
             for index, item in enumerate(scene["mandarin"]):
                 audio = mandarin_audio[(scene["id"], index)]
                 cue_start = timeline + elapsed
                 duration = len(audio) / SAMPLE_RATE
-                parts.extend([audio, silence(1.1), audio, silence(0.95)])
-                elapsed += duration * 2 + 1.1 + 0.95
+                practice_audio = repeat_chinese_practice(audio)
+                practice_duration = len(practice_audio) / SAMPLE_RATE
+                scene_highlights.setdefault(scene["id"], []).append(
+                    (elapsed, elapsed + practice_duration, boxes[index])
+                )
+                parts.extend([practice_audio, silence(ITEM_GAP_SECONDS)])
+                elapsed += practice_duration + ITEM_GAP_SECONDS
                 caption_cues.append(
-                    f"{vtt_timestamp(cue_start)} --> {vtt_timestamp(timeline + elapsed)}\n"
+                    f"{vtt_timestamp(cue_start)} --> "
+                    f"{vtt_timestamp(cue_start + practice_duration)}\n"
                     f"{item['text']}"
                 )
         else:
@@ -335,14 +412,14 @@ def main() -> None:
     sf.write(master_path, master_audio, SAMPLE_RATE)
     scenes_path = WORK_DIR / "scenes.json"
     scenes_path.write_text(json.dumps(scene_metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-    vtt_path = output_dir / "mandarin-a1-unit1-tagalog-preview.vtt"
+    vtt_path = output_dir / "mandarin-a1-unit-1-fil.vtt"
     vtt_path.write_text(
         "WEBVTT\n\n" + "\n\n".join(caption_cues) + "\n",
         encoding="utf-8",
     )
 
-    mp4_path = output_dir / "mandarin-a1-unit1-tagalog-preview.mp4"
-    mp3_path = output_dir / "mandarin-a1-unit1-tagalog-preview.mp3"
+    mp4_path = output_dir / "mandarin-a1-unit-1-fil.mp4"
+    mp3_path = output_dir / "mandarin-a1-unit-1-fil.mp3"
     video_command = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
     for index, scene in enumerate(scene_metadata):
         video_command.extend(
@@ -357,7 +434,11 @@ def main() -> None:
     for index in range(len(scene_metadata)):
         stream = f"slide{index}"
         streams.append(f"[{stream}]")
-        filters.append(f"[{index}:v]setpts=PTS-STARTPTS,setsar=1[{stream}]")
+        scene = scene_metadata[index]
+        video_filter = f"[{index}:v]setpts=PTS-STARTPTS,setsar=1"
+        for start, end, box in scene_highlights.get(scene["id"], []):
+            video_filter += "," + highlight_filter(start, end, box)
+        filters.append(f"{video_filter}[{stream}]")
     filters.append(f"{''.join(streams)}concat=n={len(scene_metadata)}:v=1:a=0[outv]")
     total_duration = sum(scene["duration"] for scene in scene_metadata)
     video_command.extend(

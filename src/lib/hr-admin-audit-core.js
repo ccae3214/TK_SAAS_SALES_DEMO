@@ -87,6 +87,10 @@ export function describeAdminOperation(method, type, body, name, before, created
 export const ADMIN_AUDIT_INSERT_SQL = `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8)`;
 
+// 網頁操作經過 withAdminAudit 時，另外記下改之前／改之後（$9、$10，只含變動的欄位）。
+export const ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL = `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary,before_data,after_data)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb)`;
+
 export const adminActorName = (principal, session) => String(principal?.name || session?.user?.name || session?.user?.email || '系統管理員').slice(0, 160);
 
 // 依序對應 ADMIN_AUDIT_INSERT_SQL 的 $1～$8；所有文字欄位都截到資料表允許的長度。

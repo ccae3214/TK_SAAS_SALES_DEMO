@@ -8,7 +8,7 @@ import { insertWorkerDocuments } from '@/lib/hr-requirements';
 import { syncLineRichMenu } from '@/lib/hr-line-bot';
 import { normalizeRecordEmail } from '@/lib/hr-linked-record-store';
 import { normalizePersonName } from '@/lib/person-name';
-import { EMPLOYER_TYPES, clean, WORKER_JOB_PREFERENCES, cleanWorkerResumeProfile, workerGenderCode, workerProfileWithReference, validId, employerProfileFromBody } from '../_shared';
+import { EMPLOYER_TYPES, clean, WORKER_JOB_PREFERENCES, cleanWorkerResumeProfile, persistWorkerPhoto, workerGenderCode, workerProfileWithReference, validId, employerProfileFromBody } from '../_shared';
 
 const MEMBER_EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
@@ -25,6 +25,7 @@ export const createAgencyWorker = {
       VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name,clean(body.nationality,80),clean(body.phone,50),email,jobPreference,clean(body.notes,2000),JSON.stringify(workerProfile),principal.agency_id]);
     const profile=workerProfileWithReference(workerProfile,jobPreference,created[0].id);
     const saved=await query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *',[created[0].id,JSON.stringify(profile)]);
+    await persistWorkerPhoto(pool,created[0].id,profile);
     await insertWorkerDocuments(pool,created[0].id,profile);
     return NextResponse.json(saved[0], { status: 201 });
   },
@@ -155,6 +156,7 @@ export const createEmployerOrWorker = {
           VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *`, [name, clean(body.nationality,80), clean(body.phone,50), email, jobPreference, clean(body.notes,2000), JSON.stringify(workerProfile), agencyId])).rows[0];
         const profile = workerProfileWithReference(workerProfile, jobPreference, created.id);
         record = (await client.query('UPDATE hr_workers SET resume_profile=$2::jsonb WHERE id=$1 RETURNING *', [created.id, JSON.stringify(profile)])).rows[0];
+        await persistWorkerPhoto(client, created.id, profile);
         await insertWorkerDocuments(client, created.id, profile);
       }
       await client.query(`INSERT INTO hr_members(email,display_name,password_hash,role,worker_id,employer_id,admin_scope)
