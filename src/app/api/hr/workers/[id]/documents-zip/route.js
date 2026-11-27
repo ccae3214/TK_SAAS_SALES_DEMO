@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { auth } from '@/auth';
 import { ensureHrIdentitySchema, getHrPrincipal } from '@/lib/hr-access';
-import { createZip } from '@/lib/zip-store';
+import { createZipStream } from '@/lib/zip-store';
 import {
   MAX_ZIP_SOURCE_BYTES, documentEntryName, documentsManifest, safeFileName, workerDocumentsAccessError,
 } from '@/lib/hr-worker-documents-zip';
@@ -49,33 +49,45 @@ export async function GET(request, { params }) {
       return fail('已核准文件的總大小超過打包上限，請改為逐份下載。', 413);
     }
 
+    // 檔名、大小、SHA-256 都已在上面的清單查詢取得，所以可以先算好 Content-Length，
+    // 再一份一份解密送出（記憶體裡同時最多只有一份文件），不必把整包 ZIP 組在記憶體裡。
     const entries = [];
     const manifestItems = [];
     for (const [index, file] of files.entries()) {
-      const blob = (await pool.query('SELECT iv,auth_tag,encrypted_data FROM hr_document_files WHERE submission_id=$1', [file.submission_id])).rows[0];
-      const decipher = createDecipheriv('aes-256-gcm', key, blob.iv);
-      decipher.setAuthTag(blob.auth_tag);
-      const data = Buffer.concat([decipher.update(blob.encrypted_data), decipher.final()]);
-      const actual = createHash('sha256').update(data).digest();
-      const stored = Buffer.from(file.sha256, 'hex');
-      if (actual.length !== stored.length || !timingSafeEqual(actual, stored)) throw new Error('document_integrity_check_failed');
       const entryName = documentEntryName(index, file.name, file.content_type);
-      entries.push({ name: entryName, data });
+      entries.push({ name: entryName, size: Number(file.size_bytes), load: async () => {
+        const blob = (await pool.query('SELECT iv,auth_tag,encrypted_data FROM hr_document_files WHERE submission_id=$1', [file.submission_id])).rows[0];
+        if (!blob) throw new Error('document_missing');
+        const decipher = createDecipheriv('aes-256-gcm', key, blob.iv);
+        decipher.setAuthTag(blob.auth_tag);
+        const data = Buffer.concat([decipher.update(blob.encrypted_data), decipher.final()]);
+        const actual = createHash('sha256').update(data).digest();
+        const stored = Buffer.from(file.sha256, 'hex');
+        if (actual.length !== stored.length || !timingSafeEqual(actual, stored)) throw new Error('document_integrity_check_failed');
+        return data;
+      } });
       manifestItems.push({ entryName, name: file.name, version: file.version_number, originalFilename: file.original_filename, sha256: file.sha256 });
     }
-    const manifest = documentsManifest(worker.name, manifestItems);
-    entries.push({ name: '00_文件清單_Document-list.txt', data: Buffer.from(`﻿${manifest}`, 'utf8') });
-    const zip = createZip(entries);
+    const manifest = Buffer.from(`﻿${documentsManifest(worker.name, manifestItems)}`, 'utf8');
+    entries.unshift({ name: '00_文件清單_Document-list.txt', size: manifest.length, load: async () => manifest });
+
+    // 第一份文件先解密驗證：金鑰錯誤時還能回 500 的錯誤訊息，而不是給一個下載到一半就中斷的檔案。
+    const firstFile = await entries[1].load();
+    entries[1] = { ...entries[1], load: async () => firstFile };
 
     const actor = session.user?.email || session.user?.lineUserId || '登入帳號';
-    await pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1',
-      [workerId, actor, '打包下載已核准文件', `${files.length} 份`]);
+    const { stream, length } = createZipStream(entries, {
+      // 全部送完才記錄「打包下載已核准文件」。
+      onComplete: () => pool.query('INSERT INTO hr_case_activity(case_id,actor_email,action,detail) SELECT id,$2,$3,$4 FROM hr_cases WHERE worker_id=$1',
+        [workerId, actor, '打包下載已核准文件', `${files.length} 份`]),
+      onError: error => console.error('hr_worker_documents_zip_stream_failed', error?.message === 'document_integrity_check_failed' ? 'integrity' : error?.name || 'Error'),
+    });
 
     const fileName = `${safeFileName(worker.name, 'worker')}_approved-documents.zip`;
-    return new Response(zip, { headers: {
+    return new Response(stream, { headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="approved-documents.zip"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-      'Content-Length': String(zip.length),
+      'Content-Length': String(length),
       'Cache-Control': 'private, no-store, max-age=0',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',

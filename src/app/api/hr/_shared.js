@@ -5,6 +5,7 @@ import { WORKER_PROGRESS_STEPS } from '@/lib/hr-worker-progress';
 import { cleanEmployerProfile, employerRecordError } from '@/lib/hr-employer-profile';
 // 履歷欄位的長度上限與選項清單放在同一支檔案，只維護這一份。
 import { WORKER_RESUME_FIELD_LIMITS as WORKER_RESUME_FIELDS } from '@/lib/hr-resume-fields';
+import { WORKER_PHOTO, ensureWorkerPhotoSchema, saveWorkerPhoto } from '@/lib/hr-worker-photo';
 
 const EMPLOYER_TYPES = new Set(['home_care', 'factory', 'domestic_helper', 'nursing_home', 'other']);
 const TASK_CATEGORIES = new Set(['document', 'medical', 'training', 'other']);
@@ -17,10 +18,18 @@ function cleanWorkerResumeProfile(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const profile=Object.fromEntries(Object.entries(WORKER_RESUME_FIELDS).map(([field, limit]) => [field, clean(value[field], limit)]));
   for(const field of ['overseasExperiences','employmentExperiences'])profile[field]=Array.isArray(value[field])?value[field].slice(0,30).filter(row=>row&&typeof row==='object').map(row=>({workplace:clean(row.workplace,180),period:clean(row.period,100),title:clean(row.title,120),content:clean(row.content,4000)})):[];
+  // 照片不放進 JSONB：掛在 Symbol 上（JSON.stringify 會略過），寫入履歷後由 persistWorkerPhoto 加密另存。
+  // 已經整理過的 profile 再整理一次（workerProfileWithReference）時沿用原本的照片值。
+  if(value[WORKER_PHOTO]!==undefined){profile[WORKER_PHOTO]=value[WORKER_PHOTO];return profile;}
   const photo=typeof value.photoDataUrl==='string'?value.photoDataUrl:'';
-  if(Object.prototype.hasOwnProperty.call(value,'photoDataUrl')&&!photo)profile.photoDataUrl='';
-  else if(photo.length<=2100000&&/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))profile.photoDataUrl=photo;
+  if(Object.prototype.hasOwnProperty.call(value,'photoDataUrl')&&!photo)profile[WORKER_PHOTO]='';
+  else if(photo.length<=2100000&&/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))profile[WORKER_PHOTO]=photo;
   return profile;
+}
+// 履歷寫入 hr_workers 之後呼叫。replace=true：整份履歷覆蓋（沒送照片代表移除）。
+async function persistWorkerPhoto(runner, workerId, profile, options = {}) {
+  await ensureWorkerPhotoSchema(pool);
+  await saveWorkerPhoto(runner, workerId, profile, options);
 }
 function workerGenderCode(value) {
   const gender=String(value||'').trim().toLowerCase();
@@ -78,4 +87,4 @@ async function refreshWorkerCases(workerId) {
   await refreshStagesForWorker(run, workerId);
 }
 
-export { EMPLOYER_TYPES, TASK_CATEGORIES, APPLICATION_STEPS, clean, WORKER_JOB_PREFERENCES, WORKER_RESUME_FIELDS, cleanWorkerResumeProfile, workerGenderCode, workerReferenceCode, workerProfileWithReference, validId, employerProfileFromBody, validDate, recordActivity, recordWorkerActivity, run, refreshCaseStage, refreshWorkerCases };
+export { EMPLOYER_TYPES, TASK_CATEGORIES, APPLICATION_STEPS, clean, WORKER_JOB_PREFERENCES, WORKER_RESUME_FIELDS, cleanWorkerResumeProfile, persistWorkerPhoto, workerGenderCode, workerReferenceCode, workerProfileWithReference, validId, employerProfileFromBody, validDate, recordActivity, recordWorkerActivity, run, refreshCaseStage, refreshWorkerCases };
