@@ -2296,4 +2296,8 @@ export const TL_DICTIONARY = {
   "This training center still has other members. Move them to another center before changing this member type.": "May iba pang miyembro ang training center na ito. Ilipat muna sila sa ibang center bago baguhin ang uri ng miyembro.",
   "This training center already has certifications, teachers, courses or classes, so it cannot join another center.": "May mga sertipikasyon, guro, kurso o klase na ang training center na ito, kaya hindi ito maaaring sumali sa ibang center.",
   "Training center": "Training center",
+  "Collapse all": "Isara lahat",
+  "Expand all": "Buksan lahat",
+  "Order details": "Mga detalye ng order",
+  "Agencies & recommended candidates": "Mga ahensya at inirerekomendang kandidato",
 };
