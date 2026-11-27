@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { ensureSchema, ensureChatSchema } from '@/lib/hr-schema';
 import { ensureTrainingCenterSchema } from '@/lib/hr-training-center';
-import { getHrPrincipal } from '@/lib/hr-access';
+import { getHrPrincipal, getAdminEmails, getAdminLineUserIds } from '@/lib/hr-access';
+import { listFriends, memberChatKey, rememberAdminIdentity } from '@/lib/hr-chat-friends';
 import { trainingCenterIdOf } from '@/lib/hr-training-center-scope';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
@@ -15,6 +16,15 @@ async function syncRooms() {
   await query("INSERT INTO hr_chat_rooms(room_type,agency_id) SELECT 'agency',id FROM hr_agencies WHERE active=TRUE ON CONFLICT DO NOTHING");
   await query("INSERT INTO hr_chat_rooms(room_type,case_id) SELECT 'case',id FROM hr_cases ON CONFLICT DO NOTHING");
   await query("INSERT INTO hr_chat_rooms(room_type,center_id) SELECT 'training_center',id FROM hr_members WHERE role='training_center' AND training_center_id IS NULL AND active=TRUE ON CONFLICT DO NOTHING");
+}
+
+// 好友列表：單獨聊天過的人自動加入；系統管理員彼此也找得到（見 src/lib/hr-chat-friends.js）。
+function friendsOf(principal,session) {
+  return listFriends(query,{principal,selfKey:getReaderKey(principal,session),adminEmails:getAdminEmails(),adminLineIds:getAdminLineUserIds()});
+}
+async function trackAdmin(principal,session) {
+  // 用環境變數登記的管理員沒有會員資料列：記下名字，其他管理員才找得到他。
+  if(principal.role==='admin'&&!principal.id)await rememberAdminIdentity(query,getReaderKey(principal,session),principal.name||session.user.name);
 }
 
 // 訓練中心群組的會員：訓練中心本身與其成員、已報名該訓練中心班別的工人，以及這些工人所屬的仲介。$1 是訓練中心（會員）編號。
@@ -76,6 +86,8 @@ export async function GET(request) {
     await ensureChatSchema();
     await ensureTrainingCenterSchema();
     await syncRooms();
+    await trackAdmin(principal,session);
+    if(new URL(request.url).searchParams.get('friends')==='1')return NextResponse.json({friends:await friendsOf(principal,session)});
     const roomId=new URL(request.url).searchParams.get('roomId');
     if(roomId){
       if(!/^\d+$/.test(roomId))return NextResponse.json({error:'聊天室編號不正確。'},{status:400});
@@ -138,7 +150,17 @@ export async function POST(request) {
     await ensureChatSchema();
     await ensureTrainingCenterSchema();
     await syncRooms();
+    await trackAdmin(principal,session);
     const body=await request.json(),roomId=Number(body.roomId),message=typeof body.message==='string'?body.message.trim():'';
+    if(body.type==='friend'){
+      // 從好友列表直接開私訊：只能對自己的好友（單獨聊天過的人），系統管理員還可以對其他系統管理員。
+      const friend=(await friendsOf(principal,session)).find(item=>item.key===body.targetKey);
+      if(!friend)return NextResponse.json({error:'只能私訊好友或其他系統管理員。',en:'You can only message friends or other system administrators.'},{status:403});
+      const selfKey=getReaderKey(principal,session),directKey=[selfKey,friend.key].sort().join('|');
+      const created=await query(`INSERT INTO hr_chat_rooms(room_type,direct_key) VALUES('direct',$1) ON CONFLICT(direct_key) WHERE room_type='direct' DO UPDATE SET direct_key=EXCLUDED.direct_key RETURNING id`,[directKey]);
+      await query(`INSERT INTO hr_chat_participants(room_id,participant_key,member_id,display_name) VALUES($1,$2,$3,$4),($1,$5,$6,$7) ON CONFLICT(room_id,participant_key) DO NOTHING`,[created[0].id,selfKey,principal.id||null,principal.name||session.user.name||'管理者',friend.key,friend.memberId,friend.name]);
+      return NextResponse.json({roomId:Number(created[0].id)});
+    }
     if(body.type==='direct'){
       const targetId=Number(body.targetMemberId);
       if(!Number.isSafeInteger(roomId)||roomId<1||!Number.isSafeInteger(targetId)||targetId<1)return NextResponse.json({error:'會員或聊天室資料不正確。'},{status:400});
@@ -150,7 +172,9 @@ export async function POST(request) {
         ? await query(`SELECT m.id,m.display_name FROM hr_members m WHERE m.active=TRUE AND m.id=$2 AND (${TRAINING_CENTER_MEMBER_SQL})`,[source.center_id,targetId])
         : await query(`SELECT m.id,m.display_name FROM hr_members m LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND m.id=$2 AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id)`,[source.case_id,targetId]);
       if(!eligible[0]||Number(targetId)===Number(principal.id))return NextResponse.json({error:'只能私訊此群組內的其他會員。'},{status:403});
-      const selfKey=getReaderKey(principal,session),otherKey=`member:${targetId}`,directKey=[selfKey,otherKey].sort().join('|');
+      // 對方若是用環境變數登記的管理員，他實際登入時的識別碼是 admin:<email>，私訊與來電要送到那個識別碼。
+      const targetRow=(await query('SELECT id,email,line_user_id FROM hr_members WHERE id=$1',[targetId]))[0];
+      const selfKey=getReaderKey(principal,session),otherKey=memberChatKey(targetRow,getAdminEmails(),getAdminLineUserIds()),directKey=[selfKey,otherKey].sort().join('|');
       const inserted=await query(`INSERT INTO hr_chat_rooms(room_type,direct_key) VALUES('direct',$1) ON CONFLICT(direct_key) WHERE room_type='direct' DO UPDATE SET direct_key=EXCLUDED.direct_key RETURNING id`,[directKey]);
       await query(`INSERT INTO hr_chat_participants(room_id,participant_key,member_id,display_name) VALUES($1,$2,$3,$4),($1,$5,$6,$7) ON CONFLICT(room_id,participant_key) DO NOTHING`,[inserted[0].id,selfKey,principal.id||null,principal.name||session.user.name||'管理者',otherKey,targetId,eligible[0].display_name]);
       return NextResponse.json({roomId:Number(inserted[0].id)});

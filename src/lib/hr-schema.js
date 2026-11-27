@@ -185,6 +185,8 @@ export function ensureChatSchema() {
     await query(`DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname='hr_chat_rooms_type_check' AND pg_get_constraintdef(oid) LIKE '%training_center%') THEN ALTER TABLE hr_chat_rooms DROP CONSTRAINT IF EXISTS hr_chat_rooms_type_check; ALTER TABLE hr_chat_rooms ADD CONSTRAINT hr_chat_rooms_type_check CHECK((room_type='agency' AND agency_id IS NOT NULL AND case_id IS NULL AND center_id IS NULL) OR (room_type='case' AND case_id IS NOT NULL AND agency_id IS NULL AND center_id IS NULL) OR (room_type='direct' AND agency_id IS NULL AND case_id IS NULL AND center_id IS NULL AND direct_key IS NOT NULL) OR (room_type='training_center' AND center_id IS NOT NULL AND agency_id IS NULL AND case_id IS NULL)); END IF; END $$`);
     await query("CREATE UNIQUE INDEX IF NOT EXISTS hr_chat_rooms_center_unique ON hr_chat_rooms(center_id) WHERE room_type='training_center'");
     await query(`CREATE TABLE IF NOT EXISTS hr_chat_participants (room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE, participant_key TEXT NOT NULL, member_id BIGINT REFERENCES hr_members(id) ON DELETE CASCADE, display_name TEXT NOT NULL, PRIMARY KEY(room_id,participant_key))`);
+    // 系統管理員名錄：用環境變數登記的管理員沒有 hr_members 資料列，登入聊天室時記下名字，其他管理員才找得到他（好友列表）。
+    await query(`CREATE TABLE IF NOT EXISTS hr_chat_directory (participant_key TEXT PRIMARY KEY, display_name TEXT NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await query(`CREATE TABLE IF NOT EXISTS hr_chat_reads (
       reader_key TEXT NOT NULL,
       room_id BIGINT NOT NULL REFERENCES hr_chat_rooms(id) ON DELETE CASCADE,
