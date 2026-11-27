@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { CallClient } from '@/lib/hr-call-client';
 import HrCallChat from '@/components/HrCallChat';
+import { canDragCallWindow, clampCallPosition, keyboardOffset } from '@/lib/hr-call-drag';
 import { pickLang, copyFor } from '@/lib/language';
 
 // 通話功能的畫面：來電提示、通話視窗。整個 /hr 頁面掛一個（見 app/hr/page.jsx），
@@ -19,6 +20,7 @@ export const COPY = {
     calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
     dismiss: '關閉', callWindow: '通話視窗',
     enlarge: '放大畫面', backToGrid: '回到並排畫面',
+    moveWindow: '拖曳這裡移動通話視窗（也可以用方向鍵；按兩下回到右下角）',
     openChat: '開啟文字聊天', closeChat: '關閉文字聊天', chatTitle: '文字聊天', chatEmpty: '還沒有訊息。這裡的訊息也會留在聊天室裡。',
     chatPlaceholder: '輸入訊息…', chatSend: '送出', chatSending: '送出中…', chatLoadFailed: '無法載入訊息，稍後會自動重試。', chatSendFailed: '訊息未能送出，請再試一次。', chatUnread: count => `${count} 則未讀訊息`,
     status: {
@@ -42,6 +44,7 @@ export const COPY = {
     calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
     dismiss: 'Close', callWindow: 'Call window',
     enlarge: 'Enlarge video', backToGrid: 'Back to side-by-side view',
+    moveWindow: 'Drag here to move the call window (arrow keys also work; double-click to return it to the bottom right)',
     openChat: 'Open text chat', closeChat: 'Close text chat', chatTitle: 'Text chat', chatEmpty: 'No messages yet. Messages here also stay in the chat room.',
     chatPlaceholder: 'Write a message…', chatSend: 'Send', chatSending: 'Sending…', chatLoadFailed: 'Messages could not be loaded. Retrying automatically.', chatSendFailed: 'The message was not sent. Please try again.', chatUnread: count => `${count} unread messages`,
     status: {
@@ -121,7 +124,25 @@ export function CallView({ state, lang, actions }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const callRoomId = state?.call?.roomId || null;
-  useEffect(() => { setChatOpen(false); setChatUnread(0); }, [callRoomId]);
+  // 電腦版拖曳移動通話視窗：position 是視窗左上角；null 表示用 CSS 預設的右下角位置
+  const [position, setPosition] = useState(null);
+  const overlayRef = useRef(null);
+  const dragRef = useRef(null);
+  useEffect(() => { setChatOpen(false); setChatUnread(0); setPosition(null); dragRef.current = null; }, [callRoomId]);
+  // 瀏覽器視窗縮放、聊天面板開關（通話視窗變寬）後，把通話視窗拉回畫面內；變成手機寬度就回到預設的全螢幕
+  useEffect(() => {
+    if (!position) return undefined;
+    const fit = () => {
+      const element = overlayRef.current;
+      if (!element) return;
+      if (!canDragCallWindow()) { setPosition(null); return; }
+      const next = clampCallPosition(position, element.offsetWidth, element.offsetHeight, window.innerWidth, window.innerHeight);
+      if (next.x !== position.x || next.y !== position.y) setPosition(next);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [position, chatOpen]);
   if (!state) return null;
   const copy = copyFor(COPY, lang);
   const show = text => (lang !== 'zh' ? translateHrText(text || '', lang) : text || '');
@@ -134,6 +155,31 @@ export function CallView({ state, lang, actions }) {
   // 放大的人離開了，就自動回到並排
   const focused = selectable && focusedId && (focusedId === 'me' || call.peers.some(peer => String(peer.id) === focusedId)) ? focusedId : null;
   const toggleFocus = id => setFocusedId(current => (current === id ? null : id));
+  const moveTo = (point, width, height) => setPosition(clampCallPosition(point, width, height, window.innerWidth, window.innerHeight));
+  const drag = {
+    onPointerDown: event => {
+      if (event.button !== 0 || !canDragCallWindow() || !overlayRef.current) return;
+      const rect = overlayRef.current.getBoundingClientRect();
+      dragRef.current = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top, width: rect.width, height: rect.height };
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* 舊瀏覽器 */ }
+      event.preventDefault();
+    },
+    onPointerMove: event => {
+      const current = dragRef.current;
+      if (!current || current.pointerId !== event.pointerId) return;
+      moveTo({ x: event.clientX - current.dx, y: event.clientY - current.dy }, current.width, current.height);
+    },
+    onPointerUp: event => { if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null; },
+    onPointerCancel: () => { dragRef.current = null; },
+    onDoubleClick: () => setPosition(null),
+    onKeyDown: event => {
+      const offset = keyboardOffset(event.key, event.shiftKey);
+      if (!offset || !canDragCallWindow() || !overlayRef.current) return;
+      event.preventDefault();
+      const rect = overlayRef.current.getBoundingClientRect();
+      moveTo({ x: rect.left + offset.x, y: rect.top + offset.y }, rect.width, rect.height);
+    },
+  };
   const status = !call ? '' : call.phase === 'reconnecting' ? copy.reconnecting : call.phase === 'starting' ? (call.everHadPeer ? copy.connecting : copy.calling)
     : !call.everHadPeer && !call.peers.length ? copy.waiting : call.peers.some(peer => peer.state !== 'connected') && call.peers.every(peer => peer.state !== 'connected') ? copy.connecting : copy.inCall(call.peers.length);
   return <>
@@ -149,8 +195,10 @@ export function CallView({ state, lang, actions }) {
         <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
       </div>
     </div>}
-    {call && <section className={`hr-call-overlay ${focused ? 'has-focus' : ''} ${chatOpen ? 'has-chat' : ''}`} role="dialog" aria-label={copy.callWindow}>
-      <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
+    {call && <section ref={overlayRef} className={`hr-call-overlay ${focused ? 'has-focus' : ''} ${chatOpen ? 'has-chat' : ''} ${position ? 'is-moved' : ''}`} role="dialog" aria-label={copy.callWindow}
+      style={position ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}>
+      {/* 電腦版：按住標題列拖曳移動視窗 */}
+      <header className="hr-call-header hr-call-drag-handle" tabIndex={0} title={copy.moveWindow} aria-label={`${show(call.title)} · ${copy.moveWindow}`} {...drag}><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
       {/* 所有人並排；點某個人的畫面就放大他，其他人縮成下方一排小畫面。只有自己一個人時不用放大。 */}
       <div className={`hr-call-grid count-${tileCount} ${focused ? 'has-focus' : ''}`} style={focused ? { '--hr-call-others': tileTotal - 1 } : undefined}>
         {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} focused={focused === String(peer.id)} onSelect={selectable ? () => toggleFocus(String(peer.id)) : null} />)}
