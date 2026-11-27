@@ -34,7 +34,7 @@ export default function HrUnitQuiz({ vocabulary, poolText, onResult }) {
     {questions && <>
       <ol className={styles.quizList}>
         {questions.map((question, i) => <li key={i} className={styles.quizItem}>
-          <p className={styles.quizPrompt}><span className={styles.zh}>{question.zh}</span>{question.pinyin ? <small>{question.pinyin}</small> : null}</p>
+          <p className={styles.quizPrompt} translate="no"><span className={styles.zh}>{question.zh}</span>{question.pinyin ? <small>{question.pinyin}</small> : null}</p>
           <p className={styles.muted}>這個詞是什麼意思？</p>
           <div className={styles.quizOptions} role="radiogroup">
             {question.options.map((option, j) => {

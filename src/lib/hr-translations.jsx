@@ -461,6 +461,8 @@ const FLOW_EN = {
 };
 import { NATIONALITY_EN } from '@/lib/hr-nationalities';
 const HR_TEXT_ORIGINALS = new WeakMap();
+// 標了 translate="no" 的區塊（例如課文的中文、拼音）不做自動翻譯：詞彙「是」不可以變成 Yes／Oo、「老師」不可以變成 Teacher／Guro。
+const isNoTranslate = node => Boolean((node.nodeType === 1 ? node : node.parentElement)?.closest?.('[translate="no"]'));
 
 export function translateHrText(value, lang = 'zh') {
   if (lang === 'tl') {
@@ -549,7 +551,7 @@ export function translateHrText(value, lang = 'zh') {
 function transform(node, lang) {
   if (typeof node === 'string') return translateHrText(node, lang);
   if (Array.isArray(node)) return node.map(child => transform(child, lang));
-  if (!React.isValidElement(node)) return node;
+  if (!React.isValidElement(node) || node.props.translate === 'no') return node;
   const props = {};
   for (const key of ['aria-label','aria-description','placeholder','title']) {
     if (typeof node.props[key] === 'string') props[key] = translateHrText(node.props[key], lang);
@@ -620,6 +622,7 @@ export function HrLanguageTools({ inline = false }) {
   useEffect(() => {
     const root = document.querySelector('[data-hr-translatable-root]') || document.body;
     const translateNode = (node) => {
+      if (isNoTranslate(node)) return;
       if (node.nodeType === Node.TEXT_NODE) {
         const saved = HR_TEXT_ORIGINALS.get(node);
         if (lang !== 'zh') {
@@ -665,7 +668,7 @@ export function HrLanguageTools({ inline = false }) {
       let visited = 0;
       while (queue.length && visited < 300 && performance.now() < deadline) {
         const node = queue.pop();
-        if (!root.contains(node)) continue;
+        if (!root.contains(node) || isNoTranslate(node)) continue;
         visited += 1;
         if (node.nodeType === Node.TEXT_NODE) {
           const saved = HR_TEXT_ORIGINALS.get(node);

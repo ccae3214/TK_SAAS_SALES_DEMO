@@ -12,6 +12,7 @@ import HrUnitQuiz from '@/components/HrUnitQuiz';
 import styles from './HrWorkerLearning.module.css';
 import { pickLang, copyFor } from '@/lib/language';
 import { tlText } from '@/lib/language';
+import { useLessonTl } from '@/lib/use-lesson-tl';
 
 const LEGACY_UNIT_MEDIA = {
   1: { video: '/videos/mandarin-a1-unit-1.mp4', audio: '/videos/mandarin-a1-unit-1.mp3' },
@@ -45,6 +46,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
   const [showVideo, setShowVideo] = useState(false);
   const [unitVideoLanguage, setUnitVideoLanguage] = useState('zh');
   const speechText = copyFor(SPEECH_TEXT, lang);
+  const lessonTl = useLessonTl(lang);
 
   const isMandarinA1Course = /mandarin a1 course|中文a1/i.test(`${data?.course?.name || ''} ${data?.course?.certification_name || ''}`);
 
@@ -69,7 +71,7 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     setUnitVideoLanguage('zh');
   }, [unitId]);
 
-  const pick = (zh, en) => lang !== 'zh' && en ? (lang === 'tl' ? tlText(en) : en) : zh;
+  const pick = (zh, en) => lang !== 'zh' && en ? (lang === 'tl' ? lessonTl(en) || tlText(en) : en) : zh;
   const units = data?.units || [];
   const progress = learningProgress(units, completed);
   const unit = units.find(item => Number(item.id) === Number(unitId)) || null;
@@ -188,18 +190,18 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       {speech.checked && !speech.supported && hasSpeakable && <p className={styles.muted}>{speechText.unsupported}</p>}
       {speech.missingChineseVoice && hasSpeakable && <p className={styles.muted}>{speechText.noChineseVoice}</p>}
       {speech.error && <p className={styles.error}>{speechText.failed}</p>}
-      {topics && <div className={styles.section}><h4>學習重點</h4><p>{topics}</p></div>}
+      {topics && <div className={styles.section}><h4>學習重點</h4><p translate="no">{topics}</p></div>}
       {vocabulary.length > 0 && <div className={styles.section}><h4>詞彙</h4><HrLessonVocabulary entries={vocabulary} speechOn={speech.supported} listenLabel={speechText.listen} isSpeaking={isSpeaking} speakButtons={speakButtons} /></div>}
       {examples.length > 0 && <div className={styles.section}><h4>例句</h4><div className={styles.dialogue}>
         {examples.map((row, i) => <div className={`${styles.line} ${isSpeaking('examples', i) ? styles.speaking : ''}`} key={i}>
-          <div className={styles.lineText}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>
+          <div className={styles.lineText} translate="no"><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small>{lessonTl(row.en) && <small lang="fil">{lessonTl(row.en)}</small>}</div>
           {speakButtons('examples', i, row)}
         </div>)}
       </div></div>}
       {dialogue.length > 0 && <div className={styles.section}><h4>對話</h4><div className={styles.dialogue}>
         {dialogue.map((row, i) => <div className={`${styles.line} ${isSpeaking('dialogue', i) ? styles.speaking : ''}`} key={i}>
           <span className={styles.speaker}>{row.speaker || '•'}</span>
-          <div className={styles.lineText}><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small></div>
+          <div className={styles.lineText} translate="no"><span className={styles.zh}>{row.zh}</span> {row.pinyin}<small>{row.en}</small>{lessonTl(row.en) && <small lang="fil">{lessonTl(row.en)}</small>}</div>
           {speakButtons('dialogue', i, row)}
         </div>)}
       </div></div>}
