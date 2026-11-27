@@ -6,6 +6,8 @@
   **Deleted a member by mistake:** open *Member Accounts* → *Deleted accounts* and press *Restore*. No backup file needed.
 - **其他資料不見、或資料庫壞掉：** 用下面的備份檔還原。
   **Anything else lost, or a broken database:** restore from a backup file as described below.
+- **合併會改資料表的 PR 之前，先備份。** 合併到 `main` 會自動部署，app 啟動時就會套用資料表變更，部署流程本身不會備份（見 [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)）。
+  **Back up before merging a PR that changes the schema.** Merging to `main` deploys automatically and the app applies schema changes on startup; the deploy workflow does not take a backup.
 
 ## 備份 / Back up
 
@@ -64,9 +66,12 @@ docker compose exec postgres psql -U postgres -d postgres -c "DROP DATABASE rest
 
 ## 很重要：加密金鑰 / Important: the encryption key
 
-上傳的文件在資料庫裡是加密的。**請另外保管 `.env` 裡的 `HR_DOCUMENT_ENCRYPTION_KEY`**（不要放進備份資料夾或 GitHub）。
-遺失這把金鑰，即使備份還在，文件也無法解開。
-Uploaded documents are encrypted in the database. **Keep `HR_DOCUMENT_ENCRYPTION_KEY` from `.env` somewhere safe and separate** (not in the backup folder or on GitHub). Without it the documents cannot be decrypted, even if the backup is intact.
+上傳的文件（工作者文件、雇主文件、仲介證書）與履歷照片在資料庫裡都是加密的。**請另外保管 `.env` 裡的 `HR_DOCUMENT_ENCRYPTION_KEY`**（不要放進備份資料夾或 GitHub）。
+遺失這把金鑰，即使備份還在，文件與照片也無法解開。
+Uploaded documents (worker, employer, agency) and resume photos are encrypted in the database. **Keep `HR_DOCUMENT_ENCRYPTION_KEY` from `.env` somewhere safe and separate** (not in the backup folder or on GitHub). Without it the documents and photos cannot be decrypted, even if the backup is intact.
+
+還原備份會一併還原 `hr_archive` schema 裡封存的舊表（見 [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)「封存的舊表」）。
+Restoring a backup also restores the archived tables in the `hr_archive` schema.
 
 備份檔含有個資與加密後的文件，已加入 `.gitignore` 與 `.dockerignore`，不會被提交或打包進映像檔。
 Backups contain personal data and encrypted documents; `backups/` is excluded from git and Docker images.

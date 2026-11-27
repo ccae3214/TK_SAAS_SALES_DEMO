@@ -81,7 +81,8 @@ test('接線：兩張操作紀錄表都加了欄位並寫入、讀取，畫面�
   assert.match(ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, /summary,before_data,after_data\)/);
   assert.match(ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, /\$9::jsonb,\$10::jsonb\)/);
   assert.match(audit, /ADMIN_AUDIT_INSERT_WITH_CHANGES_SQL, \[/);
-  assert.match(audit, /takeSnapshot\(runQuery, type, id\)/);
+  // 標記測試資料時，快照對象是 body.target 指定的資料（targetType），其餘操作與 type 相同。
+  assert.match(audit, /takeSnapshot\(runQuery, targetType, id\)/);
   assert.match(audit, /diffSnapshots\(ctx\.snapshot, after\)/);
   assert.match(audit, /recordAgencyAction\(\{[^}]*before: changes\.before, after: changes\.after/);
   assert.match(agency, /summary_zh,summary_en,before_data,after_data\)/);

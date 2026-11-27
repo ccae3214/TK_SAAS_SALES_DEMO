@@ -9,6 +9,7 @@ import { ACK_KEYS, ACK_TEXT } from '@/lib/hr-worker-stages';
 import { notifyMemberApproved, syncLineRichMenu } from '@/lib/hr-line-bot';
 import { notifyAfterDocumentReview, notifyAccountStatusChange, notifyApplicationRejected } from '@/lib/hr-member-notices';
 import { withAdminAudit } from '@/lib/hr-audit';
+import { ensureTestDataFlagSchema, parseTestFlagRequest } from '@/lib/hr-test-data';
 import { trashMember, restoreTrashedMember } from '@/lib/hr-member-trash';
 import { canManageStep, canUpdateWorkflow, canTransition, workflowBlockReason, STEP_OWNERS, OWNER_LABELS, WORKFLOW_DENIED_MESSAGES } from '@/lib/hr-case-flow';
 import { refreshCaseStage as refreshStage } from '@/lib/hr-case-stage';
@@ -642,8 +643,17 @@ async function handlePatch(request) {
           note=EXCLUDED.note,detail=CASE WHEN $12::boolean THEN EXCLUDED.detail ELSE hr_application_steps.detail END,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING *`,
         [caseId,stepKey,step[1],body.startedOn||null,body.completedOn||null,clean(body.note,1000),actor,principal.role,principal.agency_id||null,principal.agency_type||null,detail.value,hasDetail]);
       if (!saved.length) return NextResponse.json({error:'找不到可管理的所屬工作者案件。'},{status:404});
+      // 進度以工作者層級為準：尚未結案的案件存檔時，同一份進度也寫到工作者層級
+      // （資料庫 trigger 會再同步到這位工作者其他尚未結案的案件，見 hr-worker-status-sync.js）。已結案的案件只改歷史，不影響工作者。
+      await query(`INSERT INTO hr_worker_progress_steps(worker_id,step_key,started_on,completed_on,note,detail,updated_by,updated_at)
+        SELECT c.worker_id,s.step_key,s.started_on,s.completed_on,s.note,s.detail,s.updated_by,NOW()
+        FROM hr_application_steps s JOIN hr_cases c ON c.id=s.case_id WHERE s.id=$1 AND c.status<>'closed'
+        ON CONFLICT(worker_id,step_key) DO UPDATE SET started_on=EXCLUDED.started_on,completed_on=EXCLUDED.completed_on,
+          note=EXCLUDED.note,detail=EXCLUDED.detail,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,[saved[0].id]);
       await recordActivity(caseId,actor,'更新申請程序',`${step[1]} · ${body.completedOn||body.startedOn||'更新備註'}`);
-      await refreshCaseStage(caseId);
+      const workerCases=await query('SELECT worker_id FROM hr_cases WHERE id=$1',[caseId]);
+      if (workerCases[0]?.worker_id) await refreshWorkerCases(workerCases[0].worker_id);
+      else await refreshCaseStage(caseId);
       return NextResponse.json(saved[0]);
     }
     if (body.type === 'agency') {
@@ -993,6 +1003,16 @@ async function handlePatch(request) {
       const result = await query('UPDATE hr_case_tasks SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *', [id,status]);
       if (!result.length) return NextResponse.json({ error: '找不到待辦。' }, { status: 404 });
       await recordActivity(result[0].case_id, actor, '更新待辦', `${result[0].title}：${status}`);
+      return NextResponse.json(result[0]);
+    }
+    if (body.type === 'test-flag') {
+      // 測試資料標記：只有系統管理者可以標記；只改 is_test，不動其他欄位，也不刪除任何資料。
+      if (principal.role !== 'admin') return NextResponse.json({ error: '只有系統管理者可以標記測試資料。' }, { status: 403 });
+      const flag = parseTestFlagRequest(body);
+      if (flag.error) return NextResponse.json({ error: flag.error }, { status: 400 });
+      await ensureTestDataFlagSchema(pool);
+      const result = await query(`UPDATE ${flag.table} SET is_test=$2 WHERE id=$1 RETURNING id,is_test`, [flag.id, flag.isTest]);
+      if (!result.length) return NextResponse.json({ error: '找不到資料。' }, { status: 404 });
       return NextResponse.json(result[0]);
     }
     if (body.type === 'worker-resume') {
