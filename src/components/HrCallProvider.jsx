@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { MessageCircle, Mic, MicOff, Phone, PictureInPicture2, PhoneOff, Video, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { translateHrText } from '@/lib/hr-translations';
 import { CallClient } from '@/lib/hr-call-client';
 import HrCallChat from '@/components/HrCallChat';
 import { canDragCallWindow, clampCallPosition, keyboardOffset } from '@/lib/hr-call-drag';
+import { copyStylesTo, pickPipVideo, pictureInPictureMode, pipWindowSize } from '@/lib/hr-call-pip';
 import { pickLang, copyFor } from '@/lib/language';
 
 // 通話功能的畫面：來電提示、通話視窗。整個 /hr 頁面掛一個（見 app/hr/page.jsx），
@@ -21,6 +23,7 @@ export const COPY = {
     dismiss: '關閉', callWindow: '通話視窗',
     enlarge: '放大畫面', backToGrid: '回到並排畫面',
     moveWindow: '拖曳這裡移動通話視窗（也可以用方向鍵；按兩下回到右下角）',
+    popOut: '彈出到桌面（可以移到瀏覽器外面）', popOutVideo: '把畫面彈出到桌面（可以移到瀏覽器外面）', popIn: '移回網頁', pipActive: '通話視窗已彈出到桌面',
     openChat: '開啟文字聊天', closeChat: '關閉文字聊天', chatTitle: '文字聊天', chatEmpty: '還沒有訊息。這裡的訊息也會留在聊天室裡。',
     chatPlaceholder: '輸入訊息…', chatSend: '送出', chatSending: '送出中…', chatLoadFailed: '無法載入訊息，稍後會自動重試。', chatSendFailed: '訊息未能送出，請再試一次。', chatUnread: count => `${count} 則未讀訊息`,
     status: {
@@ -45,6 +48,7 @@ export const COPY = {
     dismiss: 'Close', callWindow: 'Call window',
     enlarge: 'Enlarge video', backToGrid: 'Back to side-by-side view',
     moveWindow: 'Drag here to move the call window (arrow keys also work; double-click to return it to the bottom right)',
+    popOut: 'Pop out to the desktop (can be moved outside the browser)', popOutVideo: 'Pop out the video to the desktop (can be moved outside the browser)', popIn: 'Move back into the page', pipActive: 'The call window is popped out to the desktop',
     openChat: 'Open text chat', closeChat: 'Close text chat', chatTitle: 'Text chat', chatEmpty: 'No messages yet. Messages here also stay in the chat room.',
     chatPlaceholder: 'Write a message…', chatSend: 'Send', chatSending: 'Sending…', chatLoadFailed: 'Messages could not be loaded. Retrying automatically.', chatSendFailed: 'The message was not sent. Please try again.', chatUnread: count => `${count} unread messages`,
     status: {
@@ -129,6 +133,22 @@ export function CallView({ state, lang, actions }) {
   const overlayRef = useRef(null);
   const dragRef = useRef(null);
   useEffect(() => { setChatOpen(false); setChatUnread(0); setPosition(null); dragRef.current = null; }, [callRoomId]);
+  // 彈出到桌面：pipMode 是瀏覽器支援的方式（'document'／'video'／null），pipWindow 是彈出的視窗（Document PiP）
+  const [pipMode, setPipMode] = useState(null);
+  const [pipWindow, setPipWindow] = useState(null);
+  useEffect(() => { setPipMode(canDragCallWindow() ? pictureInPictureMode() : null); }, []);
+  // 掛斷或換一通電話：關掉彈出的視窗
+  const pipRoomRef = useRef(null);
+  useEffect(() => {
+    if (pipWindow && pipRoomRef.current !== callRoomId) { pipWindow.close(); setPipWindow(null); }
+  }, [callRoomId, pipWindow]);
+  // 離開頁面時也一起關掉
+  useEffect(() => {
+    if (!pipWindow) return undefined;
+    const close = () => pipWindow.close();
+    window.addEventListener('pagehide', close);
+    return () => window.removeEventListener('pagehide', close);
+  }, [pipWindow]);
   // 瀏覽器視窗縮放、聊天面板開關（通話視窗變寬）後，把通話視窗拉回畫面內；變成手機寬度就回到預設的全螢幕
   useEffect(() => {
     if (!position) return undefined;
@@ -155,10 +175,32 @@ export function CallView({ state, lang, actions }) {
   // 放大的人離開了，就自動回到並排
   const focused = selectable && focusedId && (focusedId === 'me' || call.peers.some(peer => String(peer.id) === focusedId)) ? focusedId : null;
   const toggleFocus = id => setFocusedId(current => (current === id ? null : id));
+  const popOut = async () => {
+    if (pipWindow) { pipWindow.close(); return; } // 已經彈出：移回網頁
+    if (pipMode === 'document') {
+      try {
+        const win = await window.documentPictureInPicture.requestWindow(pipWindowSize(overlayRef.current?.getBoundingClientRect()));
+        copyStylesTo(document, win.document);
+        win.document.title = show(call.title) || copy.callWindow;
+        win.document.documentElement.lang = document.documentElement.lang;
+        win.document.body.className = 'hr-call-pip-body';
+        // 使用者按彈出視窗的「返回分頁」或關閉：回到網頁裡
+        win.addEventListener('pagehide', () => setPipWindow(current => (current === win ? null : current)), { once: true });
+        pipRoomRef.current = call.roomId;
+        setPosition(null); dragRef.current = null;
+        setPipWindow(win);
+      } catch { /* 使用者取消，或瀏覽器拒絕（例如不是點擊觸發） */ }
+    } else if (pipMode === 'video') {
+      try { await pickPipVideo(overlayRef.current)?.requestPictureInPicture(); } catch { /* 沒有影像或瀏覽器拒絕 */ }
+    }
+  };
+  // Safari 只能彈出影像：有對方的影像時才顯示按鈕
+  const pipVideoAvailable = !!call?.peers.some(peer => peer.stream?.getVideoTracks?.().some(track => track.readyState === 'live'));
+  const showPipButton = pipMode === 'document' || (pipMode === 'video' && pipVideoAvailable);
   const moveTo = (point, width, height) => setPosition(clampCallPosition(point, width, height, window.innerWidth, window.innerHeight));
   const drag = {
     onPointerDown: event => {
-      if (event.button !== 0 || !canDragCallWindow() || !overlayRef.current) return;
+      if (pipWindow || event.button !== 0 || !canDragCallWindow() || !overlayRef.current) return;
       const rect = overlayRef.current.getBoundingClientRect();
       dragRef.current = { pointerId: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top, width: rect.width, height: rect.height };
       try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* 舊瀏覽器 */ }
@@ -171,10 +213,10 @@ export function CallView({ state, lang, actions }) {
     },
     onPointerUp: event => { if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null; },
     onPointerCancel: () => { dragRef.current = null; },
-    onDoubleClick: () => setPosition(null),
+    onDoubleClick: () => { if (!pipWindow) setPosition(null); },
     onKeyDown: event => {
       const offset = keyboardOffset(event.key, event.shiftKey);
-      if (!offset || !canDragCallWindow() || !overlayRef.current) return;
+      if (pipWindow || !offset || !canDragCallWindow() || !overlayRef.current) return;
       event.preventDefault();
       const rect = overlayRef.current.getBoundingClientRect();
       moveTo({ x: rect.left + offset.x, y: rect.top + offset.y }, rect.width, rect.height);
@@ -182,23 +224,10 @@ export function CallView({ state, lang, actions }) {
   };
   const status = !call ? '' : call.phase === 'reconnecting' ? copy.reconnecting : call.phase === 'starting' ? (call.everHadPeer ? copy.connecting : copy.calling)
     : !call.everHadPeer && !call.peers.length ? copy.waiting : call.peers.some(peer => peer.state !== 'connected') && call.peers.every(peer => peer.state !== 'connected') ? copy.connecting : copy.inCall(call.peers.length);
-  return <>
-    {ringing && <div className="hr-call-incoming" role="alertdialog" aria-live="assertive" aria-label={ringing.video ? copy.incomingVideo : copy.incomingVoice}>
-      <span className="hr-call-incoming-icon">{ringing.video ? <Video size={22} /> : <Phone size={22} />}</span>
-      <div className="hr-call-incoming-text">
-        <strong>{show(ringing.title)}</strong>
-        <span>{ringing.video ? copy.incomingVideo : copy.incomingVoice}{ringing.from && ringing.from !== ringing.title ? ` · ${ringing.from}` : ''}{incoming.length > 1 ? ` (+${incoming.length - 1})` : ''}</span>
-      </div>
-      <div className="hr-call-incoming-actions">
-        <button type="button" className="hr-call-btn is-decline" onClick={() => actions.decline(ringing.roomId)}><PhoneOff size={18} />{copy.decline}</button>
-        {ringing.video && <button type="button" className="hr-call-btn is-voice" onClick={() => actions.accept(ringing, false)}><Phone size={18} />{copy.acceptVoice}</button>}
-        <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
-      </div>
-    </div>}
-    {call && <section ref={overlayRef} className={`hr-call-overlay ${focused ? 'has-focus' : ''} ${chatOpen ? 'has-chat' : ''} ${position ? 'is-moved' : ''}`} role="dialog" aria-label={copy.callWindow}
-      style={position ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}>
-      {/* 電腦版：按住標題列拖曳移動視窗 */}
-      <header className="hr-call-header hr-call-drag-handle" tabIndex={0} title={copy.moveWindow} aria-label={`${show(call.title)} · ${copy.moveWindow}`} {...drag}><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
+  const overlay = call && <section ref={overlayRef} className={`hr-call-overlay ${focused ? 'has-focus' : ''} ${chatOpen ? 'has-chat' : ''} ${position && !pipWindow ? 'is-moved' : ''} ${pipWindow ? 'in-pip-window' : ''}`} role="dialog" aria-label={copy.callWindow}
+      style={position && !pipWindow ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}>
+      {/* 電腦版：按住標題列拖曳移動視窗（彈出到桌面後由系統視窗本身移動） */}
+      <header className="hr-call-header hr-call-drag-handle" {...(pipWindow ? {} : { tabIndex: 0, title: copy.moveWindow, 'aria-label': `${show(call.title)} · ${copy.moveWindow}`, ...drag })}><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
       {/* 所有人並排；點某個人的畫面就放大他，其他人縮成下方一排小畫面。只有自己一個人時不用放大。 */}
       <div className={`hr-call-grid count-${tileCount} ${focused ? 'has-focus' : ''}`} style={focused ? { '--hr-call-others': tileTotal - 1 } : undefined}>
         {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} focused={focused === String(peer.id)} onSelect={selectable ? () => toggleFocus(String(peer.id)) : null} />)}
@@ -212,10 +241,28 @@ export function CallView({ state, lang, actions }) {
           aria-label={chatOpen ? copy.closeChat : chatUnread ? `${copy.openChat} · ${copy.chatUnread(chatUnread)}` : copy.openChat} title={chatOpen ? copy.closeChat : copy.openChat}>
           <MessageCircle size={22} />{!chatOpen && chatUnread > 0 && <span className="hr-call-chat-badge" aria-hidden="true">{chatUnread > 99 ? '99+' : chatUnread}</span>}
         </button>
+        {showPipButton && <button type="button" className={`hr-call-round hr-call-pip-toggle ${pipWindow ? 'is-active' : ''}`} onClick={() => void popOut()} aria-pressed={!!pipWindow}
+          aria-label={pipWindow ? copy.popIn : pipMode === 'video' ? copy.popOutVideo : copy.popOut} title={pipWindow ? copy.popIn : pipMode === 'video' ? copy.popOutVideo : copy.popOut}><PictureInPicture2 size={22} /></button>}
         <button type="button" className="hr-call-round is-hangup" onClick={actions.leave} aria-label={copy.hangUp} title={copy.hangUp}><PhoneOff size={22} /></button>
       </footer>
       <HrCallChat roomId={call.roomId} open={chatOpen} lang={lang} copy={copy} onClose={() => setChatOpen(false)} onUnreadChange={setChatUnread} />
-    </section>}
+  </section>;
+  return <>
+    {ringing && <div className="hr-call-incoming" role="alertdialog" aria-live="assertive" aria-label={ringing.video ? copy.incomingVideo : copy.incomingVoice}>
+      <span className="hr-call-incoming-icon">{ringing.video ? <Video size={22} /> : <Phone size={22} />}</span>
+      <div className="hr-call-incoming-text">
+        <strong>{show(ringing.title)}</strong>
+        <span>{ringing.video ? copy.incomingVideo : copy.incomingVoice}{ringing.from && ringing.from !== ringing.title ? ` · ${ringing.from}` : ''}{incoming.length > 1 ? ` (+${incoming.length - 1})` : ''}</span>
+      </div>
+      <div className="hr-call-incoming-actions">
+        <button type="button" className="hr-call-btn is-decline" onClick={() => actions.decline(ringing.roomId)}><PhoneOff size={18} />{copy.decline}</button>
+        {ringing.video && <button type="button" className="hr-call-btn is-voice" onClick={() => actions.accept(ringing, false)}><Phone size={18} />{copy.acceptVoice}</button>}
+        <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
+      </div>
+    </div>}
+    {overlay && (pipWindow ? createPortal(overlay, pipWindow.document.body) : overlay)}
+    {/* 彈出到桌面時，網頁裡留一個小提示，可以一鍵移回 */}
+    {call && pipWindow && <div className="hr-call-pip-placeholder" role="status"><PictureInPicture2 size={18} aria-hidden="true" /><span>{copy.pipActive}</span><button type="button" onClick={() => pipWindow.close()}>{copy.popIn}</button></div>}
     {notice && <div className="hr-call-toast" role="status"><span>{noticeText(notice, lang)}</span><button type="button" onClick={actions.dismissNotice} aria-label={copy.dismiss}>×</button></div>}
   </>;
 }
