@@ -18,13 +18,11 @@ const LEGACY_UNIT_MEDIA = {
   2: { video: '/videos/mandarin-a1-unit-2.mp4', audio: '/videos/mandarin-a1-unit-2.mp3' },
   3: { video: '/videos/mandarin-a1-unit-3.mp4', audio: '/videos/mandarin-a1-unit-3.mp3' },
 };
-const FILIPINO_UNIT_MEDIA = {
-  1: {
-    video: '/videos/mandarin-a1-unit-1-fil.mp4',
-    audio: '/videos/mandarin-a1-unit-1-fil.mp3',
-    captions: '/videos/mandarin-a1-unit-1-fil.vtt',
-  },
-};
+const filipinoUnitMediaUrls = position => ({
+  video: `/videos/mandarin-a1-unit-${position}-fil.mp4`,
+  audio: `/videos/mandarin-a1-unit-${position}-fil.mp3`,
+  captions: `/videos/mandarin-a1-unit-${position}-fil.vtt`,
+});
 const unitMediaUrls = position => LEGACY_UNIT_MEDIA[position] || {
   video: `/videos/mandarin-a1-unit-${position}.mp4`,
   audio: `/videos/mandarin-a1-unit-${position}.mp3`,
@@ -122,9 +120,9 @@ export default function HrWorkerLearning({ courseId, onClose }) {
     const unitPosition = Number(unit.position);
     const isAvailableA1Video = isMandarinA1Course && Number.isInteger(unitPosition) && unitPosition >= 1 && unitPosition <= 20;
     const videoUnitPosition = isAvailableA1Video ? unitPosition : isUnit1 ? 1 : isUnit2 ? 2 : isUnit3 ? 3 : null;
-    const isFilipinoMedia = videoUnitPosition === 1 && unitVideoLanguage === 'fil';
+    const isFilipinoMedia = isAvailableA1Video && unitVideoLanguage === 'fil';
     const unitMedia = isFilipinoMedia
-      ? FILIPINO_UNIT_MEDIA[1]
+      ? filipinoUnitMediaUrls(videoUnitPosition)
       : videoUnitPosition ? unitMediaUrls(videoUnitPosition) : null;
     const unitVideoUrl = unitMedia?.video || null;
     const unitAudioUrl = unitMedia?.audio || null;
@@ -159,16 +157,16 @@ export default function HrWorkerLearning({ courseId, onClose }) {
       {unitVideoUrl && showVideo && <div className={styles.videoCard}>
         <div className={styles.videoHeader}>
           <h4>🎬 {isFilipinoMedia
-            ? 'Mandarin A1 Unit 1 - Filipino explanations with Mandarin examples'
+            ? `Mandarin A1 Unit ${videoUnitPosition} - Filipino explanations with Mandarin examples`
             : pickLang(lang, `華語 A1 第 ${unit.position} 單元教學影片（Kokoro 本地語音合成）`, `Mandarin A1 Unit ${unit.position} - Lesson Video (Kokoro AI Voiceover)`)}</h4>
           <button type="button" className={styles.button} style={{ padding: '4px 10px', fontSize: 13 }} onClick={() => setShowVideo(false)}>✕ {pickLang(lang, '關閉', 'Close')}</button>
         </div>
-        {videoUnitPosition === 1 && <div role="group" aria-label="Lesson video language" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 10px' }}>
+        {isAvailableA1Video && <div role="group" aria-label="Lesson video language" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 10px' }}>
           <button type="button" aria-pressed={!isFilipinoMedia} className={`${styles.button} ${!isFilipinoMedia ? styles.buttonPrimary : ''}`} onClick={() => setUnitVideoLanguage('zh')}>中文旁白</button>
           <button type="button" aria-pressed={isFilipinoMedia} className={`${styles.button} ${isFilipinoMedia ? styles.buttonPrimary : ''}`} onClick={() => setUnitVideoLanguage('fil')}>Filipino na paliwanag</button>
         </div>}
         <video key={unitVideoUrl} src={unitVideoUrl} controls autoPlay playsInline className={styles.videoPlayer}>
-          {isFilipinoMedia && <track kind="captions" src={FILIPINO_UNIT_MEDIA[1].captions} srcLang="fil" label="Filipino" default />}
+          {isFilipinoMedia && <track kind="captions" src={unitMedia.captions} srcLang="fil" label="Filipino" default />}
         </video>
         <p style={{ margin: '10px 0 4px', fontSize: 13, color: '#93c5fd' }}>
           {isFilipinoMedia ? 'Filipino narration and Mandarin examples (MP3):' : pickLang(lang, '單元音訊串流 (MP3)：', 'MP3 Audio Stream:')}
