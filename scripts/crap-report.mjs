@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Linter } from 'eslint'
 import { builtinRules } from 'eslint/use-at-your-own-risk'
 
@@ -31,6 +31,8 @@ function testFiles() {
 function runCoverage() {
   mkdirSync(outDir, { recursive: true })
   const r = spawnSync(process.execPath, [
+    // 讓 import '@/…' 的模組也能在測試中載入（見 tests/support/alias-hooks.mjs）
+    '--import', pathToFileURL(path.join(root, 'tests', 'support', 'register-alias.mjs')).href,
     '--test',
     '--experimental-test-coverage',
     '--test-coverage-include=src/**',

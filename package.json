@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "lint": "next lint",
-    "test:hr": "node --test tests/*.test.mjs scripts/test-hr-requirements.mjs",
+    "test:hr": "node --import ./tests/support/register-alias.mjs --test tests/*.test.mjs scripts/test-hr-requirements.mjs",
     "db:backup": "node scripts/backup-db.mjs",
     "db:restore": "node scripts/restore-db.mjs",
     "test:e2e": "playwright test",
