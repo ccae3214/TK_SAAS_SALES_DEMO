@@ -168,7 +168,8 @@ services:
     image: livekit/livekit-server:latest
     profiles: ["sfu"]
     environment:
-      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}
+      # 整行要用引號包起來：冒號後面有空格，不加引號 YAML 會把它當成 map 而不是字串
+      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY:-}: ${LIVEKIT_API_SECRET:-}"
       - |
         LIVEKIT_CONFIG=
         port: 7880
