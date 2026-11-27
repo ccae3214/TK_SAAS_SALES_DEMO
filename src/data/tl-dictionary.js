@@ -2177,6 +2177,7 @@ export const TL_DICTIONARY = {
   "Answer with voice only": "Sagutin gamit ang boses lang",
   "Decline": "Tanggihan",
   "Hang up": "Ibaba ang tawag",
+  "Drag here to move the call window (arrow keys also work; double-click to return it to the bottom right)": "I-drag dito para ilipat ang window ng tawag (gumagana rin ang mga arrow key; i-double-click para ibalik sa kanang ibaba)",
   "Open text chat": "Buksan ang text chat",
   "Close text chat": "Isara ang text chat",
   "Text chat": "Text chat",

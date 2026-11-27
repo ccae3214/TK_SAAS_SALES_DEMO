@@ -38,6 +38,10 @@
 .hr-call-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
 .hr-call-header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .hr-call-header span { flex: none; font-size: 12.5px; color: #9ed9c0; }
+/* 電腦版：按住標題列拖曳移動通話視窗 */
+.hr-call-drag-handle { margin: -12px -12px 0; padding: 12px 12px 4px; border-radius: 18px 18px 0 0; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hr-call-drag-handle:active { cursor: grabbing; }
+.hr-call-drag-handle:focus-visible { outline: 3px solid #7cc8ad; outline-offset: -3px; }
 /* 並排：依人數排成 1／2／3 欄 */
 .hr-call-grid { position: relative; display: grid; flex: 1; gap: 6px; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
 .hr-call-grid.count-1 { grid-template-columns: 1fr; }
@@ -125,6 +129,8 @@
   }
   .hr-call-toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
   /* 手機直向：兩人上下並排；3～6 人兩欄 */
+  /* 手機版通話視窗佔滿整個畫面，不能拖曳 */
+  .hr-call-drag-handle { margin: 0; padding: 0; border-radius: 0; cursor: default; touch-action: auto; }
   .hr-call-grid.count-2 { grid-template-columns: 1fr; }
   .hr-call-grid.count-5, .hr-call-grid.count-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hr-call-grid.has-focus { grid-template-columns: repeat(var(--hr-call-others, 1), minmax(0, 1fr)); }
