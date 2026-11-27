@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
-import { NOTIFY_COPY, detectNotifyEnvironment, urlBase64ToUint8Array } from '@/lib/hr-call-notify-client-core';
+import { NOTIFY_COPY, detectNotifyEnvironment, normalizeVapidPublicKey, urlBase64ToUint8Array } from '@/lib/hr-call-notify-client-core';
 import { copyFor, isSupportedLanguage } from '@/lib/language';
 import styles from './HrCallNotify.module.css';
 
@@ -134,8 +134,9 @@ export default function HrCallNotify() {
       if (permission !== 'granted') { fail(t.errors.permission); return; }
       const loaded = config?.publicKey ? { data: config, error: null } : await loadConfig();
       const current = loaded.data;
-      if (!current?.enabled || !current.publicKey) { fail(t.errors.config, loaded.error || configError); return; }
-      const key = urlBase64ToUint8Array(String(current.publicKey).trim());
+      const publicKey = normalizeVapidPublicKey(current?.publicKey);
+      if (!current?.enabled || !publicKey) { fail(current?.enabled ? t.errors.badKey : t.errors.config, loaded.error || configError); return; }
+      const key = urlBase64ToUint8Array(publicKey);
       const registration = await withTimeout(registerWorker(), 20000, 'ServiceWorkerTimeout');
       let subscription = await registration.pushManager.getSubscription();
       // 推播金鑰換過時，舊訂閱不能再用，要重新訂閱
