@@ -15,7 +15,8 @@ test('只有系統管理者能刪除仲介機構，且有關聯資料時拒絕�
 });
 
 test('仲介機構刪除會寫入操作紀錄，並只在管理者介面顯示刪除按鈕', async () => {
-  assert.match(await read('../src/lib/hr-audit.js'), /type === 'agency'\) return \{ action: '刪除'/);
+  const { describeAdminOperation } = await import('../src/lib/hr-admin-audit-core.js');
+  assert.deepEqual(describeAdminOperation('DELETE', 'agency', {}, '甲仲介', null, null), { action: '刪除', name: '甲仲介', phrase: '刪除了甲仲介仲介機構' });
   assert.match(await read('../src/components/HrManagement.jsx'), /remove=\{data\.role==='admin'\?record=>deleteRecord\('agency',record\):undefined\}/);
   assert.match(await read('../src/components/HrAgencyDirectory.jsx'), /\{remove && <button/);
 });

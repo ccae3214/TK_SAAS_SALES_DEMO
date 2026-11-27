@@ -127,54 +127,89 @@ const LINE_MEMBER = `active=TRUE AND line_user_id IS NOT NULL AND line_user_id<>
  *  ・初步審核通過／所有必要文件完成 → 里程碑，會合併進摘要；沒有摘要時單獨發送
  * HR_NOTIFY_DOCUMENT_ROUND=0 可關閉「結果摘要」（里程碑通知不受影響）。
  */
-export async function notifyAfterDocumentReview({ workerId, submissionId = null, actor = '', gateOpened = false, docsComplete = false }, deps = {}) {
-  const run = deps.run || query;
-  const worker = (await run('SELECT id, name, agency_id FROM hr_workers WHERE id=$1', [workerId]))?.[0];
-  if (!worker) return 0;
-  const docs = await run('SELECT name, status, review_reason, required FROM hr_worker_documents WHERE worker_id=$1 AND applicable=TRUE ORDER BY id', [workerId]);
-  const roundDone = !docs.some(d => d.status === 'submitted') && process.env.HR_NOTIFY_DOCUMENT_ROUND !== '0';
-  const returned = docs.filter(d => d.status === 'returned');
+// 這一輪審核的狀態：是否審完（沒有待審文件）、退件清單、必要文件通過數。
+function reviewRound(docs) {
   const required = docs.filter(d => d.required);
-  const ok = required.filter(d => d.status === 'approved').length;
-  if (!roundDone && !gateOpened && !docsComplete) return 0;
+  return {
+    roundDone: !docs.some(d => d.status === 'submitted') && process.env.HR_NOTIFY_DOCUMENT_ROUND !== '0',
+    returned: docs.filter(d => d.status === 'returned'),
+    ok: required.filter(d => d.status === 'approved').length,
+    total: required.length,
+  };
+}
 
-  const seen = new Set();
-  let sent = 0;
+// 第一方收件人：工作者本人的會員帳號，加上這份文件的上傳者（排除操作者本人）。
+async function reviewFirstParty(run, workerId, submissionId, actor) {
   const workerMembers = await run(`SELECT line_user_id, role, email FROM hr_members WHERE worker_id=$1 AND ${LINE_MEMBER}`, [workerId]);
   const submittedBy = submissionId ? (await run('SELECT submitted_by FROM hr_document_submissions WHERE id=$1', [submissionId]))?.[0]?.submitted_by : null;
   const submitters = submittedBy ? await run(`SELECT line_user_id, role, email FROM hr_members
     WHERE ${LINE_MEMBER} AND (lower(email)=lower($1) OR line_user_id=$1)`, [submittedBy]) : [];
-  const firstParty = [...workerMembers.map(m => ({ ...m, isWorker: true })), ...submitters].filter(m => !isSameActor(actor, m));
+  return [...workerMembers.map(m => ({ ...m, isWorker: true })), ...submitters].filter(m => !isSameActor(actor, m));
+}
 
-  sent += await sendEach(firstParty, (language, r) => {
+function reviewMilestones(language, isWorker, workerName, { gateOpened, docsComplete }) {
+  const milestones = [];
+  if (docsComplete) milestones.push(COPY.docsComplete[language]);
+  if (gateOpened) milestones.push(isWorker ? COPY.preliminaryWorker[language] : COPY.preliminaryStaff[language]({ who: workerName }));
+  return milestones;
+}
+
+function returnedLines(returned, language) {
+  if (!returned.length) return [];
+  const lines = [COPY.docReturnedTitle[language](returned.length)];
+  for (const d of returned.slice(0, 15)) lines.push(`・${short(documentDisplayName(d.name, language), 60)}：${short(d.review_reason, 120) || '-'}`);
+  if (returned.length > 15) lines.push('…');
+  return lines;
+}
+
+// 給工作者／上傳者的訊息：這一輪審完就是結果摘要（含里程碑）；還沒審完只送里程碑。
+function reviewSummary(worker, round, flags) {
+  return (language, r) => {
     const isWorker = r.isWorker || r.role === 'worker';
-    const who = isWorker ? '' : worker.name;
-    const milestones = [];
-    if (docsComplete) milestones.push(COPY.docsComplete[language]);
-    if (gateOpened) milestones.push(isWorker ? COPY.preliminaryWorker[language] : COPY.preliminaryStaff[language]({ who: worker.name }));
-    if (!roundDone) return milestones.join('\n');
-    const lines = [COPY.docHeader[language]({ ok, total: required.length, who })];
-    if (returned.length) {
-      lines.push(COPY.docReturnedTitle[language](returned.length));
-      for (const d of returned.slice(0, 15)) lines.push(`・${short(documentDisplayName(d.name, language), 60)}：${short(d.review_reason, 120) || '-'}`);
-      if (returned.length > 15) lines.push('…');
-    }
-    lines.push(...milestones);
-    if (returned.length) lines.push(COPY.docReturnedFooter[language]);
-    return lines.join('\n');
-  }, deps, seen);
+    const milestones = reviewMilestones(language, isWorker, worker.name, flags);
+    if (!round.roundDone) return milestones.join('\n');
+    return [
+      COPY.docHeader[language]({ ok: round.ok, total: round.total, who: isWorker ? '' : worker.name }),
+      ...returnedLines(round.returned, language),
+      ...milestones,
+      ...(round.returned.length ? [COPY.docReturnedFooter[language]] : []),
+    ].join('\n');
+  };
+}
 
-  // 工作人員：初步審核通過 → 所屬仲介會員與所有訓練中心；所有必要文件完成 → 所屬仲介會員。
+// 工作人員：初步審核通過 → 所屬仲介會員與所有訓練中心；所有必要文件完成 → 所屬仲介會員。
+async function reviewStaff(run, worker, { gateOpened, docsComplete }, actor) {
   const agency = worker.agency_id && (gateOpened || docsComplete)
     ? await run(`SELECT line_user_id, role, email FROM hr_members WHERE role='agency' AND agency_id=$1 AND ${LINE_MEMBER}`, [worker.agency_id]) : [];
   const centers = gateOpened ? await run(`SELECT line_user_id, role, email FROM hr_members WHERE role='training_center' AND ${LINE_MEMBER}`) : [];
-  sent += await sendEach([...agency, ...centers].filter(m => !isSameActor(actor, m)), (language, r) => {
-    const lines = [];
-    if (gateOpened) lines.push(COPY.preliminaryStaff[language]({ who: worker.name }));
-    if (docsComplete && r.role === 'agency') lines.push(COPY.docsCompleteStaff[language]({ who: worker.name }));
-    return lines.join('\n');
-  }, deps, seen);
-  return sent;
+  return [...agency, ...centers].filter(m => !isSameActor(actor, m));
+}
+
+const staffMilestone = (worker, { gateOpened, docsComplete }) => (language, r) => [
+  ...(gateOpened ? [COPY.preliminaryStaff[language]({ who: worker.name })] : []),
+  ...(docsComplete && r.role === 'agency' ? [COPY.docsCompleteStaff[language]({ who: worker.name })] : []),
+].join('\n');
+
+/**
+ * 一次文件審核之後呼叫（資料庫交易完成後）。不會因為「單份文件」通知：
+ *  ・還有待審文件 → 不發結果摘要（等這一輪全部審完）
+ *  ・這一輪審完 → 對工作者（與上傳者）發一則摘要：通過幾份、需要修正的文件與原因
+ *  ・初步審核通過／所有必要文件完成 → 里程碑，會合併進摘要；沒有摘要時單獨發送
+ * HR_NOTIFY_DOCUMENT_ROUND=0 可關閉「結果摘要」（里程碑通知不受影響）。
+ */
+export async function notifyAfterDocumentReview({ workerId, submissionId = null, actor = '', gateOpened = false, docsComplete = false }, deps = {}) {
+  const run = deps.run || query;
+  const worker = (await run('SELECT id, name, agency_id FROM hr_workers WHERE id=$1', [workerId]))?.[0];
+  if (!worker) return 0;
+  const round = reviewRound(await run('SELECT name, status, review_reason, required FROM hr_worker_documents WHERE worker_id=$1 AND applicable=TRUE ORDER BY id', [workerId]));
+  const flags = { gateOpened, docsComplete };
+  if (!round.roundDone && !gateOpened && !docsComplete) return 0;
+
+  const seen = new Set();
+  const firstParty = await reviewFirstParty(run, workerId, submissionId, actor);
+  const sentFirst = await sendEach(firstParty, reviewSummary(worker, round, flags), deps, seen);
+  const staff = await reviewStaff(run, worker, flags, actor);
+  return sentFirst + await sendEach(staff, staffMilestone(worker, flags), deps, seen);
 }
 
 // ---------------------------------------------------------------------------
