@@ -9,6 +9,7 @@ const JOIN_TIMEOUT_MS = 12000;
 const RECONNECT_GIVE_UP_MS = 30000;
 const ALONE_HANGUP_MS = 8000;
 const READY_WAIT_MS = 6000;
+const PEER_CONNECT_TIMEOUT_MS = 20000; // 接聽後超過這麼久，影像聲音還沒連上對方，就提示使用者（以前會一直停在「連線中…」）
 const SFU_LOW_QUALITY_FROM = 7; // 同時收到超過 6 個人的影像時，改收較低畫質，手機才撐得住
 
 // SFU 位址可以寫相對路徑（例如 /livekit，由 nginx 轉送），這裡補成瀏覽器要連的 ws:// 或 wss:// 位址。
@@ -53,7 +54,7 @@ export function normalizeMedia(value) {
 
 export class CallClient {
   // loadSfu：回傳 livekit-client 模組的函式（要用到 SFU 時才載入，沒設定 SFU 的網站不會多下載）。
-  constructor({ api, wsUrl, onChange, onSound, loadSfu = null, env = globalThis, readyWaitMs = READY_WAIT_MS }) {
+  constructor({ api, wsUrl, onChange, onSound, loadSfu = null, env = globalThis, readyWaitMs = READY_WAIT_MS, peerConnectMs = PEER_CONNECT_TIMEOUT_MS }) {
     this.api = api;
     this.loadSfu = loadSfu;
     this.sfuInfo = null; // /api/hr/call 回傳的 { url, token }；沒有就代表這次通話彼此直連
@@ -62,6 +63,7 @@ export class CallClient {
     this.lkPresent = new Set(); // 已經連上 SFU 的參加者識別碼
     this.env = env;
     this.readyWaitMs = readyWaitMs;
+    this.peerConnectMs = peerConnectMs;
     this.connecting = false;
     this.lastFailure = null;
     this.wsUrl = wsUrl;
@@ -419,7 +421,9 @@ export class CallClient {
       }
       this.refreshSfuPeers();
       this.applySfuQuality();
-    } catch {
+    } catch (error) {
+      // 只記在瀏覽器主控台（F12），方便判斷是 SFU 沒設定、信令被擋，還是影像的 UDP/TCP 連不上
+      try { globalThis.console?.warn?.('hr_call_sfu_failed', error?.name || '', error?.message || String(error)); } catch { /* 記錄失敗不影響通話 */ }
       if (this.call === call) {
         this.leave({ silent: true });
         this.setNotice({ type: 'sfu-failed' });
@@ -477,12 +481,30 @@ export class CallClient {
     };
     pc.onconnectionstatechange = () => {
       peer.state = pc.connectionState;
+      if (pc.connectionState === 'connected') { clearTimeout(peer.connectTimer); peer.connectTimer = null; }
       // 連線失敗時由主動方重新協商一次（網路切換，例如 Wi-Fi 換成行動網路）
       if (pc.connectionState === 'failed' && peer.initiator && !peer.restarted) { peer.restarted = true; void this.makeOffer(peer, true); }
+      // 重新協商過還是失敗（或是被動方）：告訴使用者連不上，不要一直顯示「連線中…」
+      else if (pc.connectionState === 'failed') { clearTimeout(peer.connectTimer); peer.connectTimer = null; this.setNotice({ type: 'peer-failed' }); return; }
       this.emit();
     };
+    peer.connectTimer = setTimeout(() => this.onPeerStalled(peer), this.peerConnectMs);
     if (initiator) void this.makeOffer(peer, false);
     this.emit();
+  }
+
+  // 接聽後遲遲連不上對方：主動方先重新協商一次（換一組連線路徑），還是不行就提示使用者。
+  // 通話不會被掛斷，連上了提示就沒有影響；使用者也可以自己掛斷重打。
+  onPeerStalled(peer) {
+    peer.connectTimer = null;
+    if (!this.call || this.peers.get(peer.id) !== peer || peer.state === 'connected') return;
+    if (peer.initiator && !peer.restarted) {
+      peer.restarted = true;
+      void this.makeOffer(peer, true);
+      peer.connectTimer = setTimeout(() => this.onPeerStalled(peer), this.peerConnectMs);
+      return;
+    }
+    this.setNotice({ type: 'peer-failed' });
   }
 
   async makeOffer(peer, iceRestart) {
@@ -520,6 +542,7 @@ export class CallClient {
   removePeer(id) {
     const peer = this.peers.get(id);
     if (!peer) return;
+    clearTimeout(peer.connectTimer);
     if (peer.pc) { peer.pc.onconnectionstatechange = null; peer.pc.ontrack = null; peer.pc.onicecandidate = null; peer.pc.close(); }
     if (peer.lk) this.lkStreams.delete(peer.lk);
     this.peers.delete(id);
@@ -536,7 +559,7 @@ export class CallClient {
   cleanup() {
     for (const name of Object.keys(this.timers)) clearTimeout(this.timers[name]);
     this.timers = {};
-    for (const peer of this.peers.values()) { if (peer.pc) { peer.pc.onconnectionstatechange = null; peer.pc.close(); } }
+    for (const peer of this.peers.values()) { clearTimeout(peer.connectTimer); if (peer.pc) { peer.pc.onconnectionstatechange = null; peer.pc.close(); } }
     this.peers.clear();
     this.stopSfu();
     this.localStream?.getTracks().forEach(track => track.stop());
