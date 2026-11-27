@@ -27,7 +27,7 @@ import { cleanCareRecipient, jobOrderExtrasError, needsCareRecipient, parseIssue
 import { requestIsSameOrigin } from '@/lib/request-origin';
 import { ensureSchema } from '@/lib/hr-schema';
 import { dispatchPost } from './_post';
-import { EMPLOYER_TYPES, APPLICATION_STEPS, clean, cleanWorkerResumeProfile, workerProfileWithReference, validId, employerProfileFromBody, validDate, recordActivity, recordWorkerActivity, refreshCaseStage, refreshWorkerCases } from './_shared';
+import { EMPLOYER_TYPES, APPLICATION_STEPS, clean, cleanWorkerResumeProfile, persistWorkerPhoto, workerProfileWithReference, validId, employerProfileFromBody, validDate, recordActivity, recordWorkerActivity, refreshCaseStage, refreshWorkerCases } from './_shared';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -438,9 +438,12 @@ async function handlePatch(request) {
       const name = normalizePersonName(clean(body.name,160));
       if (!name) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
       const resumeProfile=workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),principal.worker_id);
-      const edited = await editLinkedRecord('worker', id, { name, email: clean(body.email,254) }, async (client, fields) =>
-        (await client.query(`UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,resume_profile=resume_profile || $7::jsonb,updated_at=NOW()
-          WHERE id=$1 RETURNING *`, [id,name,clean(body.nationality,80),clean(body.phone,50),fields.email,clean(body.jobPreference,120),JSON.stringify(resumeProfile)])).rows[0]);
+      const edited = await editLinkedRecord('worker', id, { name, email: clean(body.email,254) }, async (client, fields) => {
+        const row = (await client.query(`UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,resume_profile=resume_profile || $7::jsonb,updated_at=NOW()
+          WHERE id=$1 RETURNING *`, [id,name,clean(body.nationality,80),clean(body.phone,50),fields.email,clean(body.jobPreference,120),JSON.stringify(resumeProfile)])).rows[0];
+        if (row) await persistWorkerPhoto(client, id, resumeProfile);
+        return row;
+      });
       await resyncRequirements(id);
       return NextResponse.json(edited);
     }
@@ -460,11 +463,13 @@ async function handlePatch(request) {
       if (!validId(id)) return NextResponse.json({ error: '工作者編號不正確。' }, { status: 400 });
       if (body.active === undefined && !clean(body.name,160)) return NextResponse.json({ error: '請填寫工作者姓名。' }, { status: 400 });
       const fields = body.active !== undefined ? { active: Boolean(body.active) } : { name: normalizePersonName(clean(body.name,160)), email: clean(body.email,254) };
+      const agencyProfile = body.resumeProfile===undefined ? null : workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id);
       const edited = await editLinkedRecord('worker', id, fields, async (client, normalized) => {
         const saved = body.active !== undefined
           ? await client.query("UPDATE hr_workers SET status=$3,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING *", [id,principal.agency_id,body.active ? 'active' : 'inactive'])
           : await client.query(`UPDATE hr_workers SET name=$3,nationality=$4,phone=$5,email=$6,job_preference=$7,notes=$8,resume_profile=resume_profile || COALESCE($9::jsonb,'{}'::jsonb),updated_at=NOW()
-              WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,normalized.name,clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id))]);
+              WHERE id=$1 AND agency_id=$2 RETURNING *`, [id,principal.agency_id,normalized.name,clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),agencyProfile===null?null:JSON.stringify(agencyProfile)]);
+        if (saved.rows[0] && body.active === undefined && agencyProfile) await persistWorkerPhoto(client, id, agencyProfile);
         return saved.rows[0];
       }, principal.agency_id);
       await resyncRequirements(id);
@@ -478,6 +483,7 @@ async function handlePatch(request) {
       const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
       const result = await query('UPDATE hr_workers SET resume_profile=$3::jsonb,updated_at=NOW() WHERE id=$1 AND agency_id=$2 RETURNING id', [id,principal.agency_id,JSON.stringify(resumeProfile)]);
       if (!result.length) return NextResponse.json({ error: '找不到所屬仲介的工作者資料。' }, { status: 404 });
+      await persistWorkerPhoto(pool, id, resumeProfile, { replace: true });
       await resyncRequirements(id);
       return NextResponse.json({ ok: true });
     }
@@ -998,6 +1004,7 @@ async function handlePatch(request) {
       const resumeProfile = cleanWorkerResumeProfile(body.clear === true ? {} : body.resumeProfile);
       const result = await query('UPDATE hr_workers SET resume_profile=$2::jsonb,updated_at=NOW() WHERE id=$1 RETURNING id', [id,JSON.stringify(resumeProfile)]);
       if (!result.length) return NextResponse.json({ error: '找不到工作者資料。' }, { status: 404 });
+      await persistWorkerPhoto(pool, id, resumeProfile, { replace: true });
       await resyncRequirements(id);
       return NextResponse.json({ ok: true });
     }
@@ -1010,12 +1017,15 @@ async function handlePatch(request) {
       if (employerExtra.error) return NextResponse.json({ error: employerExtra.error }, { status: 400 });
       const recordName = body.name === undefined ? '' : body.type === 'worker' ? normalizePersonName(clean(body.name,160)) : clean(body.name,160);
       const fields = body.name !== undefined ? { name: recordName, email: clean(body.email,254) } : { active: body.status !== 'inactive' };
+      const adminWorkerProfile = body.type === 'worker' && body.name !== undefined && body.resumeProfile !== undefined
+        ? workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id) : null;
       const saved = await editLinkedRecord(body.type, id, fields, async (client, normalized) => {
         let result;
         if (body.name !== undefined) {
           result = body.type === 'employer'
             ? await client.query('UPDATE hr_employers SET name=$2,contact_name=$3,phone=$4,email=$5,address=$6,notes=$7,employer_type=$8,agency_id=$9,employer_profile=COALESCE($10::jsonb,employer_profile),updated_at=NOW() WHERE id=$1 RETURNING *', [id,clean(body.name,160),clean(body.contactName,120),clean(body.phone,50),normalized.email,clean(body.address,300),clean(body.notes,2000),body.employerType,body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null,employerExtra.profile])
-            : await client.query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,recordName,clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),body.resumeProfile===undefined?null:JSON.stringify(workerProfileWithReference(body.resumeProfile,clean(body.jobPreference,120),id)),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
+            : await client.query('UPDATE hr_workers SET name=$2,nationality=$3,phone=$4,email=$5,job_preference=$6,notes=$7,resume_profile=resume_profile || COALESCE($8::jsonb,\'{}\'::jsonb),agency_id=$9,updated_at=NOW() WHERE id=$1 RETURNING *', [id,recordName,clean(body.nationality,80),clean(body.phone,50),normalized.email,clean(body.jobPreference,120),clean(body.notes,2000),adminWorkerProfile===null?null:JSON.stringify(adminWorkerProfile),body.agencyId&&validId(body.agencyId)?Number(body.agencyId):null]);
+          if (body.type === 'worker' && result.rows[0] && adminWorkerProfile) await persistWorkerPhoto(client, id, adminWorkerProfile);
         } else {
           const status = body.status === 'inactive' ? 'inactive' : 'active';
           result = await client.query(`UPDATE ${table} SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING *`, [id,status]);
