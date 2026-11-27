@@ -119,7 +119,7 @@ export class CallHub {
     } else if (call.participants.size >= maxParticipantsFor(call)) {
       return conn.send({ t: 'error', code: 'full' });
     }
-    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, lk: item.lk, media: item.media || cleanMedia(null, call.video) }));
+    const peers = [...call.participants.values()].map(item => ({ id: item.id, name: item.name, ...(item.lk ? { lk: item.lk } : {}), media: item.media || cleanMedia(null, call.video) }));
     conn.media = cleanMedia(message.media, call.video);
     // SFU 通話：LiveKit 的參加者識別碼來自簽章票證（不能自己亂填），其他人用它把畫面對應到這個人
     conn.lk = call.sfu && typeof ticket.lk === 'string' && /^[0-9a-f]{18}$/.test(ticket.lk) ? ticket.lk : null;
@@ -127,7 +127,7 @@ export class CallHub {
     call.participants.set(conn.id, conn);
     conn.roomId = roomId;
     conn.send({ t: 'joined', callId: call.id, roomId, id: conn.id, video: call.video, title: call.title, peers, ...(call.sfu ? { sfu: true } : {}) });
-    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, lk: conn.lk, media: conn.media } });
+    for (const other of call.participants.values()) if (other !== conn) other.send({ t: 'peer-joined', peer: { id: conn.id, name: conn.name, ...(conn.lk ? { lk: conn.lk } : {}), media: conn.media } });
     // 同一個人的其他分頁／裝置不用再響鈴
     for (const other of this.byKey.get(conn.key) || []) if (other !== conn && other.roomId == null) other.send({ t: 'ring-stop', roomId });
   }
