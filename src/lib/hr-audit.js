@@ -5,6 +5,7 @@ import { migrateOnce } from './migrate-once.js';
 import { describeAgencyOperation, shouldRecordAgencyAudit } from './hr-agency-audit-core.js';
 import { recordAgencyAction } from './hr-agency-audit.js';
 import { prepareWorkerLog, writeWorkerLog } from './hr-worker-log.js';
+import { diffSnapshots, snapshotKindOf, takeSnapshot } from './hr-audit-snapshot.js';
 
 // 系統管理員操作紀錄：記錄「哪一位系統管理員做了什麼操作」。
 // 紀錄失敗只會寫 log，不會影響原本的操作。
@@ -24,8 +25,12 @@ export function ensureAuditSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_admin_audit_log_created ON hr_admin_audit_log(created_at DESC, id DESC)');
+    // 改之前／改之後（只存變動的欄位，見 hr-audit-snapshot.js）。舊紀錄維持 NULL。
+    await pool.query('ALTER TABLE hr_admin_audit_log ADD COLUMN IF NOT EXISTS before_data JSONB, ADD COLUMN IF NOT EXISTS after_data JSONB');
   });
 }
+
+const runQuery = (sql, params) => query(sql, params);
 
 const ROLE_NAMES = { worker: '工作者', employer: '雇主', agency: '仲介機構員工', training_center: '訓練中心', system_admin: '系統管理者' };
 const SCOPE_NAMES = { none: '一般會員', agency: '仲介管理者', system: '系統管理者' };
@@ -139,17 +144,28 @@ async function prepare(request, method) {
   }
   // 推薦工作者：操作對象是工作者（編號在 workerId），先查名字才記得到。
   const before = await lookupTarget(type === 'job-order-candidate' ? 'worker' : type, type === 'job-order-candidate' ? idOf(body.workerId) : id);
-  return { principal, session, method, type, body, id, before, kind };
+  // 操作前的完整快照（只有人與機構這類資料才有，其餘為 null）。
+  const snapshot = method === 'POST' ? null : await takeSnapshot(runQuery, type, id);
+  return { principal, session, method, type, body, id, before, snapshot, kind };
+}
+
+// 操作成功後再拍一次，算出變動的欄位。
+async function changesOf(ctx, created) {
+  const targetId = ctx.id || idOf(created?.id);
+  if (!snapshotKindOf(ctx.type) || !targetId) return { before: null, after: null };
+  const after = await takeSnapshot(runQuery, ctx.type, targetId);
+  return diffSnapshots(ctx.snapshot, after);
 }
 
 async function write(ctx, response) {
   let created = null;
   if (ctx.method === 'POST') { try { created = await response.clone().json(); } catch { created = null; } }
   const targetName = ctx.before?.name || '';
+  const changes = await changesOf(ctx, created);
   if (ctx.kind === 'agency') {
     const agencyEntry = describeAgencyOperation({ method: ctx.method, type: ctx.type, body: ctx.body, name: targetName, before: ctx.before, created });
     if (!agencyEntry) return;
-    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en });
+    await recordAgencyAction({ principal: ctx.principal, session: ctx.session, action: agencyEntry.action, type: ctx.type, id: ctx.id || idOf(created?.id), name: agencyEntry.name, zh: agencyEntry.zh, en: agencyEntry.en, before: changes.before, after: changes.after });
     return;
   }
   const entry = describe(ctx.method, ctx.type, ctx.body, targetName || (ctx.id ? `#${ctx.id}` : ''), ctx.before, created);
@@ -157,12 +173,15 @@ async function write(ctx, response) {
   const actorName = String(ctx.principal.name || ctx.session.user.name || ctx.session.user.email || '系統管理員').slice(0, 160);
   await ensureAuditSchema();
   await pool.query(
-    `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+    `INSERT INTO hr_admin_audit_log(actor_member_id,actor_name,actor_email,action,target_type,target_id,target_name,summary,before_data,after_data)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb)`,
     [ctx.principal.id || null, actorName, String(ctx.session.user.email || '').slice(0, 254), entry.action, ctx.type,
-      ctx.id || idOf(created?.id), String(entry.name || '').slice(0, 200), `${actorName}系統管理員${entry.phrase}`.slice(0, 500)]
+      ctx.id || idOf(created?.id), String(entry.name || '').slice(0, 200), `${actorName}系統管理員${entry.phrase}`.slice(0, 500),
+      jsonOrNull(changes.before), jsonOrNull(changes.after)]
   );
 }
+
+const jsonOrNull = value => value ? JSON.stringify(value) : null;
 
 // 給不走 withAdminAudit 的管理 API 直接寫入一筆操作紀錄（例如訓練中心工作區）；失敗只記 log。
 export async function recordAdminAction({ principal, session, action, type, id, name, phrase }) {

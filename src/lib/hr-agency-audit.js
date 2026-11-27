@@ -25,22 +25,25 @@ export function ensureAgencyAuditSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
     await pool.query('CREATE INDEX IF NOT EXISTS hr_agency_audit_log_agency ON hr_agency_audit_log(agency_id, id DESC)');
+    // 改之前／改之後（只存變動的欄位，見 hr-audit-snapshot.js）。舊紀錄維持 NULL。
+    await pool.query('ALTER TABLE hr_agency_audit_log ADD COLUMN IF NOT EXISTS before_data JSONB, ADD COLUMN IF NOT EXISTS after_data JSONB');
   });
 }
 
 const idOf = value => { const n = Number(value); return Number.isInteger(n) && n > 0 ? n : null; };
 
 // 寫入一筆仲介操作紀錄。principal 必須是有所屬機構的仲介成員，否則直接略過。
-export async function recordAgencyAction({ principal, session, action, type, id, name, zh, en }) {
+export async function recordAgencyAction({ principal, session, action, type, id, name, zh, en, before = null, after = null }) {
   try {
     if (!shouldRecordAgencyAudit(principal) || !action || !zh) return;
     const actorName = String(principal.name || session?.user?.name || session?.user?.email || '仲介成員').slice(0, 160);
     await ensureAgencyAuditSchema();
     await pool.query(
-      `INSERT INTO hr_agency_audit_log(agency_id,agency_name,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_id,target_name,summary_zh,summary_en)
-       VALUES($1,COALESCE((SELECT name FROM hr_agencies WHERE id=$1),''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      `INSERT INTO hr_agency_audit_log(agency_id,agency_name,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_id,target_name,summary_zh,summary_en,before_data,after_data)
+       VALUES($1,COALESCE((SELECT name FROM hr_agencies WHERE id=$1),''),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)`,
       [Number(principal.agency_id), idOf(principal.id), actorName, String(session?.user?.email || principal.email || '').slice(0, 254), !!principal.is_agency_admin,
-        String(action).slice(0, 40), String(type || '').slice(0, 60), idOf(id), String(name || '').slice(0, 200), String(zh).slice(0, 500), String(en || '').slice(0, 500)],
+        String(action).slice(0, 40), String(type || '').slice(0, 60), idOf(id), String(name || '').slice(0, 200), String(zh).slice(0, 500), String(en || '').slice(0, 500),
+        before ? JSON.stringify(before) : null, after ? JSON.stringify(after) : null],
     );
   } catch (error) { console.error('hr_agency_audit_write_failed', error?.name || 'Error'); }
 }
@@ -56,7 +59,7 @@ export async function readAgencyAudit(agencyId, { actorId = null, action = '', q
   if (q) { params.push(`%${q.replace(/[\\%_]/g, '\\$&')}%`); where.push(`(summary_zh ILIKE $${params.length} OR summary_en ILIKE $${params.length} OR actor_name ILIKE $${params.length} OR target_name ILIKE $${params.length})`); }
   params.push(limit + 1);
   const rows = await query(
-    `SELECT id,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_name,summary_zh,summary_en,created_at
+    `SELECT id,actor_member_id,actor_name,actor_email,actor_is_admin,action,target_type,target_name,summary_zh,summary_en,before_data,after_data,created_at
      FROM hr_agency_audit_log WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT $${params.length}`, params);
   const actors = await query(
     `SELECT actor_member_id AS id, (array_agg(actor_name ORDER BY id DESC))[1] AS name

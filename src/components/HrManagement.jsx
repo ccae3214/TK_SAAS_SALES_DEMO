@@ -32,6 +32,7 @@ import HrResumeFieldControl from '@/components/HrResumeFieldControl';
 import HrDocumentReviewList from '@/components/HrDocumentReviewList';
 import HrWorkflowProgress from '@/components/HrWorkflowProgress';
 import HrOrganizationAuditLog from '@/components/HrOrganizationAuditLog';
+import HrAuditChanges from '@/components/HrAuditChanges';
 import { PortalStyles } from '@/components/HrMemberPortal';
 import { pickLang } from '@/lib/language';
 
@@ -614,7 +615,7 @@ function MemberList({rows,trashed=[],update,review,edit,manageAdmin,isRootAdmin,
 function AdminAuditList() {
   const [rows,setRows]=useState(null),[error,setError]=useState('');
   useEffect(()=>{let live=true;fetch('/api/hr/admin-audit',{cache:'no-store'}).then(async res=>{const json=await res.json().catch(()=>({}));if(!res.ok)throw new Error(json.error||'讀取操作紀錄失敗。');if(live)setRows(json.rows||[]);}).catch(err=>{if(live)setError(err.message);});return()=>{live=false;};},[]);
-  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>系統管理員操作紀錄</h2><p>記錄是哪一位系統管理員對雇主、工作者、仲介、會員與案件做了什麼操作。</p></div><span className={styles.rowCount}>{rows?`最近 ${rows.length} 筆`:''}</span></div>{error?<Empty title="無法讀取操作紀錄" text={error}/>:rows===null?<Empty title="讀取中" text="正在載入操作紀錄。"/>:rows.length?<div className={styles.activityList}>{rows.map(event=><div className={styles.activityRow} key={event.id}><span className={styles.activityDot}/><div><strong>{event.summary}</strong><small>{event.action}{event.actor_email?` · ${event.actor_email}`:''}</small><time>{new Date(event.created_at).toLocaleString('zh-TW')}</time></div></div>)}</div>:<Empty title="尚無系統管理員操作紀錄" text="系統管理員進行新增、修改、啟用、停用或刪除後，會顯示在這裡。"/>}</section>;
+  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>系統管理員操作紀錄</h2><p>記錄是哪一位系統管理員對雇主、工作者、仲介、會員與案件做了什麼操作。</p></div><span className={styles.rowCount}>{rows?`最近 ${rows.length} 筆`:''}</span></div>{error?<Empty title="無法讀取操作紀錄" text={error}/>:rows===null?<Empty title="讀取中" text="正在載入操作紀錄。"/>:rows.length?<div className={styles.activityList}>{rows.map(event=><div className={styles.activityRow} key={event.id}><span className={styles.activityDot}/><div><strong>{event.summary}</strong><small>{event.action}{event.actor_email?` · ${event.actor_email}`:''}</small><time>{new Date(event.created_at).toLocaleString('zh-TW')}</time><HrAuditChanges before={event.before_data} after={event.after_data}/></div></div>)}</div>:<Empty title="尚無系統管理員操作紀錄" text="系統管理員進行新增、修改、啟用、停用或刪除後，會顯示在這裡。"/>}</section>;
 }
 function ActivityList({rows}) {return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>人力案件操作歷程</h2><p>文件審核、進度變更與文件存取都會記錄在這裡。</p></div><span className={styles.rowCount}>最近 {rows.length} 筆</span></div>{rows.length?<div className={styles.activityList}>{rows.map(event=><div className={styles.activityRow} key={event.id}><span className={styles.activityDot}/><div><strong>{event.action} · {event.case_number}</strong><small>{event.detail} · 操作者 {event.actor_email}</small><time>{new Date(event.created_at).toLocaleString('zh-TW')}</time></div></div>)}</div>:<Empty title="尚無操作紀錄" text="新增或更新案件資料後，操作歷程會顯示在這裡。"/>}</section>}
 function MemberStatus({row}) {return <span className={`${styles.status} ${!row.role?styles.statusWarn:row.active?styles.statusOpen:styles.statusNeutral}`}>{memberStatusLabel(row)}</span>}
