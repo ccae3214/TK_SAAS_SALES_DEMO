@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { ensureSchema } from '@/lib/hr-schema';
 import { getHrPrincipal } from '@/lib/hr-access';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { normalizeVapidPublicKey } from '@/lib/vapid-key';
 import {
   buildTestNotice, createRateLimiter, normalizeLanguage, normalizeSubscription,
 } from '@/lib/hr-call-notify-core';
@@ -37,7 +38,9 @@ export async function GET(request) {
   const who=await identify(request,{write:false});
   if(who.response)return who.response;
   const enabled=pushConfigured();
-  return NextResponse.json({enabled,publicKey:enabled?process.env.HR_PUSH_VAPID_PUBLIC_KEY:''});
+  // .env 的金鑰可能夾帶引號、空白或標籤文字，先整理成瀏覽器能用的格式；整理不出來就回空字串，前端會提示金鑰格式不正確
+  const publicKey=enabled?normalizeVapidPublicKey(process.env.HR_PUSH_VAPID_PUBLIC_KEY):'';
+  return NextResponse.json({enabled,publicKey,keyInvalid:enabled&&!publicKey});
 }
 
 export async function POST(request) {

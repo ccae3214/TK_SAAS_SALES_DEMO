@@ -8,6 +8,7 @@ import { entryGateClosedSql } from '@/lib/hr-requirements';
 import { recordAdminAction } from '@/lib/hr-audit';
 import { recordTrainingCenterAction } from '@/lib/hr-tc-audit';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { orderTrainingCenters } from '@/lib/hr-training-center-order';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export async function GET(request) {
     await ensureTrainingCenterSchema();
     const centers = ctx.self
       ? await query("SELECT id, display_name, email, active FROM hr_members WHERE id=$1 AND role='training_center'", [ctx.centerId])
-      : await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' AND training_center_id IS NULL ORDER BY active DESC, display_name, id");
+      : orderTrainingCenters(await query("SELECT id, display_name, email, active FROM hr_members WHERE role='training_center' AND training_center_id IS NULL ORDER BY active DESC, display_name, id"));
     const requested = ctx.self ? ctx.centerId : new URL(request.url).searchParams.get('centerId');
     const center = centers.find(item => String(item.id) === String(requested)) || centers.find(item => item.active) || centers[0] || null;
     if (!center) return NextResponse.json({ centers, center: null });

@@ -44,8 +44,8 @@ test('學習頁面已整合單元教學影片與純音訊串流', async () => {
   const component = await read('../src/components/HrWorkerLearning.jsx');
   assert.match(component, /\/videos\/mandarin-a1-unit-1\.mp4/);
   assert.match(component, /\/videos\/mandarin-a1-unit-1\.mp3/);
-  assert.match(component, /<video src=\{unitVideoUrl\}/);
-  assert.match(component, /<audio src=\{unitAudioUrl\}/);
+  assert.match(component, /<video key=\{unitVideoUrl\} src=\{unitVideoUrl\}/);
+  assert.match(component, /<audio key=\{unitAudioUrl\} src=\{unitAudioUrl\}/);
   assert.match(component, /Kokoro/);
 });
 

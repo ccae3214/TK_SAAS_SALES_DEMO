@@ -17,6 +17,7 @@ export const COPY = {
     mute: '關閉麥克風', unmute: '開啟麥克風', speakerOff: '關閉喇叭', speakerOn: '開啟喇叭', cameraOff: '關閉鏡頭', cameraOn: '開啟鏡頭', me: '我',
     calling: '撥號中…', waiting: '等待對方接聽…', reconnecting: '重新連線中…', connecting: '連線中…', inCall: count => `通話中 · ${count + 1} 人`,
     dismiss: '關閉', callWindow: '通話視窗',
+    enlarge: '放大畫面', backToGrid: '回到並排畫面',
     status: {
       micOn: '麥克風已開啟', micOff: '麥克風已關閉', micNone: '沒有麥克風',
       camOn: '鏡頭已開啟', camOff: '鏡頭已關閉', camNone: '沒有鏡頭',
@@ -37,6 +38,7 @@ export const COPY = {
     mute: 'Mute microphone', unmute: 'Unmute microphone', speakerOff: 'Turn speaker off', speakerOn: 'Turn speaker on', cameraOff: 'Turn camera off', cameraOn: 'Turn camera on', me: 'Me',
     calling: 'Calling…', waiting: 'Waiting for others to answer…', reconnecting: 'Reconnecting…', connecting: 'Connecting…', inCall: count => `In call · ${count + 1} people`,
     dismiss: 'Close', callWindow: 'Call window',
+    enlarge: 'Enlarge video', backToGrid: 'Back to side-by-side view',
     status: {
       micOn: 'Microphone on', micOff: 'Microphone off', micNone: 'No microphone',
       camOn: 'Camera on', camOff: 'Camera off', camNone: 'No camera',
@@ -89,11 +91,15 @@ export function MediaStatus({ media, copy }) {
   </span>;
 }
 
-function Tile({ stream, name, local = false, state, speakerOff = false, media, copy }) {
+function Tile({ stream, name, local = false, state, speakerOff = false, media, copy, focused = false, onSelect = null }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream || null; }, [stream]);
   const hasVideo = !!stream?.getVideoTracks().some(track => track.readyState === 'live' && (local ? track.enabled : true));
-  return <div className={`hr-call-tile ${local ? 'is-local' : ''} ${hasVideo ? '' : 'no-video'}`} data-state={state || ''}>
+  // 點畫面放大這個人；已經放大的再點一次回到並排。用鍵盤（Enter／空白鍵）也可以操作。
+  const label = focused ? copy.backToGrid : `${copy.enlarge} · ${name}`;
+  const select = () => onSelect?.();
+  return <div className={`hr-call-tile ${local ? 'is-local' : ''} ${hasVideo ? '' : 'no-video'} ${focused ? 'is-focused' : ''} ${onSelect ? 'is-selectable' : ''}`} data-state={state || ''}
+    {...(onSelect ? { role: 'button', tabIndex: 0, 'aria-pressed': focused, 'aria-label': label, title: label, onClick: select, onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } } } : {})}>
     {/* 沒有影像時 video 元素仍保留（聲音要靠它播放），只是看不到 */}
     <video ref={ref} autoPlay playsInline muted={local || speakerOff} className={hasVideo ? '' : 'hr-call-audio-only'} />
     {!hasVideo && <span className="hr-call-avatar" aria-hidden="true">{(name || '?').trim().slice(0, 1).toUpperCase()}</span>}
@@ -104,11 +110,20 @@ function Tile({ stream, name, local = false, state, speakerOff = false, media, c
 
 // 畫面（純顯示，方便單獨測試）
 export function CallView({ state, lang, actions }) {
+  // 放大中的畫面（peer.id，自己是 'me'）；null 表示所有人並排
+  const [focusedId, setFocusedId] = useState(null);
   if (!state) return null;
   const copy = copyFor(COPY, lang);
   const show = text => (lang !== 'zh' ? translateHrText(text || '', lang) : text || '');
   const { call, incoming, notice } = state;
   const ringing = !call && incoming.length > 0 ? incoming[0] : null;
+  // 7 個畫面以上（自架 SFU 通話最多 20 人）共用 count-7 的可捲動版面
+  const tileCount = call ? Math.min(call.peers.length + 1, 7) : 0;
+  const tileTotal = call ? call.peers.length + 1 : 0;
+  const selectable = tileCount > 1;
+  // 放大的人離開了，就自動回到並排
+  const focused = selectable && focusedId && (focusedId === 'me' || call.peers.some(peer => String(peer.id) === focusedId)) ? focusedId : null;
+  const toggleFocus = id => setFocusedId(current => (current === id ? null : id));
   const status = !call ? '' : call.phase === 'reconnecting' ? copy.reconnecting : call.phase === 'starting' ? (call.everHadPeer ? copy.connecting : copy.calling)
     : !call.everHadPeer && !call.peers.length ? copy.waiting : call.peers.some(peer => peer.state !== 'connected') && call.peers.every(peer => peer.state !== 'connected') ? copy.connecting : copy.inCall(call.peers.length);
   return <>
@@ -124,11 +139,12 @@ export function CallView({ state, lang, actions }) {
         <button type="button" className="hr-call-btn is-accept" onClick={() => actions.accept(ringing, ringing.video)}>{ringing.video ? <Video size={18} /> : <Phone size={18} />}{copy.accept}</button>
       </div>
     </div>}
-    {call && <section className={`hr-call-overlay ${call.peers.length === 1 ? 'is-pip' : ''}`} role="dialog" aria-label={copy.callWindow}>
+    {call && <section className={`hr-call-overlay ${focused ? 'has-focus' : ''}`} role="dialog" aria-label={copy.callWindow}>
       <header className="hr-call-header"><strong>{show(call.title)}</strong><span aria-live="polite">{status}</span></header>
-      <div className={`hr-call-grid count-${Math.min(call.peers.length + 1, 7)}`}>
-        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} />)}
-        <Tile stream={call.localStream} name={copy.me} local media={call.media} copy={copy} />
+      {/* 所有人並排；點某個人的畫面就放大他，其他人縮成下方一排小畫面。只有自己一個人時不用放大。 */}
+      <div className={`hr-call-grid count-${tileCount} ${focused ? 'has-focus' : ''}`} style={focused ? { '--hr-call-others': tileTotal - 1 } : undefined}>
+        {call.peers.map(peer => <Tile key={peer.id} stream={peer.stream} name={peer.name} state={peer.state} speakerOff={!call.speakerOn} media={peer.media} copy={copy} focused={focused === String(peer.id)} onSelect={selectable ? () => toggleFocus(String(peer.id)) : null} />)}
+        <Tile key="me" stream={call.localStream} name={copy.me} local media={call.media} copy={copy} focused={focused === 'me'} onSelect={selectable ? () => toggleFocus('me') : null} />
       </div>
       <footer className="hr-call-controls">
         {call.hasMic && <button type="button" className={`hr-call-round ${call.micOn ? '' : 'is-off'}`} onClick={actions.toggleMic} aria-pressed={!call.micOn} aria-label={call.micOn ? copy.mute : copy.unmute} title={call.micOn ? copy.mute : copy.unmute}>{call.micOn ? <Mic size={22} /> : <MicOff size={22} />}</button>}
@@ -166,6 +182,35 @@ function startRingtone() {
   ring();
   const timer = setInterval(ring, RING_INTERVAL_MS);
   return () => { clearInterval(timer); try { navigator.vibrate?.(0); } catch { /* 不支援震動 */ } };
+}
+
+// 撥出方的等待答鈴：撥出後、還沒有人接聽時，播放電話的「嘟—」回鈴音（440＋480 Hz，響 1 秒、停 2 秒），語音、視訊都一樣。
+// 撥號是點擊動作，AudioContext 已經啟用，所以 iPhone／Safari 也會響。關掉喇叭時不播放。
+export const RINGBACK_FREQUENCIES = [440, 480];
+export const RINGBACK_ON_SECONDS = 1;
+export const RINGBACK_INTERVAL_MS = 3000;
+function startRingback() {
+  const ring = () => {
+    unlockAudio();
+    const context = sharedAudio;
+    if (!context || context.state !== 'running') return;
+    const start = context.currentTime; const end = start + RINGBACK_ON_SECONDS;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.06, start + 0.03);
+    gain.gain.setValueAtTime(0.06, end - 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    gain.connect(context.destination);
+    for (const frequency of RINGBACK_FREQUENCIES) {
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sine'; oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(start); oscillator.stop(end + 0.05);
+    }
+  };
+  ring();
+  const timer = setInterval(ring, RINGBACK_INTERVAL_MS);
+  return () => clearInterval(timer);
 }
 
 // 通話中的提示音：有人加入（往上兩聲）、有人離開或掛斷（往下兩聲）。
@@ -224,6 +269,14 @@ export default function HrCallProvider() {
     const stopRingtone = startRingtone();
     return () => { document.title = original; stopRingtone(); };
   }, [ringing]);
+
+  // 撥出方等待接聽（還沒有任何人加入過）時播放答鈴；有人接聽、掛斷、逾時或關掉喇叭就停止。
+  const call = state?.call;
+  const waitingForAnswer = !!call && call.phase !== 'reconnecting' && !call.everHadPeer && !call.peers.length && call.speakerOn !== false;
+  useEffect(() => {
+    if (!waitingForAnswer) return undefined;
+    return startRingback();
+  }, [waitingForAnswer]);
 
   const inCall = !!state?.call;
   useEffect(() => {

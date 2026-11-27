@@ -12,4 +12,8 @@ export const ORDER_FILTER_EN = {
   '從下方人選中挑選合適的工作者，確認後可回到需求與配對查看推薦人選進度。': 'Choose suitable workers from the candidates below. After confirming, go back to Requests & matching to follow the recommended candidates.',
   '找不到這張需求單。': 'This job order could not be found.',
   '此需求單已進入面試或錄用階段，無法再挑選工作者。': 'This job order is already at the interview or hiring stage, so no more workers can be selected.',
+  '全部收合': 'Collapse all',
+  '全部展開': 'Expand all',
+  '需求內容': 'Order details',
+  '仲介與推薦人選': 'Agencies & recommended candidates',
 };
