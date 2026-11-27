@@ -20,6 +20,7 @@ import { ensureLineLanguageSyncSchema } from '@/lib/hr-line-language-sync';
 import { ensureLogTable as ensureExpiryReminderLog } from '@/lib/hr-expiry-reminders-store';
 import { ensurePushSchema } from '@/lib/hr-call-notify-store';
 import { ensureLineHandoffSchema } from '@/lib/hr-line-handoff-store';
+import { ensureSchemaNormalization } from '@/lib/hr-schema-normalize';
 
 // 順序有相依：核心資料表 → 身分／會員 → 其餘功能。
 export const MIGRATION_STEPS = [
@@ -42,6 +43,8 @@ export const MIGRATION_STEPS = [
   ['expiry-reminder-log', () => ensureExpiryReminderLog()],
   ['push-subscriptions', () => ensurePushSchema()],
   ['line-handoff', () => ensureLineHandoffSchema()],
+  // 放最後：所有資料表都建好之後，才封存舊表、補索引與約束（見 hr-schema-normalize.js）。
+  ['schema-normalize', () => ensureSchemaNormalization(pool)],
 ];
 
 export function runStartupMigrations(options = {}) {

@@ -23,6 +23,26 @@ const OPTIONAL_DOCUMENTS = new Set(WORKER_DOCUMENTS.filter(([, , options]) => op
 
 export const WORKER_DOCUMENT_NAMES = WORKER_DOCUMENTS.map(([name]) => name);
 
+// 每種文件的固定代碼（存在 hr_document_types.key 與 hr_worker_documents.type_key）。
+// 顯示名稱以後可以改字，代碼不變，資料就不會因為改名而對不上。代碼一旦上線就不要再改。
+export const WORKER_DOCUMENT_KEYS = {
+  '新護照': 'passport_new', '舊護照': 'passport_old', 'ARC': 'arc',
+  '國民身分證（EgovPH下載）': 'national_id', 'PSA出生證明（附收據）': 'psa_birth',
+  'PSA結婚證明（附收據）': 'psa_marriage', '子女PSA出生證明（附收據）': 'psa_child_birth',
+  'PSA CENOMAR': 'psa_cenomar', 'CAV／NC2 TESDA': 'tesda_nc2', 'NBI（確認有效期限）': 'nbi_clearance',
+  'E-registration（建立線上資料）': 'e_registration', 'PEOS': 'peos', '照片（2x2 16張及護照尺寸2張）': 'photos',
+  'Voter ID／Voter Certificate': 'voter_id', 'SSS contribution': 'sss_contribution', '體檢 Medical': 'medical',
+  'LCR Form 1-A': 'lcr_form_1a', 'DMW Info Sheet': 'dmw_info_sheet',
+  'Health Card': 'health_card', 'BOI旅行紀錄（單身及已婚）': 'boi_travel_record',
+  '出生逾10年補登證明（洗禮證明；未受洗提供學校紀錄）': 'late_birth_registration', 'TIN ID': 'tin_id',
+  '合約 Contract（掃描檔）': 'contract', '簽證 Visa': 'visa', 'OEC 出國認證': 'oec',
+};
+
+// hr_document_types 的內容（由程式維護，啟動時同步）。
+export const WORKER_DOCUMENT_TYPES = WORKER_DOCUMENTS.map(([name, applicability, options], index) => ({
+  key: WORKER_DOCUMENT_KEYS[name], name, applicability, required: options?.required !== false, sortOrder: index + 1,
+}));
+
 // 初步文件審核：LCR Form 1-A、PSA 出生證明、護照三項中，任兩項核准就算通過（三取二），之後即可安排訓練。
 // 體檢本身（「體檢 Medical」）絕不能放這裡，否則會互相卡死。
 export const ENTRY_GATE_DOCUMENTS = ['LCR Form 1-A', 'PSA出生證明（附收據）', '新護照'];
