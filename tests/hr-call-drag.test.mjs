@@ -24,9 +24,9 @@ test('電腦版拖曳標題列移動視窗；手機版不能拖曳；換一通�
   const css = await read('../src/components/hr-call.css');
   assert.ok(provider.indexOf('const [position, setPosition] = useState(null);') < provider.indexOf('if (!state) return null;'), 'hook 要在 return 之前');
   assert.ok(provider.includes('setPosition(null); dragRef.current = null; }, [callRoomId]);'));
-  assert.ok(provider.includes("style={position ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}"));
-  assert.ok(provider.includes('className="hr-call-header hr-call-drag-handle"') && provider.includes('{...drag}'));
-  assert.ok(provider.includes('setPointerCapture') && provider.includes('onDoubleClick: () => setPosition(null)'));
+  assert.ok(provider.includes("style={position && !pipWindow ? { left: position.x, top: position.y, right: 'auto', bottom: 'auto' } : undefined}"));
+  assert.ok(provider.includes('className="hr-call-header hr-call-drag-handle"') && provider.includes("'aria-label': `${show(call.title)} · ${copy.moveWindow}`, ...drag })}"));
+  assert.ok(provider.includes('setPointerCapture') && provider.includes('onDoubleClick: () => { if (!pipWindow) setPosition(null); }'));
   assert.equal(CALL_DRAG_MIN_WIDTH, 721, '要和手機版 @media (max-width: 720px) 對應');
   assert.ok(css.includes('.hr-call-drag-handle {') && css.includes('cursor: grab; touch-action: none;'));
   const mobile = css.slice(css.indexOf('@media (max-width: 720px)'));
