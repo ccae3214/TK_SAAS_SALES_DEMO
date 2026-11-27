@@ -73,6 +73,7 @@ const UPDATE = {
   'requirement-applicability': name => entry('更新', name, `調整了${name}的適用設定`),
   'worker-resume': name => entry('編輯', name, `更新了${name}工作者的履歷`),
   'job-order-admin-status': (name, body) => entry('更新', name, `將媒合需求單 ${name} 的狀態變更為${statusName(ORDER_STATUS_NAMES, body.status)}`),
+  'test-flag': (name, body) => entry('標記測試資料', name, `將${name}${TYPE_LABELS[body.target] || ''}${body.isTest === true ? '標記為測試資料' : '取消測試資料標記'}`),
 };
 
 // 依操作內容產生「做了什麼」的敘述 { action, name, phrase }；回傳 null 代表不需要記錄。
