@@ -21,3 +21,16 @@ test('提醒文字有英文與 Filipino', async () => {
   assert.ok(translations.includes(`'${ZH}': '${EN}',`));
   assert.ok(TL_DICTIONARY[EN]);
 });
+
+const CARE_ZH = '請填寫完整的照護經驗，有助於雇主和仲介了解工作者的經驗與能力。';
+const CARE_EN = 'Please fill in the complete caregiving experience. It helps employers and agencies understand the worker’s experience and skills.';
+
+test('技能與照護經驗區塊也有醒目提醒（工作者履歷與後台），含英文與 Filipino', async () => {
+  const portal = await read('../src/components/HrMemberPortal.jsx');
+  const admin = await read('../src/components/HrManagement.jsx');
+  assert.ok(portal.includes(`{group.title==='技能與照護經驗'&&<p className="resume-experience-hint" role="note"><Lightbulb size={16} aria-hidden="true"/><span>${CARE_ZH}</span></p>}`));
+  assert.ok(admin.includes(`{group.title==='技能與照護經驗'&&<p className={styles.resumeExperienceHint} role="note"><Lightbulb size={16} aria-hidden="true"/><span>${CARE_ZH}</span></p>}`));
+  assert.ok(portal.includes("title:'技能與照護經驗'") && admin.includes("title:'技能與照護經驗'"), '區塊名稱改了要同步更新提醒條件');
+  assert.ok((await read('../src/lib/hr-translations.jsx')).includes(`'${CARE_ZH}': '${CARE_EN}',`));
+  assert.ok(TL_DICTIONARY[CARE_EN]);
+});
