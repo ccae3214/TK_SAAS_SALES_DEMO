@@ -215,3 +215,7 @@ html {
   0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
   50% { box-shadow: 0 0 40px var(--accent-glow); }
 }
+
+/* 履歷國內外工作經歷的醒目提醒（工作者自己的履歷頁） */
+.resume-experience-hint{display:flex;align-items:flex-start;gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid #f2c94c;border-left:4px solid #e0a100;border-radius:9px;background:#fff8e1;color:#6b4e00;font-size:13px;font-weight:700;line-height:1.5}
+.resume-experience-hint svg{flex:none;margin-top:2px;color:#e0a100}

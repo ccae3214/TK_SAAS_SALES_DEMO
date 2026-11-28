@@ -1042,6 +1042,7 @@ export const TL_DICTIONARY = {
   "Generating…": "Ginagawa…",
   "Resume photo must be a JPG or PNG under 1.5 MB.": "Ang larawan sa resume ay dapat JPG o PNG na wala pang 1.5 MB.",
   "Could not read resume photo.": "Hindi mabasa ang larawan sa resume.",
+  "Please fill in the complete work history. It helps employers and agencies understand the worker’s experience and skills.": "Pakipunan ang kumpletong work history. Makakatulong ito sa mga employer at agency na maunawaan ang karanasan at kakayahan ng manggagawa.",
   "Complete your resume so partner agencies and employers can learn about your skills and work experience.": "Kumpletuhin ang iyong resume para malaman ng mga katuwang na ahensya at employer ang iyong kasanayan at karanasan sa trabaho.",
   "Contact details": "Detalye ng contact",
   "Personal details": "Personal na detalye",
