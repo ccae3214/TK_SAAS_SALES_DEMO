@@ -1,24 +1,40 @@
-// 來電通知的 Service Worker：只負責顯示推播通知與點擊後開啟網站。
+// 來電與聊天訊息通知的 Service Worker：只負責顯示推播通知與點擊後開啟網站。
 // 不攔截任何網路請求、不做快取，所以不會影響網站的載入或更新；
 // 註冊範圍刻意放在沒有頁面的 /hr-push/（推播不需要控制頁面），也不會和網站既有的 /sw.js 衝突。
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
+// 使用者正看著（畫面在前景且有焦點）網站時，聊天訊息不必再跳通知（網頁自己會更新）。
+// 只有 Chrome／Edge 允許這樣略過；Safari 與 Firefox 要求每則推播都顯示通知，否則會停用訂閱，所以那兩種一律顯示。
+const MAY_SKIP_WHEN_VISIBLE = /Chrome|Chromium|Edg\//i.test(self.navigator.userAgent) && !/iPhone|iPad|iPod|Firefox/i.test(self.navigator.userAgent);
+
+async function userIsLooking() {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  return windows.some(client => client.visibilityState === 'visible' && client.focused && new URL(client.url).pathname.startsWith('/hr'));
+}
+
 self.addEventListener('push', event => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data ? event.data.text() : '' }; }
   const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/hr';
-  event.waitUntil(self.registration.showNotification(String(data.title || '📞'), {
+  const isChat = data.kind === 'chat';
+  const options = {
     body: String(data.body || ''),
-    tag: String(data.tag || 'hr-call'), // 同一個聊天室的來電只留一則，重撥時用 renotify 再提醒一次
+    tag: String(data.tag || 'hr-call'), // 同一個聊天室的來電（或訊息）只留一則，重撥／再來訊息時用 renotify 再提醒一次
     renotify: true,
     requireInteraction: true,
     icon: '/icons/icon-192.png',
     vibrate: [300, 150, 300, 150, 300],
     timestamp: Number(data.ts) || Date.now(),
     data: { url, roomId: Number(data.roomId) || 0 },
-  }));
+  };
+  // 聊天訊息比來電不緊急：不要求一定要點掉、震動短一點
+  if (isChat) { options.requireInteraction = false; options.vibrate = [200, 100, 200]; }
+  event.waitUntil((async () => {
+    if (isChat && MAY_SKIP_WHEN_VISIBLE && await userIsLooking()) return;
+    await self.registration.showNotification(String(data.title || (isChat ? '💬' : '📞')), options);
+  })());
 });
 
 self.addEventListener('notificationclick', event => {

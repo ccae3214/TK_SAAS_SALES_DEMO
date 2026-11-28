@@ -61,6 +61,7 @@ services:
       - HR_PUSH_SUBJECT=${HR_PUSH_SUBJECT:-}
       # LINE 備援：fallback（預設，網頁推播沒送到才用 LINE，省每月推播額度）／always（兩種都送）／off（不用 LINE）
       - HR_CALL_LINE_NOTIFY=${HR_CALL_LINE_NOTIFY:-fallback}
+      - HR_CHAT_LINE_NOTIFY=${HR_CHAT_LINE_NOTIFY:-fallback}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}@postgres:5432/${POSTGRES_DB:-kolecion_db}
     depends_on:
       postgres:
