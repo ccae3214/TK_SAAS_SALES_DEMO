@@ -3,6 +3,7 @@
 // 這個檔案不 import '@/…'，所以 node:test 可以直接測試；資料庫與實際送出在 hr-call-notify-store.js。
 
 import { chatRoomLineUrl, chatRoomPath } from './hr-chat-link.js';
+import { translateChatSystemMessage } from './hr-translations-chat.js';
 
 export const RING_WINDOW_SECONDS = 45; // 與信令伺服器的響鈴時間一致；推播過了這段時間就沒有意義，所以 TTL 也用這個值
 export const MAX_NOTIFY_KEYS = 300;
@@ -116,6 +117,43 @@ export function buildCallNotice({ lang = 'zh', from = '', title = '', video = fa
   };
 }
 
+// 聊天室新訊息通知的文字。與來電通知共用推播與 LINE 管道，但不會一直響、也不要求一定要點掉。
+export const CHAT_NOTICE_TTL_SECONDS = 3600; // 訊息不像來電，晚一點收到仍然有用；超過一小時就不再補送
+const CHAT_PREVIEW_LENGTH = 90;
+const CHAT_COPY = {
+  zh: {
+    title: from => (from ? `💬 ${from} 傳來新訊息` : '💬 聊天室有新訊息'),
+    body: (room, preview) => `${room ? `${room}：` : ''}${preview}`,
+    line: (title, room, preview, url) => `${title}\n${room ? `${room}\n` : ''}${preview}\n開啟網站查看並回覆：\n${url}`,
+  },
+  en: {
+    title: from => (from ? `💬 New message from ${from}` : '💬 New chat message'),
+    body: (room, preview) => `${room ? `${room}: ` : ''}${preview}`,
+    line: (title, room, preview, url) => `${title}\n${room ? `${room}\n` : ''}${preview}\nOpen the site to read and reply:\n${url}`,
+  },
+  tl: {
+    title: from => (from ? `💬 Bagong mensahe mula kay ${from}` : '💬 Bagong mensahe sa chat'),
+    body: (room, preview) => `${room ? `${room}: ` : ''}${preview}`,
+    line: (title, room, preview, url) => `${title}\n${room ? `${room}\n` : ''}${preview}\nBuksan ang site para basahin at sumagot:\n${url}`,
+  },
+};
+
+// 一則聊天訊息通知。from 是傳訊息的人；title 是聊天室名稱（私訊時與 from 相同，不重複顯示）；body 是訊息內容（只取前面一段）。
+// 系統訊息（指派、挑選工作者）由伺服器用中文存入，英文／菲律賓語的收件人看到的預覽也會翻譯。
+export function buildChatNotice({ lang = 'zh', from = '', title = '', body = '', roomId = 0, origin = 'https://kolecion.cc' } = {}) {
+  const language = normalizeLanguage(lang);
+  const copy = CHAT_COPY[language];
+  const sender = clean(from, 60);
+  const room = clean(title, 80) === sender ? '' : clean(title, 80);
+  const preview = clean(translateChatSystemMessage(String(body || ''), language), CHAT_PREVIEW_LENGTH);
+  const heading = copy.title(sender);
+  const url = chatRoomLineUrl(origin, roomId);
+  return {
+    push: { kind: 'chat', title: heading, body: copy.body(room, preview), tag: `hr-chat-${Number(roomId) || 0}`, url: chatRoomPath(roomId), roomId: Number(roomId) || 0, callId: '', ts: Date.now() },
+    line: copy.line(heading, room, preview, url),
+  };
+}
+
 export function buildTestNotice(lang = 'zh') {
   const copy = COPY[normalizeLanguage(lang)];
   return { title: copy.test.title, body: copy.test.body, tag: 'hr-call-test', url: '/hr', roomId: 0, callId: '', ts: Date.now() };
@@ -151,7 +189,9 @@ async function mapLimit(items, limit, run) {
 //   sendPush(subscription, payloadString, options)  失敗時丟出帶 statusCode 的錯誤（404／410 代表訂閱已失效）
 //   pushLine(lineUserId, text)
 //   removeSubscription(endpoint)
-export async function dispatchCallNotifications({ keys, call, deps, lineMode = 'fallback', origin, pushEnabled = true }) {
+// build：產生通知文字的函式（預設是來電通知；聊天訊息用 buildChatNotice）。pushOptions：Web Push 的 TTL 與優先順序。
+// deps.lineAllowed(key, call)（可省略）：回傳 false 時這個人這次不送 LINE（用來避免聊天訊息洗掉 LINE 的每月額度）。
+export async function dispatchCallNotifications({ keys, call, deps, lineMode = 'fallback', origin, pushEnabled = true, build = buildCallNotice, pushOptions = { TTL: RING_WINDOW_SECONDS, urgency: 'high' } }) {
   const result = { push: 0, line: 0, failed: 0, removed: 0, recipients: 0 };
   const unique = [...new Set((keys || []).filter(key => typeof key === 'string' && key))].slice(0, MAX_NOTIFY_KEYS);
   if (!unique.length) return result;
@@ -164,9 +204,9 @@ export async function dispatchCallNotifications({ keys, call, deps, lineMode = '
     result.recipients += 1;
     let pushed = 0;
     for (const sub of subs) {
-      const notice = buildCallNotice({ ...call, lang: normalizeLanguage(sub.lang), origin });
+      const notice = build({ ...call, lang: normalizeLanguage(sub.lang), origin });
       try {
-        await deps.sendPush(sub, JSON.stringify(notice.push), { TTL: RING_WINDOW_SECONDS, urgency: 'high' });
+        await deps.sendPush(sub, JSON.stringify(notice.push), pushOptions);
         pushed += 1;
       } catch (error) {
         if (error?.statusCode === 404 || error?.statusCode === 410) {
@@ -176,12 +216,17 @@ export async function dispatchCallNotifications({ keys, call, deps, lineMode = '
       }
     }
     result.push += pushed;
-    if (line && (lineMode === 'always' || pushed === 0)) {
+    if (line && (lineMode === 'always' || pushed === 0) && (!deps.lineAllowed || deps.lineAllowed(key, call))) {
       try {
-        await deps.pushLine(line.lineUserId, buildCallNotice({ ...call, lang: normalizeLanguage(line.language), origin }).line);
+        await deps.pushLine(line.lineUserId, build({ ...call, lang: normalizeLanguage(line.language), origin }).line);
         result.line += 1;
       } catch { result.failed += 1; }
     }
   });
   return result;
+}
+
+// 聊天室新訊息：通知聊天室裡其他人（網頁推播，沒開網頁通知的人視設定改收 LINE）。call 的欄位見 buildChatNotice。
+export function dispatchChatNotifications(options) {
+  return dispatchCallNotifications({ ...options, build: buildChatNotice, pushOptions: { TTL: CHAT_NOTICE_TTL_SECONDS, urgency: 'normal' } });
 }

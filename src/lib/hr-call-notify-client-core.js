@@ -36,18 +36,18 @@ export function urlBase64ToUint8Array(base64) {
 }
 
 const LINE_NOTE = {
-  zh: '已綁定 LINE 的會員，沒開啟網頁通知時，離線來電會改用 LINE 通知。',
-  en: 'Members who have linked LINE will get a LINE message for calls they miss while offline if web notifications are off.',
-  tl: 'Ang mga miyembrong naka-link ang LINE ay makakatanggap ng mensahe sa LINE tungkol sa mga tawag habang offline sila, kung hindi naka-on ang web notifications.',
+  zh: '已綁定 LINE 的會員，沒開啟網頁通知時，離線來電會改用 LINE 通知；新訊息也會改用 LINE 通知，但 10 分鐘內最多一則。',
+  en: 'Members who have linked LINE will get a LINE message for calls they miss while offline if web notifications are off. New chat messages also arrive on LINE, at most one every 10 minutes.',
+  tl: 'Ang mga miyembrong naka-link ang LINE ay makakatanggap ng mensahe sa LINE tungkol sa mga tawag habang offline sila, kung hindi naka-on ang web notifications. Darating din sa LINE ang mga bagong chat message, hanggang isa lang kada 10 minuto.',
 };
 
 export const NOTIFY_COPY = {
   zh: {
-    button: '來電通知', close: '關閉', title: '來電通知',
-    intro: '開啟後，即使網站沒有開著或手機鎖屏，有人撥號給你時也會收到通知，點開就能接聽。',
+    button: '來電與訊息通知', close: '關閉', title: '來電與訊息通知',
+    intro: '開啟後，即使網站沒有開著或手機鎖屏，有人撥號給你或傳來新的聊天訊息時也會收到通知，點開就能接聽或回覆。',
     enable: '開啟來電通知', disable: '關閉來電通知', test: '傳送測試通知', working: '處理中…',
     stateOn: '開啟', stateOff: '關閉',
-    on: '這台裝置已開啟來電通知。', testSent: '已傳送測試通知，請看看是否收到。',
+    on: '這台裝置已開啟來電與訊息通知。', testSent: '已傳送測試通知，請看看是否收到。',
     lineNote: LINE_NOTE.zh,
     insecure: '目前的網址不是安全連線（https），瀏覽器不開放通知。請改用 https 網址開啟本網站。',
     inapp: '應用程式內建的瀏覽器（例如 LINE）不支援通知。請從選單選擇用 Safari 或 Chrome 開啟本網站，再開啟來電通知。',
@@ -58,11 +58,11 @@ export const NOTIFY_COPY = {
     permissionHint: '如果沒看到詢問視窗，請看網址列左邊的通知圖示（Firefox）或網址列下方（Safari），選「允許」。',
   },
   en: {
-    button: 'Call alerts', close: 'Close', title: 'Call notifications',
-    intro: 'Once on, you get a notification when someone calls you, even if the site is closed or your phone is locked. Tap it to answer.',
+    button: 'Call & message alerts', close: 'Close', title: 'Call & message notifications',
+    intro: 'Once on, you get a notification when someone calls you or sends a new chat message, even if the site is closed or your phone is locked. Tap it to answer or reply.',
     enable: 'Turn on call notifications', disable: 'Turn off call notifications', test: 'Send a test notification', working: 'Working…',
     stateOn: 'On', stateOff: 'Off',
-    on: 'Call notifications are on for this device.', testSent: 'A test notification was sent. Check whether it arrived.',
+    on: 'Call and message notifications are on for this device.', testSent: 'A test notification was sent. Check whether it arrived.',
     lineNote: LINE_NOTE.en,
     insecure: 'This page is not on a secure (https) connection, so the browser does not allow notifications. Open the site with its https address.',
     inapp: 'In-app browsers such as LINE do not support notifications. Open this site in Safari or Chrome from the menu, then turn on call notifications.',
@@ -73,11 +73,11 @@ export const NOTIFY_COPY = {
     permissionHint: 'If you do not see a pop-up, look for the notification icon at the left of the address bar (Firefox) or below the address bar (Safari) and choose "Allow".',
   },
   tl: {
-    button: 'Abiso sa tawag', close: 'Isara', title: 'Mga abiso sa tawag',
-    intro: 'Kapag naka-on, makakatanggap ka ng abiso kapag may tumawag sa iyo, kahit sarado ang site o naka-lock ang telepono mo. I-tap ito para sagutin.',
+    button: 'Abiso sa tawag at mensahe', close: 'Isara', title: 'Mga abiso sa tawag at mensahe',
+    intro: 'Kapag naka-on, makakatanggap ka ng abiso kapag may tumawag sa iyo o may bagong mensahe sa chat, kahit sarado ang site o naka-lock ang telepono mo. I-tap ito para sumagot.',
     enable: 'I-on ang mga abiso sa tawag', disable: 'I-off ang mga abiso sa tawag', test: 'Magpadala ng test na abiso', working: 'Pinoproseso…',
     stateOn: 'Naka-on', stateOff: 'Naka-off',
-    on: 'Naka-on ang mga abiso sa tawag sa device na ito.', testSent: 'Naipadala na ang test na abiso. Tingnan kung dumating.',
+    on: 'Naka-on ang mga abiso sa tawag at mensahe sa device na ito.', testSent: 'Naipadala na ang test na abiso. Tingnan kung dumating.',
     lineNote: LINE_NOTE.tl,
     insecure: 'Hindi secure (https) ang koneksyon ng page na ito, kaya hindi pinapayagan ng browser ang mga abiso. Buksan ang site gamit ang https address nito.',
     inapp: 'Hindi sinusuportahan ng mga in-app browser (tulad ng LINE) ang mga abiso. Buksan ang site na ito sa Safari o Chrome mula sa menu, saka i-on ang mga abiso sa tawag.',

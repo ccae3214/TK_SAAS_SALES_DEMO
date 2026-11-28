@@ -1,7 +1,7 @@
 import pool, { query } from '@/lib/db';
 import { migrateOnce } from './migrate-once.js';
 import {
-  RING_WINDOW_SECONDS, adminLineLookups, createRateLimiter, dispatchCallNotifications, lineModeFrom, normalizeLanguage, publicOrigin, vapidSubject,
+  RING_WINDOW_SECONDS, adminLineLookups, createRateLimiter, dispatchCallNotifications, dispatchChatNotifications, lineModeFrom, normalizeLanguage, publicOrigin, vapidSubject,
 } from './hr-call-notify-core.js';
 import { normalizeVapidPrivateKey, normalizeVapidPublicKey } from './vapid-key.js';
 
@@ -123,6 +123,36 @@ export async function notifyCall(call, env = process.env) {
   return dispatchCallNotifications({
     keys, call, lineMode, pushEnabled, origin: publicOrigin(env),
     deps: { subscriptionsFor, lineTargetsFor: targetKeys => lineTargetsFor(targetKeys, env), sendPush: (sub, payload, options) => sendWebPush(sub, payload, options, env), pushLine, removeSubscription },
+  });
+}
+
+// 聊天室新訊息通知。message：{ roomId, title, from, body, keys }（keys 是聊天室裡「除了傳訊息的人以外」的人）。
+// 頻率限制：同一個人在同一個聊天室一分鐘內最多 4 則推播（連續打字不洗版，同一個聊天室的通知會合併成一則）。
+// LINE 有每月推播額度，所以訊息的 LINE 通知預設只在沒有網頁推播時才送，而且同一個人 10 分鐘內最多一則；
+// HR_CHAT_LINE_NOTIFY：fallback（預設）／always／off。
+const chatLimiter = createRateLimiter({ windowMs: 60000, max: 4 });
+const CHAT_LINE_COOLDOWN_MS = 10 * 60 * 1000;
+const chatLineSent = new Map();
+
+function chatLineAllowed(key, now = Date.now()) {
+  const last = chatLineSent.get(key) || 0;
+  if (now - last < CHAT_LINE_COOLDOWN_MS) return false;
+  chatLineSent.set(key, now);
+  if (chatLineSent.size > 5000) for (const [id, time] of chatLineSent) if (now - time >= CHAT_LINE_COOLDOWN_MS) chatLineSent.delete(id);
+  return true;
+}
+
+export async function notifyChat(message, env = process.env) {
+  const pushEnabled = pushConfigured(env);
+  const lineMode = env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ? lineModeFrom({ HR_CALL_LINE_NOTIFY: env.HR_CHAT_LINE_NOTIFY || 'fallback' }) : 'off';
+  if (!pushEnabled && lineMode === 'off') return null;
+  const keys = (message.keys || []).filter(key => chatLimiter.allow(`${key}|${message.roomId}`));
+  return dispatchChatNotifications({
+    keys, call: message, lineMode, pushEnabled, origin: publicOrigin(env),
+    deps: {
+      subscriptionsFor, lineTargetsFor: targetKeys => lineTargetsFor(targetKeys, env), sendPush: (sub, payload, options) => sendWebPush(sub, payload, options, env),
+      pushLine, removeSubscription, lineAllowed: key => chatLineAllowed(key),
+    },
   });
 }
 

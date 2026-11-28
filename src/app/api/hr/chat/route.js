@@ -7,6 +7,7 @@ import { listFriends, memberChatKey, rememberAdminIdentity } from '@/lib/hr-chat
 import { trainingCenterIdOf } from '@/lib/hr-training-center-scope';
 import { query } from '@/lib/db';
 import { requestIsSameOrigin } from '@/lib/request-origin';
+import { notifyChat } from '@/lib/hr-call-notify-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,31 @@ async function accessibleRoom(roomId, principal, session) {
       ))
     )`,[roomId,principal.role,principal.agency_id||null,principal.worker_id||null,principal.employer_id||null,principal.agency_type||null,principal.role==='training_center'?trainingCenterIdOf(principal):principal.id||null,readerKey]);
   return result[0]||null;
+}
+
+// 新訊息的通知對象：群組是聊天室成員（與「群組會員」清單、來電響鈴對象相同），私訊是對方；不含傳訊息的人。
+async function recipientKeys(room,senderKey) {
+  if(room.room_type==='direct'){
+    const rows=await query('SELECT participant_key FROM hr_chat_participants WHERE room_id=$1',[room.id]);
+    return rows.map(row=>row.participant_key).filter(key=>key!==senderKey);
+  }
+  const rows=room.room_type==='agency'
+    ? await query('SELECT m.id FROM hr_members m WHERE m.active=TRUE AND m.agency_id=$1',[room.agency_id])
+    : room.room_type==='training_center'
+    ? await query(`SELECT DISTINCT m.id FROM hr_members m WHERE m.active=TRUE AND (${TRAINING_CENTER_MEMBER_SQL})`,[room.center_id])
+    : await query('SELECT DISTINCT m.id FROM hr_members m LEFT JOIN hr_cases c ON c.id=$1 LEFT JOIN hr_workers w ON w.id=c.worker_id LEFT JOIN hr_employers e ON e.id=c.employer_id WHERE m.active=TRUE AND (m.worker_id=c.worker_id OR m.employer_id=c.employer_id OR m.agency_id=e.agency_id OR m.agency_id=w.agency_id)',[room.case_id]);
+  return rows.map(row=>`member:${row.id}`).filter(key=>key!==senderKey);
+}
+// 通知失敗不影響訊息送出：只記 log。
+function notifyNewMessage(room,principal,session,message) {
+  const senderKey=getReaderKey(principal,session);
+  (async()=>{
+    const keys=await recipientKeys(room,senderKey);
+    if(!keys.length)return;
+    const from=message.sender_name;
+    const title=room.room_type==='direct'?from:presentRoom(room).title;
+    await notifyChat({roomId:Number(room.id),title,from,body:message.body,keys});
+  })().catch(error=>console.error('hr_chat_notify_failed',error?.code||error?.name||'Error'));
 }
 
 function presentRoom(room,lastMessage) {
@@ -196,6 +222,7 @@ export async function POST(request) {
     [roomId,principal.id||null,principal.name||session.user.name||'管理者',principal.role,message]);
     await query(`INSERT INTO hr_chat_reads(reader_key,room_id,last_read_message_id) VALUES($1,$2,$3)
       ON CONFLICT(reader_key,room_id) DO UPDATE SET last_read_message_id=GREATEST(hr_chat_reads.last_read_message_id,EXCLUDED.last_read_message_id),updated_at=NOW()`,[getReaderKey(principal,session),roomId,inserted[0].id]);
+    notifyNewMessage(room,principal,session,inserted[0]);
     return NextResponse.json(inserted[0],{status:201});
   } catch(error) {
     if(error instanceof SyntaxError)return NextResponse.json({error:'訊息格式不正確。'},{status:400});
